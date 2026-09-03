@@ -254,28 +254,33 @@ export default function PlannerApp() {
         };
     }, [themeMode]);
 
-    // --- NATIVE REACT KEYBOARD FIX ---
+    // --- iOS KEYBOARD LIFT FIX ---
     useEffect(() => {
         if (typeof window === 'undefined' || !window.visualViewport) return;
 
         const handleResize = () => {
-            const diff = window.innerHeight - window.visualViewport!.height;
+            const viewport = window.visualViewport;
+            if (!viewport) return;
+            const diff = window.innerHeight - viewport.height;
             setKbHeight(Math.max(0, diff));
         };
 
         window.visualViewport.addEventListener('resize', handleResize);
+        window.visualViewport.addEventListener('scroll', handleResize);
+
         const handleFocus = (e: FocusEvent) => {
             const target = e.target as HTMLElement;
             if (target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) {
                 setTimeout(() => {
                     target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 400);
+                }, 300);
             }
         };
 
         document.addEventListener('focusin', handleFocus);
         return () => {
             window.visualViewport?.removeEventListener('resize', handleResize);
+            window.visualViewport?.removeEventListener('scroll', handleResize);
             document.removeEventListener('focusin', handleFocus);
         };
     }, []);
@@ -1018,7 +1023,7 @@ export default function PlannerApp() {
 
             {/* QUICK ADD BAR (SLIDES UP WITH KEYBOARD) */}
             {(tab !== 'goals') && !isAdding && !editingItem && !splittingItem && !isEditingBudgets && (
-                <div className="quick-add-container fade-in" style={{ transform: `translateY(-${kbHeight}px)`, transition: 'transform 0.2s ease-out' }}>
+                <div className="quick-add-container fade-in" style={{ paddingBottom: `${kbHeight}px`, transition: 'padding-bottom 0.25s ease-out' }}>
                     <div className="quick-add-box">
                         <button className="btn-icon" onClick={startListening} style={{color: isListening ? 'var(--red)' : 'var(--text-light)'}} title="Use Voice">
                             <IconMic />
@@ -1047,8 +1052,8 @@ export default function PlannerApp() {
 
             {/* BUDGET EDIT MODAL */}
             {isEditingBudgets && (
-                <div className="modal-overlay" onClick={() => setIsEditingBudgets(false)}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveBudgets} style={{paddingBottom: `calc(24px + env(safe-area-inset-bottom) + ${kbHeight}px)`, transition: 'padding-bottom 0.2s ease-out'}}>
+                <div className="modal-overlay" onClick={() => setIsEditingBudgets(false)} style={{paddingBottom: `${kbHeight}px`, transition: 'padding-bottom 0.25s ease-out'}}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveBudgets}>
                         <div className="input-title" style={{fontSize: '22px', marginBottom: '16px', fontWeight: 800}}>{budgetEditScope === 'daily' ? 'Edit Daily Limit' : budgetEditScope === 'monthly' ? 'Edit Monthly Limit' : 'Edit Budgets'}</div>
                         <div className="ios-list">
                             {(budgetEditScope === 'all' || budgetEditScope === 'daily') && <div className="ios-list-item" style={{backgroundColor: 'var(--bg)'}}>
@@ -1084,8 +1089,8 @@ export default function PlannerApp() {
 
             {/* SPLIT EXPENSE MODAL */}
             {splittingItem && (
-                <div className="modal-overlay" onClick={() => setSplittingItem(null)}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveSplit} style={{paddingBottom: `calc(24px + env(safe-area-inset-bottom) + ${kbHeight}px)`, transition: 'padding-bottom 0.2s ease-out'}}>
+                <div className="modal-overlay" onClick={() => setSplittingItem(null)} style={{paddingBottom: `${kbHeight}px`, transition: 'padding-bottom 0.25s ease-out'}}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveSplit}>
                         <div style={{fontSize: '22px', fontWeight: 800, marginBottom: '4px'}}>Split expense</div>
                         <div style={{color: 'var(--text-light)', fontSize: '13px', marginBottom: '16px'}}>{splittingItem.title} · ₹{splittingItem.amount}</div>
                         <SplitEditor
@@ -1101,8 +1106,8 @@ export default function PlannerApp() {
 
             {/* ADD MODAL */}
             {isAdding && (
-                <div className="modal-overlay" onClick={() => setIsAdding(false)}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveFull} style={{paddingBottom: `calc(24px + env(safe-area-inset-bottom) + ${kbHeight}px)`, transition: 'padding-bottom 0.2s ease-out'}}>
+                <div className="modal-overlay" onClick={() => setIsAdding(false)} style={{paddingBottom: `${kbHeight}px`, transition: 'padding-bottom 0.25s ease-out'}}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveFull}>
                         <div className="segment-control">
                             <div className={`segment-btn ${addType === 'task' ? 'active' : ''}`} onClick={() => setAddType('task')}>Task</div>
                             <div className={`segment-btn ${addType === 'expense' ? 'active' : ''}`} onClick={() => setAddType('expense')}>Expense</div>
@@ -1152,8 +1157,8 @@ export default function PlannerApp() {
 
             {/* EDIT MODAL */}
             {editingItem && (
-                <div className="modal-overlay" onClick={() => setEditingItem(null)}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveEdit} style={{paddingBottom: `calc(24px + env(safe-area-inset-bottom) + ${kbHeight}px)`, transition: 'padding-bottom 0.2s ease-out'}}>
+                <div className="modal-overlay" onClick={() => setEditingItem(null)} style={{paddingBottom: `${kbHeight}px`, transition: 'padding-bottom 0.25s ease-out'}}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveEdit}>
                         <div style={{fontSize: '22px', fontWeight: 800, marginBottom: '16px'}}>Edit {editingItem.type === 'goal' ? 'Goal' : editingItem.type === 'expense' ? 'Expense' : editingItem.type === 'income' ? 'Income' : 'Task'}</div>
                         <input
                             type="text"
