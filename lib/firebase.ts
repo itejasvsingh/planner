@@ -2,26 +2,21 @@ import firebase from 'firebase/compat/app';
 import 'firebase/compat/firestore';
 
 const firebaseConfig = {
-    apiKey: "AIzaSyDSIN2F2sDc-vB_S7ITCMnKILbr9l-r6co",
-    authDomain: "planner-app-3471f.firebaseapp.com",
-    projectId: "planner-app-3471f",
-    storageBucket: "planner-app-3471f.firebasestorage.app",
-    messagingSenderId: "817744322906",
-    appId: "1:817744322906:web:35d264cd7079a211749363"
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    // Add your other config variables here if you have them (storageBucket, etc.)
 };
 
-// Prevent Next.js from initializing Firebase multiple times during hot-reloads
-if (!firebase.apps.length) {
-    firebase.initializeApp(firebaseConfig);
-}
+// Initialize Firebase using the Compat layer
+const app = !firebase.apps.length ? firebase.initializeApp(firebaseConfig) : firebase.app();
+const db = app.firestore();
 
-const db = firebase.firestore();
-
-// Enable offline persistence (only run this in the browser, not on the server)
+// Enable offline caching
 if (typeof window !== 'undefined') {
-    db.enablePersistence({ synchronizeTabs: true }).catch(error => {
-        console.warn('Offline persistence unavailable:', error.code);
+    db.enablePersistence().catch((err) => {
+        console.error("Firebase persistence error:", err);
     });
 }
 
-export { db };
+export { app, db, firebase };
