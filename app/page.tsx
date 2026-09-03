@@ -150,7 +150,8 @@ export default function PlannerApp() {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [themeMode, setThemeMode] = useState('system');
     const [darkMode, setDarkMode] = useState(false);
-    // --- EXACT iOS KEYBOARD FIX ---
+    // --- HOLY GRAIL iOS KEYBOARD FIX ---
+    const [vpStyle, setVpStyle] = useState({ height: '100dvh', top: '0px' });
     const [kbHeight, setKbHeight] = useState(0);
 
     // Initial load from localStorage
@@ -259,14 +260,29 @@ export default function PlannerApp() {
         if (typeof window === 'undefined' || !window.visualViewport) return;
 
         const handleResize = () => {
-            const viewport = window.visualViewport;
-            if (!viewport) return;
-            const diff = window.innerHeight - viewport.height;
+            const vv = window.visualViewport;
+            if (!vv) return;
+            setVpStyle({ height: `${vv.height}px`, top: `${vv.offsetTop}px` });
+            const diff = window.innerHeight - vv.height;
             setKbHeight(Math.max(0, diff));
         };
 
+        const handleFocus = (e: FocusEvent) => {
+            const target = e.target as HTMLElement;
+            if (target && ['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) {
+                setTimeout(() => target.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 150);
+            }
+        };
+
         window.visualViewport.addEventListener('resize', handleResize);
-        return () => window.visualViewport?.removeEventListener('resize', handleResize);
+        window.visualViewport.addEventListener('scroll', handleResize);
+        document.addEventListener('focusin', handleFocus);
+        handleResize();
+        return () => {
+            window.visualViewport?.removeEventListener('resize', handleResize);
+            window.visualViewport?.removeEventListener('scroll', handleResize);
+            document.removeEventListener('focusin', handleFocus);
+        };
     }, []);
 
     const changeTheme = (mode: string) => {
@@ -1036,8 +1052,8 @@ export default function PlannerApp() {
 
             {/* BUDGET EDIT MODAL */}
             {isEditingBudgets && (
-                <div className="modal-overlay" onClick={() => setIsEditingBudgets(false)}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveBudgets} style={{paddingBottom: kbHeight > 0 ? `${kbHeight}px` : 'calc(24px + env(safe-area-inset-bottom))', transition: 'padding-bottom 0.1s ease-out'}}>
+                <div className="modal-overlay" onClick={() => setIsEditingBudgets(false)} style={{...vpStyle, bottom: 'auto'}}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveBudgets}>
                         <div className="input-title" style={{fontSize: '22px', marginBottom: '16px', fontWeight: 800}}>{budgetEditScope === 'daily' ? 'Edit Daily Limit' : budgetEditScope === 'monthly' ? 'Edit Monthly Limit' : 'Edit Budgets'}</div>
                         <div className="ios-list">
                             {(budgetEditScope === 'all' || budgetEditScope === 'daily') && <div className="ios-list-item" style={{backgroundColor: 'var(--bg)'}}>
@@ -1073,8 +1089,8 @@ export default function PlannerApp() {
 
             {/* SPLIT EXPENSE MODAL */}
             {splittingItem && (
-                <div className="modal-overlay" onClick={() => setSplittingItem(null)}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveSplit} style={{paddingBottom: kbHeight > 0 ? `${kbHeight}px` : 'calc(24px + env(safe-area-inset-bottom))', transition: 'padding-bottom 0.1s ease-out'}}>
+                <div className="modal-overlay" onClick={() => setSplittingItem(null)} style={{...vpStyle, bottom: 'auto'}}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveSplit}>
                         <div style={{fontSize: '22px', fontWeight: 800, marginBottom: '4px'}}>Split expense</div>
                         <div style={{color: 'var(--text-light)', fontSize: '13px', marginBottom: '16px'}}>{splittingItem.title} · ₹{splittingItem.amount}</div>
                         <SplitEditor
@@ -1090,8 +1106,8 @@ export default function PlannerApp() {
 
             {/* ADD MODAL */}
             {isAdding && (
-                <div className="modal-overlay" onClick={() => setIsAdding(false)}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveFull} style={{paddingBottom: kbHeight > 0 ? `${kbHeight}px` : 'calc(24px + env(safe-area-inset-bottom))', transition: 'padding-bottom 0.1s ease-out'}}>
+                <div className="modal-overlay" onClick={() => setIsAdding(false)} style={{...vpStyle, bottom: 'auto'}}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveFull}>
                         <div className="segment-control">
                             <div className={`segment-btn ${addType === 'task' ? 'active' : ''}`} onClick={() => setAddType('task')}>Task</div>
                             <div className={`segment-btn ${addType === 'expense' ? 'active' : ''}`} onClick={() => setAddType('expense')}>Expense</div>
@@ -1141,8 +1157,8 @@ export default function PlannerApp() {
 
             {/* EDIT MODAL */}
             {editingItem && (
-                <div className="modal-overlay" onClick={() => setEditingItem(null)}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveEdit} style={{paddingBottom: kbHeight > 0 ? `${kbHeight}px` : 'calc(24px + env(safe-area-inset-bottom))', transition: 'padding-bottom 0.1s ease-out'}}>
+                <div className="modal-overlay" onClick={() => setEditingItem(null)} style={{...vpStyle, bottom: 'auto'}}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveEdit}>
                         <div style={{fontSize: '22px', fontWeight: 800, marginBottom: '16px'}}>Edit {editingItem.type === 'goal' ? 'Goal' : editingItem.type === 'expense' ? 'Expense' : editingItem.type === 'income' ? 'Income' : 'Task'}</div>
                         <input
                             type="text"
