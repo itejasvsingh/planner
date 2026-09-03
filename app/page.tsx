@@ -1034,7 +1034,7 @@ export default function PlannerApp() {
 
             {/* QUICK ADD BAR (SLIDES UP WITH KEYBOARD) */}
             {(tab !== 'goals') && !isAdding && !editingItem && !splittingItem && !isEditingBudgets && (
-                <div className="quick-add-container fade-in" style={{ transform: `translateY(calc(-1 * var(--kb-height, 0px)))`, transition: 'transform 0.2s ease-out' }}>
+                <div className="quick-add-container fade-in" style={{ bottom: 'calc(65px + env(safe-area-inset-bottom))', transform: `translateY(calc(-1 * var(--kb-height, 0px)))`, transition: 'transform 0.2s ease-out' }}>
                     <div className="quick-add-box">
                         <button className="btn-icon" onClick={startListening} style={{color: isListening ? 'var(--red)' : 'var(--text-light)'}} title="Use Voice">
                             <IconMic />
