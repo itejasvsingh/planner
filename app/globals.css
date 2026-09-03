@@ -129,7 +129,7 @@ input, select, textarea, button { font-family: inherit; appearance: none; -webki
 .btn-settle { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 8px 14px; border-radius: 10px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
 .btn-settle:active { background: var(--bg); }
 
-.quick-add-container { position: fixed; bottom: calc(65px + env(safe-area-inset-bottom)); left: 0; right: 0; padding: 12px 20px; background: transparent; z-index: 99; }
+.quick-add-container { position: fixed; bottom: calc(65px + env(safe-area-inset-bottom) + var(--kb-height, 0px)); left: 0; right: 0; padding: 12px 20px; background: transparent; z-index: 99; transition: bottom 0.2s ease-out; }
 .quick-add-box { background: var(--surface); border-radius: 20px; padding: 6px; display: flex; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 1px solid rgba(0,0,0,0.05); }
 .quick-add-input { flex: 1; border: none; outline: none; font-size: 16px; background: transparent; padding: 10px 12px; color: var(--text); font-weight: 500; }
 .quick-add-input::placeholder { color: #C7C7CC; }
