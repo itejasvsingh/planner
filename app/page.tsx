@@ -123,6 +123,7 @@ export default function PlannerApp() {
     
     const [budgetLimits, setBudgetLimits] = useState<any>(DEFAULT_BUDGET_LIMITS);
     const [isEditingBudgets, setIsEditingBudgets] = useState(false);
+    const [budgetEditScope, setBudgetEditScope] = useState<'all' | 'daily' | 'monthly'>('all');
     const [tempBudgets, setTempBudgets] = useState<any>({});
     const [newCatName, setNewCatName] = useState('');
 
@@ -251,6 +252,29 @@ export default function PlannerApp() {
             else mediaQuery.removeListener(updateTheme);
         };
     }, [themeMode]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.visualViewport) return;
+
+        const handleResize = () => {
+            const viewport = window.visualViewport;
+            if (!viewport) return;
+            const keyboardHeight = window.innerHeight - viewport.height;
+            document.documentElement.style.setProperty('--kb-height', `${Math.max(0, keyboardHeight)}px`);
+        };
+
+        window.visualViewport.addEventListener('resize', handleResize);
+        handleResize();
+
+        return () => window.visualViewport?.removeEventListener('resize', handleResize);
+    }, []);
+
+    const handleInputFocus = (e: React.FocusEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const target = e.target;
+        setTimeout(() => {
+            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 300);
+    };
 
     const changeTheme = (mode: string) => {
         setThemeMode(mode);
@@ -404,12 +428,13 @@ export default function PlannerApp() {
         setEditingItem(null);
     }
 
-    const handleOpenBudgetEdit = () => {
+    const handleOpenBudgetEdit = (scope: 'all' | 'daily' | 'monthly' = 'all') => {
         const combined = { ...budgetLimits };
         Object.keys(categorySpend).forEach(tag => { if (combined[tag] === undefined) combined[tag] = 5000; });
         if (combined['MONTHLY'] === undefined) combined['MONTHLY'] = 20000;
         if (combined['DAILY'] === undefined) combined['DAILY'] = 1000;
         setTempBudgets(combined);
+        setBudgetEditScope(scope);
         setIsEditingBudgets(true);
     };
 
@@ -513,6 +538,8 @@ export default function PlannerApp() {
 
     const monthPrefix = formatDateKey(new Date()).substring(0, 7);
     const todayKey = formatDateKey(new Date());
+    const todayTransactions = allTransactions.filter(item => (item.date || item.dueDate || '') === todayKey);
+    const olderTransactions = allTransactions.filter(item => (item.date || item.dueDate || '') !== todayKey);
 
     allTransactions.forEach(item => {
         const d = item.date || item.dueDate || '';
@@ -538,10 +565,10 @@ export default function PlannerApp() {
     const netMonthSpend = monthExp - monthInc;
     const netDaySpend = dayExp - dayInc;
     
-    const monthlyLimit = budgetLimits['MONTHLY'] || 20000;
-    const dailyLimit = budgetLimits['DAILY'] || 1000;
-    const monthlyRemaining = Math.max(0, monthlyLimit - netMonthSpend);
-    const dailyRemaining = Math.max(0, dailyLimit - netDaySpend);
+    const monthlyLimit = budgetLimits['MONTHLY'] ?? 20000;
+    const dailyLimit = budgetLimits['DAILY'] ?? 1000;
+    const monthlyRemaining = monthlyLimit - netMonthSpend;
+    const dailyRemaining = dailyLimit - netDaySpend;
 
     const getBudgetClass = (spent: number, limit: number) => {
         const pct = spent / limit;
@@ -602,6 +629,31 @@ export default function PlannerApp() {
         if (prio === 'low') return 'block-prio-low';
         return '';
     }
+
+    const renderTransaction = (item: any) => (
+        <SwipeAction key={item.id} onDelete={() => deleteItem(item.id)}>
+            <div className={`task-card ${item.type === 'income' ? 'income-card' : 'expense-card'}`} onClick={() => setEditingItem(item)}>
+                <div className={`icon-box ${item.type === 'income' ? 'green' : 'red'}`}>{item.type === 'income' ? <IconTrendingUp /> : <IconWallet />}</div>
+                <div className="task-content">
+                    <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                        <span className="task-title">{item.title}</span>
+                        <span className={item.type === 'income' ? 'income-amount' : 'expense-amount'}>{item.type === 'income' ? '+' : '-'}₹{item.amount}</span>
+                    </div>
+                    <div className="expense-date">{new Date(item.date || item.dueDate || Date.now()).toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'})}</div>
+                    {item.splits && item.splits.length > 0 && (
+                        <div style={{marginTop: '4px'}}>
+                            {item.splits.map((s: any, idx: number) => (
+                                <span key={idx} className={`split-tag ${s.settled ? 'settled' : ''}`} onClick={(e) => { e.stopPropagation(); toggleSplit(item.id, idx, item.splits); }}>
+                                    {s.settled ? '✅' : '🔄'} {s.name} owes ₹{s.share}
+                                </span>
+                            ))}
+                        </div>
+                    )}
+                    {item.type === 'expense' && <button type="button" className="split-action" onClick={(e) => { e.stopPropagation(); setSplittingItem(item); }}>Split{item.splits?.length ? ` (${item.splits.length})` : ''}</button>}
+                </div>
+            </div>
+        </SwipeAction>
+    );
 
     return (
         <div className={`safe-bottom ${darkMode ? 'dark-mode' : ''}`}>
@@ -825,7 +877,7 @@ export default function PlannerApp() {
                             <h1 className="title">Finance</h1>
                             <div className="date-sub">Daily & Monthly Net</div>
                         </div>
-                        <button onClick={handleOpenBudgetEdit} aria-label="Edit budgets" title="Edit budgets" style={{background: 'var(--surface)', border: 'none', color: 'var(--blue)', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow)', cursor: 'pointer'}}><IconEdit /></button>
+                        <button onClick={() => handleOpenBudgetEdit()} aria-label="Edit budgets" title="Edit budgets" style={{background: 'var(--surface)', border: 'none', color: 'var(--blue)', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow)', cursor: 'pointer'}}><IconEdit /></button>
                     </div>
 
                     <div className="finance-shell">
@@ -881,39 +933,22 @@ export default function PlannerApp() {
                         {financeView === 'transactions' && (
                         <>
                         <div className="finance-budget-grid">
-                            <div className="finance-budget-card"><div className="finance-budget-label">Today available</div><div className="finance-budget-available">₹{dailyRemaining.toLocaleString('en-IN')}</div><div className="finance-budget-detail"><span className="expense-value">-₹{dayExp.toLocaleString('en-IN')}</span><span className="income-value">+₹{dayInc.toLocaleString('en-IN')}</span></div></div>
-                            <div className="finance-budget-card"><div className="finance-budget-label">Month available</div><div className="finance-budget-available">₹{monthlyRemaining.toLocaleString('en-IN')}</div><div className="finance-budget-detail"><span className="expense-value">-₹{monthExp.toLocaleString('en-IN')}</span><span className="income-value">+₹{monthInc.toLocaleString('en-IN')}</span></div></div>
+                            <div className="finance-budget-card" onClick={() => handleOpenBudgetEdit('daily')} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleOpenBudgetEdit('daily'); }} title="Edit daily limit"><div className="finance-budget-label">Today available</div><div className={`finance-budget-available ${dailyRemaining < 0 ? 'negative' : ''}`}>₹{dailyRemaining.toLocaleString('en-IN')}</div><div className="finance-budget-detail"><span className="expense-value">-₹{dayExp.toLocaleString('en-IN')}</span><span className="income-value">+₹{dayInc.toLocaleString('en-IN')}</span></div></div>
+                            <div className="finance-budget-card" onClick={() => handleOpenBudgetEdit('monthly')} role="button" tabIndex={0} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleOpenBudgetEdit('monthly'); }} title="Edit monthly limit"><div className="finance-budget-label">Month available</div><div className={`finance-budget-available ${monthlyRemaining < 0 ? 'negative' : ''}`}>₹{monthlyRemaining.toLocaleString('en-IN')}</div><div className="finance-budget-detail"><span className="expense-value">-₹{monthExp.toLocaleString('en-IN')}</span><span className="income-value">+₹{monthInc.toLocaleString('en-IN')}</span></div></div>
                         </div>
                         <section className="finance-section finance-transactions">
-                            <div className="finance-section-head"><h2 className="finance-section-title">Recent activity</h2><span className="finance-section-note">{allTransactions.length} entries</span></div>
-                            {allTransactions.length === 0 && <div className="finance-empty">No transactions logged.</div>}
+                            <div className="finance-section-head"><h2 className="finance-section-title">Recent activity</h2><span className="finance-section-note">{todayTransactions.length} entries</span></div>
+                            {todayTransactions.length === 0 && <div className="finance-empty">No transactions today.</div>}
                             <div className="list-container" style={{padding: 0, marginTop: 0}}>
-                                {allTransactions.map(item => (
-                                    <SwipeAction key={item.id} onDelete={() => deleteItem(item.id)}>
-                                        <div className={`task-card ${item.type === 'income' ? 'income-card' : 'expense-card'}`} onClick={() => setEditingItem(item)}>
-                                            <div className={`icon-box ${item.type === 'income' ? 'green' : 'red'}`}>{item.type === 'income' ? <IconTrendingUp /> : <IconWallet />}</div>
-                                            <div className="task-content">
-                                                <div style={{display: 'flex', justifyContent: 'space-between'}}>
-                                                    <span className="task-title">{item.title}</span>
-                                                    <span className={item.type === 'income' ? 'income-amount' : 'expense-amount'}>{item.type === 'income' ? '+' : '-'}₹{item.amount}</span>
-                                                </div>
-                                                <div className="expense-date">{new Date(item.date || item.dueDate || Date.now()).toLocaleDateString('en-US', {weekday: 'short', month: 'short', day: 'numeric'})}</div>
-                                                {item.splits && item.splits.length > 0 && (
-                                                    <div style={{marginTop: '4px'}}>
-                                                        {item.splits.map((s: any, idx: number) => (
-                                                            <span key={idx} className={`split-tag ${s.settled ? 'settled' : ''}`} onClick={(e) => { e.stopPropagation(); toggleSplit(item.id, idx, item.splits); }}>
-                                                                {s.settled ? '✅' : '🔄'} {s.name} owes ₹{s.share}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                                {item.type === 'expense' && <button type="button" className="split-action" onClick={(e) => { e.stopPropagation(); setSplittingItem(item); }}>Split{item.splits?.length ? ` (${item.splits.length})` : ''}</button>}
-                                            </div>
-                                        </div>
-                                    </SwipeAction>
-                                ))}
+                                {todayTransactions.map(renderTransaction)}
                             </div>
                         </section>
+                        {olderTransactions.length > 0 && <section className="finance-section finance-transactions" style={{marginTop: '20px'}}>
+                            <div className="finance-section-head"><h2 className="finance-section-title">Earlier activity</h2><span className="finance-section-note">{olderTransactions.length} entries</span></div>
+                            <div className="list-container" style={{padding: 0, marginTop: 0}}>
+                                {olderTransactions.map(renderTransaction)}
+                            </div>
+                        </section>}
                         </>
                         )}
                     </div>
@@ -1009,21 +1044,21 @@ export default function PlannerApp() {
             {/* BUDGET EDIT MODAL */}
             {isEditingBudgets && (
                 <div className="modal-overlay" onClick={() => setIsEditingBudgets(false)}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveBudgets}>
-                        <div className="input-title" style={{fontSize: '22px', marginBottom: '16px', fontWeight: 800}}>Edit Budgets</div>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveBudgets} style={{paddingBottom: 'calc(24px + env(safe-area-inset-bottom) + var(--kb-height, 0px))', transition: 'padding-bottom 0.2s ease-out'}}>
+                        <div className="input-title" style={{fontSize: '22px', marginBottom: '16px', fontWeight: 800}}>{budgetEditScope === 'daily' ? 'Edit Daily Limit' : budgetEditScope === 'monthly' ? 'Edit Monthly Limit' : 'Edit Budgets'}</div>
                         <div className="ios-list">
-                            <div className="ios-list-item" style={{backgroundColor: 'var(--bg)'}}>
+                            {(budgetEditScope === 'all' || budgetEditScope === 'daily') && <div className="ios-list-item" style={{backgroundColor: 'var(--bg)'}}>
                                 <div className="ios-list-label" style={{color: 'var(--purple)'}}>Daily Net Limit</div>
                                 <span style={{color: 'var(--purple)', fontWeight: '800', marginRight: '4px'}}>₹</span>
-                                <input type="number" inputMode="decimal" className="ios-list-input" style={{color: 'var(--purple)'}} value={tempBudgets['DAILY'] || 0} onChange={e => setTempBudgets({...tempBudgets, 'DAILY': Number(e.target.value) || 0})} />
-                            </div>
-                            <div className="ios-list-item" style={{backgroundColor: 'var(--bg)'}}>
+                                <input type="number" inputMode="decimal" className="ios-list-input" style={{color: 'var(--purple)'}} value={tempBudgets['DAILY'] ?? 0} onChange={e => setTempBudgets({...tempBudgets, 'DAILY': Number(e.target.value) || 0})} />
+                            </div>}
+                            {(budgetEditScope === 'all' || budgetEditScope === 'monthly') && <div className="ios-list-item" style={{backgroundColor: 'var(--bg)'}}>
                                 <div className="ios-list-label" style={{color: 'var(--blue)'}}>Monthly Net Limit</div>
                                 <span style={{color: 'var(--blue)', fontWeight: '800', marginRight: '4px'}}>₹</span>
-                                <input type="number" inputMode="decimal" className="ios-list-input" style={{color: 'var(--blue)'}} value={tempBudgets['MONTHLY'] || 0} onChange={e => setTempBudgets({...tempBudgets, 'MONTHLY': Number(e.target.value) || 0})} />
-                            </div>
+                                <input type="number" inputMode="decimal" className="ios-list-input" style={{color: 'var(--blue)'}} value={tempBudgets['MONTHLY'] ?? 0} onChange={e => setTempBudgets({...tempBudgets, 'MONTHLY': Number(e.target.value) || 0})} />
+                            </div>}
                             
-                            {Object.keys(tempBudgets).filter(k => !['TOTAL','MONTHLY','DAILY'].includes(k)).map(tag => (
+                            {budgetEditScope === 'all' && Object.keys(tempBudgets).filter(k => !['TOTAL','MONTHLY','DAILY'].includes(k)).map(tag => (
                                 <div key={tag} className="ios-list-item">
                                     <button type="button" onClick={() => { const b = {...tempBudgets}; delete b[tag]; setTempBudgets(b); }} style={{background:'none', border:'none', color:'var(--red)', fontSize:'18px', marginRight:'12px', padding:0, cursor:'pointer'}}>⛔</button>
                                     <div className="ios-list-label">{tag}</div>
@@ -1032,11 +1067,11 @@ export default function PlannerApp() {
                                 </div>
                             ))}
                             
-                            <div className="ios-list-item" style={{backgroundColor: 'rgba(52, 199, 89, 0.05)'}}>
+                            {budgetEditScope === 'all' && <div className="ios-list-item" style={{backgroundColor: 'rgba(52, 199, 89, 0.05)'}}>
                                 <div style={{color:'var(--green)', fontSize:'18px', marginRight:'12px'}}>➕</div>
                                 <input type="text" className="ios-list-input" style={{flex: 1, textAlign: 'left', color: 'var(--text)', width: 'auto'}} placeholder="New Tag (e.g. #Gym)" value={newCatName} onChange={e => setNewCatName(e.target.value)} />
                                 <button type="button" onClick={() => { if(newCatName) { const t = newCatName.startsWith('#') ? newCatName : '#'+newCatName; setTempBudgets({...tempBudgets, [t]: 1000}); setNewCatName(''); } }} style={{background:'none', border:'none', color:'var(--green)', fontWeight:700, cursor:'pointer'}}>Add</button>
-                            </div>
+                            </div>}
                         </div>
                         <button type="submit" className="btn-save" style={{marginTop: '16px'}}>Save Limits</button>
                     </form>
@@ -1046,7 +1081,7 @@ export default function PlannerApp() {
             {/* SPLIT EXPENSE MODAL */}
             {splittingItem && (
                 <div className="modal-overlay" onClick={() => setSplittingItem(null)}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveSplit}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveSplit} style={{paddingBottom: 'calc(24px + env(safe-area-inset-bottom) + var(--kb-height, 0px))', transition: 'padding-bottom 0.2s ease-out'}}>
                         <div style={{fontSize: '22px', fontWeight: 800, marginBottom: '4px'}}>Split expense</div>
                         <div style={{color: 'var(--text-light)', fontSize: '13px', marginBottom: '16px'}}>{splittingItem.title} · ₹{splittingItem.amount}</div>
                         <SplitEditor
@@ -1063,14 +1098,14 @@ export default function PlannerApp() {
             {/* ADD MODAL */}
             {isAdding && (
                 <div className="modal-overlay" onClick={() => setIsAdding(false)}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveFull}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveFull} style={{paddingBottom: 'calc(24px + env(safe-area-inset-bottom) + var(--kb-height, 0px))', transition: 'padding-bottom 0.2s ease-out'}}>
                         <div className="segment-control">
                             <div className={`segment-btn ${addType === 'task' ? 'active' : ''}`} onClick={() => setAddType('task')}>Task</div>
                             <div className={`segment-btn ${addType === 'expense' ? 'active' : ''}`} onClick={() => setAddType('expense')}>Expense</div>
                             <div className={`segment-btn ${addType === 'income' ? 'active' : ''}`} onClick={() => setAddType('income')}>Income</div>
                             <div className={`segment-btn ${addType === 'goal' ? 'active' : ''}`} onClick={() => setAddType('goal')}>Goal</div>
                         </div>
-                        <input ref={inputRef} type="text" className="input-title" placeholder={addType === 'expense' ? "What did you buy?" : addType === 'income' ? "Income source?" : `New ${addType}...`} value={draftTitle} onChange={e => setDraftTitle(e.target.value)} enterKeyHint="done" />
+                        <input ref={inputRef} type="text" className="input-title" placeholder={addType === 'expense' ? "What did you buy?" : addType === 'income' ? "Income source?" : `New ${addType}...`} value={draftTitle} onChange={e => setDraftTitle(e.target.value)} onFocus={handleInputFocus} enterKeyHint="done" />
                         
                         {(addType === 'expense' || addType === 'income') && (
                             <>
@@ -1114,13 +1149,14 @@ export default function PlannerApp() {
             {/* EDIT MODAL */}
             {editingItem && (
                 <div className="modal-overlay" onClick={() => setEditingItem(null)}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveEdit}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveEdit} style={{paddingBottom: 'calc(24px + env(safe-area-inset-bottom) + var(--kb-height, 0px))', transition: 'padding-bottom 0.2s ease-out'}}>
                         <div style={{fontSize: '22px', fontWeight: 800, marginBottom: '16px'}}>Edit {editingItem.type === 'goal' ? 'Goal' : editingItem.type === 'expense' ? 'Expense' : editingItem.type === 'income' ? 'Income' : 'Task'}</div>
                         <input
                             type="text"
                             className="input-title"
                             value={editingItem.title || ''}
                             onChange={e => setEditingItem({...editingItem, title: e.target.value})}
+                            onFocus={handleInputFocus}
                             autoFocus
                         />
 

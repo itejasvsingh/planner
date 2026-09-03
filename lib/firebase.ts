@@ -14,11 +14,10 @@ const firebaseConfig = {
 const app = !firebase.apps.length ? firebase.initializeApp(firebaseConfig) : firebase.app();
 const db = app.firestore();
 
-// Note: I temporarily commented out the offline cache to force it to download from the cloud right now
-// if (typeof window !== 'undefined') {
-//   db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
-//     console.error("Firebase persistence error:", err.code, err.message);
-//   });
-// }
+if (typeof window !== 'undefined') {
+  db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+    console.error("Firebase persistence error:", err.code, err.message);
+  });
+}
 
 export { app, db, firebase };
