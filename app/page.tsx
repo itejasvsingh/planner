@@ -1053,7 +1053,7 @@ export default function PlannerApp() {
             {/* BUDGET EDIT MODAL */}
             {isEditingBudgets && (
                 <div className="modal-overlay" onClick={() => setIsEditingBudgets(false)} style={{...vpStyle, bottom: 'auto'}}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveBudgets}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveBudgets} style={{ maxHeight: 'calc(100% - 16px)' }}>
                         <div className="input-title" style={{fontSize: '22px', marginBottom: '16px', fontWeight: 800}}>{budgetEditScope === 'daily' ? 'Edit Daily Limit' : budgetEditScope === 'monthly' ? 'Edit Monthly Limit' : 'Edit Budgets'}</div>
                         <div className="ios-list">
                             {(budgetEditScope === 'all' || budgetEditScope === 'daily') && <div className="ios-list-item" style={{backgroundColor: 'var(--bg)'}}>
@@ -1090,7 +1090,7 @@ export default function PlannerApp() {
             {/* SPLIT EXPENSE MODAL */}
             {splittingItem && (
                 <div className="modal-overlay" onClick={() => setSplittingItem(null)} style={{...vpStyle, bottom: 'auto'}}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveSplit}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveSplit} style={{ maxHeight: 'calc(100% - 16px)' }}>
                         <div style={{fontSize: '22px', fontWeight: 800, marginBottom: '4px'}}>Split expense</div>
                         <div style={{color: 'var(--text-light)', fontSize: '13px', marginBottom: '16px'}}>{splittingItem.title} · ₹{splittingItem.amount}</div>
                         <SplitEditor
@@ -1107,7 +1107,7 @@ export default function PlannerApp() {
             {/* ADD MODAL */}
             {isAdding && (
                 <div className="modal-overlay" onClick={() => setIsAdding(false)} style={{...vpStyle, bottom: 'auto'}}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveFull}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveFull} style={{ maxHeight: 'calc(100% - 16px)' }}>
                         <div className="segment-control">
                             <div className={`segment-btn ${addType === 'task' ? 'active' : ''}`} onClick={() => setAddType('task')}>Task</div>
                             <div className={`segment-btn ${addType === 'expense' ? 'active' : ''}`} onClick={() => setAddType('expense')}>Expense</div>
@@ -1158,7 +1158,7 @@ export default function PlannerApp() {
             {/* EDIT MODAL */}
             {editingItem && (
                 <div className="modal-overlay" onClick={() => setEditingItem(null)} style={{...vpStyle, bottom: 'auto'}}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveEdit}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveEdit} style={{ maxHeight: 'calc(100% - 16px)' }}>
                         <div style={{fontSize: '22px', fontWeight: 800, marginBottom: '16px'}}>Edit {editingItem.type === 'goal' ? 'Goal' : editingItem.type === 'expense' ? 'Expense' : editingItem.type === 'income' ? 'Income' : 'Task'}</div>
                         <input
                             type="text"
