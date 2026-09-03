@@ -264,9 +264,13 @@ export default function PlannerApp() {
         };
 
         window.visualViewport.addEventListener('resize', handleResize);
+        window.visualViewport.addEventListener('scroll', handleResize);
         handleResize();
 
-        return () => window.visualViewport?.removeEventListener('resize', handleResize);
+        return () => {
+            window.visualViewport?.removeEventListener('resize', handleResize);
+            window.visualViewport?.removeEventListener('scroll', handleResize);
+        };
     }, []);
 
     const handleInputFocus = (e: React.FocusEvent<HTMLElement>) => {
@@ -275,6 +279,19 @@ export default function PlannerApp() {
             target.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 300);
     };
+
+    useEffect(() => {
+        const handleFocusIn = (e: FocusEvent) => {
+            const target = e.target;
+            if (!(target instanceof HTMLElement) || !['INPUT', 'SELECT', 'TEXTAREA'].includes(target.tagName)) return;
+            setTimeout(() => {
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        };
+
+        document.addEventListener('focusin', handleFocusIn);
+        return () => document.removeEventListener('focusin', handleFocusIn);
+    }, []);
 
     const changeTheme = (mode: string) => {
         setThemeMode(mode);
