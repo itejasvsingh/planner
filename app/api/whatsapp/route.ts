@@ -160,7 +160,7 @@ export async function POST(req: Request) {
             }
 
             const response = await ai.models.generateContent({ model: 'gemini-flash-lite-latest', contents: contents, config: { responseMimeType: "application/json" } });
-            const parsed = JSON.parse(response.text);
+            const parsed = JSON.parse(response.text || '{}');
             
             let docId = lastSession?.lastDocId || null;
 
