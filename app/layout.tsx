@@ -7,6 +7,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover", // <-- THIS tells iOS 15+ to merge with the Dynamic Island
   themeColor: "#F4F5F7",
 };
 
@@ -14,14 +15,14 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "Planner",
   description: "Your daily alignment app",
-  manifest: "/manifest.json", // Triggers the Android standalone UI
+  manifest: "/manifest.json", 
   appleWebApp: {
-    capable: true,            // Triggers the iOS full-screen UI
-    statusBarStyle: "default", 
+    capable: true,            
+    statusBarStyle: "black-translucent", // <-- THIS makes the top status bar transparent
     title: "Planner",
   },
   formatDetection: {
-    telephone: false,         // Stops iOS from turning random numbers into blue links
+    telephone: false,         
   },
 };
 
