@@ -58,6 +58,33 @@ function formatTimeInput(timeStr: string) {
 
 const DEFAULT_BUDGET_LIMITS = { 'MONTHLY': 20000, 'DAILY': 1000, '#Dining': 4000, '#Travel': 3000, '#Academics': 2000, '#General': 5000 };
 
+function safeGetItem(key: string): string | null {
+    try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+            return window.localStorage.getItem(key);
+        }
+    } catch {
+        return null;
+    }
+    return null;
+}
+
+function safeSetItem(key: string, value: string): void {
+    try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem(key, value);
+        }
+    } catch {}
+}
+
+function safeRemoveItem(key: string): void {
+    try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.removeItem(key);
+        }
+    } catch {}
+}
+
 // --- MAIN APP ---
 export default function PlannerApp() {
     const [isLoaded, setIsLoaded] = useState(false);
@@ -107,13 +134,13 @@ export default function PlannerApp() {
     // Initial load from localStorage
     useEffect(() => {
         try {
-            const rawPhone = localStorage.getItem('planner_user_phone');
+            const rawPhone = safeGetItem('planner_user_phone');
             const savedPhone = rawPhone ? normalizePhone(rawPhone) : null;
             setUserPhone(savedPhone && savedPhone.length >= 10 ? savedPhone : null);
 
-            const savedTheme = localStorage.getItem('planner_theme');
+            const savedTheme = safeGetItem('planner_theme');
             if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') setThemeMode(savedTheme);
-            else setThemeMode(localStorage.getItem('planner_dark_mode') === 'true' ? 'dark' : 'system');
+            else setThemeMode(safeGetItem('planner_dark_mode') === 'true' ? 'dark' : 'system');
 
             try {
                 setPushEnabled("Notification" in window ? window.Notification.permission === "granted" : false);
@@ -130,7 +157,7 @@ export default function PlannerApp() {
         e.preventDefault();
         const cleaned = normalizePhone(loginInput);
         if (cleaned.length >= 10) {
-            localStorage.setItem('planner_user_phone', cleaned);
+            safeSetItem('planner_user_phone', cleaned);
             setUserPhone(cleaned);
         } else {
             alert('Please enter a valid phone number with country code (e.g., 919876543210).');
@@ -138,7 +165,7 @@ export default function PlannerApp() {
     };
 
     const handleLogout = () => {
-        localStorage.removeItem('planner_user_phone');
+        safeRemoveItem('planner_user_phone');
         setUserPhone(null);
         setItems([]);
         setIsDrawerOpen(false);
@@ -248,8 +275,8 @@ export default function PlannerApp() {
 
     const changeTheme = (mode: string) => {
         setThemeMode(mode);
-        localStorage.setItem('planner_theme', mode);
-        localStorage.removeItem('planner_dark_mode');
+        safeSetItem('planner_theme', mode);
+        safeRemoveItem('planner_dark_mode');
     };
 
     const shiftDaily = (days: number) => {

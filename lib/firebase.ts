@@ -14,9 +14,17 @@ const app = !firebase.apps.length ? firebase.initializeApp(firebaseConfig) : fir
 const db = app.firestore();
 
 if (typeof window !== 'undefined') {
-  db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
-    console.error("Firebase persistence error:", err.code, err.message);
-  });
+  try {
+    db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+      if (err.code === 'failed-precondition') {
+        db.enablePersistence().catch(() => {});
+      } else {
+        console.warn("Firebase persistence notice:", err.code, err.message);
+      }
+    });
+  } catch (e) {
+    console.warn("Firestore persistence init error:", e);
+  }
 }
 
 export { app, db, firebase };
