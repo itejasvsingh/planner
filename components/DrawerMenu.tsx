@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     IconBell, IconMoon, IconSun, IconSettings, IconLogOut,
-    IconRefresh, IconUser, IconCalendar
+    IconRefresh, IconUser
 } from './Icons';
 
 interface DrawerMenuProps {
@@ -18,7 +18,6 @@ interface DrawerMenuProps {
     onOpenBudgetEdit: () => void;
     onLogout: () => void;
     pendingTasksCount?: number;
-    onFileUpload?: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 export default function DrawerMenu({
@@ -32,15 +31,13 @@ export default function DrawerMenu({
     onEnablePush,
     onOpenBudgetEdit,
     onLogout,
-    pendingTasksCount = 0,
-    onFileUpload
+    pendingTasksCount = 0
 }: DrawerMenuProps) {
     const [isOnline, setIsOnline] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
     const [dragX, setDragX] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
     const startX = useRef(0);
-    const fileUploadRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -153,19 +150,6 @@ export default function DrawerMenu({
 
                 <div className="drawer-section">Preferences</div>
                 <div className="drawer-list">
-                    {/* HIDDEN UPLOAD INPUT */}
-                    <input 
-                        type="file" 
-                        accept=".ics" 
-                        ref={fileUploadRef} 
-                        style={{ display: 'none' }} 
-                        onChange={onFileUpload} 
-                    />
-                    {/* VISIBLE UPLOAD BUTTON */}
-                    <button type="button" className="drawer-item" onClick={() => fileUploadRef.current?.click()}>
-                        <IconCalendar /><span>Sync Q567 Timetable</span><span className="drawer-value">Upload .ics</span>
-                    </button>
-
                     <button type="button" className="drawer-item" onClick={onEnablePush}>
                         <IconBell />
                         <span>Notifications</span>

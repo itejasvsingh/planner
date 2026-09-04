@@ -408,34 +408,3 @@ select.input-box { background-image: url("data:image/svg+xml;charset=US-ASCII,%3
     padding: 0 4px;
     box-shadow: 0 2px 5px rgba(0, 122, 255, 0.4);
 }
-
-.offline-banner {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    background: #FFF3CD;
-    color: #856404;
-    border: 1px solid #FFEEBA;
-    border-radius: 12px;
-    margin: 8px 16px 4px;
-    padding: 8px 14px;
-    font-size: 12px;
-    font-weight: 700;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-    animation: fadeIn 0.3s ease;
-}
-
-.dark-mode .offline-banner {
-    background: #332701;
-    color: #FFEBAA;
-    border-color: #554101;
-}
-
-.offline-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background-color: #F59E0B;
-    display: inline-block;
-}
