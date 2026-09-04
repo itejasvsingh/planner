@@ -51,3 +51,4 @@ export const hideSplashScreen = async () => {
         // Ignore
     }
 };
+
