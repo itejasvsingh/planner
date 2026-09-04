@@ -670,7 +670,7 @@ export default function PlannerApp() {
 
     return (
         <div className={`safe-bottom ${darkMode ? 'dark-mode' : ''}`}>
-            <div className="account-bar">
+            <div className="account-bar" style={typeof window !== 'undefined' && window.self !== window.top ? { paddingTop: '52px' } : undefined}>
                 <button type="button" className="menu-trigger" onClick={() => setIsDrawerOpen(true)} aria-label="Open menu" title="Open menu"><IconMenu /></button>
                 <div className="account-badge">
                     <span>{formatPhone(userPhone)}</span>
