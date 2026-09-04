@@ -58,6 +58,33 @@ function formatTimeInput(timeStr: string) {
 
 const DEFAULT_BUDGET_LIMITS = { 'MONTHLY': 20000, 'DAILY': 1000, '#Dining': 4000, '#Travel': 3000, '#Academics': 2000, '#General': 5000 };
 
+function safeGetItem(key: string): string | null {
+    try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+            return window.localStorage.getItem(key);
+        }
+    } catch {
+        return null;
+    }
+    return null;
+}
+
+function safeSetItem(key: string, value: string): void {
+    try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem(key, value);
+        }
+    } catch {}
+}
+
+function safeRemoveItem(key: string): void {
+    try {
+        if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.removeItem(key);
+        }
+    } catch {}
+}
+
 // --- MAIN APP ---
 export default function PlannerApp() {
     const [isLoaded, setIsLoaded] = useState(false);
@@ -121,35 +148,43 @@ export default function PlannerApp() {
 
     // Initial load from localStorage (0ms instant offline startup)
     useEffect(() => {
-        const savedPhone = normalizePhone(localStorage.getItem('planner_user_phone'));
-        setUserPhone(savedPhone);
-        const savedTheme = localStorage.getItem('planner_theme');
-        if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') setThemeMode(savedTheme);
-        else setThemeMode(localStorage.getItem('planner_dark_mode') === 'true' ? 'dark' : 'system');
-        setPushEnabled("Notification" in window ? window.Notification.permission === "granted" : false);
+        try {
+            const rawPhone = safeGetItem('planner_user_phone');
+            const savedPhone = rawPhone ? normalizePhone(rawPhone) : null;
+            setUserPhone(savedPhone && savedPhone.length >= 10 ? savedPhone : null);
 
-        // Immediate offline retrieval of cached items & budgets
-        if (savedPhone) {
-            try {
-                const cachedItems = localStorage.getItem(`planner_cache_items_${savedPhone}`);
+            const savedTheme = safeGetItem('planner_theme');
+            if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') setThemeMode(savedTheme);
+            else setThemeMode(safeGetItem('planner_dark_mode') === 'true' ? 'dark' : 'system');
+
+            setPushEnabled("Notification" in window ? window.Notification.permission === "granted" : false);
+
+            // Immediate offline retrieval of cached items & budgets
+            if (savedPhone && savedPhone.length >= 10) {
+                const cachedItems = safeGetItem(`planner_cache_items_${savedPhone}`);
                 if (cachedItems) {
-                    const parsed = JSON.parse(cachedItems);
-                    if (Array.isArray(parsed) && parsed.length > 0) {
-                        setItems(parsed);
-                    }
+                    try {
+                        const parsed = JSON.parse(cachedItems);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            setItems(parsed);
+                        }
+                    } catch {}
                 }
-                const cachedBudgets = localStorage.getItem(`planner_cache_budgets_${savedPhone}`);
+                const cachedBudgets = safeGetItem(`planner_cache_budgets_${savedPhone}`);
                 if (cachedBudgets) {
-                    const parsedBudgets = JSON.parse(cachedBudgets);
-                    if (parsedBudgets && typeof parsedBudgets === 'object') {
-                        setBudgetLimits((prev: any) => ({ ...prev, ...parsedBudgets }));
-                    }
+                    try {
+                        const parsedBudgets = JSON.parse(cachedBudgets);
+                        if (parsedBudgets && typeof parsedBudgets === 'object') {
+                            setBudgetLimits((prev: any) => ({ ...prev, ...parsedBudgets }));
+                        }
+                    } catch {}
                 }
-            } catch (err) {
-                console.warn("Failed to parse cached planner data:", err);
             }
+        } catch (err) {
+            console.warn("Failed to complete initial load:", err);
+        } finally {
+            setIsLoaded(true);
         }
-        setIsLoaded(true);
     }, []);
 
     // Handle Login
@@ -157,7 +192,7 @@ export default function PlannerApp() {
         e.preventDefault();
         const cleaned = normalizePhone(loginInput);
         if (cleaned.length >= 10) {
-            localStorage.setItem('planner_user_phone', cleaned);
+            safeSetItem('planner_user_phone', cleaned);
             setUserPhone(cleaned);
         } else {
             alert('Please enter a valid phone number with country code (e.g., 919876543210).');
@@ -287,10 +322,10 @@ export default function PlannerApp() {
 
     const handleLogout = () => {
         if (userPhone) {
-            localStorage.removeItem(`planner_cache_items_${userPhone}`);
-            localStorage.removeItem(`planner_cache_budgets_${userPhone}`);
+            safeRemoveItem(`planner_cache_items_${userPhone}`);
+            safeRemoveItem(`planner_cache_budgets_${userPhone}`);
         }
-        localStorage.removeItem('planner_user_phone');
+        safeRemoveItem('planner_user_phone');
         setUserPhone(null);
         setItems([]);
         setIsDrawerOpen(false);
@@ -308,9 +343,7 @@ export default function PlannerApp() {
                     // Retain any pending optimistic local items that have not yet synced to Firestore
                     const pendingLocals = prev.filter(p => p.id && String(p.id).startsWith('local_') && !fetched.some((f: any) => f.title === p.title && f.dueDate === p.dueDate));
                     const combined = [...pendingLocals, ...fetched];
-                    try {
-                        localStorage.setItem(`planner_cache_items_${userPhone}`, JSON.stringify(combined));
-                    } catch {}
+                    safeSetItem(`planner_cache_items_${userPhone}`, JSON.stringify(combined));
                     return combined;
                 });
             }, (err) => {
@@ -322,9 +355,7 @@ export default function PlannerApp() {
                 const data = doc.data();
                 setBudgetLimits((prev: any) => {
                     const updated = { ...prev, ...data };
-                    try {
-                        localStorage.setItem(`planner_cache_budgets_${userPhone}`, JSON.stringify(updated));
-                    } catch {}
+                    safeSetItem(`planner_cache_budgets_${userPhone}`, JSON.stringify(updated));
                     return updated;
                 });
             }
@@ -779,7 +810,16 @@ export default function PlannerApp() {
     }
 
     // Hydration guard
-    if (!isLoaded) return <div className="min-h-screen bg-[#F4F5F7]"></div>;
+    if (!isLoaded) {
+        return (
+            <div style={{ display: 'flex', height: '100vh', width: '100vw', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4F5F7' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+                    <div style={{ width: '36px', height: '36px', borderRadius: '50%', border: '3px solid #E5E5EA', borderTopColor: '#007AFF', animation: 'spin 0.8s linear infinite' }} />
+                    <span style={{ fontSize: '13px', fontWeight: 600, color: '#8E8E93', letterSpacing: '0.2px' }}>Loading Planner...</span>
+                </div>
+            </div>
+        );
+    }
 
     // --- LOGIN SCREEN RENDER ---
     if (!userPhone) {

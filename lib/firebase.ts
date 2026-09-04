@@ -14,18 +14,20 @@ const app = !firebase.apps.length ? firebase.initializeApp(firebaseConfig) : fir
 const db = app.firestore();
 
 if (typeof window !== 'undefined') {
-  db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
-    if (err.code === 'failed-precondition') {
-      // Multiple tabs open simultaneously, fallback to single tab persistence
-      db.enablePersistence().catch((fallbackErr) => {
-        console.warn("Firestore single-tab persistence fallback failed:", fallbackErr);
-      });
-    } else if (err.code === 'unimplemented') {
-      console.warn("Current browser does not support Firestore offline persistence");
-    } else {
-      console.warn("Firebase persistence error:", err.code, err.message);
-    }
-  });
+  try {
+    db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
+      if (err.code === 'failed-precondition') {
+        // Multiple tabs open simultaneously, fallback to single tab persistence
+        db.enablePersistence().catch(() => {});
+      } else if (err.code === 'unimplemented') {
+        console.warn("Current browser does not support Firestore offline persistence");
+      } else {
+        console.warn("Firebase persistence notice:", err.code, err.message);
+      }
+    });
+  } catch (e) {
+    console.warn("Firestore persistence init error:", e);
+  }
 }
 
 export { app, db, firebase };
