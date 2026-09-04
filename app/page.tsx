@@ -130,8 +130,23 @@ export default function PlannerApp() {
     // --- HOLY GRAIL iOS KEYBOARD FIX ---
     const [vpStyle, setVpStyle] = useState({ height: '100dvh', top: '0px' });
     const [kbHeight, setKbHeight] = useState(0);
+    const [isOnline, setIsOnline] = useState(true);
 
-    // Initial load from localStorage
+    // Online / Offline Status Detection
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        setIsOnline(navigator.onLine);
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
+
+    // Initial load from localStorage (0ms instant offline startup)
     useEffect(() => {
         try {
             const rawPhone = safeGetItem('planner_user_phone');
@@ -145,6 +160,28 @@ export default function PlannerApp() {
             try {
                 setPushEnabled("Notification" in window ? window.Notification.permission === "granted" : false);
             } catch {}
+
+            // Immediate offline retrieval of cached items & budgets
+            if (savedPhone && savedPhone.length >= 10) {
+                const cachedItems = safeGetItem(`planner_cache_items_${savedPhone}`);
+                if (cachedItems) {
+                    try {
+                        const parsed = JSON.parse(cachedItems);
+                        if (Array.isArray(parsed) && parsed.length > 0) {
+                            setItems(parsed);
+                        }
+                    } catch {}
+                }
+                const cachedBudgets = safeGetItem(`planner_cache_budgets_${savedPhone}`);
+                if (cachedBudgets) {
+                    try {
+                        const parsedBudgets = JSON.parse(cachedBudgets);
+                        if (parsedBudgets && typeof parsedBudgets === 'object') {
+                            setBudgetLimits((prev: any) => ({ ...prev, ...parsedBudgets }));
+                        }
+                    } catch {}
+                }
+            }
         } catch (err) {
             console.warn("Initial load notice:", err);
         } finally {
@@ -171,22 +208,39 @@ export default function PlannerApp() {
         setIsDrawerOpen(false);
     };
 
-    // DB Subscription (Filtered by userPhone)
+    // DB Subscription (Filtered by userPhone with offline cache support)
     useEffect(() => {
         if (!userPhone) return;
 
         const unsubscribeItems = db.collection('planner_items')
             .where('ownerId', '==', String(userPhone))
-            .onSnapshot((snapshot) => {
-                const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-                setItems(fetched);
+            .onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
+                const fetched: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                setItems(prev => {
+                    // Retain any pending optimistic local items that haven't synced yet
+                    const pendingLocals = prev.filter(p => p.id && String(p.id).startsWith('local_') && !fetched.some((f: any) => f.title === p.title && f.dueDate === p.dueDate));
+                    const combined = [...pendingLocals, ...fetched];
+                    safeSetItem(`planner_cache_items_${userPhone}`, JSON.stringify(combined));
+                    return combined;
+                });
+            }, (err) => {
+                console.warn("Firestore items subscription notice:", err);
             });
         
-        const unsubscribeBudgets = db.collection('planner_settings').doc(`budgets_${userPhone}`).onSnapshot((doc) => {
-            if (doc.exists) { setBudgetLimits((prev: any) => ({...prev, ...doc.data()})); }
+        const unsubscribeBudgets = db.collection('planner_settings').doc(`budgets_${userPhone}`).onSnapshot({ includeMetadataChanges: true }, (doc) => {
+            if (doc.exists) {
+                const data = doc.data();
+                setBudgetLimits((prev: any) => {
+                    const updated = { ...prev, ...data };
+                    safeSetItem(`planner_cache_budgets_${userPhone}`, JSON.stringify(updated));
+                    return updated;
+                });
+            }
+        }, (err) => {
+            console.warn("Firestore budgets subscription notice:", err);
         });
 
-        return () => { unsubscribeItems(); unsubscribeBudgets(); }
+        return () => { unsubscribeItems(); unsubscribeBudgets(); };
     }, [userPhone]);
 
     useEffect(() => {
@@ -290,18 +344,60 @@ export default function PlannerApp() {
         setTab(newTab);
     };
 
-    async function toggleItem(id: string, currentDone: boolean) { await db.collection('planner_items').doc(id).update({ done: !currentDone }); }
+    async function toggleItem(id: string, currentDone: boolean) {
+        setItems(prev => {
+            const updated = prev.map(item => item.id === id ? { ...item, done: !currentDone } : item);
+            if (userPhone) safeSetItem(`planner_cache_items_${userPhone}`, JSON.stringify(updated));
+            return updated;
+        });
+        try {
+            await db.collection('planner_items').doc(id).update({ done: !currentDone });
+        } catch (e) {
+            console.warn("Toggled offline:", e);
+        }
+    }
+
     async function toggleGoal(id: string, current: number, target: number) {
         if (current >= target) return;
         const next = current + 1;
-        await db.collection('planner_items').doc(id).update({
-            current: next,
-            progressHistory: firebase.firestore.FieldValue.arrayUnion({ value: next, at: new Date().toISOString() }),
-            ...(next >= target ? { completedAt: firebase.firestore.FieldValue.serverTimestamp() } : {})
+        const nowIso = new Date().toISOString();
+        setItems(prev => {
+            const updated = prev.map(item => {
+                if (item.id !== id) return item;
+                return {
+                    ...item,
+                    current: next,
+                    progressHistory: [...(item.progressHistory || []), { value: next, at: nowIso }],
+                    ...(next >= target ? { completedAt: nowIso } : {})
+                };
+            });
+            if (userPhone) safeSetItem(`planner_cache_items_${userPhone}`, JSON.stringify(updated));
+            return updated;
         });
+        try {
+            await db.collection('planner_items').doc(id).update({
+                current: next,
+                progressHistory: firebase.firestore.FieldValue.arrayUnion({ value: next, at: nowIso }),
+                ...(next >= target ? { completedAt: firebase.firestore.FieldValue.serverTimestamp() } : {})
+            });
+        } catch (e) {
+            console.warn("Goal updated offline:", e);
+        }
     }
     
-    async function deleteItem(id: string) { await db.collection('planner_items').doc(id).delete(); setEditingItem(null); }
+    async function deleteItem(id: string) {
+        setItems(prev => {
+            const updated = prev.filter(item => item.id !== id);
+            if (userPhone) safeSetItem(`planner_cache_items_${userPhone}`, JSON.stringify(updated));
+            return updated;
+        });
+        setEditingItem(null);
+        try {
+            await db.collection('planner_items').doc(id).delete();
+        } catch (e) {
+            console.warn("Deleted offline:", e);
+        }
+    }
 
     // SPLIT LOGIC
     async function handleSaveSplit(e: any) {
@@ -310,6 +406,11 @@ export default function PlannerApp() {
         setIsProcessing(true);
         try {
             const splits = calculateSplitAmounts(splittingItem.splits || [], splittingItem.amount);
+            setItems(prev => {
+                const updated = prev.map(item => item.id === splittingItem.id ? { ...item, splits } : item);
+                if (userPhone) safeSetItem(`planner_cache_items_${userPhone}`, JSON.stringify(updated));
+                return updated;
+            });
             await db.collection('planner_items').doc(splittingItem.id).update({ splits });
             setSplittingItem(null);
         } catch (error: any) {
@@ -323,7 +424,16 @@ export default function PlannerApp() {
     async function toggleSplit(expenseId: string, splitIdx: number, currentSplits: any[]) {
         const newSplits = [...currentSplits];
         newSplits[splitIdx].settled = !newSplits[splitIdx].settled;
-        await db.collection('planner_items').doc(expenseId).update({ splits: newSplits });
+        setItems(prev => {
+            const updated = prev.map(item => item.id === expenseId ? { ...item, splits: newSplits } : item);
+            if (userPhone) safeSetItem(`planner_cache_items_${userPhone}`, JSON.stringify(updated));
+            return updated;
+        });
+        try {
+            await db.collection('planner_items').doc(expenseId).update({ splits: newSplits });
+        } catch (e) {
+            console.warn("Split toggled offline:", e);
+        }
     }
 
     async function settleUpWith(personName: string) {
@@ -332,6 +442,18 @@ export default function PlannerApp() {
         
         const batch = db.batch();
         let hasUpdates = false;
+
+        setItems(prev => {
+            const updated = prev.map(item => {
+                if (item.type === 'expense' && item.splits) {
+                    const newSplits = item.splits.map((s: any) => s.name === personName ? { ...s, settled: true } : s);
+                    return { ...item, splits: newSplits };
+                }
+                return item;
+            });
+            if (userPhone) safeSetItem(`planner_cache_items_${userPhone}`, JSON.stringify(updated));
+            return updated;
+        });
 
         items.forEach(item => {
             if (item.type === 'expense' && item.splits) {
@@ -352,7 +474,11 @@ export default function PlannerApp() {
         });
 
         if (hasUpdates) {
-            await batch.commit();
+            try {
+                await batch.commit();
+            } catch (e) {
+                console.warn("Debts settled offline:", e);
+            }
         }
     }
 
@@ -396,20 +522,39 @@ export default function PlannerApp() {
             return;
         }
         setIsProcessing(true);
-        let newItem;
+        const tempId = 'local_' + Date.now();
+        let newItem: any;
         if (addType === 'task') {
-            newItem = { ownerId: userPhone, type: 'task', title, done: false, dueDate: draftDate, reminderTime: draftTime || null, endTime: draftEndTime || null, priority: draftPriority, subtasks: [], createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+            newItem = { ownerId: userPhone, type: 'task', title, done: false, dueDate: draftDate, reminderTime: draftTime || null, endTime: draftEndTime || null, priority: draftPriority, subtasks: [], createdAt: new Date().toISOString() };
         } else if (addType === 'expense' || addType === 'income') {
-            newItem = { ownerId: userPhone, type: addType, title, amount: parseFloat(draftAmount) || 0, date: draftDate, category: draftCategory, tags: draftCategory ? [draftCategory] : [], splits: [], createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+            newItem = { ownerId: userPhone, type: addType, title, amount: parseFloat(draftAmount) || 0, date: draftDate, category: draftCategory, tags: draftCategory ? [draftCategory] : [], splits: [], createdAt: new Date().toISOString() };
         } else {
-            newItem = { ownerId: userPhone, type: 'goal', title, target: parseInt(draftTarget) || 5, current: 0, progressHistory: [], month: draftDate.substring(0, 7), createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+            newItem = { ownerId: userPhone, type: 'goal', title, target: parseInt(draftTarget) || 5, current: 0, progressHistory: [], month: draftDate.substring(0, 7), createdAt: new Date().toISOString() };
         }
+
+        // Instant optimistic UI update
+        setItems(prev => {
+            const updated = [{ id: tempId, ...newItem }, ...prev];
+            if (userPhone) safeSetItem(`planner_cache_items_${userPhone}`, JSON.stringify(updated));
+            return updated;
+        });
+
+        setIsAdding(false); setDraftTitle(''); setDraftPriority('none'); setDraftTarget(''); setDraftAmount('');
+
+        const firestorePayload = {
+            ...newItem,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        };
+
         try {
-            await db.collection('planner_items').add(newItem);
-            setIsAdding(false); setDraftTitle(''); setDraftPriority('none'); setDraftTarget(''); setDraftAmount('');
+            const docRef = await db.collection('planner_items').add(firestorePayload);
+            setItems(prev => {
+                const updated = prev.map(it => it.id === tempId ? { ...it, id: docRef.id } : it);
+                if (userPhone) safeSetItem(`planner_cache_items_${userPhone}`, JSON.stringify(updated));
+                return updated;
+            });
         } catch (error) {
-            console.error('Failed to save item:', error);
-            alert(`Could not save to the database. Please check your connection.`);
+            console.warn('Saved offline in local cache (will sync when online):', error);
         } finally {
             setIsProcessing(false);
         }
@@ -419,17 +564,29 @@ export default function PlannerApp() {
         e.preventDefault();
         if (!editingItem || !editingItem.title.trim()) return;
         const cleanItem = {...editingItem};
-        if (cleanItem.type === 'task') cleanItem.subtasks = cleanItem.subtasks.filter((s: any) => s.text.trim() !== '');
+        if (cleanItem.type === 'task') cleanItem.subtasks = (cleanItem.subtasks || []).filter((s: any) => s.text.trim() !== '');
         if (cleanItem.type === 'goal') {
             cleanItem.current = Math.max(0, Math.min(parseInt(cleanItem.current, 10) || 0, parseInt(cleanItem.target, 10) || 1));
-            cleanItem.progressHistory = firebase.firestore.FieldValue.arrayUnion({ value: cleanItem.current, at: new Date().toISOString() });
-            if (cleanItem.current >= cleanItem.target) cleanItem.completedAt = cleanItem.completedAt || firebase.firestore.FieldValue.serverTimestamp();
+            cleanItem.progressHistory = [...(cleanItem.progressHistory || []), { value: cleanItem.current, at: new Date().toISOString() }];
+            if (cleanItem.current >= cleanItem.target) cleanItem.completedAt = cleanItem.completedAt || new Date().toISOString();
         }
         if (cleanItem.type === 'expense' || cleanItem.type === 'income') cleanItem.amount = parseFloat(cleanItem.amount) || 0;
         if (cleanItem.type === 'expense') cleanItem.splits = calculateSplitAmounts(cleanItem.splits || [], cleanItem.amount);
         const docId = cleanItem.id; delete cleanItem.id;
-        await db.collection('planner_items').doc(docId).update(cleanItem);
+
+        // Instant optimistic UI update
+        setItems(prev => {
+            const updated = prev.map(it => it.id === docId ? { id: docId, ...cleanItem } : it);
+            if (userPhone) safeSetItem(`planner_cache_items_${userPhone}`, JSON.stringify(updated));
+            return updated;
+        });
         setEditingItem(null);
+
+        try {
+            await db.collection('planner_items').doc(docId).update(cleanItem);
+        } catch (error) {
+            console.warn('Edited item saved locally (offline):', error);
+        }
     }
 
     const handleOpenBudgetEdit = (scope: 'all' | 'daily' | 'monthly' = 'all') => {
@@ -444,11 +601,14 @@ export default function PlannerApp() {
 
     async function handleSaveBudgets(e: any) {
         e.preventDefault();
+        setBudgetLimits(tempBudgets);
+        if (userPhone) safeSetItem(`planner_cache_budgets_${userPhone}`, JSON.stringify(tempBudgets));
+        setIsEditingBudgets(false);
         try {
             await db.collection('planner_settings').doc(`budgets_${userPhone}`).set(tempBudgets);
-            setBudgetLimits(tempBudgets);
-        } catch(e) { console.error(e); }
-        setIsEditingBudgets(false);
+        } catch(e) {
+            console.warn("Budget update queued offline:", e);
+        }
     }
 
     async function submitToAI(textToProcess: string) {
@@ -670,6 +830,12 @@ export default function PlannerApp() {
 
     return (
         <div className={`safe-bottom ${darkMode ? 'dark-mode' : ''}`}>
+            {!isOnline && (
+                <div className="offline-banner">
+                    <span className="offline-dot" />
+                    <span>Offline Mode • All changes saved locally</span>
+                </div>
+            )}
             <div className="account-bar" style={typeof window !== 'undefined' && window.self !== window.top ? { paddingTop: '52px' } : undefined}>
                 <button type="button" className="menu-trigger" onClick={() => setIsDrawerOpen(true)} aria-label="Open menu" title="Open menu"><IconMenu /></button>
                 <div className="account-badge">
