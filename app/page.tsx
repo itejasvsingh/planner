@@ -13,6 +13,8 @@ import {
     IconTrendingUp, IconMenu
 } from '../components/Icons';
 import { triggerHaptic, updateStatusBar, hideSplashScreen } from '../lib/native';
+import { Capacitor } from '@capacitor/core';
+import { OtaKit } from '@otakit/capacitor-updater';
 
 // --- HELPERS ---
 function pad(n: number | string) { return String(n).padStart(2, '0'); }
@@ -132,6 +134,13 @@ export default function PlannerApp() {
     const [vpStyle, setVpStyle] = useState({ height: '100dvh', top: '0px' });
     const [kbHeight, setKbHeight] = useState(0);
     const [isOnline, setIsOnline] = useState(true);
+
+    // Notify OTA Updater that app is ready (prevents rollback)
+    useEffect(() => {
+        if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
+            OtaKit.notifyAppReady();
+        }
+    }, []);
 
     // Online / Offline Status Detection
     useEffect(() => {
