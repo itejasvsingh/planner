@@ -5,7 +5,17 @@ const withPWA = withPWAInit({
   dest: "public",
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
-  disable: process.env.NODE_ENV === "development",
+  reloadOnOnline: true,
+  cacheStartUrl: true,
+  dynamicStartUrl: false,
+  disable: false,
+  workboxOptions: {
+    skipWaiting: true,
+    clientsClaim: true,
+  },
+  fallbacks: {
+    document: "/",
+  },
 });
 
 const nextConfig: NextConfig = {

@@ -15,7 +15,16 @@ const db = app.firestore();
 
 if (typeof window !== 'undefined') {
   db.enablePersistence({ synchronizeTabs: true }).catch((err) => {
-    console.error("Firebase persistence error:", err.code, err.message);
+    if (err.code === 'failed-precondition') {
+      // Multiple tabs open simultaneously, fallback to single tab persistence
+      db.enablePersistence().catch((fallbackErr) => {
+        console.warn("Firestore single-tab persistence fallback failed:", fallbackErr);
+      });
+    } else if (err.code === 'unimplemented') {
+      console.warn("Current browser does not support Firestore offline persistence");
+    } else {
+      console.warn("Firebase persistence error:", err.code, err.message);
+    }
   });
 }
 

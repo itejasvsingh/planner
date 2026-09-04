@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import RegisterSW from "../components/RegisterSW";
 
 // Locks the screen size so it doesn't accidentally zoom in when you tap inputs (Crucial for mobile)
 export const viewport: Viewport = {
@@ -33,7 +34,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <RegisterSW />
+        {children}
+      </body>
     </html>
   );
 }
