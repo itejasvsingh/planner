@@ -12,6 +12,7 @@ import {
     IconPlus, IconClock, IconList, IconMic, IconSparkles, IconEdit,
     IconTrendingUp, IconMenu
 } from '../components/Icons';
+import { triggerHaptic, updateStatusBar, hideSplashScreen } from '../lib/native';
 
 // --- HELPERS ---
 function pad(n: number | string) { return String(n).padStart(2, '0'); }
@@ -186,6 +187,7 @@ export default function PlannerApp() {
             console.warn("Initial load notice:", err);
         } finally {
             setIsLoaded(true);
+            hideSplashScreen();
         }
     }, []);
 
@@ -194,14 +196,17 @@ export default function PlannerApp() {
         e.preventDefault();
         const cleaned = normalizePhone(loginInput);
         if (cleaned.length >= 10) {
+            triggerHaptic('success');
             safeSetItem('planner_user_phone', cleaned);
             setUserPhone(cleaned);
         } else {
+            triggerHaptic('error');
             alert('Please enter a valid phone number with country code (e.g., 919876543210).');
         }
     };
 
     const handleLogout = () => {
+        triggerHaptic('medium');
         safeRemoveItem('planner_user_phone');
         setUserPhone(null);
         setItems([]);
@@ -299,6 +304,10 @@ export default function PlannerApp() {
     }, [themeMode]);
 
     useEffect(() => {
+        updateStatusBar(darkMode);
+    }, [darkMode]);
+
+    useEffect(() => {
         if (typeof window === 'undefined' || !window.visualViewport) return;
 
         const handleResize = () => {
@@ -334,10 +343,12 @@ export default function PlannerApp() {
     };
 
     const shiftDaily = (days: number) => {
+        triggerHaptic('light');
         const d = new Date(dailyDate); d.setDate(d.getDate() + days); setDailyDate(d);
     };
 
     const switchTab = (newTab: string) => {
+        triggerHaptic('light');
         if (typeof window !== 'undefined' && 'vibrate' in navigator) {
             try { navigator.vibrate(10); } catch {}
         }
@@ -345,6 +356,7 @@ export default function PlannerApp() {
     };
 
     async function toggleItem(id: string, currentDone: boolean) {
+        triggerHaptic('light');
         setItems(prev => {
             const updated = prev.map(item => item.id === id ? { ...item, done: !currentDone } : item);
             if (userPhone) safeSetItem(`planner_cache_items_${userPhone}`, JSON.stringify(updated));
@@ -360,6 +372,7 @@ export default function PlannerApp() {
     async function toggleGoal(id: string, current: number, target: number) {
         if (current >= target) return;
         const next = current + 1;
+        triggerHaptic(next >= target ? 'success' : 'medium');
         const nowIso = new Date().toISOString();
         setItems(prev => {
             const updated = prev.map(item => {
@@ -386,6 +399,7 @@ export default function PlannerApp() {
     }
     
     async function deleteItem(id: string) {
+        triggerHaptic('warning');
         setItems(prev => {
             const updated = prev.filter(item => item.id !== id);
             if (userPhone) safeSetItem(`planner_cache_items_${userPhone}`, JSON.stringify(updated));
@@ -539,6 +553,7 @@ export default function PlannerApp() {
             return updated;
         });
 
+        triggerHaptic('success');
         setIsAdding(false); setDraftTitle(''); setDraftPriority('none'); setDraftTarget(''); setDraftAmount('');
 
         const firestorePayload = {
