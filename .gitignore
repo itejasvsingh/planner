@@ -48,5 +48,4 @@ public/workbox-*
 public/fallback-*
 
 # capacitor generated assets
-cap-assets/*
-!cap-assets/index.html
+/cap-assets/
