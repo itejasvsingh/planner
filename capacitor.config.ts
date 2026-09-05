@@ -14,6 +14,10 @@ const config: CapacitorConfig = {
     scheme: 'Align',
   },
   plugins: {
+    OtaKit: {
+      appId: 'ea40fc9a-2640-473b-8928-613020902ef1',
+      appReadyTimeout: 10000,
+    },
     SplashScreen: {
       launchShowDuration: 1000,
       launchAutoHide: true,
