@@ -46,11 +46,16 @@ export default function RootLayout({
                     }
                   });
                 } else if (window.self === window.top) {
-                  window.addEventListener('load', function() {
+                  var registerSW = function() {
                     navigator.serviceWorker.register('/sw.js').catch(function(err) {
                       console.warn('SW registration notice:', err);
                     });
-                  });
+                  };
+                  if (document.readyState === 'complete') {
+                    registerSW();
+                  } else {
+                    window.addEventListener('load', registerSW);
+                  }
                 }
               }
             `,
