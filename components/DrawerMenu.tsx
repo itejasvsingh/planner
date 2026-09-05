@@ -24,7 +24,7 @@ interface DrawerMenuProps {
     pushEnabled: boolean;
     onEnablePush: () => void;
     onLogout: () => void;
-    onChangePIN: () => void;         // Opens LockScreen in 'choose-length' to reset PIN
+    onChangePIN: () => void;         // Opens LockScreen in 'choose-length' to reset/set PIN
     pendingTasksCount?: number;
 }
 
@@ -41,12 +41,14 @@ export default function DrawerMenu({
     onChangePIN,
     pendingTasksCount = 0
 }: DrawerMenuProps) {
+    const [currentView, setCurrentView] = useState<'main' | 'security'>('main');
     const [isOnline, setIsOnline] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
     const [dragX, setDragX] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
     const [biometryType, setBiometryType] = useState<BiometricAvailability>('none');
     const [pinSet, setPinSet] = useState(false);
+    const [pinLength, setPinLength] = useState<string>('4');
     const [securityActive, setSecurityActive] = useState(false);
     const [exportMsg, setExportMsg] = useState('');
     const startX = useRef(0);
@@ -66,22 +68,32 @@ export default function DrawerMenu({
 
     // Check biometry, PIN state & security toggle when drawer opens
     useEffect(() => {
-        if (!isOpen) return;
+        if (!isOpen) {
+            setCurrentView('main');
+            return;
+        }
         checkBiometricAvailability().then(t => setBiometryType(t));
         const hasPin = hasPinSet();
         setPinSet(hasPin);
         setSecurityActive(isSecurityEnabled() && hasPin);
+        try {
+            const len = localStorage.getItem('align_pin_length') || '4';
+            setPinLength(len);
+        } catch {}
     }, [isOpen]);
 
-    // Close on Escape key
+    // Close on Escape key or back to main view
     useEffect(() => {
         if (!isOpen) return;
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') onClose();
+            if (e.key === 'Escape') {
+                if (currentView === 'security') setCurrentView('main');
+                else onClose();
+            }
         };
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [isOpen, onClose]);
+    }, [isOpen, currentView, onClose]);
 
     // Touch swipe left to close
     const handleTouchStart = (e: React.TouchEvent) => {
@@ -96,7 +108,13 @@ export default function DrawerMenu({
     const handleTouchEnd = () => {
         if (!isDragging) return;
         setIsDragging(false);
-        if (dragX < -60) onClose();
+        if (dragX < -60) {
+            if (currentView === 'security') {
+                setCurrentView('main');
+            } else {
+                onClose();
+            }
+        }
         setDragX(0);
     };
 
@@ -182,154 +200,307 @@ export default function DrawerMenu({
                     transition: isDragging ? 'none' : 'transform 0.25s cubic-bezier(0.1, 0.9, 0.2, 1)'
                 }}
             >
-                {/* Drag handle */}
+                {/* Drag handle indicator */}
                 <div className="drawer-swipe-indicator" />
 
-                {/* Account & Sync Header Card */}
-                <div className="drawer-account-card">
-                    <div className="drawer-avatar">
-                        <IconUser />
-                    </div>
-                    <div className="drawer-account-details">
-                        <div className="drawer-phone">{formattedPhone}</div>
-                        <div className="drawer-sync-status">
-                            <span className={`sync-dot ${isOnline ? 'online' : 'offline'}`} />
-                            <span>{isOnline ? 'Cloud Synced' : 'Offline Mode'}</span>
-                        </div>
-                    </div>
-                    <button
-                        type="button"
-                        className={`drawer-refresh-btn ${isSyncing ? 'spinning' : ''}`}
-                        onClick={handleRefreshSync}
-                        title="Force refresh & sync"
-                        aria-label="Force refresh & sync"
-                    >
-                        <IconRefresh />
-                    </button>
-                </div>
-
-                {/* Today's Tasks Badge Banner */}
-                {pendingTasksCount > 0 && (
-                    <div className="drawer-badge-banner">
-                        <span>⚡ {pendingTasksCount} task{pendingTasksCount > 1 ? 's' : ''} remaining today</span>
-                    </div>
-                )}
-
-                {/* ── Preferences ── */}
-                <div className="drawer-section">Preferences</div>
-                <div className="drawer-list">
-                    <button type="button" className="drawer-item" onClick={onEnablePush}>
-                        <IconBell />
-                        <span>Notifications</span>
-                        <span className="drawer-value">{pushEnabled ? 'On' : 'Off'}</span>
-                    </button>
-                    <div className="drawer-item" style={{ cursor: 'default' }}>
-                        {darkMode ? <IconMoon /> : <IconSun />}
-                        <span>Appearance</span>
-                        <span className="drawer-value">{themeMode}</span>
-                    </div>
-                    <div className="theme-options" role="group" aria-label="Appearance">
-                        <button
-                            type="button"
-                            className={`theme-option ${themeMode === 'light' ? 'active' : ''}`}
-                            onClick={() => onChangeTheme('light')}
-                        >
-                            Light
-                        </button>
-                        <button
-                            type="button"
-                            className={`theme-option ${themeMode === 'dark' ? 'active' : ''}`}
-                            onClick={() => onChangeTheme('dark')}
-                        >
-                            Dark
-                        </button>
-                        <button
-                            type="button"
-                            className={`theme-option ${themeMode === 'system' ? 'active' : ''}`}
-                            onClick={() => onChangeTheme('system')}
-                        >
-                            System
-                        </button>
-                    </div>
-                    {/* Data Export (replaces Budget Settings) */}
-                    <button
-                        type="button"
-                        className="drawer-item"
-                        onClick={handleExportData}
-                    >
-                        <IconExport />
-                        <span>Export Data</span>
-                        <span className="drawer-value" style={{ color: exportMsg.includes('✓') ? '#22C55E' : exportMsg ? '#F87171' : undefined }}>
-                            {exportMsg || 'JSON'}
-                        </span>
-                    </button>
-                </div>
-
-                {/* ── Security ── */}
-                <div className="drawer-section">Security</div>
-                <div className="drawer-list">
-                    {/* App Lock master toggle */}
-                    <button type="button" className="drawer-item" onClick={handleToggleSecurity}>
-                        <IconShield />
-                        <span>App Lock</span>
-                        <span className="drawer-value" style={{ color: securityActive ? '#22C55E' : '#64748B', fontWeight: 600 }}>
-                            {securityActive ? 'On' : 'Off'}
-                        </span>
-                    </button>
-
-                    {/* Change / Set PIN */}
-                    <button
-                        type="button"
-                        className="drawer-item"
-                        onClick={() => {
-                            onClose();
-                            onChangePIN();
-                        }}
-                    >
-                        <IconKey />
-                        <span>{pinSet ? 'Change PIN' : 'Set Up PIN'}</span>
-                        <span className="drawer-value">→</span>
-                    </button>
-
-                    {/* Biometric status */}
-                    {biometryType !== 'none' && (
-                        <div className="drawer-item" style={{ cursor: 'default', opacity: securityActive ? 0.9 : 0.55 }}>
-                            <IconFingerprint />
-                            <span>{biometricLabel}</span>
-                            <span className="drawer-value" style={{ color: securityActive ? '#22C55E' : '#64748B' }}>
-                                {securityActive ? 'Enabled' : 'Off'}
+                {/* ════════════════════ SUBVIEW: SECURITY WINDOW ════════════════════ */}
+                {currentView === 'security' ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                        {/* Top Back Header */}
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            marginBottom: '20px',
+                            paddingBottom: '12px',
+                            borderBottom: '1px solid var(--border)'
+                        }}>
+                            <button
+                                type="button"
+                                onClick={() => setCurrentView('main')}
+                                style={{
+                                    background: 'none',
+                                    border: 'none',
+                                    color: 'var(--blue)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    fontSize: '15px',
+                                    fontWeight: 700,
+                                    cursor: 'pointer',
+                                    padding: '6px 0',
+                                }}
+                            >
+                                <span style={{ fontSize: '18px', lineHeight: 1 }}>←</span> Back
+                            </button>
+                            <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text)' }}>
+                                Security
                             </span>
+                            <div style={{ width: '48px' }} />
                         </div>
-                    )}
-                    {biometryType === 'none' && (
-                        <div className="drawer-item" style={{ cursor: 'default', opacity: 0.55 }}>
-                            <IconFingerprint />
-                            <span>Biometrics</span>
-                            <span className="drawer-value">Not available</span>
+
+                        {/* Security Status Card */}
+                        <div style={{
+                            padding: '16px',
+                            borderRadius: '16px',
+                            background: securityActive ? 'rgba(34,197,94,0.08)' : 'var(--bg)',
+                            border: `1.5px solid ${securityActive ? 'rgba(34,197,94,0.25)' : 'var(--border)'}`,
+                            marginBottom: '24px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '14px'
+                        }}>
+                            <div style={{
+                                width: '44px',
+                                height: '44px',
+                                borderRadius: '12px',
+                                background: securityActive ? '#22C55E' : 'var(--surface)',
+                                color: securityActive ? '#FFFFFF' : 'var(--text-light)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                boxShadow: securityActive ? '0 6px 16px rgba(34,197,94,0.3)' : 'none',
+                                flexShrink: 0
+                            }}>
+                                <IconShield />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
+                                    {securityActive ? 'App Lock is Active' : 'App Lock is Off'}
+                                </div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px', lineHeight: 1.3 }}>
+                                    {securityActive
+                                        ? 'Passcode & biometrics required on launch.'
+                                        : 'Anyone can open Align without a passcode.'}
+                                </div>
+                            </div>
                         </div>
-                    )}
 
-                    {/* Remove PIN option if PIN is configured */}
-                    {pinSet && (
-                        <button
-                            type="button"
-                            className="drawer-item"
-                            onClick={handleRemovePIN}
-                            style={{ color: '#F87171' }}
-                        >
-                            <span style={{ fontSize: '13px' }}>Remove PIN</span>
-                            <span className="drawer-value" style={{ color: '#F87171' }}>Clear</span>
-                        </button>
-                    )}
-                </div>
+                        {/* Section: Master Switch */}
+                        <div className="drawer-section">Protection</div>
+                        <div className="drawer-list">
+                            <button
+                                type="button"
+                                className="drawer-item"
+                                onClick={handleToggleSecurity}
+                                style={{ justifyContent: 'space-between' }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <IconShield />
+                                    <span>Require Passcode</span>
+                                </div>
+                                <span
+                                    className="drawer-value"
+                                    style={{
+                                        padding: '4px 12px',
+                                        borderRadius: '20px',
+                                        background: securityActive ? '#22C55E' : 'var(--bg)',
+                                        color: securityActive ? '#FFFFFF' : 'var(--text-light)',
+                                        fontWeight: 800,
+                                        fontSize: '12px'
+                                    }}
+                                >
+                                    {securityActive ? 'ON' : 'OFF'}
+                                </span>
+                            </button>
+                        </div>
 
-                {/* ── Footer / Danger Zone ── */}
-                <div className="drawer-footer">
-                    <button type="button" className="drawer-item drawer-danger" onClick={onLogout}>
-                        <IconLogOut />
-                        <span>Log out</span>
-                    </button>
-                </div>
+                        {/* Section: Passcode & Biometrics */}
+                        <div className="drawer-section">Passcode & Biometrics</div>
+                        <div className="drawer-list">
+                            {/* Change or Set Up PIN */}
+                            <button
+                                type="button"
+                                className="drawer-item"
+                                onClick={() => {
+                                    onClose();
+                                    onChangePIN();
+                                }}
+                            >
+                                <IconKey />
+                                <div>
+                                    <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text)' }}>
+                                        {pinSet ? 'Change Passcode' : 'Set Up Passcode'}
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px' }}>
+                                        {pinSet ? `${pinLength}-digit PIN active` : 'Choose 4 or 6-digit PIN'}
+                                    </div>
+                                </div>
+                                <span className="drawer-value">→</span>
+                            </button>
+
+                            {/* Biometric Status Row */}
+                            <div
+                                className="drawer-item"
+                                style={{
+                                    cursor: 'default',
+                                    opacity: securityActive ? 1 : 0.6
+                                }}
+                            >
+                                <IconFingerprint />
+                                <div>
+                                    <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--text)' }}>
+                                        {biometricLabel}
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px' }}>
+                                        {biometryType !== 'none'
+                                            ? (securityActive ? 'Verified automatically on launch' : 'Enable passcode to use')
+                                            : 'Not available on this device'}
+                                    </div>
+                                </div>
+                                <span
+                                    className="drawer-value"
+                                    style={{
+                                        color: biometryType !== 'none' && securityActive ? '#22C55E' : 'var(--text-light)',
+                                        fontWeight: 700
+                                    }}
+                                >
+                                    {biometryType !== 'none' ? (securityActive ? 'Active' : 'Off') : 'N/A'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Danger zone / Remove PIN */}
+                        {pinSet && (
+                            <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+                                <button
+                                    type="button"
+                                    className="drawer-item drawer-danger"
+                                    onClick={handleRemovePIN}
+                                    style={{ color: 'var(--red)' }}
+                                >
+                                    <IconLogOut />
+                                    <div>
+                                        <div style={{ fontWeight: 700, fontSize: '14px', color: 'var(--red)' }}>
+                                            Remove Passcode
+                                        </div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '1px' }}>
+                                            Wipes PIN and turns off app lock
+                                        </div>
+                                    </div>
+                                    <span className="drawer-value" style={{ color: 'var(--red)' }}>Delete</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    /* ════════════════════ MAIN MENU VIEW ════════════════════ */
+                    <>
+                        {/* Account & Sync Header Card */}
+                        <div className="drawer-account-card">
+                            <div className="drawer-avatar">
+                                <IconUser />
+                            </div>
+                            <div className="drawer-account-details">
+                                <div className="drawer-phone">{formattedPhone}</div>
+                                <div className="drawer-sync-status">
+                                    <span className={`sync-dot ${isOnline ? 'online' : 'offline'}`} />
+                                    <span>{isOnline ? 'Cloud Synced' : 'Offline Mode'}</span>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                className={`drawer-refresh-btn ${isSyncing ? 'spinning' : ''}`}
+                                onClick={handleRefreshSync}
+                                title="Force refresh & sync"
+                                aria-label="Force refresh & sync"
+                            >
+                                <IconRefresh />
+                            </button>
+                        </div>
+
+                        {/* Today's Tasks Badge Banner */}
+                        {pendingTasksCount > 0 && (
+                            <div className="drawer-badge-banner">
+                                <span>⚡ {pendingTasksCount} task{pendingTasksCount > 1 ? 's' : ''} remaining today</span>
+                            </div>
+                        )}
+
+                        {/* ── Preferences ── */}
+                        <div className="drawer-section">Preferences</div>
+                        <div className="drawer-list">
+                            <button type="button" className="drawer-item" onClick={onEnablePush}>
+                                <IconBell />
+                                <span>Notifications</span>
+                                <span className="drawer-value">{pushEnabled ? 'On' : 'Off'}</span>
+                            </button>
+                            <div className="drawer-item" style={{ cursor: 'default' }}>
+                                {darkMode ? <IconMoon /> : <IconSun />}
+                                <span>Appearance</span>
+                                <span className="drawer-value">{themeMode}</span>
+                            </div>
+                            <div className="theme-options" role="group" aria-label="Appearance">
+                                <button
+                                    type="button"
+                                    className={`theme-option ${themeMode === 'light' ? 'active' : ''}`}
+                                    onClick={() => onChangeTheme('light')}
+                                >
+                                    Light
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`theme-option ${themeMode === 'dark' ? 'active' : ''}`}
+                                    onClick={() => onChangeTheme('dark')}
+                                >
+                                    Dark
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`theme-option ${themeMode === 'system' ? 'active' : ''}`}
+                                    onClick={() => onChangeTheme('system')}
+                                >
+                                    System
+                                </button>
+                            </div>
+                            {/* Data Export */}
+                            <button
+                                type="button"
+                                className="drawer-item"
+                                onClick={handleExportData}
+                            >
+                                <IconExport />
+                                <span>Export Data</span>
+                                <span className="drawer-value" style={{ color: exportMsg.includes('✓') ? '#22C55E' : exportMsg ? '#F87171' : undefined }}>
+                                    {exportMsg || 'JSON'}
+                                </span>
+                            </button>
+                        </div>
+
+                        {/* ── Security Entry Item ── */}
+                        <div className="drawer-section">Security &amp; Privacy</div>
+                        <div className="drawer-list">
+                            <button
+                                type="button"
+                                className="drawer-item"
+                                onClick={() => setCurrentView('security')}
+                            >
+                                <IconShield />
+                                <span>Security</span>
+                                <span
+                                    className="drawer-value"
+                                    style={{
+                                        color: securityActive ? '#22C55E' : 'var(--text-light)',
+                                        fontWeight: 700,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px'
+                                    }}
+                                >
+                                    {securityActive ? 'On' : 'Off'}
+                                    <span style={{ fontSize: '14px' }}>›</span>
+                                </span>
+                            </button>
+                        </div>
+
+                        {/* ── Footer / Danger Zone ── */}
+                        <div className="drawer-footer">
+                            <button type="button" className="drawer-item drawer-danger" onClick={onLogout}>
+                                <IconLogOut />
+                                <span>Log out</span>
+                            </button>
+                        </div>
+                    </>
+                )}
             </aside>
         </div>
     );
