@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { db } from '../../../lib/firebase'; // Imports your existing DB connection
-import firebase from 'firebase/compat/app';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,11 +17,14 @@ export async function GET(req: Request) {
 
     if (mode === 'subscribe' && token === VERIFY_TOKEN) {
         console.log('✅ Webhook verified successfully!');
-        // Meta expects the pure text challenge back, not JSON
-        return new NextResponse(challenge, { status: 200 });
+        // Force a raw plain-text response
+        return new Response(challenge, { 
+            status: 200, 
+            headers: { 'Content-Type': 'text/plain' } 
+        });
     }
 
-    return NextResponse.json({ error: 'Invalid token' }, { status: 403 });
+    return new Response('Invalid token', { status: 403 });
 }
 
 // ==========================================
@@ -32,22 +33,12 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        const { text, secret, phone } = body;
 
-        // Security check: Only allow requests with your secret key
-        if (secret !== 'ALIGN_SECRET_2026') {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
         // Ensure this is a WhatsApp status update/message
         if (body.object !== 'whatsapp_business_account') {
             return NextResponse.json({ status: 'ignored' }, { status: 404 });
         }
 
-        // Extract the amount using RegEx
-        const amountMatch = text.match(/(?:Rs\.?|INR)\s*([\d,]+\.?\d*)/i) || text.match(/([\d,]+\.?\d*)\s*(?:INR)/i);
-        const isExpense = /debited|spent|paid|sent|deducted/i.test(text);
-        
-        if (!amountMatch) {
-            return NextResponse.json({ success: false, message: 'No amount found' }, { status: 200 });
         const entry = body.entry?.[0];
         const changes = entry?.changes?.[0]?.value;
         const message = changes?.messages?.[0];
@@ -73,42 +64,21 @@ export async function POST(req: Request) {
             }
         }
 
-        const amount = parseFloat(amountMatch[1].replace(/,/g, ''));
-        const type = isExpense ? 'expense' : 'income';
         // Meta REQUIRES a 200 OK within 3 seconds, or they will retry and eventually block you
         return NextResponse.json({ status: 'success' }, { status: 200 });
 
-        // Try to extract a merchant name (e.g., "debited at Starbucks")
-        let title = "Bank Transfer";
-        const titleMatch = text.match(/(?:to|at|info|-)\s+([a-zA-Z0-9\s]+)/i);
-        if (titleMatch && titleMatch[1].trim().length > 0) {
-            title = titleMatch[1].substring(0, 20).trim();
-        }
     } catch (error) {
         console.error('Webhook Error:', error);
         return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
     }
 }
 
-        // Save directly to Firebase
-        await db.collection('planner_items').add({
-            ownerId: phone, // Uses the phone number passed from the mobile automation
-            type,
-            title,
-            amount,
-            date: new Date().toISOString().split('T')[0],
-            category: '#General',
-            tags: ['#General'],
-            splits: [],
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
 // ==========================================
 // 3. META API MEDIA DOWNLOADER
 // ==========================================
 async function processReceiptImage(imageId: string, senderPhone: string) {
     if (!API_TOKEN) throw new Error("Missing Meta API Token");
 
-        return NextResponse.json({ success: true });
     // Step 1: Ask Meta for the secure download URL
     const metaUrlReq = await fetch(`https://graph.facebook.com/v17.0/${imageId}`, {
         method: 'GET',
@@ -118,9 +88,6 @@ async function processReceiptImage(imageId: string, senderPhone: string) {
     if (!metaUrlReq.ok) throw new Error("Failed to get image URL from Meta");
     const { url: downloadUrl } = await metaUrlReq.json();
 
-    } catch {
-        return NextResponse.json({ error: 'Webhook failed' }, { status: 500 });
-    }
     // Step 2: Download the actual image binary data using that URL
     const imageReq = await fetch(downloadUrl, {
         method: 'GET',
