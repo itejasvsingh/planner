@@ -65,6 +65,15 @@ export async function POST(req: Request) {
                 // Await in serverless runtime so Vercel does not freeze execution before completion
                 await processTextQuery(textBody, senderPhone).catch(console.error);
             }
+            // ROUTE C: Handle Voice Notes / Audio
+            else if (message.type === 'audio') {
+                const audioId = message.audio.id;
+                const mimeType = message.audio.mime_type;
+                console.log(`🎙️ Voice note from ${senderPhone}. ID: ${audioId} (MIME: ${mimeType || 'default'})`);
+                
+                // Await in serverless runtime so Vercel does not freeze execution before completion
+                await processAudioMessage(audioId, senderPhone, mimeType).catch(console.error);
+            }
         }
 
         // Meta REQUIRES a 200 OK within 3 seconds, or they will retry and eventually block you
@@ -281,66 +290,60 @@ async function processTextQuery(text: string, senderPhone: string) {
     try {
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
-        // Step 1: Intent Classification
-        const intentPrompt = `You are a financial router. Did the user just describe a transaction to log (e.g. "spent 500 on food", "got paid 1000") OR are they asking a question about their finances (e.g. "how much did I spend", "am I over budget")?
-        Respond ONLY in JSON format: {"intent": "LOG" | "QUERY"}`;
-        
-        const intentResult = await generateWithGemini(genAI, [intentPrompt, text]);
-        const intentResponse = intentResult.response.text();
-        let intentJson = { intent: "LOG" }; // Default fallback
-        
-        try {
-            const match = intentResponse.match(/\{[\s\S]*\}/);
-            if (match) intentJson = JSON.parse(match[0]);
-        } catch {
-            console.warn("Intent parsing failed, defaulting to LOG.");
-        }
+        // 1. Instant Intent Classification (Regex)
+        // Matches expense keywords + numbers (e.g., "spent 200", "coffee 150 rs", "paid 400")
+        const isLoggingExpense = /(spent|paid|bought|rs|inr|cost|₹)/i.test(text) && /\d/.test(text);
 
-        if (intentJson.intent === "LOG") {
-            console.log("Intent: LOG -> Parsing and saving transaction");
-            const logPrompt = `Extract the financial transaction details from this text: "${text}".
-            Respond ONLY with a valid, raw JSON object. Do not include markdown formatting or backticks.
-            Format: {"title": "Vendor or item name", "amount": 100, "type": "expense" | "income", "category": "#Dining" | "#Travel" | "#Academics" | "#General"}`;
+        if (isLoggingExpense) {
+            console.log(`Intent: LOG -> Extracting expense data from "${text}"...`);
             
+            // A. Extract data using Gemini
+            const extractionPrompt = `Extract the vendor name and total amount from this text: "${text}".
+Categorize into #Dining, #Travel, #Academics, or #General. 
+Respond ONLY with a valid, raw JSON object. Do not include markdown formatting or backticks.
+Format: {"title": "Vendor", "amount": 100, "category": "#General"}`;
+
+            const result = await generateWithGemini(genAI, extractionPrompt);
+            const responseText = result.response.text();
+            
+            let extractedData;
             try {
-                const logResult = await generateWithGemini(genAI, logPrompt);
-                const logText = logResult.response.text();
-                const match = logText.match(/\{[\s\S]*\}/);
-                const logData = JSON.parse(match ? match[0] : logText);
-
-                const finalCategory = logData.type === 'expense'
-                    ? applySmartTags(logData.title, logData.category)
-                    : '#Income';
-
-                const now = new Date();
-                const pad = (n: number) => String(n).padStart(2, '0');
-                const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-
-                const newItem = {
-                    ownerId: senderPhone,
-                    type: logData.type || 'expense',
-                    title: logData.title || 'Expense',
-                    amount: parseFloat(logData.amount) || 0,
-                    date: today,
-                    category: finalCategory,
-                    tags: [finalCategory],
-                    splits: [],
-                    createdAt: now.toISOString()
-                };
-
-                await db.collection('planner_items').add(newItem);
-                console.log(`✅ Saved to Firebase: ${newItem.title} for ₹${newItem.amount}`);
-
-                await sendWhatsAppTextMessage(senderPhone, `✅ Logged ₹${newItem.amount} for ${newItem.title} under ${finalCategory}.`);
-            } catch (err) {
-                console.error("Failed to log transaction via text:", err);
-                await sendWhatsAppTextMessage(senderPhone, `⚠️ Couldn't extract details from "${text}". Try: "spent 200 on lunch".`);
+                const match = responseText.match(/\{[\s\S]*\}/);
+                extractedData = JSON.parse(match ? match[0] : responseText);
+            } catch {
+                throw new Error("AI returned invalid JSON format.");
             }
+
+            // B. Apply Smart Guardrails
+            const finalCategory = applySmartTags(extractedData.title, extractedData.category);
+
+            // C. Format Date and Save to Firebase
+            const now = new Date();
+            const pad = (n: number) => String(n).padStart(2, '0');
+            const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+            const newItem = {
+                ownerId: senderPhone,
+                type: 'expense',
+                title: extractedData.title || 'Expense',
+                amount: parseFloat(extractedData.amount) || 0,
+                date: today,
+                category: finalCategory,
+                tags: [finalCategory],
+                splits: [],
+                createdAt: now.toISOString() 
+            };
+
+            await db.collection('planner_items').add(newItem);
+            console.log(`✅ Saved to Firebase: ${newItem.title} for ₹${newItem.amount}`);
+
+            // D. Send Confirmation to WhatsApp
+            await sendWhatsAppTextMessage(senderPhone, `✅ Logged ₹${newItem.amount} for ${newItem.title} under ${finalCategory}.`);
+
         } else {
-            // Step 2: Fetch Data Context for the AI
-            console.log("Intent: QUERY -> Fetching Firestore context");
+            console.log(`Intent: QUERY -> Fetching Firestore context for "${text}"...`);
             
-            // Grab the current month to limit the data payload sent to Gemini
+            // A. Fetch Context
             const now = new Date();
             const pad = (n: number) => String(n).padStart(2, '0');
             const currentMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
@@ -349,25 +352,25 @@ async function processTextQuery(text: string, senderPhone: string) {
                 .where('ownerId', '==', senderPhone)
                 .get();
 
-            // Filter transactions for this month to keep the AI context window fast and cheap
             const transactions = snapshot.docs
                 .map(doc => doc.data())
                 .filter(data => (data.type === 'expense' || data.type === 'income') && data.date && data.date.startsWith(currentMonth));
 
-            // Step 3: Generate the natural language answer
+            // B. Generate Conversational Answer
             const answerPrompt = `You are "Align", a highly capable financial assistant. 
-            Here is the user's transaction data for this month: ${JSON.stringify(transactions)}.
-            Answer their question directly, accurately, and conversationally. Do not mention the JSON data itself. Keep the response punchy and under 3 sentences.
-            User question: "${text}"`;
+Here is the user's transaction data for this month: ${JSON.stringify(transactions)}.
+Answer their question directly, accurately, and conversationally. Do not mention the JSON data itself. Keep the response punchy and under 3 sentences.
+User question: "${text}"`;
 
             const answerResult = await generateWithGemini(genAI, answerPrompt);
-            const finalAnswer = answerResult.response.text();
+            const finalAnswer = answerResult.response.text().trim();
 
-            // Step 4: Send the insight back to WhatsApp
+            // C. Send Answer to WhatsApp
             await sendWhatsAppTextMessage(senderPhone, finalAnswer);
         }
+
     } catch (err: any) {
-        console.error("❌ processTextQuery top-level failure:", err);
+        console.error("❌ processTextQuery failure:", err);
         const is404 = err?.status === 404 || err?.message?.includes("404");
         if (is404) {
             await sendWhatsAppTextMessage(
@@ -375,7 +378,73 @@ async function processTextQuery(text: string, senderPhone: string) {
                 "⚠️ Gemini API Key setup needed: The current GEMINI_API_KEY is not authorized for Gemini models. Please get a free API key from https://aistudio.google.com/app/apikey and update Vercel."
             );
         } else {
-            await sendWhatsAppTextMessage(senderPhone, "⚠️ Sorry, an error occurred while processing your request.");
+            await sendWhatsAppTextMessage(senderPhone, `⚠️ Couldn't process request: ${err.message}`);
         }
+    }
+}
+
+// ==========================================
+// 5. META API AUDIO / VOICE NOTE PROCESSOR
+// ==========================================
+async function processAudioMessage(audioId: string, senderPhone: string, mimeType?: string) {
+    if (!API_TOKEN) throw new Error("Missing Meta API Token");
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+    if (!GEMINI_API_KEY) throw new Error("Missing Gemini API Token");
+
+    try {
+        // 1. Ask Meta for the secure download URL
+        const metaUrlReq = await fetch(`https://graph.facebook.com/v17.0/${audioId}`, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${API_TOKEN}` }
+        });
+
+        if (!metaUrlReq.ok) throw new Error("Failed to get audio URL from Meta");
+        const { url: downloadUrl } = await metaUrlReq.json();
+
+        // 2. Download audio binary
+        const audioReq = await fetch(downloadUrl, {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${API_TOKEN}` }
+        });
+
+        if (!audioReq.ok) throw new Error("Failed to download audio binary");
+
+        // 3. Convert to Base64
+        const arrayBuffer = await audioReq.arrayBuffer();
+        const base64Audio = Buffer.from(arrayBuffer).toString('base64');
+        const cleanMimeType = (mimeType || 'audio/ogg').split(';')[0].trim();
+
+        console.log(`🎙️ Audio downloaded (${arrayBuffer.byteLength} bytes)! Transcribing with Gemini...`);
+
+        // 4. Send audio to Gemini to transcribe
+        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+        const transcribePrompt = `You are an accurate voice transcription assistant.
+Transcribe the spoken audio into text verbatim.
+If the audio mentions financial expenses, numbers, or questions, transcribe them clearly in English or Hinglish.
+Respond ONLY with the transcribed text. Do not add quotes, markdown formatting, or preamble. If inaudible or silent, return empty string.`;
+
+        const audioPart = {
+            inlineData: {
+                data: base64Audio,
+                mimeType: cleanMimeType
+            }
+        };
+
+        const result = await generateWithGemini(genAI, [transcribePrompt, audioPart]);
+        const transcribedText = result.response.text().trim();
+
+        console.log(`🎙️ Transcribed voice note from ${senderPhone}: "${transcribedText}"`);
+
+        if (!transcribedText) {
+            await sendWhatsAppTextMessage(senderPhone, "⚠️ Couldn't clearly hear that voice note. Could you try sending it again or type it?");
+            return;
+        }
+
+        // 5. Route the transcribed text through our natural language text & query processor
+        await processTextQuery(transcribedText, senderPhone);
+
+    } catch (err: any) {
+        console.error("❌ processAudioMessage error:", err);
+        await sendWhatsAppTextMessage(senderPhone, `⚠️ Voice note processing error: ${err.message}`);
     }
 }
