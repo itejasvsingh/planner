@@ -187,6 +187,31 @@ export default function IPhone16Preview() {
             </button>
           ))}
 
+          <button
+            type="button"
+            onClick={() => {
+              if (iframeRef.current) {
+                iframeRef.current.src = iframeRef.current.src;
+              }
+            }}
+            title="Reload App"
+            style={{
+              padding: '5px 12px',
+              borderRadius: '10px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              color: 'white',
+              fontSize: '11px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '5px',
+            }}
+          >
+            <span>↻</span> Reload
+          </button>
+
           <Link
             href="/"
             target="_blank"
@@ -340,7 +365,7 @@ export default function IPhone16Preview() {
                 alignItems: 'center',
                 justifyContent: 'space-between',
                 padding: '0 28px',
-                color: '#1C1C1E',
+                color: '#FFFFFF',
                 pointerEvents: 'none',
               }}>
                 {/* CLOCK */}
@@ -433,7 +458,7 @@ export default function IPhone16Preview() {
                         width: '32px',
                         height: '32px',
                         borderRadius: '10px',
-                        background: '#007AFF',
+                        background: '#3B82F6',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -442,15 +467,15 @@ export default function IPhone16Preview() {
                         ⚡
                       </span>
                       <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '13px', fontWeight: 700 }}>Next Focus</span>
-                        <span style={{ fontSize: '11px', color: '#9CA3AF' }}>#Academics in 25m</span>
+                        <span style={{ fontSize: '13px', fontWeight: 700 }}>Align Active</span>
+                        <span style={{ fontSize: '11px', color: '#94A3B8' }}>Deep Work Focus • 25m</span>
                       </div>
                     </div>
                     <div style={{
                       padding: '4px 10px',
                       borderRadius: '12px',
-                      background: 'rgba(52, 199, 89, 0.2)',
-                      color: '#34C759',
+                      background: 'rgba(16, 185, 129, 0.2)',
+                      color: '#34D399',
                       fontSize: '11px',
                       fontWeight: 700,
                     }}>
@@ -464,12 +489,12 @@ export default function IPhone16Preview() {
               <iframe
                 ref={iframeRef}
                 src="/"
-                title="Planner App Live"
+                title="Align App Live"
                 style={{
                   width: '100%',
                   height: '100%',
                   border: 'none',
-                  background: '#F4F5F7',
+                  background: '#0F172A',
                   borderRadius: '52px',
                 }}
               />
@@ -482,10 +507,10 @@ export default function IPhone16Preview() {
                 transform: 'translateX(-50%)',
                 width: '134px',
                 height: '5px',
-                background: '#1C1C1E',
+                background: 'rgba(255, 255, 255, 0.75)',
                 borderRadius: '3px',
                 zIndex: 999,
-                opacity: 0.85,
+                opacity: 0.9,
                 pointerEvents: 'none',
               }} />
             </div>
