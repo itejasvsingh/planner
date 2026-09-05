@@ -56,7 +56,6 @@ export default function IPhone16Preview() {
   const [finish, setFinish] = useState<TitaniumFinish>('desert');
   const [scale, setScale] = useState<number>(0.88);
   const [islandExpanded, setIslandExpanded] = useState<boolean>(false);
-  const [islandMode, setIslandMode] = useState<'focus' | 'budget'>('focus');
   const [currentTime, setCurrentTime] = useState<string>('9:41');
   const [flashCamera, setFlashCamera] = useState<boolean>(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);

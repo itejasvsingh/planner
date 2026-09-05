@@ -2,16 +2,18 @@
 
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function OfflineFallback() {
   const [isOnline, setIsOnline] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     setIsOnline(navigator.onLine);
     const handleOnline = () => {
       setIsOnline(true);
       // Auto return to app when connection is restored
-      window.location.href = "/";
+      router.push("/");
     };
     const handleOffline = () => setIsOnline(false);
 
@@ -21,7 +23,7 @@ export default function OfflineFallback() {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, []);
+  }, [router]);
 
   return (
     <div
