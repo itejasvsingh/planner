@@ -1037,7 +1037,11 @@ export default function PlannerApp() {
                 darkMode={darkMode}
                 pushEnabled={pushEnabled}
                 onEnablePush={enablePush}
-                onOpenBudgetEdit={handleOpenBudgetEdit}
+                onChangePIN={() => {
+                    // Clear the existing PIN and drop back to the lock screen PIN-chooser
+                    import('../lib/auth').then(m => m.clearPin()).catch(() => {});
+                    setAuthStage('choose-length');
+                }}
                 onLogout={handleLogout}
                 pendingTasksCount={rawDailyTasks.length}
             />

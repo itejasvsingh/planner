@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     IconBell, IconMoon, IconSun, IconSettings, IconLogOut,
-    IconRefresh, IconUser
+    IconRefresh, IconUser, IconShield, IconKey, IconExport, IconFingerprint
 } from './Icons';
+import { checkBiometricAvailability, hasPinSet, clearPin, type BiometricAvailability } from '../lib/auth';
 
 interface DrawerMenuProps {
     isOpen: boolean;
@@ -15,8 +16,8 @@ interface DrawerMenuProps {
     darkMode: boolean;
     pushEnabled: boolean;
     onEnablePush: () => void;
-    onOpenBudgetEdit: () => void;
     onLogout: () => void;
+    onChangePIN: () => void;         // Opens LockScreen in 'choose-length' to reset PIN
     pendingTasksCount?: number;
 }
 
@@ -29,14 +30,17 @@ export default function DrawerMenu({
     darkMode,
     pushEnabled,
     onEnablePush,
-    onOpenBudgetEdit,
     onLogout,
+    onChangePIN,
     pendingTasksCount = 0
 }: DrawerMenuProps) {
     const [isOnline, setIsOnline] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
     const [dragX, setDragX] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
+    const [biometryType, setBiometryType] = useState<BiometricAvailability>('none');
+    const [pinSet, setPinSet] = useState(false);
+    const [exportMsg, setExportMsg] = useState('');
     const startX = useRef(0);
 
     useEffect(() => {
@@ -51,6 +55,13 @@ export default function DrawerMenu({
             window.removeEventListener('offline', handleOffline);
         };
     }, []);
+
+    // Check biometry & PIN state when drawer opens
+    useEffect(() => {
+        if (!isOpen) return;
+        checkBiometricAvailability().then(t => setBiometryType(t));
+        setPinSet(hasPinSet());
+    }, [isOpen]);
 
     // Close on Escape key
     useEffect(() => {
@@ -67,32 +78,49 @@ export default function DrawerMenu({
         startX.current = e.touches[0].clientX;
         setIsDragging(true);
     };
-
     const handleTouchMove = (e: React.TouchEvent) => {
         if (!isDragging) return;
-        const currentX = e.touches[0].clientX;
-        const diff = currentX - startX.current;
-        // Only allow dragging left (closing)
-        if (diff < 0) {
-            setDragX(diff);
-        }
+        const diff = e.touches[0].clientX - startX.current;
+        if (diff < 0) setDragX(diff);
     };
-
     const handleTouchEnd = () => {
         if (!isDragging) return;
         setIsDragging(false);
-        if (dragX < -60) {
-            onClose();
-        }
+        if (dragX < -60) onClose();
         setDragX(0);
     };
 
     const handleRefreshSync = () => {
         setIsSyncing(true);
         if (typeof window !== 'undefined') {
-            setTimeout(() => {
-                window.location.reload();
-            }, 300);
+            setTimeout(() => { window.location.reload(); }, 300);
+        }
+    };
+
+    // Export all data as JSON file
+    const handleExportData = () => {
+        try {
+            const keys = Object.keys(localStorage).filter(k =>
+                k.startsWith('planner_') || k.startsWith('align_')
+            );
+            const data: Record<string, any> = {};
+            keys.forEach(k => {
+                try { data[k] = JSON.parse(localStorage.getItem(k) || ''); } catch {
+                    data[k] = localStorage.getItem(k);
+                }
+            });
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `align-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            setExportMsg('Exported ✓');
+            setTimeout(() => setExportMsg(''), 3000);
+        } catch {
+            setExportMsg('Export failed');
+            setTimeout(() => setExportMsg(''), 3000);
         }
     };
 
@@ -101,6 +129,11 @@ export default function DrawerMenu({
     const formattedPhone = userPhone
         ? (userPhone.length > 10 ? `+${userPhone.slice(0, userPhone.length - 10)} ` : '') + `******${userPhone.slice(-4)}`
         : '';
+
+    const biometricLabel =
+        biometryType === 'face' ? 'Face ID' :
+        biometryType === 'fingerprint' ? 'Fingerprint' :
+        'Biometrics';
 
     return (
         <div className="drawer-overlay" onClick={onClose}>
@@ -115,7 +148,7 @@ export default function DrawerMenu({
                     transition: isDragging ? 'none' : 'transform 0.25s cubic-bezier(0.1, 0.9, 0.2, 1)'
                 }}
             >
-                {/* Drag handle for swipe gesture feedback */}
+                {/* Drag handle */}
                 <div className="drawer-swipe-indicator" />
 
                 {/* Account & Sync Header Card */}
@@ -148,6 +181,7 @@ export default function DrawerMenu({
                     </div>
                 )}
 
+                {/* ── Preferences ── */}
                 <div className="drawer-section">Preferences</div>
                 <div className="drawer-list">
                     <button type="button" className="drawer-item" onClick={onEnablePush}>
@@ -183,20 +217,62 @@ export default function DrawerMenu({
                             System
                         </button>
                     </div>
+                    {/* Data Export (replaces Budget Settings) */}
+                    <button
+                        type="button"
+                        className="drawer-item"
+                        onClick={handleExportData}
+                    >
+                        <IconExport />
+                        <span>Export Data</span>
+                        <span className="drawer-value" style={{ color: exportMsg.includes('✓') ? '#22C55E' : exportMsg ? '#F87171' : undefined }}>
+                            {exportMsg || 'JSON'}
+                        </span>
+                    </button>
+                </div>
+
+                {/* ── Security ── */}
+                <div className="drawer-section">Security</div>
+                <div className="drawer-list">
+                    {/* PIN status indicator */}
+                    <div className="drawer-item" style={{ cursor: 'default', opacity: 0.8 }}>
+                        <IconShield />
+                        <span>App Lock</span>
+                        <span className="drawer-value" style={{ color: pinSet ? '#22C55E' : '#F87171' }}>
+                            {pinSet ? 'Active' : 'Not Set'}
+                        </span>
+                    </div>
+                    {/* Change / Set PIN */}
                     <button
                         type="button"
                         className="drawer-item"
                         onClick={() => {
                             onClose();
-                            onOpenBudgetEdit();
+                            onChangePIN();
                         }}
                     >
-                        <IconSettings />
-                        <span>Budget Settings</span>
-                        <span className="drawer-value">Edit</span>
+                        <IconKey />
+                        <span>{pinSet ? 'Change PIN' : 'Set PIN'}</span>
+                        <span className="drawer-value">→</span>
                     </button>
+                    {/* Biometric status — informational only (no toggle; it auto-uses if available) */}
+                    {biometryType !== 'none' && (
+                        <div className="drawer-item" style={{ cursor: 'default', opacity: 0.8 }}>
+                            <IconFingerprint />
+                            <span>{biometricLabel}</span>
+                            <span className="drawer-value" style={{ color: '#22C55E' }}>Enabled</span>
+                        </div>
+                    )}
+                    {biometryType === 'none' && (
+                        <div className="drawer-item" style={{ cursor: 'default', opacity: 0.55 }}>
+                            <IconFingerprint />
+                            <span>Biometrics</span>
+                            <span className="drawer-value">Not available</span>
+                        </div>
+                    )}
                 </div>
 
+                {/* ── Footer / Danger Zone ── */}
                 <div className="drawer-footer">
                     <button type="button" className="drawer-item drawer-danger" onClick={onLogout}>
                         <IconLogOut />
