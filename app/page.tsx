@@ -10,7 +10,7 @@ import DrawerMenu from '../components/DrawerMenu';
 import {
     IconCheck, IconStar, IconCalendar, IconTarget, IconWallet,
     IconPlus, IconClock, IconList, IconMic, IconSparkles, IconEdit,
-    IconTrendingUp, IconMenu
+    IconTrendingUp, IconMenu, IconWhatsApp, IconRepeat
 } from '../components/Icons';
 import { triggerHaptic, updateStatusBar, hideSplashScreen, requestNotificationPermission, checkNotificationPermission, sendNativeNotification } from '../lib/native';
 import { Capacitor } from '@capacitor/core';
@@ -121,6 +121,7 @@ export default function PlannerApp() {
     const [draftTarget, setDraftTarget] = useState('');
     const [draftAmount, setDraftAmount] = useState('');
     const [draftCategory, setDraftCategory] = useState('#General');
+    const [draftIsRecurring, setDraftIsRecurring] = useState(false);
     const [editingItem, setEditingItem] = useState<any>(null);
     const [splittingItem, setSplittingItem] = useState<any>(null);
     
@@ -384,7 +385,136 @@ export default function PlannerApp() {
 
     useEffect(() => {
         updateStatusBar(darkMode);
+        if (typeof document !== 'undefined') {
+            document.documentElement.classList.toggle('dark-mode', darkMode);
+            document.body.classList.toggle('dark-mode', darkMode);
+        }
     }, [darkMode]);
+
+    // --- SMART BUDGET PUSH NOTIFICATIONS ---
+    const checkBudgetThresholds = async (addedAmount: number) => {
+        if (addedAmount <= 0) return;
+        const now = new Date();
+        const monthKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+        
+        let currentMonthSpend = 0;
+        items.forEach(it => {
+            if (it.type === 'expense' && (it.date || '').startsWith(monthKey)) {
+                currentMonthSpend += (parseFloat(it.amount) || 0);
+            }
+        });
+        
+        const limit = budgetLimits['MONTHLY'] ?? 20000;
+        if (limit <= 0) return;
+        
+        const newSpend = currentMonthSpend + addedAmount;
+        const remaining = Math.max(0, limit - newSpend);
+        
+        const alert80Key = `align_budget_alert_${monthKey}_80`;
+        const alert95Key = `align_budget_alert_${monthKey}_95`;
+        const alert100Key = `align_budget_alert_${monthKey}_100`;
+        
+        if (typeof window === 'undefined') return;
+        
+        if (newSpend >= limit && !localStorage.getItem(alert100Key)) {
+            localStorage.setItem(alert100Key, '1');
+            await sendNativeNotification(
+                "🛑 Budget Exceeded",
+                `You have exceeded your monthly limit of ₹${limit.toLocaleString('en-IN')}. Total spent: ₹${newSpend.toLocaleString('en-IN')}.`
+            );
+        } else if (newSpend >= limit * 0.95 && !localStorage.getItem(alert95Key)) {
+            localStorage.setItem(alert95Key, '1');
+            await sendNativeNotification(
+                "🚨 Critical Budget Alert",
+                `You have used 95% of your Monthly Budget. Only ₹${remaining.toLocaleString('en-IN')} remaining!`
+            );
+        } else if (newSpend >= limit * 0.8 && !localStorage.getItem(alert80Key)) {
+            localStorage.setItem(alert80Key, '1');
+            await sendNativeNotification(
+                "⚠️ Budget Alert",
+                `You have used 80% of your Monthly Budget. ₹${remaining.toLocaleString('en-IN')} remaining.`
+            );
+        }
+    };
+
+    // --- WHATSAPP NUDGE HELPER ---
+    const handleNudgeFriend = (friendName: string, amount: number, title?: string) => {
+        triggerHaptic('medium');
+        const itemName = title || 'our recent expenses';
+        const messageText = `Hey ${friendName}! Just a quick reminder from Align: you owe ₹${Math.round(amount)} for ${itemName}. 🍕`;
+        const waLink = `https://wa.me/?text=${encodeURIComponent(messageText)}`;
+        if (typeof window !== 'undefined') {
+            window.open(waLink, '_blank');
+        }
+    };
+
+    // --- AUTOMATED RECURRING BILLS INJECTION ---
+    useEffect(() => {
+        if (!userPhone || items.length === 0) return;
+        const now = new Date();
+        const currentMonthKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+        const todayStr = `${currentMonthKey}-${pad(now.getDate())}`;
+
+        // Find unique recurring expense templates
+        const recurringTemplates = items.filter(it => it.type === 'expense' && it.isRecurring && !it.isGeneratedRecurring);
+
+        const newItemsToInject: any[] = [];
+        recurringTemplates.forEach(rec => {
+            const hasThisMonth = items.some(it =>
+                it.type === 'expense' &&
+                (it.id === rec.id || it.recurringParentId === rec.id) &&
+                (it.date || '').startsWith(currentMonthKey)
+            );
+
+            const recDate = rec.date || '';
+            if (!hasThisMonth && !recDate.startsWith(currentMonthKey)) {
+                const originalDay = recDate.length >= 10 ? recDate.slice(8, 10) : '01';
+                const billDate = `${currentMonthKey}-${originalDay}`;
+
+                const generatedItem = {
+                    ownerId: userPhone,
+                    type: 'expense',
+                    title: rec.title,
+                    amount: rec.amount,
+                    date: billDate <= todayStr ? billDate : `${currentMonthKey}-01`,
+                    category: rec.category || '#Bills',
+                    tags: rec.tags || ['#Bills'],
+                    splits: [],
+                    isRecurring: true,
+                    isGeneratedRecurring: true,
+                    recurringParentId: rec.id,
+                    recurringFrequency: 'monthly',
+                    createdAt: new Date().toISOString()
+                };
+                newItemsToInject.push(generatedItem);
+            }
+        });
+
+        if (newItemsToInject.length > 0) {
+            (async () => {
+                const injectedWithIds: any[] = [];
+                for (const item of newItemsToInject) {
+                    const tempId = 'rec_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+                    injectedWithIds.push({ id: tempId, ...item });
+                    try {
+                        const docRef = await db.collection('planner_items').add({
+                            ...item,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                        injectedWithIds[injectedWithIds.length - 1].id = docRef.id;
+                    } catch (e) {
+                        console.warn('Offline recurring injection error:', e);
+                    }
+                }
+                setItems(prev => {
+                    const updated = [...injectedWithIds, ...prev];
+                    safeSetItem(`planner_cache_items_${userPhone}`, JSON.stringify(updated));
+                    return updated;
+                });
+            })();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userPhone, items.length]);
 
     useEffect(() => {
         if (typeof window === 'undefined' || !window.visualViewport) return;
@@ -601,8 +731,40 @@ export default function PlannerApp() {
             .sort((a,b) => b.amount - a.amount);
     }, [items]);
 
+    // --- RECURRING BILLS SUMMARY ---
+    const recurringBills = useMemo(() => {
+        const map = new Map<string, any>();
+        items.forEach(it => {
+            if (it.type === 'expense' && it.isRecurring) {
+                const titleKey = (it.title || '').trim().toLowerCase();
+                if (titleKey && !map.has(titleKey)) {
+                    map.set(titleKey, it);
+                }
+            }
+        });
+        return Array.from(map.values());
+    }, [items]);
+
+    const totalMonthlyCommitments = useMemo(() => {
+        return recurringBills.reduce((sum, b) => sum + (parseFloat(b.amount) || 0), 0);
+    }, [recurringBills]);
+
+    const billedThisMonth = useMemo(() => {
+        const now = new Date();
+        const curMonthKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+        return recurringBills.reduce((sum, b) => {
+            const isBilled = items.some(it =>
+                it.type === 'expense' &&
+                (it.title || '').trim().toLowerCase() === (b.title || '').trim().toLowerCase() &&
+                (it.date || '').startsWith(curMonthKey)
+            );
+            return isBilled ? sum + (parseFloat(b.amount) || 0) : sum;
+        }, 0);
+    }, [recurringBills, items]);
+
     function openDetailedAdd() {
         setDraftTitle(quickAddText); setDraftTime(getCurrentTime()); setDraftEndTime(''); setDraftAmount(''); setDraftCategory('#General');
+        setDraftIsRecurring(false);
         setDraftDate(tab === 'daily' ? formatDateKey(dailyDate) : formatDateKey(selectedDate));
         setQuickAddText(''); setAddType(tab === 'expenses' ? 'expense' : 'task'); setIsAdding(true);
     }
@@ -621,6 +783,23 @@ export default function PlannerApp() {
             newItem = { ownerId: userPhone, type: 'task', title, done: false, dueDate: draftDate, reminderTime: draftTime || null, endTime: draftEndTime || null, priority: draftPriority, subtasks: [], createdAt: new Date().toISOString() };
         } else if (addType === 'expense' || addType === 'income') {
             newItem = { ownerId: userPhone, type: addType, title, amount: parseFloat(draftAmount) || 0, date: draftDate, category: draftCategory, tags: draftCategory ? [draftCategory] : [], splits: [], createdAt: new Date().toISOString() };
+            const expAmount = parseFloat(draftAmount) || 0;
+            newItem = {
+                ownerId: userPhone,
+                type: addType,
+                title,
+                amount: expAmount,
+                date: draftDate,
+                category: draftCategory,
+                tags: draftCategory ? [draftCategory] : [],
+                splits: [],
+                isRecurring: addType === 'expense' ? draftIsRecurring : false,
+                recurringFrequency: (addType === 'expense' && draftIsRecurring) ? 'monthly' : null,
+                createdAt: new Date().toISOString()
+            };
+            if (addType === 'expense') {
+                checkBudgetThresholds(expAmount);
+            }
         } else {
             newItem = { ownerId: userPhone, type: 'goal', title, target: parseInt(draftTarget) || 5, current: 0, progressHistory: [], month: draftDate.substring(0, 7), createdAt: new Date().toISOString() };
         }
@@ -634,6 +813,7 @@ export default function PlannerApp() {
 
         triggerHaptic('success');
         setIsAdding(false); setDraftTitle(''); setDraftPriority('none'); setDraftTarget(''); setDraftAmount('');
+        setIsAdding(false); setDraftTitle(''); setDraftPriority('none'); setDraftTarget(''); setDraftAmount(''); setDraftIsRecurring(false);
 
         const firestorePayload = {
             ...newItem,
@@ -666,6 +846,12 @@ export default function PlannerApp() {
         }
         if (cleanItem.type === 'expense' || cleanItem.type === 'income') cleanItem.amount = parseFloat(cleanItem.amount) || 0;
         if (cleanItem.type === 'expense') cleanItem.splits = calculateSplitAmounts(cleanItem.splits || [], cleanItem.amount);
+        if (cleanItem.type === 'expense') {
+            cleanItem.splits = calculateSplitAmounts(cleanItem.splits || [], cleanItem.amount);
+            const prevAmt = editingItem ? (parseFloat(editingItem.amount) || 0) : 0;
+            const diff = cleanItem.amount - prevAmt;
+            if (diff > 0) checkBudgetThresholds(diff);
+        }
         const docId = cleanItem.id; delete cleanItem.id;
 
         // Instant optimistic UI update
@@ -765,6 +951,9 @@ export default function PlannerApp() {
                         splits: [],
                         createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     };
+                    if (isExpense) {
+                        checkBudgetThresholds(amount);
+                    }
                 } else {
                     let targetDate = today;
                     if (/tomorrow/i.test(textToProcess)) {
@@ -841,12 +1030,12 @@ export default function PlannerApp() {
     // --- LOGIN SCREEN RENDER --- (first time only — phone number entry)
     if (!userPhone) {
         return (
-            <div style={{ padding: '40px 24px', display: 'flex', flexDirection: 'column', height: '100vh', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F172A' }}>
-                <div style={{ width: '80px', height: '80px', background: 'linear-gradient(135deg, #3B82F6 0%, #6366F1 100%)', borderRadius: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: '24px', boxShadow: '0 10px 30px rgba(59, 130, 246, 0.35)', fontSize: '36px' }}>
+            <div style={{ padding: '40px 24px', display: 'flex', flexDirection: 'column', height: '100vh', justifyContent: 'center', alignItems: 'center', backgroundColor: 'var(--bg)' }}>
+                <div style={{ width: '80px', height: '80px', background: 'linear-gradient(135deg, var(--blue) 0%, var(--purple, #6366F1) 100%)', borderRadius: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: '24px', boxShadow: '0 10px 30px rgba(59, 130, 246, 0.35)', fontSize: '36px' }}>
                     ⚡
                 </div>
-                <h1 style={{ textAlign: 'center', marginBottom: '8px', fontSize: '32px', fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.5px' }}>Align</h1>
-                <p style={{ textAlign: 'center', color: '#64748B', marginBottom: '32px', fontSize: '16px', lineHeight: '1.4', maxWidth: '300px' }}>Enter your WhatsApp number to sync your personalized timeline and finances.</p>
+                <h1 style={{ textAlign: 'center', marginBottom: '8px', fontSize: '32px', fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.5px' }}>Align</h1>
+                <p style={{ textAlign: 'center', color: 'var(--text-light)', marginBottom: '32px', fontSize: '16px', lineHeight: '1.4', maxWidth: '300px' }}>Enter your WhatsApp number to sync your personalized timeline and finances.</p>
                 <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%', maxWidth: '340px' }}>
                     <input
                         type="tel"
@@ -871,6 +1060,7 @@ export default function PlannerApp() {
                 initialStage={authStage}
                 currentPhone={userPhone}
                 onUnlock={() => setAuthStage('unlocked')}
+                onCancel={() => setAuthStage('unlocked')}
                 onPhoneConfirmed={() => {}}
             />
         );
@@ -934,6 +1124,7 @@ export default function PlannerApp() {
     const dailyLimit = budgetLimits['DAILY'] ?? 1000;
     const monthlyRemaining = monthlyLimit - netMonthSpend;
     const dailyRemaining = dailyLimit - netDaySpend;
+    const upcomingSpokenFor = Math.max(0, totalMonthlyCommitments - billedThisMonth);
 
     const getBudgetClass = (spent: number, limit: number) => {
         const pct = spent / limit;
@@ -1045,8 +1236,6 @@ export default function PlannerApp() {
                 pushEnabled={pushEnabled}
                 onEnablePush={enablePush}
                 onChangePIN={() => {
-                    // Clear the existing PIN and drop back to the lock screen PIN-chooser
-                    import('../lib/auth').then(m => m.clearPin()).catch(() => {});
                     setAuthStage('choose-length');
                 }}
                 onLogout={handleLogout}
@@ -1087,9 +1276,17 @@ export default function PlannerApp() {
                             </button>
                         </div>
                     </div>
-                    
                     <div className="list-container">
-                        {anytimeTasks.length === 0 && scheduledTimelineItems.length === 0 && <div style={{padding: '20px', color: 'var(--text-light)', textAlign: 'center', fontWeight: '500'}}>Schedule is clear for this day.</div>}
+                        {anytimeTasks.length === 0 && scheduledTimelineItems.length === 0 && (
+                            <div style={{padding: '60px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', color: 'var(--text-light)', textAlign: 'center'}}>
+                                <IconStar style={{width: 52, height: 52, opacity: 0.3}} />
+                                <div style={{fontWeight: '700', fontSize: '18px', color: 'var(--text)'}}>Schedule is clear</div>
+                                <div style={{fontSize: '15px'}}>Add a task or event to get started.</div>
+                                <button type="button" onClick={() => { setAddType('task'); setIsAdding(true); }} style={{marginTop: '12px', background: 'var(--blue)', color: 'white', border: 'none', padding: '12px 24px', borderRadius: '100px', fontWeight: 600, cursor: 'pointer', boxShadow: 'var(--shadow)'}}>
+                                    + Add Task
+                                </button>
+                            </div>
+                        )}
                         
                         {anytimeTasks.map(item => {
                             const subsDone = item.subtasks?.filter((s: any) => s.done).length || 0;
@@ -1108,7 +1305,7 @@ export default function PlannerApp() {
                                                 {item.dueDate < todayKey && <span className="pill pill-red">Overdue</span>}
                                             </div>
                                         </div>
-                                        <button type="button" onClick={(e) => { e.stopPropagation(); setEditingItem(item); }} aria-label="Edit task" title="Edit task" style={{background: 'none', border: 'none', color: 'var(--text-light)', cursor: 'pointer', display: 'flex', padding: '4px'}}>
+                                        <button type="button" onClick={(e) => { e.stopPropagation(); setEditingItem(item); }} aria-label="Edit task" title="Edit task" style={{background: 'none', border: 'none', color: 'var(--text-light)', cursor: 'pointer', display: 'flex', padding: '12px', margin: '-12px'}}>
                                             <IconEdit />
                                         </button>
                                     </div>
@@ -1130,7 +1327,7 @@ export default function PlannerApp() {
                                             <div className="time-label">{item.reminderTime || item.dueTime}</div>
                                             <div style={{ flex: 1, minWidth: 0 }}>
                                                 <SwipeAction onComplete={() => toggleItem(item.id, item.done)} onDelete={() => deleteItem(item.id)}>
-                                                    <div className={`task-block ${item.endTime ? 'class-card' : getPrioClass(item.priority)} ${item.isConflict ? 'conflict-pulse' : ''}`} onClick={() => setEditingItem(item)}>
+                                                    <div className={`task-block ${getPrioClass(item.priority)} ${item.isConflict ? 'conflict-pulse' : ''}`} onClick={() => setEditingItem(item)}>
                                                         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start'}}>
                                                             <div className="block-title">{item.title}</div>
                                                             <div className="circle-check" style={{width: 20, height: 20}} onClick={(e) => { e.stopPropagation(); toggleItem(item.id, item.done); }}>
@@ -1138,7 +1335,7 @@ export default function PlannerApp() {
                                                             </div>
                                                         </div>
                                                         <div className="block-meta">
-                                                            <span className={`pill ${item.endTime ? 'pill-purple' : 'pill-time'}`}>
+                                                            <span className="pill pill-time">
                                                                 <IconClock /> {item.reminderTime || item.dueTime}{item.endTime ? ` - ${item.endTime}` : ''}
                                                             </span>
                                                             {subsTotal > 0 && <span><IconList /> {subsDone}/{subsTotal}</span>}
@@ -1216,7 +1413,7 @@ export default function PlannerApp() {
                                                 <span className={`task-title ${item.done ? 'done' : ''}`}>{item.title}</span>
                                                 {(item.reminderTime || item.dueTime) && (
                                                     <div className="task-meta-row">
-                                                        <span className={`pill ${item.endTime ? 'pill-purple' : 'pill-time'}`}><IconClock /> {item.reminderTime || item.dueTime}{item.endTime ? ` - ${item.endTime}` : ''}</span>
+                                                        <span className="pill pill-time"><IconClock /> {item.reminderTime || item.dueTime}{item.endTime ? ` - ${item.endTime}` : ''}</span>
                                                     </div>
                                                 )}
                                             </div>
@@ -1255,16 +1452,36 @@ export default function PlannerApp() {
                                         <div className="finance-empty" style={{padding: '24px 0'}}>You are all settled up! 🎉</div>
                                     ) : (
                                         <div>
-                                            {friendsBalances.map(friend => (
-                                                <div key={friend.name} className="balance-card">
-                                                    <div className="balance-avatar">{friend.name.charAt(0)}</div>
-                                                    <div className="balance-info">
-                                                        <div className="balance-name">{friend.name}</div>
-                                                        <div className="balance-amount">Owes you ₹{friend.amount.toFixed(2)}</div>
+                                            {friendsBalances.map(friend => {
+                                                const relatedExpense = items.find(item => 
+                                                    item.type === 'expense' && 
+                                                    item.splits?.some((s: any) => (s.name || '').toLowerCase() === (friend.name || '').toLowerCase() && !s.settled)
+                                                );
+                                                const recentTitle = relatedExpense?.title || 'our recent expenses';
+                                                return (
+                                                    <div key={friend.name} className="balance-card">
+                                                        <div className="balance-avatar">{friend.name.charAt(0)}</div>
+                                                        <div className="balance-info">
+                                                            <div className="balance-name">{friend.name}</div>
+                                                            <div className="balance-amount">Owes you ₹{friend.amount.toFixed(0)}</div>
+                                                        </div>
+                                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                            <button 
+                                                                type="button" 
+                                                                className="btn-nudge" 
+                                                                onClick={() => handleNudgeFriend(friend.name, friend.amount, recentTitle)}
+                                                                title={`Send WhatsApp reminder to ${friend.name}`}
+                                                            >
+                                                                <IconWhatsApp style={{ width: 15, height: 15 }} />
+                                                                Nudge
+                                                            </button>
+                                                            <button type="button" className="btn-settle" onClick={() => settleUpWith(friend.name)}>
+                                                                Settle Up
+                                                            </button>
+                                                        </div>
                                                     </div>
-                                                    <button type="button" className="btn-settle" onClick={() => settleUpWith(friend.name)}>Settle Up</button>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
                                     )}
                                 </section>
@@ -1286,6 +1503,45 @@ export default function PlannerApp() {
                             <div className="finance-legend"><span><i className="expense-dot"></i>Spent</span><span><i className="income-dot"></i>Received</span></div>
                         </section>
                         <section className="finance-section">
+                            <div className="finance-section-head"><h2 className="finance-section-title">Upcoming Bills & Subscriptions</h2><span className="finance-section-note">₹{totalMonthlyCommitments.toLocaleString('en-IN')}/mo</span></div>
+                            {recurringBills.length === 0 ? (
+                                <div className="finance-empty" style={{ padding: '16px 0' }}>No recurring bills added yet. Toggle "Recurring Monthly" when logging fixed bills.</div>
+                            ) : (
+                                <>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg)', borderRadius: '12px', marginBottom: '12px', fontSize: '12px', fontWeight: 600 }}>
+                                        <span>Billed so far: <strong style={{ color: 'var(--green)' }}>₹{billedThisMonth.toLocaleString('en-IN')}</strong></span>
+                                        <span>Spoken for: <strong style={{ color: 'var(--orange)' }}>₹{upcomingSpokenFor.toLocaleString('en-IN')}</strong></span>
+                                    </div>
+                                    {recurringBills.map(bill => {
+                                        const now = new Date();
+                                        const curMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+                                        const isBilled = items.some(it => 
+                                            it.type === 'expense' && 
+                                            (it.title || '').trim().toLowerCase() === (bill.title || '').trim().toLowerCase() && 
+                                            (it.date || '').startsWith(curMonth)
+                                        );
+                                        return (
+                                            <div key={bill.id} className="bill-item">
+                                                <div className="bill-info">
+                                                    <div className="bill-title">
+                                                        <IconRepeat style={{ width: 14, height: 14, color: 'var(--blue)' }} />
+                                                        {bill.title}
+                                                    </div>
+                                                    <div className="bill-meta">{bill.category || '#Bills'} · Monthly recurring</div>
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span className={`bill-badge ${isBilled ? 'billed' : 'upcoming'}`}>
+                                                        {isBilled ? 'Billed' : 'Upcoming'}
+                                                    </span>
+                                                    <span className="bill-amount">₹{parseFloat(bill.amount).toLocaleString('en-IN')}</span>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </>
+                            )}
+                        </section>
+                        <section className="finance-section">
                             <div className="finance-section-head"><h2 className="finance-section-title">Category budgets</h2><span className="finance-section-note">This month</span></div>
                             {Array.from(new Set([...Object.keys(budgetLimits).filter(k => !['TOTAL', 'MONTHLY', 'DAILY'].includes(k)), ...Object.keys(categorySpend)])).map(tag => { const spent = categorySpend[tag] || 0; const limit = budgetLimits[tag] || 5000; return <div key={tag} className="finance-category"><div className="finance-category-head"><span>{tag}</span><span className="finance-category-amount">₹{spent.toLocaleString('en-IN')} / ₹{limit.toLocaleString('en-IN')}</span></div><div className="finance-category-track"><div className={`finance-category-fill ${getBudgetClass(spent, limit)}`} style={{width: `${Math.min((spent / limit) * 100, 100)}%`}}></div></div></div>; })}
                         </section>
@@ -1298,7 +1554,16 @@ export default function PlannerApp() {
                         </div>
                         <section className="finance-section finance-transactions">
                             <div className="finance-section-head"><h2 className="finance-section-title">Recent activity</h2><span className="finance-section-note">{todayTransactions.length} entries</span></div>
-                            {todayTransactions.length === 0 && <div className="finance-empty">No transactions today.</div>}
+                            {todayTransactions.length === 0 && (
+                                <div className="finance-empty" style={{padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px', textAlign: 'center'}}>
+                                    <IconWallet style={{width: 48, height: 48, opacity: 0.3, color: 'var(--text-light)'}} />
+                                    <div style={{fontWeight: '700', fontSize: '18px', color: 'var(--text)'}}>No transactions today</div>
+                                    <div style={{fontSize: '15px', color: 'var(--text-light)'}}>Log spending to track budgets.</div>
+                                    <button type="button" onClick={() => { setAddType('expense'); setIsAdding(true); }} style={{marginTop: '12px', background: 'var(--blue)', color: 'white', padding: '12px 24px', borderRadius: '100px', width: 'auto', border: 'none', fontWeight: 600, boxShadow: 'var(--shadow)', cursor: 'pointer'}}>
+                                        + Log Expense
+                                    </button>
+                                </div>
+                            )}
                             <div className="list-container" style={{padding: 0, marginTop: 0}}>
                                 {todayTransactions.map(renderTransaction)}
                             </div>
@@ -1328,7 +1593,7 @@ export default function PlannerApp() {
                                     <span>{g.title}</span>
                                     <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
                                         <span style={{color: 'var(--blue)'}}>{g.current || 0} / {g.target || 0}</span>
-                                        <button onClick={(e) => { e.stopPropagation(); setEditingItem(g); }} style={{background: 'none', border: 'none', color: 'var(--text-light)', cursor: 'pointer', display: 'flex', padding: 0}}>
+                                        <button onClick={(e) => { e.stopPropagation(); setEditingItem(g); }} aria-label={`Edit ${g.title}`} title="Edit goal" style={{background: 'none', border: 'none', color: 'var(--text-light)', cursor: 'pointer', display: 'flex', padding: '12px', margin: '-12px'}}>
                                             <IconEdit />
                                         </button>
                                     </div>
@@ -1408,8 +1673,8 @@ export default function PlannerApp() {
 
             {/* BUDGET EDIT MODAL */}
             {isEditingBudgets && (
-                <div className="modal-overlay" onClick={() => setIsEditingBudgets(false)} style={{...vpStyle, bottom: 'auto'}}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveBudgets} style={{ maxHeight: 'calc(100% - 16px)' }}>
+                <div className="modal-overlay" onClick={() => setIsEditingBudgets(false)} style={{...vpStyle}}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveBudgets} style={{ maxHeight: '85vh', height: 'auto', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginTop: 'auto', paddingBottom: 'calc(max(env(safe-area-inset-bottom), 24px))' }}>
                         <div className="input-title" style={{fontSize: '22px', marginBottom: '16px', fontWeight: 800}}>{budgetEditScope === 'daily' ? 'Edit Daily Limit' : budgetEditScope === 'monthly' ? 'Edit Monthly Limit' : 'Edit Budgets'}</div>
                         <div className="ios-list">
                             {(budgetEditScope === 'all' || budgetEditScope === 'daily') && <div className="ios-list-item" style={{backgroundColor: 'var(--bg)'}}>
@@ -1445,8 +1710,8 @@ export default function PlannerApp() {
 
             {/* SPLIT EXPENSE MODAL */}
             {splittingItem && (
-                <div className="modal-overlay" onClick={() => setSplittingItem(null)} style={{...vpStyle, bottom: 'auto'}}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveSplit} style={{ maxHeight: 'calc(100% - 16px)' }}>
+                <div className="modal-overlay" onClick={() => setSplittingItem(null)} style={{...vpStyle}}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveSplit} style={{ maxHeight: '85vh', height: 'auto', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginTop: 'auto', paddingBottom: 'calc(max(env(safe-area-inset-bottom), 24px))' }}>
                         <div style={{fontSize: '22px', fontWeight: 800, marginBottom: '4px'}}>Split expense</div>
                         <div style={{color: 'var(--text-light)', fontSize: '13px', marginBottom: '16px'}}>{splittingItem.title} · ₹{splittingItem.amount}</div>
                         <SplitEditor
@@ -1462,8 +1727,8 @@ export default function PlannerApp() {
 
             {/* ADD MODAL */}
             {isAdding && (
-                <div className="modal-overlay" onClick={() => setIsAdding(false)} style={{...vpStyle, bottom: 'auto'}}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveFull} style={{ maxHeight: 'calc(100% - 16px)' }}>
+                <div className="modal-overlay" onClick={() => setIsAdding(false)} style={{...vpStyle}}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveFull} style={{ maxHeight: '85vh', height: 'auto', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginTop: 'auto', paddingBottom: 'calc(max(env(safe-area-inset-bottom), 24px))' }}>
                         <div className="segment-control">
                             <div className={`segment-btn ${addType === 'task' ? 'active' : ''}`} onClick={() => setAddType('task')}>Task</div>
                             <div className={`segment-btn ${addType === 'expense' ? 'active' : ''}`} onClick={() => setAddType('expense')}>Expense</div>
@@ -1489,6 +1754,20 @@ export default function PlannerApp() {
                                         )}
                                     </select>
                                 </div>
+                                {addType === 'expense' && (
+                                    <div className="recurring-toggle" onClick={() => setDraftIsRecurring(!draftIsRecurring)}>
+                                        <div className="recurring-toggle-left">
+                                            <IconRepeat style={{ width: 18, height: 18, color: draftIsRecurring ? 'var(--blue)' : 'var(--text-light)' }} />
+                                            <div>
+                                                <div className="recurring-toggle-label">Recurring Monthly</div>
+                                                <div className="recurring-toggle-desc">Automatically log every month (Netflix, Rent, etc.)</div>
+                                            </div>
+                                        </div>
+                                        <div className={`recurring-switch ${draftIsRecurring ? 'active' : ''}`}>
+                                            <div className="recurring-switch-thumb" />
+                                        </div>
+                                    </div>
+                                )}
                             </>
                         )}
 
@@ -1513,8 +1792,8 @@ export default function PlannerApp() {
 
             {/* EDIT MODAL */}
             {editingItem && (
-                <div className="modal-overlay" onClick={() => setEditingItem(null)} style={{...vpStyle, bottom: 'auto'}}>
-                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveEdit} style={{ maxHeight: 'calc(100% - 16px)' }}>
+                <div className="modal-overlay" onClick={() => setEditingItem(null)} style={{...vpStyle}}>
+                    <form className="modal-sheet" onClick={e => e.stopPropagation()} onSubmit={handleSaveEdit} style={{ maxHeight: '85vh', height: 'auto', borderBottomLeftRadius: 0, borderBottomRightRadius: 0, marginTop: 'auto', paddingBottom: 'calc(max(env(safe-area-inset-bottom), 24px))' }}>
                         <div style={{fontSize: '22px', fontWeight: 800, marginBottom: '16px'}}>Edit {editingItem.type === 'goal' ? 'Goal' : editingItem.type === 'expense' ? 'Expense' : editingItem.type === 'income' ? 'Income' : 'Task'}</div>
                         <input
                             type="text"
@@ -1600,6 +1879,20 @@ export default function PlannerApp() {
                                             ))}
                                     </select>
                                 </div>
+                                {editingItem.type === 'expense' && (
+                                    <div className="recurring-toggle" onClick={() => setEditingItem({ ...editingItem, isRecurring: !editingItem.isRecurring })}>
+                                        <div className="recurring-toggle-left">
+                                            <IconRepeat style={{ width: 18, height: 18, color: editingItem.isRecurring ? 'var(--blue)' : 'var(--text-light)' }} />
+                                            <div>
+                                                <div className="recurring-toggle-label">Recurring Monthly</div>
+                                                <div className="recurring-toggle-desc">Automatically log every month (Netflix, Rent, etc.)</div>
+                                            </div>
+                                        </div>
+                                        <div className={`recurring-switch ${editingItem.isRecurring ? 'active' : ''}`}>
+                                            <div className="recurring-switch-thumb" />
+                                        </div>
+                                    </div>
+                                )}
                             </>
                         )}
 

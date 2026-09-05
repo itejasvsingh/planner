@@ -25,6 +25,8 @@ export type AuthStage =
 interface LockScreenProps {
     /** Called when the user successfully unlocks or finishes setup */
     onUnlock: () => void;
+    /** Called when the user cancels out of changing passcode */
+    onCancel?: () => void;
     /** Initial stage — pass 'set-pin' for first-time users (will redirect to choose-length) */
     initialStage?: AuthStage;
     /** Called when user confirms phone number during forgot-PIN flow */
@@ -232,6 +234,7 @@ function getSavedPinLength(): 4 | 6 {
 
 export default function LockScreen({
     onUnlock,
+    onCancel,
     initialStage = 'locked',
     onPhoneConfirmed,
     currentPhone,
@@ -387,6 +390,38 @@ export default function LockScreen({
                     80% { transform: translateX(6px); }
                 }
             `}</style>
+
+            {/* Top Back/Cancel button when changing passcode or setup */}
+            {onCancel && stage !== 'locked' && (
+                <div style={{
+                    position: 'absolute',
+                    top: 'calc(18px + env(safe-area-inset-top))',
+                    left: '18px',
+                    zIndex: 20
+                }}>
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        style={{
+                            background: 'rgba(255,255,255,0.08)',
+                            border: '1px solid rgba(255,255,255,0.12)',
+                            borderRadius: '12px',
+                            padding: '8px 14px',
+                            color: '#F8FAFC',
+                            fontSize: '14px',
+                            fontWeight: 700,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            cursor: 'pointer',
+                            backdropFilter: 'blur(8px)',
+                            WebkitBackdropFilter: 'blur(8px)',
+                        }}
+                    >
+                        <span style={{ fontSize: '16px', lineHeight: 1 }}>←</span> Back
+                    </button>
+                </div>
+            )}
 
             {/* App Icon */}
             <div style={{
@@ -552,6 +587,41 @@ export default function LockScreen({
                                 }}
                             >
                                 ← Change PIN length
+                            </button>
+                        )}
+
+                        {/* Back to enter PIN during confirm-pin */}
+                        {stage === 'confirm-pin' && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setPin('');
+                                    setFirstPin('');
+                                    setStage('set-pin');
+                                    setMessage('');
+                                }}
+                                style={{
+                                    background: 'none', border: 'none',
+                                    color: '#94A3B8', fontSize: '13px',
+                                    cursor: 'pointer', padding: '4px',
+                                }}
+                            >
+                                ← Back to enter PIN
+                            </button>
+                        )}
+
+                        {/* Cancel button if onCancel provided */}
+                        {onCancel && stage !== 'locked' && (
+                            <button
+                                type="button"
+                                onClick={onCancel}
+                                style={{
+                                    background: 'none', border: 'none',
+                                    color: '#94A3B8', fontSize: '13px',
+                                    cursor: 'pointer', padding: '4px',
+                                }}
+                            >
+                                Cancel
                             </button>
                         )}
                     </div>

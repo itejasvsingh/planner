@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import {
-    IconBell, IconMoon, IconSun, IconSettings, IconLogOut,
+    IconBell, IconMoon, IconSun, IconLogOut,
     IconRefresh, IconUser, IconShield, IconKey, IconExport, IconFingerprint
 } from './Icons';
 import {
