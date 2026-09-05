@@ -149,6 +149,28 @@ async function sendWhatsAppTextMessage(to: string, text: string) {
 }
 
 // ==========================================
+// GEMINI MULTI-MODEL DISPATCHER
+// ==========================================
+async function generateWithGemini(genAI: GoogleGenerativeAI, contents: any) {
+    const models = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+    let lastError: any;
+    for (const modelName of models) {
+        try {
+            const model = genAI.getGenerativeModel({ model: modelName });
+            return await model.generateContent(contents);
+        } catch (err: any) {
+            lastError = err;
+            if (err?.status === 404 || err?.message?.includes("404")) {
+                console.warn(`⚠️ Model ${modelName} returned 404, attempting fallback...`);
+                continue;
+            }
+            throw err;
+        }
+    }
+    throw lastError;
+}
+
+// ==========================================
 // 3. META API MEDIA DOWNLOADER & AI PARSER
 // ==========================================
 async function processReceiptImage(imageId: string, senderPhone: string) {
@@ -180,9 +202,8 @@ async function processReceiptImage(imageId: string, senderPhone: string) {
 
     console.log("✅ Image downloaded! Analyzing with Gemini...");
 
-    // 4. Send to Gemini 1.5 Flash
+    // 4. Send to Gemini
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     const prompt = `You are a financial extraction assistant. Analyze this receipt image and extract the vendor name and total amount.
     Categorize the spend into one of these tags if possible: #Dining, #Travel, #Academics, #General. If none fit perfectly, create a relevant short tag starting with #.
@@ -196,7 +217,7 @@ async function processReceiptImage(imageId: string, senderPhone: string) {
         }
     };
 
-    const result = await model.generateContent([prompt, imagePart]);
+    const result = await generateWithGemini(genAI, [prompt, imagePart]);
     const responseText = result.response.text();
     
     let extractedData;
@@ -244,13 +265,12 @@ async function processTextQuery(text: string, senderPhone: string) {
     if (!GEMINI_API_KEY) throw new Error("Missing Gemini API Token");
 
     const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     // Step 1: Intent Classification
     const intentPrompt = `You are a financial router. Did the user just describe a transaction to log (e.g. "spent 500 on food", "got paid 1000") OR are they asking a question about their finances (e.g. "how much did I spend", "am I over budget")?
     Respond ONLY in JSON format: {"intent": "LOG" | "QUERY"}`;
     
-    const intentResult = await model.generateContent([intentPrompt, text]);
+    const intentResult = await generateWithGemini(genAI, [intentPrompt, text]);
     const intentResponse = intentResult.response.text();
     let intentJson = { intent: "LOG" }; // Default fallback
     
@@ -268,7 +288,7 @@ async function processTextQuery(text: string, senderPhone: string) {
         Format: {"title": "Vendor or item name", "amount": 100, "type": "expense" | "income", "category": "#Dining" | "#Travel" | "#Academics" | "#General"}`;
         
         try {
-            const logResult = await model.generateContent(logPrompt);
+            const logResult = await generateWithGemini(genAI, logPrompt);
             const logText = logResult.response.text();
             const match = logText.match(/\{[\s\S]*\}/);
             const logData = JSON.parse(match ? match[0] : logText);
@@ -325,7 +345,7 @@ async function processTextQuery(text: string, senderPhone: string) {
         Answer their question directly, accurately, and conversationally. Do not mention the JSON data itself. Keep the response punchy and under 3 sentences.
         User question: "${text}"`;
 
-        const answerResult = await model.generateContent(answerPrompt);
+        const answerResult = await generateWithGemini(genAI, answerPrompt);
         const finalAnswer = answerResult.response.text();
 
         // Step 4: Send the insight back to WhatsApp
