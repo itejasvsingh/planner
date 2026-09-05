@@ -15,4 +15,3 @@ async function draw() {
   console.log('\n✅ Align App master images generated successfully!');
 }
 draw();
-
