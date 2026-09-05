@@ -751,9 +751,9 @@ export default function PlannerApp() {
     // FILTER & RENDER LOGIC
     const dailyDateKey = formatDateKey(dailyDate);
     
-    // UPDATED FILTER: Check if dueDate is less than or equal to dailyDateKey
-    const anytimeTasks = items.filter(i => i.type === 'task' && i.dueDate <= dailyDateKey && !(i.reminderTime || i.dueTime) && !i.done);
-    const rawDailyTasks = items.filter(i => i.type === 'task' && i.dueDate <= dailyDateKey && !i.done);
+    // Filter tasks strictly for the selected date
+    const anytimeTasks = items.filter(i => i.type === 'task' && (i.dueDate === dailyDateKey || (!i.dueDate && i.date === dailyDateKey)) && !(i.reminderTime || i.dueTime) && !i.done);
+    const rawDailyTasks = items.filter(i => i.type === 'task' && (i.dueDate === dailyDateKey || (!i.dueDate && i.date === dailyDateKey)) && !i.done);
     
     const scheduledTimelineItems = rawDailyTasks
         .filter(i => (i.reminderTime || i.dueTime))
