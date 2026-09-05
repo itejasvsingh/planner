@@ -52,3 +52,74 @@ export const hideSplashScreen = async () => {
     }
 };
 
+function hashCode(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = (hash << 5) - hash + str.charCodeAt(i);
+        hash |= 0;
+    }
+    return Math.abs(hash);
+}
+
+export const requestNotificationPermission = async (): Promise<boolean> => {
+    if (typeof window === 'undefined') return false;
+    try {
+        if (Capacitor.isNativePlatform()) {
+            const { LocalNotifications } = await import('@capacitor/local-notifications');
+            const res = await LocalNotifications.requestPermissions();
+            return res.display === 'granted';
+        } else if ('Notification' in window) {
+            const perm = await window.Notification.requestPermission();
+            return perm === 'granted';
+        }
+    } catch (e) {
+        console.warn('Notification permission request error:', e);
+    }
+    return false;
+};
+
+export const checkNotificationPermission = async (): Promise<boolean> => {
+    if (typeof window === 'undefined') return false;
+    try {
+        if (Capacitor.isNativePlatform()) {
+            const { LocalNotifications } = await import('@capacitor/local-notifications');
+            const res = await LocalNotifications.checkPermissions();
+            return res.display === 'granted';
+        } else if ('Notification' in window) {
+            return window.Notification.permission === 'granted';
+        }
+    } catch {
+        return false;
+    }
+    return false;
+};
+
+export const sendNativeNotification = async (title: string, body: string, id?: number, scheduleAt?: Date) => {
+    if (typeof window === 'undefined') return;
+    try {
+        if (Capacitor.isNativePlatform()) {
+            const { LocalNotifications } = await import('@capacitor/local-notifications');
+            const numId = id || Math.abs(hashCode(title + body + (scheduleAt ? scheduleAt.getTime() : Date.now())));
+            await LocalNotifications.schedule({
+                notifications: [
+                    {
+                        title,
+                        body,
+                        id: numId % 2147483647,
+                        schedule: scheduleAt ? { at: scheduleAt, allowWhileIdle: true } : undefined,
+                        sound: 'default',
+                        smallIcon: 'ic_launcher_foreground',
+                        actionTypeId: '',
+                        extra: null
+                    }
+                ]
+            });
+        } else if ('Notification' in window && window.Notification.permission === 'granted') {
+            new window.Notification(title, { body, icon: '/favicon.ico' });
+        }
+    } catch (e) {
+        console.warn('Failed to send notification:', e);
+    }
+};
+
+

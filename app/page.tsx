@@ -12,7 +12,7 @@ import {
     IconPlus, IconClock, IconList, IconMic, IconSparkles, IconEdit,
     IconTrendingUp, IconMenu
 } from '../components/Icons';
-import { triggerHaptic, updateStatusBar, hideSplashScreen } from '../lib/native';
+import { triggerHaptic, updateStatusBar, hideSplashScreen, requestNotificationPermission, checkNotificationPermission, sendNativeNotification } from '../lib/native';
 import { Capacitor } from '@capacitor/core';
 import { OtaKit } from '@otakit/capacitor-updater';
 
@@ -167,9 +167,7 @@ export default function PlannerApp() {
             if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') setThemeMode(savedTheme);
             else setThemeMode(safeGetItem('planner_dark_mode') === 'true' ? 'dark' : 'system');
 
-            try {
-                setPushEnabled("Notification" in window ? window.Notification.permission === "granted" : false);
-            } catch {}
+            checkNotificationPermission().then(granted => setPushEnabled(granted)).catch(() => {});
 
             // Immediate offline retrieval of cached items & budgets
             if (savedPhone && savedPhone.length >= 10) {
@@ -261,12 +259,56 @@ export default function PlannerApp() {
         if (isAdding && inputRef.current) setTimeout(() => inputRef.current?.focus(), 100);
     }, [isAdding, addType]);
 
-    // Push Notification Tracker
+    // Push Notification Tracker & Native Scheduler
     useEffect(() => {
-        if (!userPhone) return;
+        if (!userPhone || !pushEnabled) return;
+
+        // Schedule future task reminders natively on device
+        const scheduleUpcoming = async () => {
+            if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) return;
+            try {
+                const { LocalNotifications } = await import('@capacitor/local-notifications');
+                const pending = await LocalNotifications.getPending();
+                if (pending.notifications.length > 0) {
+                    await LocalNotifications.cancel({ notifications: pending.notifications });
+                }
+                const now = new Date();
+                const toSchedule: any[] = [];
+
+                items.forEach((item: any) => {
+                    if (item.type === 'task' && !item.done && item.dueDate && (item.reminderTime || item.dueTime)) {
+                        const timeStr = item.reminderTime || item.dueTime;
+                        const [h, m] = timeStr.split(':').map((x: string) => parseInt(x, 10));
+                        if (!isNaN(h) && !isNaN(m)) {
+                            const [year, month, day] = item.dueDate.split('-').map((x: string) => parseInt(x, 10));
+                            const targetDate = new Date(year, month - 1, day, h, m, 0);
+                            if (targetDate.getTime() > now.getTime()) {
+                                const numId = Math.abs(String(item.id).split('').reduce((acc: number, char: string) => (acc << 5) - acc + char.charCodeAt(0), 0)) % 2147483647;
+                                toSchedule.push({
+                                    title: "Planner Reminder",
+                                    body: item.title,
+                                    id: numId,
+                                    schedule: { at: targetDate, allowWhileIdle: true },
+                                    sound: 'default',
+                                    smallIcon: 'ic_launcher_foreground'
+                                });
+                            }
+                        }
+                    }
+                });
+
+                if (toSchedule.length > 0) {
+                    await LocalNotifications.schedule({ notifications: toSchedule });
+                }
+            } catch (e) {
+                console.warn("Local notification scheduling:", e);
+            }
+        };
+        scheduleUpcoming();
+
+        // Realtime interval check when app is open
         const interval = setInterval(() => {
             const now = new Date();
-            const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
             const currentMinutes = now.getHours() * 60 + now.getMinutes();
             const today = formatDateKey(now);
 
@@ -274,14 +316,7 @@ export default function PlannerApp() {
                 const reminderMinutes = timeToMinutes(item.reminderTime || item.dueTime);
                 if (item.type === 'task' && !item.done && item.dueDate === today && reminderMinutes === currentMinutes) {
                     if (!notifiedItems.has(item.id)) {
-                        if (pushEnabled && "Notification" in window) {
-                            new window.Notification("Planner Reminder", { body: item.title, icon: "https://cdn-icons-png.flaticon.com/512/109/109613.png" });
-                        }
-                        fetch('https://planner-wheat-three.vercel.app/api/ping-whatsapp', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ title: item.title, time: currentTime, phone: userPhone })
-                        }).catch(e => console.error(e));
+                        sendNativeNotification("Planner Reminder", item.title);
                         setNotifiedItems(prev => new Set(prev).add(item.id));
                     }
                 }
@@ -291,13 +326,16 @@ export default function PlannerApp() {
     }, [items, notifiedItems, pushEnabled, userPhone]);
 
     const enablePush = async () => {
-        if (!("Notification" in window)) {
-            alert('Notifications are not supported in this browser.');
-            return;
+        triggerHaptic('light');
+        const granted = await requestNotificationPermission();
+        setPushEnabled(granted);
+        if (granted) {
+            triggerHaptic('success');
+            await sendNativeNotification("Notifications Enabled! 🔔", "You will now receive timely task and agenda reminders.");
+        } else {
+            triggerHaptic('error');
+            alert('Notifications are not enabled. Please allow notifications in your phone Settings -> Apps -> Planner -> Notifications.');
         }
-        const perm = await window.Notification.requestPermission();
-        setPushEnabled(perm === 'granted');
-        if (perm === 'denied') alert('Notifications are blocked. Allow them for this site in your browser settings.');
     };
 
     useEffect(() => {
