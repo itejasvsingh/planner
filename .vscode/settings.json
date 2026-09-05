@@ -1,0 +1,22 @@
+{
+  "html.validate.scripts": false,
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/CVS": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true,
+    "cap-assets": true
+  },
+  "files.watcherExclude": {
+    "**/cap-assets/**": true,
+    "**/android/app/build/**": true,
+    "**/.next/**": true
+  },
+  "search.exclude": {
+    "**/cap-assets": true,
+    "**/android/app/build": true,
+    "**/.next": true
+  }
+}

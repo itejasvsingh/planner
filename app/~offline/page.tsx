@@ -12,7 +12,6 @@ export default function OfflineFallback() {
     setIsOnline(navigator.onLine);
     const handleOnline = () => {
       setIsOnline(true);
-      // Auto return to app when connection is restored
       router.push("/");
     };
     const handleOffline = () => setIsOnline(false);
@@ -137,4 +136,3 @@ export default function OfflineFallback() {
     </div>
   );
 }
-
