@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/webhook?hub.mode=subscribe&hub.verify_token=my_align_secure_token_123&hub.challenge=warmup",
+      "schedule": "*/10 * * * *"
+    }
+  ]
+}

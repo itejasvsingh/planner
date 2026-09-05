@@ -160,7 +160,11 @@ async function sendWhatsAppTextMessage(to: string, text: string) {
 // ==========================================
 // GEMINI MULTI-MODEL DISPATCHER
 // ==========================================
-async function generateWithGemini(genAI: GoogleGenerativeAI, contents: any) {
+async function generateWithGemini(
+    genAI: GoogleGenerativeAI, 
+    contents: any,
+    config?: { temperature?: number; maxOutputTokens?: number }
+) {
     const candidateConfigs = [
         { model: "gemini-3.6-flash" },
         { model: "gemini-3.8-flash" },
@@ -175,7 +179,16 @@ async function generateWithGemini(genAI: GoogleGenerativeAI, contents: any) {
     for (const item of candidateConfigs) {
         try {
             const requestOptions = item.apiVersion ? { apiVersion: item.apiVersion } : undefined;
-            const model = genAI.getGenerativeModel({ model: item.model }, requestOptions);
+            const model = genAI.getGenerativeModel(
+                { 
+                    model: item.model,
+                    generationConfig: config ? {
+                        temperature: config.temperature ?? 0.1,
+                        maxOutputTokens: config.maxOutputTokens ?? 150,
+                    } : undefined
+                }, 
+                requestOptions
+            );
             return await model.generateContent(contents);
         } catch (err: any) {
             lastError = err;
@@ -222,7 +235,7 @@ async function processReceiptImage(imageId: string, senderPhone: string) {
 
         console.log("✅ Image downloaded! Analyzing with Gemini...");
 
-        // 4. Send to Gemini
+        // 4. Send to Gemini with constrained parameters for rapid JSON generation
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
         const prompt = `You are a financial extraction assistant. Analyze this receipt image and extract the vendor name and total amount.
@@ -237,7 +250,7 @@ async function processReceiptImage(imageId: string, senderPhone: string) {
             }
         };
 
-        const result = await generateWithGemini(genAI, [prompt, imagePart]);
+        const result = await generateWithGemini(genAI, [prompt, imagePart], { temperature: 0.0, maxOutputTokens: 150 });
         const responseText = result.response.text();
         
         let extractedData;
@@ -251,7 +264,7 @@ async function processReceiptImage(imageId: string, senderPhone: string) {
         // 🔒 Apply the Smart Guardrails here!
         const finalCategory = applySmartTags(extractedData.title, extractedData.category);
 
-        // 5. Format Date and Save to Firebase
+        // 5. Format Date and Save to Firebase concurrently with WhatsApp notification
         const now = new Date();
         const pad = (n: number) => String(n).padStart(2, '0');
         const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
@@ -268,11 +281,13 @@ async function processReceiptImage(imageId: string, senderPhone: string) {
             createdAt: now.toISOString() 
         };
 
-        await db.collection('planner_items').add(newItem);
-        console.log(`✅ Saved to Firebase: ${newItem.title} for ₹${newItem.amount}`);
-
-        // 6. Send Confirmation back to WhatsApp
-        await sendWhatsAppTextMessage(senderPhone, `✅ Logged ₹${newItem.amount} for ${newItem.title} under ${finalCategory}.`);
+        // Decoupled concurrent persistence and WhatsApp delivery
+        await Promise.all([
+            db.collection('planner_items').add(newItem).then(() => {
+                console.log(`✅ Saved to Firebase: ${newItem.title} for ₹${newItem.amount}`);
+            }),
+            sendWhatsAppTextMessage(senderPhone, `✅ Logged ₹${newItem.amount} for ${newItem.title} under ${finalCategory}.`)
+        ]);
     } catch (err: any) {
         console.error("❌ processReceiptImage error:", err);
         await sendWhatsAppTextMessage(senderPhone, `⚠️ Receipt processing error: ${err.message}`);
@@ -297,13 +312,13 @@ async function processTextQuery(text: string, senderPhone: string) {
         if (isLoggingExpense) {
             console.log(`Intent: LOG -> Extracting expense data from "${text}"...`);
             
-            // A. Extract data using Gemini
+            // A. Extract data using Gemini with constrained parameters (0.0 temp, 150 max tokens)
             const extractionPrompt = `Extract the vendor name and total amount from this text: "${text}".
 Categorize into #Dining, #Travel, #Academics, or #General. 
 Respond ONLY with a valid, raw JSON object. Do not include markdown formatting or backticks.
 Format: {"title": "Vendor", "amount": 100, "category": "#General"}`;
 
-            const result = await generateWithGemini(genAI, extractionPrompt);
+            const result = await generateWithGemini(genAI, extractionPrompt, { temperature: 0.0, maxOutputTokens: 150 });
             const responseText = result.response.text();
             
             let extractedData;
@@ -334,11 +349,13 @@ Format: {"title": "Vendor", "amount": 100, "category": "#General"}`;
                 createdAt: now.toISOString() 
             };
 
-            await db.collection('planner_items').add(newItem);
-            console.log(`✅ Saved to Firebase: ${newItem.title} for ₹${newItem.amount}`);
-
-            // D. Send Confirmation to WhatsApp
-            await sendWhatsAppTextMessage(senderPhone, `✅ Logged ₹${newItem.amount} for ${newItem.title} under ${finalCategory}.`);
+            // D. Concurrently save to Firestore and dispatch WhatsApp confirmation
+            await Promise.all([
+                db.collection('planner_items').add(newItem).then(() => {
+                    console.log(`✅ Saved to Firebase: ${newItem.title} for ₹${newItem.amount}`);
+                }),
+                sendWhatsAppTextMessage(senderPhone, `✅ Logged ₹${newItem.amount} for ${newItem.title} under ${finalCategory}.`)
+            ]);
 
         } else {
             console.log(`Intent: QUERY -> Fetching Firestore context for "${text}"...`);
@@ -356,13 +373,13 @@ Format: {"title": "Vendor", "amount": 100, "category": "#General"}`;
                 .map(doc => doc.data())
                 .filter(data => (data.type === 'expense' || data.type === 'income') && data.date && data.date.startsWith(currentMonth));
 
-            // B. Generate Conversational Answer
+            // B. Generate Conversational Answer (constrained to 250 tokens)
             const answerPrompt = `You are "Align", a highly capable financial assistant. 
 Here is the user's transaction data for this month: ${JSON.stringify(transactions)}.
 Answer their question directly, accurately, and conversationally. Do not mention the JSON data itself. Keep the response punchy and under 3 sentences.
 User question: "${text}"`;
 
-            const answerResult = await generateWithGemini(genAI, answerPrompt);
+            const answerResult = await generateWithGemini(genAI, answerPrompt, { temperature: 0.2, maxOutputTokens: 250 });
             const finalAnswer = answerResult.response.text().trim();
 
             // C. Send Answer to WhatsApp
@@ -384,7 +401,7 @@ User question: "${text}"`;
 }
 
 // ==========================================
-// 5. META API AUDIO / VOICE NOTE PROCESSOR
+// 5. META API AUDIO / VOICE NOTE PROCESSOR (Single-Pass Multimodal)
 // ==========================================
 async function processAudioMessage(audioId: string, senderPhone: string, mimeType?: string) {
     if (!API_TOKEN) throw new Error("Missing Meta API Token");
@@ -414,14 +431,18 @@ async function processAudioMessage(audioId: string, senderPhone: string, mimeTyp
         const base64Audio = Buffer.from(arrayBuffer).toString('base64');
         const cleanMimeType = (mimeType || 'audio/ogg').split(';')[0].trim();
 
-        console.log(`🎙️ Audio downloaded (${arrayBuffer.byteLength} bytes)! Transcribing with Gemini...`);
+        console.log(`🎙️ Audio downloaded (${arrayBuffer.byteLength} bytes)! Single-pass multimodal extraction with Gemini...`);
 
-        // 4. Send audio to Gemini to transcribe
+        // 4. Send audio directly to Gemini with constrained parameters (single roundtrip)
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        const transcribePrompt = `You are an accurate voice transcription assistant.
-Transcribe the spoken audio into text verbatim.
-If the audio mentions financial expenses, numbers, or questions, transcribe them clearly in English or Hinglish.
-Respond ONLY with the transcribed text. Do not add quotes, markdown formatting, or preamble. If inaudible or silent, return empty string.`;
+        const prompt = `Listen to this spoken audio and determine if the user is logging an expense or asking a financial question.
+- If logging an expense or income (e.g. "spent 500 on dinner", "bought coffee for 150"):
+  Respond in raw JSON format: {"type": "expense", "title": "Vendor or item", "amount": 100, "category": "#Dining" | "#Travel" | "#Academics" | "#General"}
+- If asking a question about their finances (e.g. "how much did I spend this week?"):
+  Respond in raw JSON format: {"type": "query", "question": "the user question verbatim"}
+- If inaudible or silent:
+  Respond in raw JSON format: {"type": "inaudible"}
+Respond ONLY with a valid JSON object. Do not include markdown formatting or backticks.`;
 
         const audioPart = {
             inlineData: {
@@ -430,18 +451,49 @@ Respond ONLY with the transcribed text. Do not add quotes, markdown formatting, 
             }
         };
 
-        const result = await generateWithGemini(genAI, [transcribePrompt, audioPart]);
-        const transcribedText = result.response.text().trim();
-
-        console.log(`🎙️ Transcribed voice note from ${senderPhone}: "${transcribedText}"`);
-
-        if (!transcribedText) {
-            await sendWhatsAppTextMessage(senderPhone, "⚠️ Couldn't clearly hear that voice note. Could you try sending it again or type it?");
-            return;
+        const result = await generateWithGemini(genAI, [prompt, audioPart], { temperature: 0.0, maxOutputTokens: 150 });
+        const responseText = result.response.text();
+        
+        let parsed: any;
+        try {
+            const match = responseText.match(/\{[\s\S]*\}/);
+            parsed = JSON.parse(match ? match[0] : responseText);
+        } catch {
+            throw new Error("AI returned invalid JSON from audio.");
         }
 
-        // 5. Route the transcribed text through our natural language text & query processor
-        await processTextQuery(transcribedText, senderPhone);
+        if (parsed.type === 'expense') {
+            const finalCategory = applySmartTags(parsed.title, parsed.category);
+            const now = new Date();
+            const pad = (n: number) => String(n).padStart(2, '0');
+            const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+            const newItem = {
+                ownerId: senderPhone,
+                type: 'expense',
+                title: parsed.title || 'Expense',
+                amount: parseFloat(parsed.amount) || 0,
+                date: today,
+                category: finalCategory,
+                tags: [finalCategory],
+                splits: [],
+                createdAt: now.toISOString()
+            };
+
+            // Decoupled concurrent persistence and WhatsApp delivery
+            await Promise.all([
+                db.collection('planner_items').add(newItem).then(() => {
+                    console.log(`✅ Saved to Firebase (from voice): ${newItem.title} for ₹${newItem.amount}`);
+                }),
+                sendWhatsAppTextMessage(senderPhone, `✅ Logged ₹${newItem.amount} for ${newItem.title} under ${finalCategory}.`)
+            ]);
+
+        } else if (parsed.type === 'query' && parsed.question) {
+            console.log(`🎙️ Voice question: "${parsed.question}"`);
+            await processTextQuery(parsed.question, senderPhone);
+        } else {
+            await sendWhatsAppTextMessage(senderPhone, "⚠️ Couldn't clearly hear that voice note. Please try again or send a text!");
+        }
 
     } catch (err: any) {
         console.error("❌ processAudioMessage error:", err);
