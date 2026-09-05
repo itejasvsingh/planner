@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Planner',
   webDir: 'cap-assets',
   server: {
-    url: 'https://planner-wheat-three.vercel.app',
+    androidScheme: 'https',
     cleartext: true,
   },
   ios: {
@@ -28,4 +28,3 @@ const config: CapacitorConfig = {
 };
 
 export default config;
-

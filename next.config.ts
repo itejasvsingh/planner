@@ -6,6 +6,11 @@ const withPWA = withPWAInit({
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: false,
+  dynamicStartUrl: false, // Precaches root '/' on install so app opens offline immediately
+  cacheStartUrl: true,
+  fallbacks: {
+    document: "/~offline",
+  },
   disable: process.env.NODE_ENV === "development",
 });
 
@@ -14,4 +19,3 @@ const nextConfig: NextConfig = {
 };
 
 export default withPWA(nextConfig);
-

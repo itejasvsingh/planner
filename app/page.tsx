@@ -138,7 +138,9 @@ export default function PlannerApp() {
     // Notify OTA Updater that app is ready (prevents rollback)
     useEffect(() => {
         if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
-            OtaKit.notifyAppReady();
+            try {
+                OtaKit.notifyAppReady().catch(() => {});
+            } catch {}
         }
     }, []);
 

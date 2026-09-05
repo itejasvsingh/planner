@@ -10,7 +10,8 @@
     "cap:sync": "cap sync",
     "cap:open:ios": "cap open ios",
     "cap:open:android": "cap open android",
-    "cap:open": "cap open ios"
+    "cap:open": "cap open ios",
+    "build:cap": "next build --webpack && node scripts/build-cap-assets.js && cap sync"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
