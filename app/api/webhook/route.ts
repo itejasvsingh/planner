@@ -54,17 +54,16 @@ export async function POST(req: Request) {
                 const imageId = message.image.id;
                 console.log(`📸 Image received from ${senderPhone}. ID: ${imageId} (Phone ID: ${PHONE_ID || 'default'})`);
                 
-                // Trigger the background download and AI processing
-                // We don't await this so we can immediately return 200 OK to Meta
-                processReceiptImage(imageId, senderPhone).catch(console.error);
+                // Await in serverless runtime so Vercel does not freeze execution before completion
+                await processReceiptImage(imageId, senderPhone).catch(console.error);
             } 
             // ROUTE B: Handle Text
             else if (message.type === 'text') {
                 const textBody = message.text.body;
                 console.log(`💬 Text from ${senderPhone}: ${textBody}`);
                 
-                // Process text asynchronously so we return 200 OK to Meta immediately
-                processTextQuery(textBody, senderPhone).catch(console.error);
+                // Await in serverless runtime so Vercel does not freeze execution before completion
+                await processTextQuery(textBody, senderPhone).catch(console.error);
             }
         }
 
@@ -198,11 +197,12 @@ async function processReceiptImage(imageId: string, senderPhone: string) {
     };
 
     const result = await model.generateContent([prompt, imagePart]);
-    const responseText = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+    const responseText = result.response.text();
     
     let extractedData;
     try {
-        extractedData = JSON.parse(responseText);
+        const match = responseText.match(/\{[\s\S]*\}/);
+        extractedData = JSON.parse(match ? match[0] : responseText);
     } catch {
         throw new Error("AI returned invalid JSON format.");
     }
@@ -251,11 +251,12 @@ async function processTextQuery(text: string, senderPhone: string) {
     Respond ONLY in JSON format: {"intent": "LOG" | "QUERY"}`;
     
     const intentResult = await model.generateContent([intentPrompt, text]);
-    const intentResponse = intentResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
+    const intentResponse = intentResult.response.text();
     let intentJson = { intent: "LOG" }; // Default fallback
     
     try {
-        intentJson = JSON.parse(intentResponse);
+        const match = intentResponse.match(/\{[\s\S]*\}/);
+        if (match) intentJson = JSON.parse(match[0]);
     } catch {
         console.warn("Intent parsing failed, defaulting to LOG.");
     }
@@ -268,8 +269,9 @@ async function processTextQuery(text: string, senderPhone: string) {
         
         try {
             const logResult = await model.generateContent(logPrompt);
-            const logText = logResult.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-            const logData = JSON.parse(logText);
+            const logText = logResult.response.text();
+            const match = logText.match(/\{[\s\S]*\}/);
+            const logData = JSON.parse(match ? match[0] : logText);
 
             const finalCategory = logData.type === 'expense'
                 ? applySmartTags(logData.title, logData.category)
@@ -297,6 +299,7 @@ async function processTextQuery(text: string, senderPhone: string) {
             await sendWhatsAppTextMessage(senderPhone, `✅ Logged ₹${newItem.amount} for ${newItem.title} under ${finalCategory}.`);
         } catch (err) {
             console.error("Failed to log transaction via text:", err);
+            await sendWhatsAppTextMessage(senderPhone, `⚠️ Couldn't extract details from "${text}". Try: "spent 200 on lunch".`);
         }
     } else {
         // Step 2: Fetch Data Context for the AI
