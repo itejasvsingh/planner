@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.planner.alignapp',
-  appName: 'Planner',
+  appName: 'Align',
   webDir: 'cap-assets',
   server: {
     androidScheme: 'https',
@@ -11,7 +11,7 @@ const config: CapacitorConfig = {
   ios: {
     contentInset: 'always',
     preferredContentMode: 'mobile',
-    scheme: 'Planner',
+    scheme: 'Align',
   },
   plugins: {
     SplashScreen: {

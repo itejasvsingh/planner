@@ -95,7 +95,7 @@ export default function OfflineFallback() {
         }}
       >
         {isOnline
-          ? "Connection restored. Reconnecting to Planner..."
+          ? "Connection restored. Reconnecting to Align..."
           : "Don't worry — all your saved tasks, budgets, and habits are stored locally on your device."}
       </p>
 
@@ -114,7 +114,7 @@ export default function OfflineFallback() {
             boxShadow: "0 4px 16px rgba(2, 132, 199, 0.35)",
           }}
         >
-          Open Planner
+          Open Align
         </Link>
 
         <button

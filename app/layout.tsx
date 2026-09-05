@@ -13,7 +13,7 @@ export const viewport: Viewport = {
 
 // Tells iOS and Android to hide their browser UI and act like a native app
 export const metadata: Metadata = {
-  title: "Planner",
+  title: "Align",
   description: "Your daily alignment app",
   manifest: "/manifest.json",
   icons: {
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,            
     statusBarStyle: "black-translucent", // <-- THIS makes the top status bar transparent
-    title: "Planner",
+    title: "Align",
   },
   formatDetection: {
     telephone: false,         
