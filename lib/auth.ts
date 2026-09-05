@@ -32,7 +32,10 @@ async function sha256(text: string): Promise<string> {
 
 export async function savePin(pin: string): Promise<void> {
     const hash = await sha256(pin);
-    try { localStorage.setItem(PIN_HASH_KEY, hash); } catch {}
+    try {
+        localStorage.setItem(PIN_HASH_KEY, hash);
+        setSecurityEnabled(true);
+    } catch {}
 }
 
 export async function verifyPin(input: string): Promise<boolean> {
@@ -52,6 +55,29 @@ export function clearPin(): void {
 
 export function savedPhone(): string | null {
     try { return localStorage.getItem(PHONE_KEY); } catch { return null; }
+}
+
+/* ─────────────────── Security Toggle ─────────────────── */
+
+const SECURITY_ENABLED_KEY = 'align_security_enabled';
+
+/**
+ * Returns whether the user has opted in to app lock (PIN / biometric).
+ * Defaults to true if a PIN is already set (so existing users stay protected).
+ */
+export function isSecurityEnabled(): boolean {
+    try {
+        const val = localStorage.getItem(SECURITY_ENABLED_KEY);
+        if (val === null) {
+            // First time: auto-enable if a PIN hash exists (migration safety)
+            return !!localStorage.getItem('align_pin_hash');
+        }
+        return val === 'true';
+    } catch { return false; }
+}
+
+export function setSecurityEnabled(enabled: boolean): void {
+    try { localStorage.setItem(SECURITY_ENABLED_KEY, String(enabled)); } catch {}
 }
 
 /* ─────────────────── Biometric Helpers ─────────────────── */

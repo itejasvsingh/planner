@@ -8,6 +8,7 @@ import {
     savePin,
     verifyPin,
     clearPin,
+    setSecurityEnabled,
     type BiometricAvailability,
 } from '../lib/auth';
 
@@ -144,7 +145,7 @@ function BiometricIcon({ type }: { type: BiometricAvailability }) {
 
 /* ─────────────────── PIN Length Chooser ─────────────────── */
 
-function PinLengthChooser({ onChoose }: { onChoose: (len: 4 | 6) => void }) {
+function PinLengthChooser({ onChoose, onSkip }: { onChoose: (len: 4 | 6) => void; onSkip?: () => void }) {
     return (
         <div style={{
             display: 'flex',
@@ -193,6 +194,27 @@ function PinLengthChooser({ onChoose }: { onChoose: (len: 4 | 6) => void }) {
                     </span>
                 </button>
             ))}
+
+            {onSkip && (
+                <button
+                    type="button"
+                    onClick={onSkip}
+                    style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#94A3B8',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: '10px 16px',
+                        marginTop: '4px',
+                        textDecoration: 'underline',
+                        textUnderlineOffset: '4px',
+                    }}
+                >
+                    Skip (No App Lock)
+                </button>
+            )}
         </div>
     );
 }
@@ -253,6 +275,7 @@ export default function LockScreen({
 
     const handleChooseLength = useCallback((len: 4 | 6) => {
         try { localStorage.setItem(PIN_LENGTH_KEY, String(len)); } catch {}
+        setSecurityEnabled(true);
         setPinLength(len);
         setStage('set-pin');
         setMessage('');
@@ -405,7 +428,13 @@ export default function LockScreen({
 
             {/* ── PIN Length Chooser ── */}
             {stage === 'choose-length' && (
-                <PinLengthChooser onChoose={handleChooseLength} />
+                <PinLengthChooser
+                    onChoose={handleChooseLength}
+                    onSkip={() => {
+                        setSecurityEnabled(false);
+                        onUnlock();
+                    }}
+                />
             )}
 
             {/* ── Forgot PIN ── */}

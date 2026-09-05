@@ -5,7 +5,14 @@ import {
     IconBell, IconMoon, IconSun, IconSettings, IconLogOut,
     IconRefresh, IconUser, IconShield, IconKey, IconExport, IconFingerprint
 } from './Icons';
-import { checkBiometricAvailability, hasPinSet, clearPin, type BiometricAvailability } from '../lib/auth';
+import {
+    checkBiometricAvailability,
+    hasPinSet,
+    clearPin,
+    isSecurityEnabled,
+    setSecurityEnabled,
+    type BiometricAvailability
+} from '../lib/auth';
 
 interface DrawerMenuProps {
     isOpen: boolean;
@@ -40,6 +47,7 @@ export default function DrawerMenu({
     const [isDragging, setIsDragging] = useState(false);
     const [biometryType, setBiometryType] = useState<BiometricAvailability>('none');
     const [pinSet, setPinSet] = useState(false);
+    const [securityActive, setSecurityActive] = useState(false);
     const [exportMsg, setExportMsg] = useState('');
     const startX = useRef(0);
 
@@ -56,11 +64,13 @@ export default function DrawerMenu({
         };
     }, []);
 
-    // Check biometry & PIN state when drawer opens
+    // Check biometry, PIN state & security toggle when drawer opens
     useEffect(() => {
         if (!isOpen) return;
         checkBiometricAvailability().then(t => setBiometryType(t));
-        setPinSet(hasPinSet());
+        const hasPin = hasPinSet();
+        setPinSet(hasPin);
+        setSecurityActive(isSecurityEnabled() && hasPin);
     }, [isOpen]);
 
     // Close on Escape key
@@ -121,6 +131,30 @@ export default function DrawerMenu({
         } catch {
             setExportMsg('Export failed');
             setTimeout(() => setExportMsg(''), 3000);
+        }
+    };
+
+    const handleToggleSecurity = () => {
+        if (securityActive) {
+            setSecurityEnabled(false);
+            setSecurityActive(false);
+        } else {
+            if (pinSet) {
+                setSecurityEnabled(true);
+                setSecurityActive(true);
+            } else {
+                onClose();
+                onChangePIN();
+            }
+        }
+    };
+
+    const handleRemovePIN = () => {
+        if (typeof window !== 'undefined' && window.confirm('Remove your PIN and turn off App Lock?')) {
+            clearPin();
+            setSecurityEnabled(false);
+            setPinSet(false);
+            setSecurityActive(false);
         }
     };
 
@@ -234,14 +268,15 @@ export default function DrawerMenu({
                 {/* ── Security ── */}
                 <div className="drawer-section">Security</div>
                 <div className="drawer-list">
-                    {/* PIN status indicator */}
-                    <div className="drawer-item" style={{ cursor: 'default', opacity: 0.8 }}>
+                    {/* App Lock master toggle */}
+                    <button type="button" className="drawer-item" onClick={handleToggleSecurity}>
                         <IconShield />
                         <span>App Lock</span>
-                        <span className="drawer-value" style={{ color: pinSet ? '#22C55E' : '#F87171' }}>
-                            {pinSet ? 'Active' : 'Not Set'}
+                        <span className="drawer-value" style={{ color: securityActive ? '#22C55E' : '#64748B', fontWeight: 600 }}>
+                            {securityActive ? 'On' : 'Off'}
                         </span>
-                    </div>
+                    </button>
+
                     {/* Change / Set PIN */}
                     <button
                         type="button"
@@ -252,15 +287,18 @@ export default function DrawerMenu({
                         }}
                     >
                         <IconKey />
-                        <span>{pinSet ? 'Change PIN' : 'Set PIN'}</span>
+                        <span>{pinSet ? 'Change PIN' : 'Set Up PIN'}</span>
                         <span className="drawer-value">→</span>
                     </button>
-                    {/* Biometric status — informational only (no toggle; it auto-uses if available) */}
+
+                    {/* Biometric status */}
                     {biometryType !== 'none' && (
-                        <div className="drawer-item" style={{ cursor: 'default', opacity: 0.8 }}>
+                        <div className="drawer-item" style={{ cursor: 'default', opacity: securityActive ? 0.9 : 0.55 }}>
                             <IconFingerprint />
                             <span>{biometricLabel}</span>
-                            <span className="drawer-value" style={{ color: '#22C55E' }}>Enabled</span>
+                            <span className="drawer-value" style={{ color: securityActive ? '#22C55E' : '#64748B' }}>
+                                {securityActive ? 'Enabled' : 'Off'}
+                            </span>
                         </div>
                     )}
                     {biometryType === 'none' && (
@@ -269,6 +307,19 @@ export default function DrawerMenu({
                             <span>Biometrics</span>
                             <span className="drawer-value">Not available</span>
                         </div>
+                    )}
+
+                    {/* Remove PIN option if PIN is configured */}
+                    {pinSet && (
+                        <button
+                            type="button"
+                            className="drawer-item"
+                            onClick={handleRemovePIN}
+                            style={{ color: '#F87171' }}
+                        >
+                            <span style={{ fontSize: '13px' }}>Remove PIN</span>
+                            <span className="drawer-value" style={{ color: '#F87171' }}>Clear</span>
+                        </button>
                     )}
                 </div>
 

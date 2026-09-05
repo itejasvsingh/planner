@@ -16,7 +16,7 @@ import { triggerHaptic, updateStatusBar, hideSplashScreen, requestNotificationPe
 import { Capacitor } from '@capacitor/core';
 import { OtaKit } from '@otakit/capacitor-updater';
 import LockScreen, { type AuthStage } from '../components/LockScreen';
-import { hasPinSet } from '../lib/auth';
+import { hasPinSet, isSecurityEnabled } from '../lib/auth';
 
 // --- HELPERS ---
 function pad(n: number | string) { return String(n).padStart(2, '0'); }
@@ -177,10 +177,17 @@ export default function PlannerApp() {
 
             // Auth stage determination:
             // - No phone → show phone entry (existing login screen handles this)
-            // - Has phone but no PIN → must set PIN now
-            // - Has phone + PIN → show lock screen
+            // - If security is disabled by user → unlocked immediately (0ms instant startup)
+            // - Has phone + security enabled + PIN set → locked
+            // - Has phone + security enabled but no PIN → set-pin (choose-length)
             if (validPhone) {
-                setAuthStage(hasPinSet() ? 'locked' : 'set-pin');
+                if (!isSecurityEnabled()) {
+                    setAuthStage('unlocked');
+                } else if (hasPinSet()) {
+                    setAuthStage('locked');
+                } else {
+                    setAuthStage('set-pin');
+                }
             }
 
             const savedTheme = safeGetItem('planner_theme');
