@@ -678,21 +678,105 @@ export default function PlannerApp() {
     async function submitToAI(textToProcess: string) {
         if (!textToProcess.trim()) return;
         setIsProcessing(true);
+        let handled = false;
+
+        // 1. Try calling the /api/parse route
         try {
-            const res = await fetch('https://planner-wheat-three.vercel.app/api/parse', {
+            const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' && !Capacitor.isNativePlatform()
+                ? '/api/parse'
+                : 'https://planner-wheat-three.vercel.app/api/parse';
+
+            const res = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: textToProcess, phone: userPhone })
             });
-            const data = await res.json();
-            if (data.success) {
-                setQuickAddText('');
-            } else {
-                alert("AI Error: " + (data.error || "Failed to parse"));
+
+            if (res.ok) {
+                const data = await res.json();
+                if (data.success) {
+                    setQuickAddText('');
+                    handled = true;
+                }
             }
-        } catch {
-            alert("Network Error: Could not reach Vercel API.");
+        } catch (apiErr) {
+            console.warn("API parse unavailable, using client-side offline parser:", apiErr);
         }
+
+        // 2. If API is unreachable or returned an error, parse locally and save to Firestore
+        if (!handled) {
+            try {
+                const now = new Date();
+                const pad = (n: number) => String(n).padStart(2, '0');
+                const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+                
+                const isExpense = /debited|spent|paid|bought|buy|sent|deducted|cost|bill|food|groceries|coffee|lunch|dinner/i.test(textToProcess);
+                const isIncome = /salary|credited|received|bonus|earned|deposit/i.test(textToProcess);
+                const amountMatch = textToProcess.match(/(?:₹|rs\.?|inr|\$)\s*([\d,]+\.?\d*)/i) || textToProcess.match(/([\d,]+\.?\d*)\s*(?:INR|Rs|bucks|dollars)/i);
+
+                let newItem: any;
+                if ((isExpense || isIncome) && amountMatch) {
+                    const amount = parseFloat(amountMatch[1].replace(/,/g, ''));
+                    let title = textToProcess
+                        .replace(/(?:₹|rs\.?|inr|\$)\s*[\d,]+\.?\d*/gi, '')
+                        .replace(/[\d,]+\.?\d*\s*(?:INR|Rs|bucks|dollars)/gi, '')
+                        .replace(/debited|spent|paid|bought|buy|for|at/gi, '')
+                        .trim() || (isExpense ? 'Expense' : 'Income');
+
+                    title = title.charAt(0).toUpperCase() + title.slice(1);
+                    newItem = {
+                        ownerId: userPhone,
+                        type: isExpense ? 'expense' : 'income',
+                        title,
+                        amount,
+                        date: today,
+                        category: isExpense ? '#General' : '#Income',
+                        tags: [isExpense ? '#General' : '#Income'],
+                        splits: [],
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+                } else {
+                    let targetDate = today;
+                    if (/tomorrow/i.test(textToProcess)) {
+                        const tom = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+                        targetDate = `${tom.getFullYear()}-${pad(tom.getMonth() + 1)}-${pad(tom.getDate())}`;
+                    }
+                    const timeMatch = textToProcess.match(/(\d{1,2}(?::\d{2})?)\s*(am|pm)/i);
+                    let dueTime: string | null = null;
+                    if (timeMatch) {
+                        dueTime = `${timeMatch[1].toUpperCase()} ${timeMatch[2].toUpperCase()}`;
+                    }
+
+                    let cleanTitle = textToProcess
+                        .replace(/tomorrow|today|tonight/gi, '')
+                        .replace(/at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?/gi, '')
+                        .trim();
+
+                    cleanTitle = cleanTitle ? (cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1)) : textToProcess;
+                    newItem = {
+                        ownerId: userPhone,
+                        type: 'task',
+                        title: cleanTitle,
+                        dueDate: targetDate,
+                        dueTime,
+                        reminderTime: dueTime,
+                        priority: 'none',
+                        done: false,
+                        subtasks: [],
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    };
+                }
+
+                await db.collection('planner_items').add(newItem);
+                triggerHaptic('success');
+                setQuickAddText('');
+                handled = true;
+            } catch (localErr) {
+                console.error("Local parse/save failed:", localErr);
+                alert("Failed to save item. Please try again.");
+            }
+        }
+
         setIsProcessing(false);
     }
 
