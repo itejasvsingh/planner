@@ -293,7 +293,6 @@ async function processReceiptImage(imageId: string, senderPhone: string) {
         await sendWhatsAppTextMessage(senderPhone, `⚠️ Receipt processing error: ${err.message}`);
     }
 }
-
 // ==========================================
 // 4. NATURAL LANGUAGE TEXT & QUERY HANDLER
 // ==========================================
