@@ -14,8 +14,9 @@ import {
 /* ─────────────────── Types ─────────────────── */
 
 export type AuthStage =
-    | 'locked'         // Show biometric prompt / PIN entry (normal app open)
-    | 'set-pin'        // New user: set their PIN for the first time
+    | 'choose-length'  // New user: pick 4-digit or 6-digit PIN
+    | 'locked'         // Returning user: show biometric prompt / PIN entry
+    | 'set-pin'        // New user: enter PIN digits
     | 'confirm-pin'    // New user: re-enter to confirm
     | 'forgot-pin'     // Re-enter phone number to reset PIN
     | 'unlocked';      // App is unlocked — passed through to page.tsx
@@ -23,7 +24,7 @@ export type AuthStage =
 interface LockScreenProps {
     /** Called when the user successfully unlocks or finishes setup */
     onUnlock: () => void;
-    /** Initial stage — pass 'set-pin' for first-time users */
+    /** Initial stage — pass 'set-pin' for first-time users (will redirect to choose-length) */
     initialStage?: AuthStage;
     /** Called when user confirms phone number during forgot-PIN flow */
     onPhoneConfirmed?: (phone: string) => void;
@@ -33,24 +34,22 @@ interface LockScreenProps {
 
 /* ─────────────────── Visual Helpers ─────────────────── */
 
-const DOT_COUNT = 6;
-
-function PinDots({ filled, shake }: { filled: number; shake: boolean }) {
+function PinDots({ filled, total, shake }: { filled: number; total: number; shake: boolean }) {
     return (
         <div
             style={{
                 display: 'flex',
-                gap: '14px',
+                gap: total === 6 ? '10px' : '14px',
                 justifyContent: 'center',
                 animation: shake ? 'shake 0.4s ease' : undefined,
             }}
         >
-            {Array.from({ length: DOT_COUNT }).map((_, i) => (
+            {Array.from({ length: total }).map((_, i) => (
                 <div
                     key={i}
                     style={{
-                        width: '14px',
-                        height: '14px',
+                        width: total === 6 ? '12px' : '14px',
+                        height: total === 6 ? '12px' : '14px',
                         borderRadius: '50%',
                         background: i < filled ? '#3B82F6' : 'transparent',
                         border: i < filled ? '2px solid #3B82F6' : '2px solid rgba(255,255,255,0.35)',
@@ -100,7 +99,7 @@ function NumPad({ onPress }: { onPress: (key: string) => void }) {
                                 : 'rgba(255,255,255,0.1)',
                             backdropFilter: 'blur(8px)',
                             WebkitBackdropFilter: 'blur(8px)',
-                            transition: 'background 0.1s ease, transform 0.08s ease',
+                            transition: 'background 0.1s ease',
                             WebkitTapHighlightColor: 'transparent',
                             userSelect: 'none',
                             display: 'flex',
@@ -123,7 +122,7 @@ function NumPad({ onPress }: { onPress: (key: string) => void }) {
 function BiometricIcon({ type }: { type: BiometricAvailability }) {
     if (type === 'face') {
         return (
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 9h.01M15 9h.01M8 13s1 2 4 2 4-2 4-2"/>
                 <rect x="2" y="2" width="20" height="20" rx="5"/>
             </svg>
@@ -131,7 +130,7 @@ function BiometricIcon({ type }: { type: BiometricAvailability }) {
     }
     if (type === 'fingerprint') {
         return (
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 10a2 2 0 0 1 2 2c0 1.5-.5 3-1.5 4.5"/>
                 <path d="M12 3a9 9 0 0 1 9 9"/>
                 <path d="M12 3a9 9 0 0 0-9 9c0 2.5.5 4.7 1.5 6.5"/>
@@ -143,7 +142,71 @@ function BiometricIcon({ type }: { type: BiometricAvailability }) {
     return null;
 }
 
+/* ─────────────────── PIN Length Chooser ─────────────────── */
+
+function PinLengthChooser({ onChoose }: { onChoose: (len: 4 | 6) => void }) {
+    return (
+        <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: '16px',
+            width: '100%',
+            maxWidth: '300px',
+        }}>
+            {([4, 6] as const).map(len => (
+                <button
+                    key={len}
+                    type="button"
+                    onClick={() => onChoose(len)}
+                    style={{
+                        width: '100%',
+                        padding: '18px 24px',
+                        borderRadius: '18px',
+                        border: '1.5px solid rgba(255,255,255,0.13)',
+                        background: 'rgba(255,255,255,0.07)',
+                        color: '#F8FAFC',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '6px',
+                        WebkitTapHighlightColor: 'transparent',
+                    }}
+                    onPointerEnter={e => (e.currentTarget.style.background = 'rgba(59,130,246,0.2)')}
+                    onPointerLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.07)')}
+                >
+                    {/* Preview dots */}
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        {Array.from({ length: len }).map((_, i) => (
+                            <div key={i} style={{
+                                width: '10px',
+                                height: '10px',
+                                borderRadius: '50%',
+                                border: '2px solid rgba(255,255,255,0.4)',
+                            }} />
+                        ))}
+                    </div>
+                    <span style={{ fontSize: '16px', fontWeight: 700 }}>{len}-Digit PIN</span>
+                    <span style={{ fontSize: '12px', color: '#64748B', fontWeight: 500 }}>
+                        {len === 4 ? 'Simpler & faster' : 'More secure'}
+                    </span>
+                </button>
+            ))}
+        </div>
+    );
+}
+
 /* ─────────────────── Main Component ─────────────────── */
+
+const PIN_LENGTH_KEY = 'align_pin_length';
+
+function getSavedPinLength(): 4 | 6 {
+    try {
+        const v = localStorage.getItem(PIN_LENGTH_KEY);
+        return v === '6' ? 6 : 4;
+    } catch { return 4; }
+}
 
 export default function LockScreen({
     onUnlock,
@@ -151,7 +214,11 @@ export default function LockScreen({
     onPhoneConfirmed,
     currentPhone,
 }: LockScreenProps) {
-    const [stage, setStage] = useState<AuthStage>(initialStage);
+    // If set-pin is passed (new user), redirect to choose-length first
+    const resolvedInitial: AuthStage = initialStage === 'set-pin' ? 'choose-length' : initialStage;
+
+    const [stage, setStage] = useState<AuthStage>(resolvedInitial);
+    const [pinLength, setPinLength] = useState<4 | 6>(getSavedPinLength);
     const [pin, setPin] = useState('');
     const [firstPin, setFirstPin] = useState('');
     const [shake, setShake] = useState(false);
@@ -170,7 +237,7 @@ export default function LockScreen({
     // Auto-trigger biometrics when the lock screen first opens
     useEffect(() => {
         if (stage !== 'locked' || biometricTried || biometryType === 'none') return;
-        if (!hasPinSet()) return; // Never biometric-prompt before PIN is created
+        if (!hasPinSet()) return;
         setBiometricTried(true);
         promptBiometric('Unlock Align').then(success => {
             if (success) onUnlock();
@@ -184,6 +251,13 @@ export default function LockScreen({
         shakeTimeout.current = setTimeout(() => setShake(false), 420);
     }, []);
 
+    const handleChooseLength = useCallback((len: 4 | 6) => {
+        try { localStorage.setItem(PIN_LENGTH_KEY, String(len)); } catch {}
+        setPinLength(len);
+        setStage('set-pin');
+        setMessage('');
+    }, []);
+
     const handleNumPress = useCallback(async (key: string) => {
         if (key === 'del') {
             setPin(p => p.slice(0, -1));
@@ -191,11 +265,13 @@ export default function LockScreen({
         }
 
         const next = pin + key;
+        // Don't exceed the chosen PIN length
+        if (next.length > pinLength) return;
         setPin(next);
         setMessage('');
 
-        // Auto-submit when the max length is reached
-        if (next.length < 4) return;
+        // Auto-submit when the exact length is reached
+        if (next.length < pinLength) return;
 
         if (stage === 'locked') {
             const ok = await verifyPin(next);
@@ -206,33 +282,25 @@ export default function LockScreen({
                 setPin('');
                 const newWrong = wrongCount + 1;
                 setWrongCount(newWrong);
-                if (newWrong >= 3) {
-                    doShake('Too many attempts. Forgot PIN?');
-                } else {
-                    doShake('Wrong PIN');
-                }
+                doShake(newWrong >= 3 ? 'Too many attempts. Forgot PIN?' : 'Wrong PIN');
             }
         } else if (stage === 'set-pin') {
-            if (next.length >= 4) {
-                setFirstPin(next);
-                setPin('');
-                setStage('confirm-pin');
-                setMessage('Re-enter your PIN to confirm');
-            }
+            setFirstPin(next);
+            setPin('');
+            setStage('confirm-pin');
+            setMessage('Re-enter your PIN to confirm');
         } else if (stage === 'confirm-pin') {
-            if (next.length >= 4) {
-                if (next === firstPin) {
-                    await savePin(next);
-                    onUnlock();
-                } else {
-                    setPin('');
-                    doShake("PINs don't match. Try again.");
-                    setStage('set-pin');
-                    setFirstPin('');
-                }
+            if (next === firstPin) {
+                await savePin(next);
+                onUnlock();
+            } else {
+                setPin('');
+                doShake("PINs don't match. Try again.");
+                setStage('set-pin');
+                setFirstPin('');
             }
         }
-    }, [pin, stage, wrongCount, firstPin, doShake, onUnlock]);
+    }, [pin, pinLength, stage, wrongCount, firstPin, doShake, onUnlock]);
 
     const handleRetryBiometric = useCallback(async () => {
         const success = await promptBiometric('Unlock Align');
@@ -248,8 +316,8 @@ export default function LockScreen({
             clearPin();
             setPin('');
             setFirstPin('');
-            setStage('set-pin');
-            setMessage('PIN cleared. Set a new PIN below.');
+            setStage('choose-length');
+            setMessage('PIN cleared. Choose a new PIN length.');
             if (onPhoneConfirmed) onPhoneConfirmed(normalized);
         } else {
             doShake("Phone number doesn't match");
@@ -259,13 +327,15 @@ export default function LockScreen({
     /* ─── Render ─── */
 
     const stageTitle =
-        stage === 'set-pin' ? 'Create a PIN' :
+        stage === 'choose-length' ? 'Choose PIN Length' :
+        stage === 'set-pin' ? 'Create Your PIN' :
         stage === 'confirm-pin' ? 'Confirm PIN' :
         stage === 'forgot-pin' ? 'Reset PIN' :
         'Unlock Align';
 
     const stageSubtitle =
-        stage === 'set-pin' ? 'Choose a 4–6 digit PIN to secure your app' :
+        stage === 'choose-length' ? 'Select the number of digits for your PIN' :
+        stage === 'set-pin' ? `Enter a ${pinLength}-digit PIN` :
         stage === 'confirm-pin' ? (message || 'Re-enter to confirm') :
         stage === 'forgot-pin' ? 'Enter your phone number to reset your PIN' :
         hasPinSet()
@@ -285,7 +355,6 @@ export default function LockScreen({
             padding: '24px',
             gap: '32px',
         }}>
-            {/* Keyframe for shake animation */}
             <style>{`
                 @keyframes shake {
                     0%,100% { transform: translateX(0); }
@@ -334,8 +403,13 @@ export default function LockScreen({
                 </p>
             </div>
 
-            {/* Forgot PIN flow — show phone input instead of numpad */}
-            {stage === 'forgot-pin' ? (
+            {/* ── PIN Length Chooser ── */}
+            {stage === 'choose-length' && (
+                <PinLengthChooser onChoose={handleChooseLength} />
+            )}
+
+            {/* ── Forgot PIN ── */}
+            {stage === 'forgot-pin' && (
                 <form onSubmit={handleForgotPin} style={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -383,15 +457,14 @@ export default function LockScreen({
                         Cancel
                     </button>
                 </form>
-            ) : (
-                <>
-                    {/* PIN Dots */}
-                    <PinDots filled={pin.length} shake={shake} />
+            )}
 
-                    {/* Number Pad */}
+            {/* ── PIN Pad (set-pin, confirm-pin, locked) ── */}
+            {(stage === 'set-pin' || stage === 'confirm-pin' || stage === 'locked') && (
+                <>
+                    <PinDots filled={pin.length} total={pinLength} shake={shake} />
                     <NumPad onPress={handleNumPress} />
 
-                    {/* Action Buttons Row */}
                     <div style={{
                         display: 'flex',
                         flexDirection: 'column',
@@ -399,7 +472,7 @@ export default function LockScreen({
                         gap: '12px',
                         width: '100%',
                     }}>
-                        {/* Biometric retry button — only in locked stage and biometry is available */}
+                        {/* Biometric retry */}
                         {stage === 'locked' && biometryType !== 'none' && (
                             <button
                                 type="button"
@@ -423,7 +496,7 @@ export default function LockScreen({
                             </button>
                         )}
 
-                        {/* Forgot PIN — only after 3 wrong attempts, or always as escape hatch */}
+                        {/* Forgot PIN */}
                         {stage === 'locked' && wrongCount >= 1 && (
                             <button
                                 type="button"
@@ -435,6 +508,21 @@ export default function LockScreen({
                                 }}
                             >
                                 Forgot PIN?
+                            </button>
+                        )}
+
+                        {/* Back to length chooser during set-pin */}
+                        {stage === 'set-pin' && (
+                            <button
+                                type="button"
+                                onClick={() => { setStage('choose-length'); setPin(''); setMessage(''); }}
+                                style={{
+                                    background: 'none', border: 'none',
+                                    color: '#64748B', fontSize: '13px',
+                                    cursor: 'pointer', padding: '4px',
+                                }}
+                            >
+                                ← Change PIN length
                             </button>
                         )}
                     </div>

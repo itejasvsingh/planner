@@ -99,3 +99,4 @@ export async function promptBiometric(reason: string = 'Unlock Align'): Promise<
         return false;
     }
 }
+
