@@ -14,6 +14,7 @@
     "build:cap": "next build --webpack && node scripts/build-cap-assets.js && cap sync"
   },
   "dependencies": {
+    "@aparajita/capacitor-biometric-auth": "^10.0.0",
     "@capacitor/android": "^8.5.1",
     "@capacitor/core": "^8.5.1",
     "@capacitor/haptics": "^8.0.2",

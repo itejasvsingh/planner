@@ -15,6 +15,8 @@ import {
 import { triggerHaptic, updateStatusBar, hideSplashScreen, requestNotificationPermission, checkNotificationPermission, sendNativeNotification } from '../lib/native';
 import { Capacitor } from '@capacitor/core';
 import { OtaKit } from '@otakit/capacitor-updater';
+import LockScreen, { type AuthStage } from '../components/LockScreen';
+import { hasPinSet } from '../lib/auth';
 
 // --- HELPERS ---
 function pad(n: number | string) { return String(n).padStart(2, '0'); }
@@ -91,6 +93,7 @@ function safeRemoveItem(key: string): void {
 // --- MAIN APP ---
 export default function PlannerApp() {
     const [isLoaded, setIsLoaded] = useState(false);
+    const [authStage, setAuthStage] = useState<AuthStage>('locked');
     const [userPhone, setUserPhone] = useState<string | null>(null);
     const [loginInput, setLoginInput] = useState('');
 
@@ -134,6 +137,12 @@ export default function PlannerApp() {
     const [vpStyle, setVpStyle] = useState({ height: '100dvh', top: '0px' });
     const [kbHeight, setKbHeight] = useState(0);
     const [isOnline, setIsOnline] = useState(true);
+    // Android WebView strips out the Web Speech API entirely, so voice input
+    // never works in the native app shell - only in a real browser/PWA.
+    const [isNativePlatform, setIsNativePlatform] = useState(false);
+    useEffect(() => {
+        if (typeof window !== 'undefined') setIsNativePlatform(Capacitor.isNativePlatform());
+    }, []);
 
     // Notify OTA Updater that app is ready (prevents rollback)
     useEffect(() => {
@@ -163,7 +172,16 @@ export default function PlannerApp() {
         try {
             const rawPhone = safeGetItem('planner_user_phone');
             const savedPhone = rawPhone ? normalizePhone(rawPhone) : null;
-            setUserPhone(savedPhone && savedPhone.length >= 10 ? savedPhone : null);
+            const validPhone = savedPhone && savedPhone.length >= 10 ? savedPhone : null;
+            setUserPhone(validPhone);
+
+            // Auth stage determination:
+            // - No phone → show phone entry (existing login screen handles this)
+            // - Has phone but no PIN → must set PIN now
+            // - Has phone + PIN → show lock screen
+            if (validPhone) {
+                setAuthStage(hasPinSet() ? 'locked' : 'set-pin');
+            }
 
             const savedTheme = safeGetItem('planner_theme');
             if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') setThemeMode(savedTheme);
@@ -172,8 +190,8 @@ export default function PlannerApp() {
             checkNotificationPermission().then(granted => setPushEnabled(granted)).catch(() => {});
 
             // Immediate offline retrieval of cached items & budgets
-            if (savedPhone && savedPhone.length >= 10) {
-                const cachedItems = safeGetItem(`planner_cache_items_${savedPhone}`);
+            if (validPhone) {
+                const cachedItems = safeGetItem(`planner_cache_items_${validPhone}`);
                 if (cachedItems) {
                     try {
                         const parsed = JSON.parse(cachedItems);
@@ -182,7 +200,7 @@ export default function PlannerApp() {
                         }
                     } catch {}
                 }
-                const cachedBudgets = safeGetItem(`planner_cache_budgets_${savedPhone}`);
+                const cachedBudgets = safeGetItem(`planner_cache_budgets_${validPhone}`);
                 if (cachedBudgets) {
                     try {
                         const parsedBudgets = JSON.parse(cachedBudgets);
@@ -200,7 +218,7 @@ export default function PlannerApp() {
         }
     }, []);
 
-    // Handle Login
+    // Handle Login (phone number entry — first time only)
     const handleLogin = (e: any) => {
         e.preventDefault();
         const cleaned = normalizePhone(loginInput);
@@ -208,6 +226,8 @@ export default function PlannerApp() {
             triggerHaptic('success');
             safeSetItem('planner_user_phone', cleaned);
             setUserPhone(cleaned);
+            // After phone is saved, go to PIN setup
+            setAuthStage('set-pin');
         } else {
             triggerHaptic('error');
             alert('Please enter a valid phone number with country code (e.g., 919876543210).');
@@ -220,6 +240,9 @@ export default function PlannerApp() {
         setUserPhone(null);
         setItems([]);
         setIsDrawerOpen(false);
+        // Clear PIN so the next login sets a fresh one
+        import('../lib/auth').then(m => m.clearPin()).catch(() => {});
+        setAuthStage('locked');
     };
 
     // DB Subscription (Filtered by userPhone with offline cache support)
@@ -781,6 +804,7 @@ export default function PlannerApp() {
     }
 
     function startListening() {
+        if (Capacitor.isNativePlatform()) { alert("Voice input isn't available in the app - try the manual/text entry instead."); return; }
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         if (!SpeechRecognition) { alert("Voice recognition not supported on this browser."); return; }
         const recognition = new SpeechRecognition();
@@ -807,28 +831,41 @@ export default function PlannerApp() {
         );
     }
 
-    // --- LOGIN SCREEN RENDER ---
+    // --- LOGIN SCREEN RENDER --- (first time only — phone number entry)
     if (!userPhone) {
         return (
-            <div style={{ padding: '40px 24px', display: 'flex', flexDirection: 'column', height: '100vh', justifyContent: 'center', alignItems: 'center', backgroundColor: 'var(--bg)' }}>
-                <div style={{ width: '80px', height: '80px', backgroundColor: 'var(--blue)', borderRadius: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: '24px', boxShadow: '0 10px 30px rgba(0, 122, 255, 0.3)' }}>
-                    <IconStar />
+            <div style={{ padding: '40px 24px', display: 'flex', flexDirection: 'column', height: '100vh', justifyContent: 'center', alignItems: 'center', backgroundColor: '#0F172A' }}>
+                <div style={{ width: '80px', height: '80px', background: 'linear-gradient(135deg, #3B82F6 0%, #6366F1 100%)', borderRadius: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', marginBottom: '24px', boxShadow: '0 10px 30px rgba(59, 130, 246, 0.35)', fontSize: '36px' }}>
+                    ⚡
                 </div>
-                <h1 className="title" style={{ textAlign: 'center', marginBottom: '8px', fontSize: '32px' }}>Planner</h1>
-                <p style={{ textAlign: 'center', color: 'var(--text-light)', marginBottom: '32px', fontSize: '16px', lineHeight: '1.4', maxWidth: '300px' }}>Enter your WhatsApp number to sync your personalized timeline and finances.</p>
+                <h1 style={{ textAlign: 'center', marginBottom: '8px', fontSize: '32px', fontWeight: 800, color: '#F8FAFC', letterSpacing: '-0.5px' }}>Align</h1>
+                <p style={{ textAlign: 'center', color: '#64748B', marginBottom: '32px', fontSize: '16px', lineHeight: '1.4', maxWidth: '300px' }}>Enter your WhatsApp number to sync your personalized timeline and finances.</p>
                 <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '16px', width: '100%', maxWidth: '340px' }}>
-                    <input 
-                        type="tel" 
-                        className="input-box" 
-                        placeholder="e.g. 919876543210" 
-                        value={loginInput} 
-                        onChange={e => setLoginInput(e.target.value)} 
-                        autoFocus 
+                    <input
+                        type="tel"
+                        className="input-box"
+                        placeholder="e.g. 919876543210"
+                        value={loginInput}
+                        onChange={e => setLoginInput(e.target.value)}
+                        autoFocus
                         style={{ textAlign: 'center', fontSize: '18px', padding: '16px', boxShadow: 'var(--shadow)' }}
                     />
                     <button type="submit" className="btn-save" style={{ margin: 0, padding: '16px' }}>Continue</button>
                 </form>
             </div>
+        );
+    }
+
+    // --- LOCK SCREEN (PIN / Biometric) ---
+    // Show for returning users: PIN setup on first open, or PIN/biometric unlock every open.
+    if (authStage !== 'unlocked') {
+        return (
+            <LockScreen
+                initialStage={authStage}
+                currentPhone={userPhone}
+                onUnlock={() => setAuthStage('unlocked')}
+                onPhoneConfirmed={() => {}}
+            />
         );
     }
 
@@ -1331,9 +1368,11 @@ export default function PlannerApp() {
             {(tab !== 'goals') && !isAdding && !editingItem && !splittingItem && !isEditingBudgets && (
                 <div className="quick-add-container fade-in" style={{ transform: `translateY(-${kbHeight}px)`, transition: 'transform 0.1s ease-out' }}>
                     <div className="quick-add-box">
-                        <button className="btn-icon" onClick={startListening} style={{color: isListening ? 'var(--red)' : 'var(--text-light)'}} title="Use Voice">
-                            <IconMic />
-                        </button>
+                        {!isNativePlatform && (
+                            <button className="btn-icon" onClick={startListening} style={{color: isListening ? 'var(--red)' : 'var(--text-light)'}} title="Use Voice">
+                                <IconMic />
+                            </button>
+                        )}
                         <input 
                             type="text" 
                             className="quick-add-input" 
