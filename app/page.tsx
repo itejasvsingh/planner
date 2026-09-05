@@ -891,6 +891,37 @@ export default function PlannerApp() {
         }
     }
 
+// ==========================================
+// SMART VENDOR AUTO-TAGGING
+// ==========================================
+function applySmartTags(vendorName: string, aiGuessedCategory?: string): string {
+    if (!vendorName) return aiGuessedCategory || '#General';
+    const name = vendorName.toLowerCase();
+
+    // 🍔 Dining & Delivery
+    if (/(swiggy|zomato|bhatinda xpress|bakingo|domino|pizza|starbucks|mcdonalds)/i.test(name)) {
+        return '#Dining';
+    }
+    
+    // ✈️ Transit & Travel
+    if (/(irctc|indigo|uber|ola|rapido|redbus|makemytrip)/i.test(name)) {
+        return '#Travel';
+    }
+
+    // 📚 Academics & Subscriptions
+    if (/(coursera|udemy|spotify|netflix|aws|github)/i.test(name)) {
+        return '#Academics';
+    }
+
+    // 📦 E-commerce / General
+    if (/(amazon|flipkart|myntra|blinkit|zepto)/i.test(name)) {
+        return '#General';
+    }
+
+    // Fallback to what the AI guessed if no hardcoded rules match
+    return aiGuessedCategory || '#General';
+}
+
     async function submitToAI(textToProcess: string) {
         if (!textToProcess.trim()) return;
         setIsProcessing(true);
@@ -940,14 +971,15 @@ export default function PlannerApp() {
                         .trim() || (isExpense ? 'Expense' : 'Income');
 
                     title = title.charAt(0).toUpperCase() + title.slice(1);
+                    const finalCategory = isExpense ? applySmartTags(title, '#General') : '#Income';
                     newItem = {
                         ownerId: userPhone,
                         type: isExpense ? 'expense' : 'income',
                         title,
                         amount,
                         date: today,
-                        category: isExpense ? '#General' : '#Income',
-                        tags: [isExpense ? '#General' : '#Income'],
+                        category: finalCategory,
+                        tags: [finalCategory],
                         splits: [],
                         createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     };
