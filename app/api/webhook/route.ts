@@ -165,15 +165,14 @@ async function generateWithGemini(
     contents: any,
     config?: { temperature?: number; maxOutputTokens?: number }
 ) {
+    // Models with high free-tier limits (1,500 requests/day vs 20 for preview 3.6)
     const candidateConfigs = [
-        { model: "gemini-3.6-flash" },
-        { model: "gemini-3.8-flash" },
-        { model: "gemini-3.5-flash" },
-        { model: "gemini-2.5-flash" },
+        { model: "gemini-2.5-flash" },        // 1,500 RPD free tier!
+        { model: "gemini-2.5-flash-lite" },   // 1,500 RPD free tier!
         { model: "gemini-flash-latest" },
-        { model: "gemini-3.6-flash", apiVersion: "v1" },
         { model: "gemini-2.5-flash", apiVersion: "v1" },
-        { model: "gemini-1.5-flash" },
+        { model: "gemini-3.5-flash" },
+        { model: "gemini-3.6-flash" },
     ];
     let lastError: any;
     for (const item of candidateConfigs) {
@@ -192,8 +191,17 @@ async function generateWithGemini(
             return await model.generateContent(contents);
         } catch (err: any) {
             lastError = err;
-            if (err?.status === 404 || err?.message?.includes("404")) {
-                console.warn(`⚠️ Model ${item.model} (${item.apiVersion || 'default'}) returned 404, attempting fallback...`);
+            const isFallbackError = 
+                err?.status === 404 || 
+                err?.status === 429 || 
+                err?.status === 503 ||
+                err?.message?.includes("404") || 
+                err?.message?.includes("429") || 
+                err?.message?.includes("quota") || 
+                err?.message?.includes("Too Many Requests");
+
+            if (isFallbackError) {
+                console.warn(`⚠️ Model ${item.model} (${item.apiVersion || 'default'}) returned status ${err?.status || 'error'} (${err?.message?.slice(0, 60)}), attempting fallback...`);
                 continue;
             }
             throw err;
@@ -253,12 +261,20 @@ async function processReceiptImage(imageId: string, senderPhone: string) {
         const result = await generateWithGemini(genAI, [prompt, imagePart], { temperature: 0.0, maxOutputTokens: 150 });
         const responseText = result.response.text();
         
-        let extractedData;
+        let extractedData: any = null;
         try {
             const match = responseText.match(/\{[\s\S]*\}/);
-            extractedData = JSON.parse(match ? match[0] : responseText);
+            if (match) extractedData = JSON.parse(match[0]);
         } catch {
-            throw new Error("AI returned invalid JSON format.");
+            extractedData = null;
+        }
+
+        if (!extractedData || !extractedData.amount || isNaN(parseFloat(extractedData.amount))) {
+            await sendWhatsAppTextMessage(
+                senderPhone,
+                "⚠️ Couldn't detect a clear expense amount from this receipt. Please send a clearer picture or type the expense."
+            );
+            return;
         }
 
         // 🔒 Apply the Smart Guardrails here!
@@ -290,12 +306,47 @@ async function processReceiptImage(imageId: string, senderPhone: string) {
         ]);
     } catch (err: any) {
         console.error("❌ processReceiptImage error:", err);
-        await sendWhatsAppTextMessage(senderPhone, `⚠️ Receipt processing error: ${err.message}`);
+        await sendWhatsAppTextMessage(senderPhone, "⚠️ Couldn't read that receipt clearly. Please try a clearer photo or text the expense.");
     }
 }
 // ==========================================
 // 4. NATURAL LANGUAGE TEXT & QUERY HANDLER
 // ==========================================
+async function handleConversationalQuery(genAI: GoogleGenerativeAI, text: string, senderPhone: string) {
+    console.log(`Intent: QUERY/CONVERSATION -> Fetching Firestore context for "${text.slice(0, 50)}" from ${senderPhone}...`);
+
+    // A. Fetch Context for the current month
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const currentMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+
+    const snapshot = await db.collection('planner_items')
+        .where('ownerId', '==', senderPhone)
+        .get();
+
+    const transactions = snapshot.docs
+        .map(doc => doc.data())
+        .filter(data => (data.type === 'expense' || data.type === 'income') && data.date && data.date.startsWith(currentMonth));
+
+    // B. Generate Conversational Answer
+    const answerPrompt = `You are "Align", a friendly, concise, and intelligent personal finance assistant on WhatsApp.
+Here is the user's logged transaction data for this month: ${JSON.stringify(transactions)}.
+User message: "${text}"
+
+Instructions:
+- If the user is asking a question about their expenses, budget, or spending (e.g. "how much did I spend?", "summary"): Answer directly, accurately, and conversationally based on their transaction data.
+- If the user sent a casual greeting (e.g. "hi", "hello"): Greet them warmly and let them know they can log expenses (e.g., "Spent 200 on lunch") or ask about their monthly spending.
+- If the user forwarded a document, assignment, announcement, link, or non-financial message: Politely acknowledge it, clarify that you are their financial assistant and no expenses were found in this text, and offer to help track any expenses if needed.
+Keep the response helpful, punchy, and under 3 sentences. Do not mention JSON or technical details.`;
+
+    const answerResult = await generateWithGemini(genAI, answerPrompt, { temperature: 0.2, maxOutputTokens: 250 });
+    const finalAnswer = answerResult.response.text().trim();
+
+    if (finalAnswer) {
+        await sendWhatsAppTextMessage(senderPhone, finalAnswer);
+    }
+}
+
 async function processTextQuery(text: string, senderPhone: string) {
     if (!API_TOKEN) throw new Error("Missing Meta API Token");
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -304,34 +355,48 @@ async function processTextQuery(text: string, senderPhone: string) {
     try {
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
-        // 1. Instant Intent Classification (Regex)
-        // Matches expense keywords + numbers (e.g., "spent 200", "coffee 150 rs", "paid 400")
-        const isLoggingExpense = /(spent|paid|bought|rs|inr|cost|₹)/i.test(text) && /\d/.test(text);
+        // 1. Instant Intent Classification (Strict word boundaries to avoid matching "hrs.", "course", etc.)
+        const isQuestion = /\b(how much|total|summary|list|show|what|breakdown|status)\b/i.test(text);
+        const hasExpenseKeywords = /\b(spent|paid|bought|expense|cost|bill|recharge|fare|ordered|shopping|swiggy|zomato|uber|ola|blinkit|zepto)\b/i.test(text);
+        const hasCurrencySymbolOrWord = (/\b(rs\.?|inr|bucks)\b/i.test(text) && /\d/.test(text)) || (/₹\s*\d/.test(text));
+        const isShortItemWithPrice = /^[a-zA-Z\s]{2,25}\s+\d+(\.\d{1,2})?$/.test(text.trim());
+
+        const isLoggingExpense = !isQuestion && (hasExpenseKeywords || hasCurrencySymbolOrWord || isShortItemWithPrice);
 
         if (isLoggingExpense) {
-            console.log(`Intent: LOG -> Extracting expense data from "${text}"...`);
+            console.log(`Intent: LOG -> Extracting expense data from "${text.slice(0, 50)}"...`);
             
-            // A. Extract data using Gemini with constrained parameters (0.0 temp, 150 max tokens)
-            const extractionPrompt = `Extract the vendor name and total amount from this text: "${text}".
-Categorize into #Dining, #Travel, #Academics, or #General. 
-Respond ONLY with a valid, raw JSON object. Do not include markdown formatting or backticks.
-Format: {"title": "Vendor", "amount": 100, "category": "#General"}`;
+            // Extract data using Gemini with constrained parameters
+            const extractionPrompt = `Analyze this message to determine if it is logging a financial expense or purchase: "${text}".
+If it IS an expense or payment:
+Respond ONLY with a raw JSON object: {"isExpense": true, "title": "Vendor or item", "amount": 100, "category": "#Dining" | "#Travel" | "#Academics" | "#General"}
+If it is NOT an expense (e.g. general text, assignment, announcement, greeting, question):
+Respond ONLY with a raw JSON object: {"isExpense": false}
+Do not include markdown or backticks.`;
 
             const result = await generateWithGemini(genAI, extractionPrompt, { temperature: 0.0, maxOutputTokens: 150 });
             const responseText = result.response.text();
             
-            let extractedData;
+            let extractedData: any = null;
             try {
                 const match = responseText.match(/\{[\s\S]*\}/);
-                extractedData = JSON.parse(match ? match[0] : responseText);
+                if (match) extractedData = JSON.parse(match[0]);
             } catch {
-                throw new Error("AI returned invalid JSON format.");
+                extractedData = null;
             }
 
-            // B. Apply Smart Guardrails
+            // If Gemini says this is NOT an expense or has no valid positive amount, fallback to conversational handling
+            const parsedAmount = parseFloat(extractedData?.amount);
+            if (!extractedData || !extractedData.isExpense || isNaN(parsedAmount) || parsedAmount <= 0) {
+                console.log(`ℹ️ Text was not a financial expense after AI extraction. Routing to conversational assistant...`);
+                await handleConversationalQuery(genAI, text, senderPhone);
+                return;
+            }
+
+            // Apply Smart Guardrails
             const finalCategory = applySmartTags(extractedData.title, extractedData.category);
 
-            // C. Format Date and Save to Firebase
+            // Format Date and Save to Firebase
             const now = new Date();
             const pad = (n: number) => String(n).padStart(2, '0');
             const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
@@ -340,7 +405,7 @@ Format: {"title": "Vendor", "amount": 100, "category": "#General"}`;
                 ownerId: senderPhone,
                 type: 'expense',
                 title: extractedData.title || 'Expense',
-                amount: parseFloat(extractedData.amount) || 0,
+                amount: parsedAmount,
                 date: today,
                 category: finalCategory,
                 tags: [finalCategory],
@@ -348,7 +413,7 @@ Format: {"title": "Vendor", "amount": 100, "category": "#General"}`;
                 createdAt: now.toISOString() 
             };
 
-            // D. Concurrently save to Firestore and dispatch WhatsApp confirmation
+            // Concurrently save to Firestore and dispatch WhatsApp confirmation
             await Promise.all([
                 db.collection('planner_items').add(newItem).then(() => {
                     console.log(`✅ Saved to Firebase: ${newItem.title} for ₹${newItem.amount}`);
@@ -357,45 +422,12 @@ Format: {"title": "Vendor", "amount": 100, "category": "#General"}`;
             ]);
 
         } else {
-            console.log(`Intent: QUERY -> Fetching Firestore context for "${text}"...`);
-            
-            // A. Fetch Context
-            const now = new Date();
-            const pad = (n: number) => String(n).padStart(2, '0');
-            const currentMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
-            
-            const snapshot = await db.collection('planner_items')
-                .where('ownerId', '==', senderPhone)
-                .get();
-
-            const transactions = snapshot.docs
-                .map(doc => doc.data())
-                .filter(data => (data.type === 'expense' || data.type === 'income') && data.date && data.date.startsWith(currentMonth));
-
-            // B. Generate Conversational Answer (constrained to 250 tokens)
-            const answerPrompt = `You are "Align", a highly capable financial assistant. 
-Here is the user's transaction data for this month: ${JSON.stringify(transactions)}.
-Answer their question directly, accurately, and conversationally. Do not mention the JSON data itself. Keep the response punchy and under 3 sentences.
-User question: "${text}"`;
-
-            const answerResult = await generateWithGemini(genAI, answerPrompt, { temperature: 0.2, maxOutputTokens: 250 });
-            const finalAnswer = answerResult.response.text().trim();
-
-            // C. Send Answer to WhatsApp
-            await sendWhatsAppTextMessage(senderPhone, finalAnswer);
+            await handleConversationalQuery(genAI, text, senderPhone);
         }
 
     } catch (err: any) {
         console.error("❌ processTextQuery failure:", err);
-        const is404 = err?.status === 404 || err?.message?.includes("404");
-        if (is404) {
-            await sendWhatsAppTextMessage(
-                senderPhone,
-                "⚠️ Gemini API Key setup needed: The current GEMINI_API_KEY is not authorized for Gemini models. Please get a free API key from https://aistudio.google.com/app/apikey and update Vercel."
-            );
-        } else {
-            await sendWhatsAppTextMessage(senderPhone, `⚠️ Couldn't process request: ${err.message}`);
-        }
+        await sendWhatsAppTextMessage(senderPhone, "⚠️ Sorry, I'm having trouble processing that right now. Please try again in a moment or type the expense.");
     }
 }
 
@@ -439,7 +471,7 @@ async function processAudioMessage(audioId: string, senderPhone: string, mimeTyp
   Respond in raw JSON format: {"type": "expense", "title": "Vendor or item", "amount": 100, "category": "#Dining" | "#Travel" | "#Academics" | "#General"}
 - If asking a question about their finances (e.g. "how much did I spend this week?"):
   Respond in raw JSON format: {"type": "query", "question": "the user question verbatim"}
-- If inaudible or silent:
+- If inaudible, silent, or unrelated conversation:
   Respond in raw JSON format: {"type": "inaudible"}
 Respond ONLY with a valid JSON object. Do not include markdown formatting or backticks.`;
 
@@ -453,15 +485,16 @@ Respond ONLY with a valid JSON object. Do not include markdown formatting or bac
         const result = await generateWithGemini(genAI, [prompt, audioPart], { temperature: 0.0, maxOutputTokens: 150 });
         const responseText = result.response.text();
         
-        let parsed: any;
+        let parsed: any = null;
         try {
             const match = responseText.match(/\{[\s\S]*\}/);
-            parsed = JSON.parse(match ? match[0] : responseText);
+            if (match) parsed = JSON.parse(match[0]);
         } catch {
-            throw new Error("AI returned invalid JSON from audio.");
+            parsed = null;
         }
 
-        if (parsed.type === 'expense') {
+        const parsedAmount = parseFloat(parsed?.amount);
+        if (parsed?.type === 'expense' && !isNaN(parsedAmount) && parsedAmount > 0) {
             const finalCategory = applySmartTags(parsed.title, parsed.category);
             const now = new Date();
             const pad = (n: number) => String(n).padStart(2, '0');
@@ -471,7 +504,7 @@ Respond ONLY with a valid JSON object. Do not include markdown formatting or bac
                 ownerId: senderPhone,
                 type: 'expense',
                 title: parsed.title || 'Expense',
-                amount: parseFloat(parsed.amount) || 0,
+                amount: parsedAmount,
                 date: today,
                 category: finalCategory,
                 tags: [finalCategory],
@@ -487,15 +520,15 @@ Respond ONLY with a valid JSON object. Do not include markdown formatting or bac
                 sendWhatsAppTextMessage(senderPhone, `✅ Logged ₹${newItem.amount} for ${newItem.title} under ${finalCategory}.`)
             ]);
 
-        } else if (parsed.type === 'query' && parsed.question) {
+        } else if (parsed?.type === 'query' && parsed.question) {
             console.log(`🎙️ Voice question: "${parsed.question}"`);
             await processTextQuery(parsed.question, senderPhone);
         } else {
-            await sendWhatsAppTextMessage(senderPhone, "⚠️ Couldn't clearly hear that voice note. Please try again or send a text!");
+            await sendWhatsAppTextMessage(senderPhone, "⚠️ Couldn't clearly detect an expense or question in that voice note. Please try again or send a text!");
         }
 
     } catch (err: any) {
         console.error("❌ processAudioMessage error:", err);
-        await sendWhatsAppTextMessage(senderPhone, `⚠️ Voice note processing error: ${err.message}`);
+        await sendWhatsAppTextMessage(senderPhone, "⚠️ Couldn't process that voice note right now. Please try again or type your expense.");
     }
 }
