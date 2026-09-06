@@ -310,34 +310,109 @@ async function processReceiptImage(imageId: string, senderPhone: string) {
     }
 }
 // ==========================================
-// 4. NATURAL LANGUAGE TEXT & QUERY HANDLER
+// 4. NATURAL LANGUAGE TEXT, REMINDER & QUERY HANDLER
 // ==========================================
-async function handleConversationalQuery(genAI: GoogleGenerativeAI, text: string, senderPhone: string) {
-    console.log(`Intent: QUERY/CONVERSATION -> Fetching Firestore context for "${text.slice(0, 50)}" from ${senderPhone}...`);
 
-    // A. Fetch Context for the current month
-    const now = new Date();
+function getKolkataDate() {
+    const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
     const pad = (n: number) => String(n).padStart(2, '0');
-    const currentMonth = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+    const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+    const currentTime = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+    const currentDayName = now.toLocaleDateString('en-US', { weekday: 'long' });
+    return { now, today, currentTime, currentDayName };
+}
+
+function normalizeTime(timeStr?: string | null): string | null {
+    if (!timeStr) return null;
+    const s = timeStr.trim();
+    // 24-hour format: "08:00" or "8:00"
+    const match24 = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (match24) {
+        return `${match24[1].padStart(2, '0')}:${match24[2]}`;
+    }
+    // 12-hour AM/PM with minutes: "8:00 AM", "08:00 PM"
+    const match12 = s.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+    if (match12) {
+        let h = parseInt(match12[1], 10);
+        const m = match12[2];
+        const mer = match12[3].toUpperCase();
+        if (mer === 'AM' && h === 12) h = 0;
+        if (mer === 'PM' && h !== 12) h += 12;
+        return `${String(h).padStart(2, '0')}:${m}`;
+    }
+    // Simple 12-hour without minutes: "8 AM", "5pm"
+    const matchSimple = s.match(/^(\d{1,2})\s*(AM|PM)$/i);
+    if (matchSimple) {
+        let h = parseInt(matchSimple[1], 10);
+        const mer = matchSimple[2].toUpperCase();
+        if (mer === 'AM' && h === 12) h = 0;
+        if (mer === 'PM' && h !== 12) h += 12;
+        return `${String(h).padStart(2, '0')}:00`;
+    }
+    return s;
+}
+
+function formatFriendlyDate(dateStr: string, timeStr?: string | null): string {
+    try {
+        const [y, m, d] = dateStr.split('-').map(Number);
+        const targetDate = new Date(y, m - 1, d);
+        const dayName = targetDate.toLocaleDateString('en-US', { weekday: 'short' });
+        const monthName = targetDate.toLocaleDateString('en-US', { month: 'short' });
+        const base = `${dayName}, ${d} ${monthName} ${y}`;
+        if (timeStr) {
+            return `${base} at ${timeStr} hrs`;
+        }
+        return base;
+    } catch {
+        return timeStr ? `${dateStr} at ${timeStr} hrs` : dateStr;
+    }
+}
+
+async function handleConversationalQuery(genAI: GoogleGenerativeAI, text: string, senderPhone: string) {
+    console.log(`Intent: QUERY/CONVERSATION -> Fetching context for "${text.slice(0, 50)}" from ${senderPhone}...`);
+
+    const { today, currentDayName } = getKolkataDate();
+    const currentMonth = today.substring(0, 7);
 
     const snapshot = await db.collection('planner_items')
         .where('ownerId', '==', senderPhone)
         .get();
 
-    const transactions = snapshot.docs
-        .map(doc => doc.data())
-        .filter(data => (data.type === 'expense' || data.type === 'income') && data.date && data.date.startsWith(currentMonth));
+    const allDocs = snapshot.docs.map(doc => doc.data());
 
-    // B. Generate Conversational Answer
-    const answerPrompt = `You are "Align", a friendly, concise, and intelligent personal finance assistant on WhatsApp.
-Here is the user's logged transaction data for this month: ${JSON.stringify(transactions)}.
+    // 1. Pending tasks and upcoming reminders
+    const pendingTasks = allDocs
+        .filter((i: any) => i.type === 'task' && !i.done)
+        .map((i: any) => ({
+            title: i.title,
+            dueDate: i.dueDate,
+            dueTime: i.dueTime || i.reminderTime,
+            category: i.category
+        }));
+
+    // 2. Transactions for this month
+    const monthlyFinances = allDocs
+        .filter((i: any) => (i.type === 'expense' || i.type === 'income') && i.date && i.date.startsWith(currentMonth))
+        .map((i: any) => ({
+            type: i.type,
+            title: i.title,
+            amount: i.amount,
+            date: i.date,
+            category: i.category
+        }));
+
+    const answerPrompt = `You are "Align", a friendly, concise, and intelligent personal assistant on WhatsApp.
+Today is: ${today} (${currentDayName}).
+User's upcoming tasks & reminders: ${JSON.stringify(pendingTasks)}
+User's financial transactions this month: ${JSON.stringify(monthlyFinances)}
+
 User message: "${text}"
 
 Instructions:
-- If the user is asking a question about their expenses, budget, or spending (e.g. "how much did I spend?", "summary"): Answer directly, accurately, and conversationally based on their transaction data.
-- If the user sent a casual greeting (e.g. "hi", "hello"): Greet them warmly and let them know they can log expenses (e.g., "Spent 200 on lunch") or ask about their monthly spending.
-- If the user forwarded a document, assignment, announcement, link, or non-financial message: Politely acknowledge it, clarify that you are their financial assistant and no expenses were found in this text, and offer to help track any expenses if needed.
-Keep the response helpful, punchy, and under 3 sentences. Do not mention JSON or technical details.`;
+- If the user asks about their tasks, schedule, agenda, or reminders: answer directly, punchily, and accurately using their task list.
+- If the user asks about their expenses, budget, or spending: answer directly, punchily, and accurately using their transaction data.
+- If the user sent a casual greeting or message: greet them warmly and let them know they can log expenses (e.g., "Spent 200 on lunch"), add reminders or forward deadlines (e.g. forward assignment or "Doctor appointment tomorrow 5pm"), or ask about their schedule/spending.
+Keep the response punchy, helpful, and under 3 sentences. Do not mention JSON or technical details.`;
 
     const answerResult = await generateWithGemini(genAI, answerPrompt, { temperature: 0.2, maxOutputTokens: 250 });
     const finalAnswer = answerResult.response.text().trim();
@@ -354,80 +429,118 @@ async function processTextQuery(text: string, senderPhone: string) {
 
     try {
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+        const { now, today, currentTime, currentDayName } = getKolkataDate();
 
-        // 1. Instant Intent Classification (Strict word boundaries to avoid matching "hrs.", "course", etc.)
-        const isQuestion = /\b(how much|total|summary|list|show|what|breakdown|status)\b/i.test(text);
-        const hasExpenseKeywords = /\b(spent|paid|bought|expense|cost|bill|recharge|fare|ordered|shopping|swiggy|zomato|uber|ola|blinkit|zepto)\b/i.test(text);
-        const hasCurrencySymbolOrWord = (/\b(rs\.?|inr|bucks)\b/i.test(text) && /\d/.test(text)) || (/₹\s*\d/.test(text));
-        const isShortItemWithPrice = /^[a-zA-Z\s]{2,25}\s+\d+(\.\d{1,2})?$/.test(text.trim());
+        // Intelligent multi-intent prompt: Handles reminders/deadlines, expenses, queries, and conversation
+        const prompt = `You are "Align", an elite personal planning and financial assistant on WhatsApp.
+Today's date is: ${today} (${currentDayName}).
+Current time is: ${currentTime} (IST).
 
-        const isLoggingExpense = !isQuestion && (hasExpenseKeywords || hasCurrencySymbolOrWord || isShortItemWithPrice);
+User message:
+"${text}"
 
-        if (isLoggingExpense) {
-            console.log(`Intent: LOG -> Extracting expense data from "${text.slice(0, 50)}"...`);
-            
-            // Extract data using Gemini with constrained parameters
-            const extractionPrompt = `Analyze this message to determine if it is logging a financial expense or purchase: "${text}".
-If it IS an expense or payment:
-Respond ONLY with a raw JSON object: {"isExpense": true, "title": "Vendor or item", "amount": 100, "category": "#Dining" | "#Travel" | "#Academics" | "#General"}
-If it is NOT an expense (e.g. general text, assignment, announcement, greeting, question):
-Respond ONLY with a raw JSON object: {"isExpense": false}
-Do not include markdown or backticks.`;
+Determine the user's primary intent:
+1. "REMINDER": The user wants to add a reminder, task, deadline, appointment, meeting, flight, or has forwarded an announcement/email/assignment containing a deadline, date, time, or action item (e.g., "remind me to call John at 5pm", "Dentist appointment tomorrow 4pm", "Deadline: 07th September (Monday, 08.00 hrs.) submit PPT on Moodle", "Meeting with team on Friday at 11am").
+2. "EXPENSE": The user spent, paid, bought, or received money (e.g., "spent 200 on lunch", "coffee 150 rs", "paid 400 for uber", "swiggy 350", "₹500 groceries", "lunch 120").
+3. "QUERY": The user is asking about their schedule, pending tasks, deadlines, reminders, expenses, budget, or financial summary (e.g., "how much did I spend?", "what are my reminders for tomorrow?", "what's on my agenda today?").
+4. "CONVERSATION": Casual greeting, thank you, or general chat with no task, expense, or question.
 
-            const result = await generateWithGemini(genAI, extractionPrompt, { temperature: 0.0, maxOutputTokens: 150 });
-            const responseText = result.response.text();
-            
-            let extractedData: any = null;
-            try {
-                const match = responseText.match(/\{[\s\S]*\}/);
-                if (match) extractedData = JSON.parse(match[0]);
-            } catch {
-                extractedData = null;
-            }
+EXTRACTION RULES:
+- For REMINDER:
+  * "title": A clean, concise, and descriptive title for the task/reminder (e.g., "Submit CRM Case Study PPT on Moodle", "Call John", "Dentist Appointment").
+  * "dueDate": "YYYY-MM-DD" format. Resolve relative dates like "tomorrow", "Monday", "07th September" based on today (${today}, ${currentDayName}). If no date is mentioned, use "${today}".
+  * "dueTime": "HH:mm" in 24-hour format (e.g. "08:00", "16:30") or null if no time is specified. Note: "08.00 hrs" is "08:00".
+  * "category": Choose the most fitting tag: "#Academics", "#Work", "#Personal", or "#General".
+- For EXPENSE:
+  * "title": Vendor or item name (e.g., "Lunch", "Uber", "Groceries").
+  * "amount": Numerical amount (e.g., 250).
+  * "category": "#Dining", "#Travel", "#Academics", or "#General".
 
-            // If Gemini says this is NOT an expense or has no valid positive amount, fallback to conversational handling
-            const parsedAmount = parseFloat(extractedData?.amount);
-            if (!extractedData || !extractedData.isExpense || isNaN(parsedAmount) || parsedAmount <= 0) {
-                console.log(`ℹ️ Text was not a financial expense after AI extraction. Routing to conversational assistant...`);
-                await handleConversationalQuery(genAI, text, senderPhone);
-                return;
-            }
+Respond ONLY with a valid raw JSON object. Do not include markdown formatting or backticks.
+Format:
+- If REMINDER: {"intent": "REMINDER", "title": "string", "dueDate": "YYYY-MM-DD", "dueTime": "HH:mm" | null, "category": "string"}
+- If EXPENSE: {"intent": "EXPENSE", "title": "string", "amount": number, "category": "string"}
+- If QUERY: {"intent": "QUERY"}
+- If CONVERSATION: {"intent": "CONVERSATION", "reply": "string"}`;
 
-            // Apply Smart Guardrails
-            const finalCategory = applySmartTags(extractedData.title, extractedData.category);
+        const result = await generateWithGemini(genAI, prompt, { temperature: 0.0, maxOutputTokens: 200 });
+        const responseText = result.response.text();
 
-            // Format Date and Save to Firebase
-            const now = new Date();
-            const pad = (n: number) => String(n).padStart(2, '0');
-            const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+        let parsed: any = null;
+        try {
+            const match = responseText.match(/\{[\s\S]*\}/);
+            if (match) parsed = JSON.parse(match[0]);
+        } catch {
+            parsed = null;
+        }
+
+        // 1. Handle REMINDER / TASK / DEADLINE
+        if (parsed?.intent === 'REMINDER' && parsed.title) {
+            const dueDate = parsed.dueDate || today;
+            const dueTime = normalizeTime(parsed.dueTime);
+            const category = parsed.category || '#General';
+
+            const newItem = {
+                ownerId: senderPhone,
+                type: 'task',
+                title: parsed.title,
+                dueDate: dueDate,
+                dueTime: dueTime,
+                reminderTime: dueTime,
+                endTime: null,
+                category: category,
+                tags: [category],
+                priority: 'P2',
+                done: false,
+                subtasks: [],
+                origin: 'whatsapp',
+                createdAt: now.toISOString()
+            };
+
+            const dateFormatted = formatFriendlyDate(dueDate, dueTime);
+            const confirmationText = `⏰ Added reminder: *${parsed.title}*\n📅 *${dateFormatted}*\n🏷️ ${category}`;
+
+            await Promise.all([
+                db.collection('planner_items').add(newItem).then(() => {
+                    console.log(`✅ Saved reminder to Firebase: "${newItem.title}" on ${dueDate} ${dueTime || ''}`);
+                }),
+                sendWhatsAppTextMessage(senderPhone, confirmationText)
+            ]);
+            return;
+        }
+
+        // 2. Handle EXPENSE
+        const parsedAmount = parseFloat(parsed?.amount);
+        if (parsed?.intent === 'EXPENSE' && !isNaN(parsedAmount) && parsedAmount > 0) {
+            const finalCategory = applySmartTags(parsed.title, parsed.category);
 
             const newItem = {
                 ownerId: senderPhone,
                 type: 'expense',
-                title: extractedData.title || 'Expense',
+                title: parsed.title || 'Expense',
                 amount: parsedAmount,
                 date: today,
                 category: finalCategory,
                 tags: [finalCategory],
                 splits: [],
-                createdAt: now.toISOString() 
+                createdAt: now.toISOString()
             };
 
-            // Concurrently save to Firestore and dispatch WhatsApp confirmation
             await Promise.all([
                 db.collection('planner_items').add(newItem).then(() => {
                     console.log(`✅ Saved to Firebase: ${newItem.title} for ₹${newItem.amount}`);
                 }),
                 sendWhatsAppTextMessage(senderPhone, `✅ Logged ₹${newItem.amount} for ${newItem.title} under ${finalCategory}.`)
             ]);
-
-        } else {
-            await handleConversationalQuery(genAI, text, senderPhone);
+            return;
         }
+
+        // 3. Handle QUERY or CONVERSATION or FALLBACK
+        await handleConversationalQuery(genAI, text, senderPhone);
 
     } catch (err: any) {
         console.error("❌ processTextQuery failure:", err);
-        await sendWhatsAppTextMessage(senderPhone, "⚠️ Sorry, I'm having trouble processing that right now. Please try again in a moment or type the expense.");
+        await sendWhatsAppTextMessage(senderPhone, "⚠️ Sorry, I'm having trouble processing that right now. Please try again in a moment!");
     }
 }
 
@@ -440,6 +553,8 @@ async function processAudioMessage(audioId: string, senderPhone: string, mimeTyp
     if (!GEMINI_API_KEY) throw new Error("Missing Gemini API Token");
 
     try {
+        const { now, today, currentTime, currentDayName } = getKolkataDate();
+
         // 1. Ask Meta for the secure download URL
         const metaUrlReq = await fetch(`https://graph.facebook.com/v17.0/${audioId}`, {
             method: 'GET',
@@ -466,13 +581,19 @@ async function processAudioMessage(audioId: string, senderPhone: string, mimeTyp
 
         // 4. Send audio directly to Gemini with constrained parameters (single roundtrip)
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        const prompt = `Listen to this spoken audio and determine if the user is logging an expense or asking a financial question.
-- If logging an expense or income (e.g. "spent 500 on dinner", "bought coffee for 150"):
-  Respond in raw JSON format: {"type": "expense", "title": "Vendor or item", "amount": 100, "category": "#Dining" | "#Travel" | "#Academics" | "#General"}
-- If asking a question about their finances (e.g. "how much did I spend this week?"):
-  Respond in raw JSON format: {"type": "query", "question": "the user question verbatim"}
-- If inaudible, silent, or unrelated conversation:
-  Respond in raw JSON format: {"type": "inaudible"}
+        const prompt = `Listen to this spoken audio and determine if the user is logging an expense, setting a reminder/task, or asking a question.
+Today's date is: ${today} (${currentDayName}). Current time is: ${currentTime}.
+
+Respond in raw JSON format:
+- If logging an expense (e.g. "spent 500 on dinner", "bought coffee for 150"):
+  {"type": "expense", "title": "Vendor or item", "amount": 100, "category": "#Dining" | "#Travel" | "#Academics" | "#General"}
+- If setting a task or reminder (e.g. "remind me to call John at 5pm", "doctor appointment on Monday 8am"):
+  {"type": "task", "title": "Actionable task title", "dueDate": "YYYY-MM-DD", "dueTime": "HH:mm" | null, "category": "#Academics" | "#Work" | "#Personal" | "#General"}
+- If asking a question (e.g. "how much did I spend this week?", "what are my tasks for tomorrow?"):
+  {"type": "query", "question": "the user question verbatim"}
+- If inaudible or silent:
+  {"type": "inaudible"}
+
 Respond ONLY with a valid JSON object. Do not include markdown formatting or backticks.`;
 
         const audioPart = {
@@ -482,7 +603,7 @@ Respond ONLY with a valid JSON object. Do not include markdown formatting or bac
             }
         };
 
-        const result = await generateWithGemini(genAI, [prompt, audioPart], { temperature: 0.0, maxOutputTokens: 150 });
+        const result = await generateWithGemini(genAI, [prompt, audioPart], { temperature: 0.0, maxOutputTokens: 200 });
         const responseText = result.response.text();
         
         let parsed: any = null;
@@ -493,12 +614,10 @@ Respond ONLY with a valid JSON object. Do not include markdown formatting or bac
             parsed = null;
         }
 
+        // Voice Expense
         const parsedAmount = parseFloat(parsed?.amount);
         if (parsed?.type === 'expense' && !isNaN(parsedAmount) && parsedAmount > 0) {
             const finalCategory = applySmartTags(parsed.title, parsed.category);
-            const now = new Date();
-            const pad = (n: number) => String(n).padStart(2, '0');
-            const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 
             const newItem = {
                 ownerId: senderPhone,
@@ -512,23 +631,62 @@ Respond ONLY with a valid JSON object. Do not include markdown formatting or bac
                 createdAt: now.toISOString()
             };
 
-            // Decoupled concurrent persistence and WhatsApp delivery
             await Promise.all([
                 db.collection('planner_items').add(newItem).then(() => {
                     console.log(`✅ Saved to Firebase (from voice): ${newItem.title} for ₹${newItem.amount}`);
                 }),
                 sendWhatsAppTextMessage(senderPhone, `✅ Logged ₹${newItem.amount} for ${newItem.title} under ${finalCategory}.`)
             ]);
+            return;
+        }
 
-        } else if (parsed?.type === 'query' && parsed.question) {
+        // Voice Reminder
+        if (parsed?.type === 'task' && parsed.title) {
+            const dueDate = parsed.dueDate || today;
+            const dueTime = normalizeTime(parsed.dueTime);
+            const category = parsed.category || '#General';
+
+            const newItem = {
+                ownerId: senderPhone,
+                type: 'task',
+                title: parsed.title,
+                dueDate: dueDate,
+                dueTime: dueTime,
+                reminderTime: dueTime,
+                endTime: null,
+                category: category,
+                tags: [category],
+                priority: 'P2',
+                done: false,
+                subtasks: [],
+                origin: 'whatsapp',
+                createdAt: now.toISOString()
+            };
+
+            const dateFormatted = formatFriendlyDate(dueDate, dueTime);
+            const confirmationText = `⏰ Added reminder: *${parsed.title}*\n📅 *${dateFormatted}*\n🏷️ ${category}`;
+
+            await Promise.all([
+                db.collection('planner_items').add(newItem).then(() => {
+                    console.log(`✅ Saved voice reminder to Firebase: "${newItem.title}" on ${dueDate} ${dueTime || ''}`);
+                }),
+                sendWhatsAppTextMessage(senderPhone, confirmationText)
+            ]);
+            return;
+        }
+
+        // Voice Query
+        if (parsed?.type === 'query' && parsed.question) {
             console.log(`🎙️ Voice question: "${parsed.question}"`);
             await processTextQuery(parsed.question, senderPhone);
-        } else {
-            await sendWhatsAppTextMessage(senderPhone, "⚠️ Couldn't clearly detect an expense or question in that voice note. Please try again or send a text!");
+            return;
         }
+
+        // Inaudible or unclear
+        await sendWhatsAppTextMessage(senderPhone, "⚠️ Couldn't clearly detect an expense or reminder in that voice note. Please try again or send a text!");
 
     } catch (err: any) {
         console.error("❌ processAudioMessage error:", err);
-        await sendWhatsAppTextMessage(senderPhone, "⚠️ Couldn't process that voice note right now. Please try again or type your expense.");
+        await sendWhatsAppTextMessage(senderPhone, "⚠️ Couldn't process that voice note right now. Please try again or type your expense/reminder.");
     }
 }
