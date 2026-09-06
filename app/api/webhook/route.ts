@@ -95,6 +95,75 @@ export async function POST(req: Request) {
 }
 
 // ==========================================
+// NATURAL DATE PARSER
+// ==========================================
+function parseNaturalDate(str: string, referenceDateStr: string): string | null {
+    if (!str) return null;
+    const s = str.trim().toLowerCase();
+    const [y, m, d] = referenceDateStr.split('-').map(Number);
+    const refDate = new Date(Date.UTC(y, m - 1, d));
+
+    if (s === 'today') return referenceDateStr;
+    if (s === 'tomorrow') {
+        const next = new Date(refDate.getTime() + 24 * 60 * 60 * 1000);
+        return next.toISOString().slice(0, 10);
+    }
+    if (s === 'yesterday') {
+        const prev = new Date(refDate.getTime() - 24 * 60 * 60 * 1000);
+        return prev.toISOString().slice(0, 10);
+    }
+
+    // Match YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+    // Match DD/MM or DD-MM
+    const slashMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{4}))?$/);
+    if (slashMatch) {
+        const day = parseInt(slashMatch[1], 10);
+        const mon = parseInt(slashMatch[2], 10);
+        const year = slashMatch[3] ? parseInt(slashMatch[3], 10) : y;
+        if (mon >= 1 && mon <= 12 && day >= 1 && day <= 31) {
+            return `${year}-${String(mon).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
+    }
+
+    const months: Record<string, number> = {
+        jan: 1, january: 1,
+        feb: 2, february: 2,
+        mar: 3, march: 3,
+        apr: 4, april: 4,
+        may: 5,
+        jun: 6, june: 6,
+        jul: 7, july: 7,
+        aug: 8, august: 8,
+        sep: 9, sept: 9, september: 9,
+        oct: 10, october: 10,
+        nov: 11, november: 11,
+        dec: 12, december: 12
+    };
+
+    // "8 September", "8th September", "September 8", "September 8th", "7th Sep", etc.
+    const m1 = s.match(/(\d{1,2})(?:st|nd|rd|th)?\s+([a-z]+)/i) || s.match(/([a-z]+)\s+(\d{1,2})(?:st|nd|rd|th)?/i);
+    if (m1) {
+        let dayNum: number;
+        let monthName: string;
+        if (/^\d/.test(m1[1])) {
+            dayNum = parseInt(m1[1], 10);
+            monthName = m1[2].toLowerCase();
+        } else {
+            monthName = m1[1].toLowerCase();
+            dayNum = parseInt(m1[2], 10);
+        }
+        const monthNum = months[monthName] || months[monthName.slice(0, 3)];
+        if (monthNum && dayNum >= 1 && dayNum <= 31) {
+            return `${y}-${String(monthNum).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
+        }
+    }
+
+    return null;
+}
+
+// ==========================================
 // SMART VENDOR AUTO-TAGGING
 // ==========================================
 function applySmartTags(vendorName: string, aiGuessedCategory?: string): string {
@@ -224,7 +293,7 @@ async function sendWhatsAppInteractiveButtons(to: string, bodyText: string, butt
 // ==========================================
 // GEMINI MULTI-MODEL DISPATCHER WITH WARM CACHE
 // ==========================================
-let cachedWorkingConfig: { model: string; apiVersion?: string } | null = { model: "gemini-flash-latest" };
+let cachedWorkingConfig: { model: string; apiVersion?: string } | null = { model: "gemini-flash-lite-latest" };
 
 async function generateWithGemini(
     genAI: GoogleGenerativeAI, 
@@ -232,10 +301,10 @@ async function generateWithGemini(
     config?: { temperature?: number; maxOutputTokens?: number }
 ) {
     const candidateConfigs: { model: string; apiVersion?: string }[] = [
+        { model: "gemini-flash-lite-latest" },
+        { model: "gemini-3.1-flash-lite" },
+        { model: "gemini-3.5-flash-lite" },
         { model: "gemini-flash-latest" },
-        { model: "gemini-2.0-flash" },
-        { model: "gemini-1.5-flash" },
-        { model: "gemini-2.0-flash-lite" },
     ];
 
     // Fast-path: Reuse the model that already succeeded in this instance to avoid fallback latency!
@@ -949,6 +1018,66 @@ async function processTextQuery(text: string, senderPhone: string) {
             return;
         }
 
+        // 2i. Fast-path: Bulk Revert / Reschedule Tasks by Date (e.g., "Revert all task of 8 September to 7th September")
+        const bulkMoveMatch = trimmedText.match(/^(?:revert|move|shift|reschedule)\s+(?:all\s+)?tasks?(?:\s+(?:of|from)\s+(.+?))?\s+(?:to|back to)\s+(.+)$/i);
+        if (bulkMoveMatch) {
+            const rawFrom = bulkMoveMatch[1] ? bulkMoveMatch[1].trim() : 'tomorrow';
+            const rawTo = bulkMoveMatch[2].trim();
+
+            const fromDateKey = parseNaturalDate(rawFrom, today);
+            const toDateKey = parseNaturalDate(rawTo, today);
+
+            if (fromDateKey && toDateKey) {
+                if (fromDateKey === toDateKey) {
+                    await sendWhatsAppTextMessage(senderPhone, `ℹ️ The source date and target date are the same (*${fromDateKey}*). Tasks are already on that date!`);
+                    return;
+                }
+
+                // Query all tasks for this user
+                const snapshot = await db.collection('planner_items')
+                    .where('ownerId', '==', senderPhone)
+                    .where('type', '==', 'task')
+                    .get();
+
+                const tasksToMove = snapshot.docs.filter(doc => {
+                    const data = doc.data();
+                    return data.dueDate === fromDateKey || (!data.dueDate && data.date === fromDateKey);
+                });
+
+                if (tasksToMove.length === 0) {
+                    await sendWhatsAppTextMessage(senderPhone, `ℹ️ No tasks found scheduled on *${rawFrom}* (${fromDateKey}) to move.`);
+                    return;
+                }
+
+                const batch = db.batch();
+                const movedTitles: string[] = [];
+
+                tasksToMove.forEach(doc => {
+                    const data = doc.data();
+                    movedTitles.push(data.title || 'Untitled Task');
+                    batch.update(doc.ref, {
+                        dueDate: toDateKey,
+                        rolledOverFrom: fromDateKey,
+                        updatedAt: new Date().toISOString()
+                    });
+                });
+
+                await batch.commit();
+
+                const taskLines = movedTitles.slice(0, 8).map(t => `  • ${t}`).join('\n');
+                const extraNote = movedTitles.length > 8 ? `\n  _...and ${movedTitles.length - 8} more_` : '';
+
+                const replyMsg = `✅ Moved *${tasksToMove.length} task(s)* from ${fromDateKey} to *${toDateKey}*:\n${taskLines}${extraNote}`;
+                await sendWhatsAppTextMessage(senderPhone, replyMsg);
+
+                await updateSession(senderPhone, {
+                    lastUserMessage: text,
+                    lastBotMessage: replyMsg
+                });
+                return;
+            }
+        }
+
         // 3. Generalized Multi-Intent AI Intake Engine
         const prompt = `You are "Align", an elite personal planning and financial assistant on WhatsApp.
 Today's date is: ${today} (${currentDayName}).
@@ -1096,7 +1225,11 @@ Format:
 
     } catch (err: any) {
         console.error("❌ processTextQuery failure:", err);
-        await sendWhatsAppTextMessage(senderPhone, "⚠️ Sorry, I'm having trouble processing that right now. Please try again in a moment!");
+        const isQuota = err?.status === 429 || err?.message?.includes("429") || err?.message?.includes("Quota exceeded") || err?.message?.includes("RESOURCE_EXHAUSTED");
+        const replyMsg = isQuota
+            ? "⏳ I'm experiencing high AI traffic right now. Please try again in 30-60 seconds, or use direct commands like 'what are my tasks today' or 'bought coffee 50'!"
+            : "⚠️ Sorry, I had trouble processing that right now. Please try again in a moment!";
+        await sendWhatsAppTextMessage(senderPhone, replyMsg);
     }
 }
 
