@@ -10,13 +10,22 @@
     "cap-assets": true
   },
   "files.watcherExclude": {
+    "**/.git/**": true,
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true,
     "**/cap-assets/**": true,
     "**/android/app/build/**": true,
+    "**/android/.gradle/**": true,
     "**/.next/**": true
   },
   "search.exclude": {
     "**/cap-assets": true,
     "**/android/app/build": true,
     "**/.next": true
-  }
+  },
+  "git.autorefresh": true,
+  "git.autoStash": false,
+  "git.detectSubmodules": false,
+  "git.ignoreMissingGitWarning": true
 }
