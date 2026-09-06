@@ -3,10 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import {
     IconWhatsApp,
-    IconCheck
+    IconCheck,
+    IconClock,
+    IconChevronRight,
+    IconCopy
 } from '../../../components/Icons';
 import { db } from '../../../lib/firebase';
 import MobileScreen from '../../../components/MobileScreen';
+import { triggerHaptic } from '../../../lib/native';
 
 const safeGetItem = (key: string): string | null => {
     try {
@@ -55,6 +59,7 @@ export default function WhatsAppSettingsPage() {
 
     const [isSendingTest, setIsSendingTest] = useState(false);
     const [testStatus, setTestStatus] = useState<string | null>(null);
+    const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
 
     // 3. User Phone & Preferences retrieval + Firestore sync
     useEffect(() => {
@@ -102,53 +107,57 @@ export default function WhatsAppSettingsPage() {
 
     // Handlers
     const handleToggleDailySummary = async () => {
-        if (!userPhone) return;
+        await triggerHaptic('medium');
         const nextVal = !dailySummaryEnabled;
         setDailySummaryEnabled(nextVal);
-        safeSetItem(`align_daily_summary_${userPhone}`, String(nextVal));
-
-        try {
-            await Promise.all([
-                db.collection('planner_settings').doc(`preferences_${userPhone}`).set({ dailySummaryEnabled: nextVal }, { merge: true }),
-                db.collection('user_sessions').doc(userPhone).set({ dailySummaryEnabled: nextVal }, { merge: true })
-            ]);
-        } catch (e) {
-            console.warn("Failed to persist daily summary preference:", e);
+        if (userPhone) {
+            safeSetItem(`align_daily_summary_${userPhone}`, String(nextVal));
+            try {
+                await Promise.all([
+                    db.collection('planner_settings').doc(`preferences_${userPhone}`).set({ dailySummaryEnabled: nextVal }, { merge: true }),
+                    db.collection('user_sessions').doc(userPhone).set({ dailySummaryEnabled: nextVal }, { merge: true })
+                ]);
+            } catch (e) {
+                console.warn("Failed to persist daily summary preference:", e);
+            }
         }
     };
 
     const handleChangeDailySummaryTime = async (newTime: string) => {
-        if (!userPhone || !newTime) return;
+        await triggerHaptic('light');
         setDailySummaryTime(newTime);
-        safeSetItem(`align_daily_summary_time_${userPhone}`, newTime);
-
-        try {
-            await Promise.all([
-                db.collection('planner_settings').doc(`preferences_${userPhone}`).set({ dailySummaryTime: newTime }, { merge: true }),
-                db.collection('user_sessions').doc(userPhone).set({ dailySummaryTime: newTime }, { merge: true })
-            ]);
-        } catch (e) {
-            console.warn("Failed to persist daily summary time:", e);
+        if (userPhone) {
+            safeSetItem(`align_daily_summary_time_${userPhone}`, newTime);
+            try {
+                await Promise.all([
+                    db.collection('planner_settings').doc(`preferences_${userPhone}`).set({ dailySummaryTime: newTime }, { merge: true }),
+                    db.collection('user_sessions').doc(userPhone).set({ dailySummaryTime: newTime }, { merge: true })
+                ]);
+            } catch (e) {
+                console.warn("Failed to persist daily summary time:", e);
+            }
         }
     };
 
     const handleChangeReminderTiming = async (timing: 'exact' | '1h_before' | 'both') => {
-        if (!userPhone) return;
+        await triggerHaptic('light');
         setReminderTiming(timing);
-        safeSetItem(`align_reminder_timing_${userPhone}`, timing);
-
-        try {
-            await Promise.all([
-                db.collection('planner_settings').doc(`preferences_${userPhone}`).set({ whatsappReminderTiming: timing }, { merge: true }),
-                db.collection('user_sessions').doc(userPhone).set({ whatsappReminderTiming: timing }, { merge: true })
-            ]);
-        } catch (e) {
-            console.warn("Failed to persist reminder timing:", e);
+        if (userPhone) {
+            safeSetItem(`align_reminder_timing_${userPhone}`, timing);
+            try {
+                await Promise.all([
+                    db.collection('planner_settings').doc(`preferences_${userPhone}`).set({ whatsappReminderTiming: timing }, { merge: true }),
+                    db.collection('user_sessions').doc(userPhone).set({ whatsappReminderTiming: timing }, { merge: true })
+                ]);
+            } catch (e) {
+                console.warn("Failed to persist reminder timing:", e);
+            }
         }
     };
 
     const handleSendTestSummary = async () => {
         if (!userPhone || isSendingTest) return;
+        await triggerHaptic('light');
         setIsSendingTest(true);
         setTestStatus('Dispatching summary to your WhatsApp...');
 
@@ -156,6 +165,7 @@ export default function WhatsAppSettingsPage() {
             const res = await fetch(`/api/cron/daily-summary?phone=${encodeURIComponent(userPhone)}&force=true`);
             const data = await res.json();
             if (data.success) {
+                await triggerHaptic('success');
                 setTestStatus('✅ Summary delivered to WhatsApp!');
             } else {
                 setTestStatus(`⚠️ ${data.reason || 'Could not send message'}`);
@@ -165,6 +175,17 @@ export default function WhatsAppSettingsPage() {
         } finally {
             setIsSendingTest(false);
             setTimeout(() => setTestStatus(null), 5000);
+        }
+    };
+
+    const handleCopyCommand = async (cmdText: string) => {
+        await triggerHaptic('light');
+        if (typeof navigator !== 'undefined' && navigator.clipboard) {
+            try {
+                await navigator.clipboard.writeText(cmdText.replace(/^"|"$/g, ''));
+                setCopiedCmd(cmdText);
+                setTimeout(() => setCopiedCmd(null), 2000);
+            } catch {}
         }
     };
 
@@ -183,142 +204,156 @@ export default function WhatsAppSettingsPage() {
         {
             id: 'exact',
             title: 'At Scheduled Time',
-            desc: 'Receive alerts right when your task or event starts.'
+            desc: 'Receive alerts right when your task or event begins'
         },
         {
             id: '1h_before',
             title: '1 Hour Before',
-            desc: 'Receive a heads-up alert 60 minutes before scheduled time.'
+            desc: 'Receive a heads-up alert 60 minutes prior'
         },
         {
             id: 'both',
             title: 'Both (1 Hour Before & At Time)',
-            desc: 'Get an early 1-hour warning plus the on-time reminder.'
+            desc: 'Get an early 60-min warning plus the on-time alert'
         }
     ];
 
+    const formattedPhone = userPhone
+        ? (userPhone.length > 10 ? `+${userPhone.slice(0, userPhone.length - 10)} ` : '') + `******${userPhone.slice(-4)}`
+        : 'Active Session';
+
     return (
         <MobileScreen
-            title="WhatsApp Settings"
+            title="WhatsApp"
             headerRight={
                 <div
                     style={{
-                        width: '32px',
-                        height: '32px',
+                        width: '28px',
+                        height: '28px',
                         borderRadius: '50%',
-                        background: 'rgba(37,211,102,0.12)',
+                        background: 'rgba(37,211,102,0.14)',
                         color: '#25D366',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center'
                     }}
                 >
-                    <IconWhatsApp style={{ width: 18, height: 18 }} />
+                    <IconWhatsApp style={{ width: 16, height: 16 }} />
                 </div>
             }
         >
-            <div
-                style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '24px'
-                }}
-            >
-                {/* ════════════════ SECTION 1: DAILY WHATSAPP SUMMARY ════════════════ */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.8px', paddingLeft: '4px' }}>
-                        1. Daily WhatsApp Summary
-                    </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
 
+                {/* ── Status Card ── */}
+                <div
+                    className="settings-card"
+                    style={{
+                        padding: '16px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '14px',
+                    }}
+                >
                     <div
                         style={{
-                            background: 'var(--surface)',
-                            borderRadius: '20px',
-                            padding: '18px',
-                            border: '1px solid var(--border)',
-                            boxShadow: 'var(--shadow)',
+                            width: '42px',
+                            height: '42px',
+                            borderRadius: '12px',
+                            background: 'rgba(37, 211, 102, 0.12)',
+                            color: '#25D366',
                             display: 'flex',
-                            flexDirection: 'column',
-                            gap: '16px'
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                            boxShadow: '0 2px 8px rgba(37, 211, 102, 0.15)'
                         }}
                     >
-                        {/* Toggle row */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div
-                                    style={{
-                                        width: '40px',
-                                        height: '40px',
-                                        borderRadius: '12px',
-                                        background: dailySummaryEnabled ? 'rgba(37,211,102,0.15)' : 'var(--bg)',
-                                        color: dailySummaryEnabled ? '#25D366' : 'var(--text-light)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        flexShrink: 0
-                                    }}
-                                >
-                                    <IconWhatsApp style={{ width: 22, height: 22 }} />
+                        <IconWhatsApp style={{ width: 22, height: 22 }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.2px' }}>
+                            {formattedPhone}
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px' }}>
+                            {dailySummaryEnabled ? `Daily recap active at ${format12Hour(dailySummaryTime)}` : 'Summary is currently off'}
+                        </div>
+                    </div>
+                    <span
+                        style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            padding: '4px 10px',
+                            borderRadius: '16px',
+                            background: dailySummaryEnabled ? 'rgba(37, 211, 102, 0.12)' : 'var(--bg)',
+                            color: dailySummaryEnabled ? '#25D366' : 'var(--text-light)',
+                            border: `1px solid ${dailySummaryEnabled ? 'rgba(37, 211, 102, 0.3)' : 'var(--border)'}`,
+                            flexShrink: 0
+                        }}
+                    >
+                        {dailySummaryEnabled ? 'Active' : 'Standby'}
+                    </span>
+                </div>
+
+                {/* ── Group 1: DAILY RECAP ── */}
+                <div className="settings-group" style={{ marginBottom: 0 }}>
+                    <div className="settings-group-header">Daily Digest</div>
+                    <div className="settings-card">
+                        {/* Master Switch Row */}
+                        <div className="settings-row">
+                            <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
+                                <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.2px' }}>
+                                    End-of-Day Summary
                                 </div>
-                                <div>
-                                    <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text)' }}>
-                                        End-of-Day Summary
-                                    </div>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px' }}>
-                                        {dailySummaryEnabled ? `Delivers daily at ${format12Hour(dailySummaryTime)}` : 'Summary is currently turned off'}
-                                    </div>
+                                <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px', lineHeight: 1.3 }}>
+                                    {dailySummaryEnabled
+                                        ? `Automated agenda recap delivered at ${format12Hour(dailySummaryTime)}`
+                                        : 'Automatically sends unfinished tasks and daily recap'}
                                 </div>
                             </div>
-
                             <button
                                 type="button"
+                                role="switch"
+                                aria-checked={dailySummaryEnabled}
+                                className={`ios-switch ${dailySummaryEnabled ? 'active' : ''}`}
                                 onClick={handleToggleDailySummary}
-                                style={{
-                                    border: 'none',
-                                    padding: '6px 14px',
-                                    borderRadius: '20px',
-                                    background: dailySummaryEnabled ? '#22C55E' : 'var(--border)',
-                                    color: dailySummaryEnabled ? '#FFFFFF' : 'var(--text-light)',
-                                    fontWeight: 800,
-                                    fontSize: '12px',
-                                    cursor: 'pointer',
-                                    transition: 'background 0.2s ease',
-                                    flexShrink: 0
-                                }}
+                                aria-label="Toggle daily summary"
                             >
-                                {dailySummaryEnabled ? 'ON' : 'OFF'}
+                                <span className="ios-switch-thumb" />
                             </button>
                         </div>
 
-                        {/* Delivery Time Picker (Shown when enabled) */}
-                        {dailySummaryEnabled && (
-                            <div
-                                style={{
-                                    paddingTop: '16px',
-                                    borderTop: '1px solid var(--border)',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '14px'
-                                }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                    <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
-                                        Scheduled Delivery Time:
-                                    </span>
-                                    <span style={{ fontSize: '15px', fontWeight: 800, color: '#25D366' }}>
+                        {/* Animated Expandable Configuration */}
+                        <div
+                            style={{
+                                maxHeight: dailySummaryEnabled ? '450px' : '0px',
+                                opacity: dailySummaryEnabled ? 1 : 0,
+                                transform: dailySummaryEnabled ? 'translateY(0)' : 'translateY(-6px)',
+                                overflow: 'hidden',
+                                transition: 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.24s ease, transform 0.24s ease',
+                            }}
+                        >
+                            <div className="settings-divider" style={{ marginLeft: '16px' }} />
+
+                            {/* Scheduled Delivery Time Row */}
+                            <div className="settings-row" style={{ alignItems: 'center' }}>
+                                <div>
+                                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
+                                        Delivery Time
+                                    </div>
+                                    <div style={{ fontSize: '12px', color: '#25D366', fontWeight: 700, marginTop: '2px' }}>
                                         {format12Hour(dailySummaryTime)}
-                                    </span>
+                                    </div>
                                 </div>
 
-                                {/* AM/PM Switcher & Native Input */}
-                                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    {/* Native iOS Segmented AM/PM Control */}
                                     <div
                                         style={{
                                             display: 'inline-flex',
-                                            borderRadius: '12px',
-                                            padding: '3px',
-                                            background: 'var(--bg)',
-                                            border: '1px solid var(--border)'
+                                            background: 'rgba(120, 120, 128, 0.12)',
+                                            padding: '2px',
+                                            borderRadius: '9px',
+                                            gap: '2px'
                                         }}
                                     >
                                         <button
@@ -331,14 +366,15 @@ export default function WhatsAppSettingsPage() {
                                             }}
                                             style={{
                                                 border: 'none',
-                                                padding: '6px 14px',
-                                                borderRadius: '9px',
+                                                padding: '4px 10px',
+                                                borderRadius: '7px',
                                                 fontSize: '12px',
-                                                fontWeight: 800,
+                                                fontWeight: 700,
                                                 cursor: 'pointer',
                                                 background: parts.ampm === 'AM' ? '#25D366' : 'transparent',
                                                 color: parts.ampm === 'AM' ? '#FFFFFF' : 'var(--text-light)',
-                                                transition: 'all 0.15s ease'
+                                                boxShadow: parts.ampm === 'AM' ? '0 2px 5px rgba(37,211,102,0.3)' : 'none',
+                                                transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)'
                                             }}
                                         >
                                             AM
@@ -353,46 +389,67 @@ export default function WhatsAppSettingsPage() {
                                             }}
                                             style={{
                                                 border: 'none',
-                                                padding: '6px 14px',
-                                                borderRadius: '9px',
+                                                padding: '4px 10px',
+                                                borderRadius: '7px',
                                                 fontSize: '12px',
-                                                fontWeight: 800,
+                                                fontWeight: 700,
                                                 cursor: 'pointer',
                                                 background: parts.ampm === 'PM' ? '#25D366' : 'transparent',
                                                 color: parts.ampm === 'PM' ? '#FFFFFF' : 'var(--text-light)',
-                                                transition: 'all 0.15s ease'
+                                                boxShadow: parts.ampm === 'PM' ? '0 2px 5px rgba(37,211,102,0.3)' : 'none',
+                                                transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)'
                                             }}
                                         >
                                             PM
                                         </button>
                                     </div>
 
-                                    <div style={{ flex: 1, position: 'relative' }}>
-                                        <input
-                                            type="time"
-                                            value={dailySummaryTime}
-                                            onChange={(e) => {
-                                                if (e.target.value) {
-                                                    handleChangeDailySummaryTime(e.target.value);
-                                                }
-                                            }}
+                                    {/* Seamless Native Time Wheel Trigger */}
+                                    <div style={{ position: 'relative' }}>
+                                        <label
                                             style={{
-                                                width: '100%',
-                                                padding: '9px 12px',
-                                                borderRadius: '12px',
-                                                border: '1px solid var(--border)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '6px',
+                                                padding: '6px 10px',
+                                                borderRadius: '10px',
                                                 background: 'var(--bg)',
-                                                color: 'var(--text)',
-                                                fontSize: '14px',
+                                                border: '1px solid var(--border)',
+                                                cursor: 'pointer',
+                                                fontSize: '13px',
                                                 fontWeight: 700,
-                                                outline: 'none',
-                                                boxSizing: 'border-box'
+                                                color: 'var(--text)'
                                             }}
-                                        />
+                                        >
+                                            <IconClock style={{ width: 14, height: 14, color: 'var(--blue)' }} />
+                                            <span>Edit</span>
+                                            <input
+                                                type="time"
+                                                value={dailySummaryTime}
+                                                onChange={(e) => {
+                                                    if (e.target.value) {
+                                                        handleChangeDailySummaryTime(e.target.value);
+                                                    }
+                                                }}
+                                                style={{
+                                                    position: 'absolute',
+                                                    inset: 0,
+                                                    opacity: 0,
+                                                    cursor: 'pointer',
+                                                    width: '100%',
+                                                    height: '100%'
+                                                }}
+                                            />
+                                        </label>
                                     </div>
                                 </div>
+                            </div>
 
-                                {/* Presets chips */}
+                            {/* Preset Quick Chips */}
+                            <div style={{ padding: '0 16px 14px' }}>
+                                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-light)', marginBottom: '8px' }}>
+                                    Quick Presets
+                                </div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                                     {presetTimes.map(p => {
                                         const isSelected = dailySummaryTime === p.time;
@@ -404,226 +461,228 @@ export default function WhatsAppSettingsPage() {
                                                 style={{
                                                     border: isSelected ? '1.5px solid #25D366' : '1px solid var(--border)',
                                                     background: isSelected ? 'rgba(37,211,102,0.12)' : 'var(--bg)',
-                                                    color: isSelected ? '#25D366' : 'var(--text-light)',
+                                                    color: isSelected ? '#25D366' : 'var(--text)',
                                                     padding: '5px 11px',
                                                     borderRadius: '10px',
                                                     fontSize: '12px',
-                                                    fontWeight: isSelected ? 800 : 600,
+                                                    fontWeight: isSelected ? 800 : 500,
                                                     cursor: 'pointer',
-                                                    transition: 'all 0.15s ease'
+                                                    transition: 'all 0.15s ease',
+                                                    boxShadow: isSelected ? '0 2px 6px rgba(37,211,102,0.18)' : 'none'
                                                 }}
+                                                className="active:scale-95 transition-transform"
                                             >
                                                 {p.label}
                                             </button>
                                         );
                                     })}
                                 </div>
+                            </div>
 
-                                {/* Live Test Button */}
-                                <div style={{ paddingTop: '8px' }}>
-                                    <button
-                                        type="button"
-                                        onClick={handleSendTestSummary}
-                                        disabled={isSendingTest}
+                            <div className="settings-divider" style={{ marginLeft: '16px' }} />
+
+                            {/* Live Test Trigger */}
+                            <div style={{ padding: '12px 16px' }}>
+                                <button
+                                    type="button"
+                                    onClick={handleSendTestSummary}
+                                    disabled={isSendingTest}
+                                    style={{
+                                        width: '100%',
+                                        padding: '11px 14px',
+                                        borderRadius: '12px',
+                                        border: '1px solid rgba(37,211,102,0.3)',
+                                        background: 'rgba(37,211,102,0.08)',
+                                        color: '#25D366',
+                                        fontWeight: 700,
+                                        fontSize: '13px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '8px',
+                                        cursor: isSendingTest ? 'wait' : 'pointer',
+                                        opacity: isSendingTest ? 0.7 : 1,
+                                    }}
+                                    className="active:scale-[0.98] transition-transform"
+                                >
+                                    <IconWhatsApp style={{ width: 16, height: 16 }} />
+                                    <span>{isSendingTest ? 'Sending summary...' : 'Send Test Summary Now'}</span>
+                                </button>
+
+                                {testStatus && (
+                                    <div
                                         style={{
-                                            width: '100%',
-                                            padding: '11px 14px',
-                                            borderRadius: '12px',
-                                            border: '1px solid rgba(37,211,102,0.3)',
-                                            background: 'rgba(37,211,102,0.08)',
-                                            color: '#25D366',
-                                            fontWeight: 700,
-                                            fontSize: '13px',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            gap: '8px',
-                                            cursor: isSendingTest ? 'wait' : 'pointer',
-                                            opacity: isSendingTest ? 0.7 : 1
+                                            marginTop: '8px',
+                                            padding: '8px 12px',
+                                            borderRadius: '10px',
+                                            background: testStatus.includes('✅') ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
+                                            color: testStatus.includes('✅') ? '#22C55E' : '#EF4444',
+                                            fontSize: '12px',
+                                            fontWeight: 600,
+                                            textAlign: 'center'
                                         }}
                                     >
-                                        <IconWhatsApp style={{ width: 16, height: 16 }} />
-                                        <span>{isSendingTest ? 'Sending summary...' : 'Send Test Summary Now'}</span>
-                                    </button>
-
-                                    {testStatus && (
-                                        <div
-                                            style={{
-                                                marginTop: '8px',
-                                                padding: '8px 12px',
-                                                borderRadius: '10px',
-                                                background: testStatus.includes('✅') ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
-                                                color: testStatus.includes('✅') ? '#22C55E' : '#EF4444',
-                                                fontSize: '12px',
-                                                fontWeight: 600,
-                                                textAlign: 'center'
-                                            }}
-                                        >
-                                            {testStatus}
-                                        </div>
-                                    )}
-                                </div>
+                                        {testStatus}
+                                    </div>
+                                )}
                             </div>
-                        )}
+                        </div>
                     </div>
                 </div>
 
-                {/* ════════════════ SECTION 2: REMINDER TIMING ════════════════ */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.8px', paddingLeft: '4px' }}>
-                        2. Reminder Timing Alert
-                    </div>
-
-                    <div
-                        style={{
-                            background: 'var(--surface)',
-                            borderRadius: '20px',
-                            padding: '18px',
-                            border: '1px solid var(--border)',
-                            boxShadow: 'var(--shadow)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '12px'
-                        }}
-                    >
-                        <div style={{ fontSize: '13px', color: 'var(--text-light)', lineHeight: 1.4 }}>
-                            Choose when you want reminder alerts delivered for upcoming tasks and agenda events:
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {reminderOptions.map(opt => {
-                                const isSelected = reminderTiming === opt.id;
-                                return (
+                {/* ── Group 2: REMINDER ALERTS ── */}
+                <div className="settings-group" style={{ marginBottom: 0 }}>
+                    <div className="settings-group-header">Task Reminder Timing</div>
+                    <div className="settings-card">
+                        {reminderOptions.map((opt, idx) => {
+                            const isSelected = reminderTiming === opt.id;
+                            return (
+                                <React.Fragment key={opt.id}>
+                                    {idx > 0 && <div className="settings-divider" style={{ marginLeft: '16px' }} />}
                                     <div
-                                        key={opt.id}
+                                        className="settings-row clickable"
                                         onClick={() => handleChangeReminderTiming(opt.id)}
-                                        style={{
-                                            padding: '12px 14px',
-                                            borderRadius: '14px',
-                                            border: isSelected ? '1.5px solid var(--blue)' : '1px solid var(--border)',
-                                            background: isSelected ? 'rgba(0,122,255,0.08)' : 'var(--bg)',
-                                            cursor: 'pointer',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'space-between',
-                                            gap: '12px',
-                                            transition: 'all 0.15s ease'
-                                        }}
+                                        style={{ cursor: 'pointer' }}
                                     >
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{ fontWeight: 700, fontSize: '14px', color: isSelected ? 'var(--blue)' : 'var(--text)' }}>
+                                        <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
+                                            <div
+                                                style={{
+                                                    fontSize: '14px',
+                                                    fontWeight: 600,
+                                                    color: isSelected ? 'var(--blue)' : 'var(--text)',
+                                                    letterSpacing: '-0.2px'
+                                                }}
+                                            >
                                                 {opt.title}
                                             </div>
-                                            <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px' }}>
+                                            <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px', lineHeight: 1.3 }}>
                                                 {opt.desc}
                                             </div>
                                         </div>
 
-                                        <div
-                                            style={{
-                                                width: '22px',
-                                                height: '22px',
-                                                borderRadius: '50%',
-                                                border: isSelected ? '2px solid var(--blue)' : '2px solid var(--border)',
-                                                background: isSelected ? 'var(--blue)' : 'transparent',
-                                                color: '#FFFFFF',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                flexShrink: 0
-                                            }}
-                                        >
-                                            {isSelected && <IconCheck style={{ width: 12, height: 12 }} />}
+                                        <div style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                            {isSelected && (
+                                                <div
+                                                    style={{
+                                                        width: '20px',
+                                                        height: '20px',
+                                                        borderRadius: '50%',
+                                                        background: 'var(--blue)',
+                                                        color: '#FFFFFF',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center'
+                                                    }}
+                                                >
+                                                    <IconCheck style={{ width: 11, height: 11 }} />
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
-                                );
-                            })}
-                        </div>
+                                </React.Fragment>
+                            );
+                        })}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-light)', padding: '6px 16px 0', lineHeight: 1.4 }}>
+                        Alerts are delivered directly to your WhatsApp with your daily agenda schedule.
                     </div>
                 </div>
 
-                {/* ════════════════ SECTION 3: WHATSAPP BOT & COMMANDS ════════════════ */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.8px', paddingLeft: '4px' }}>
-                        3. WhatsApp Bot &amp; Quick Commands
-                    </div>
-
-                    <div
-                        style={{
-                            background: 'var(--surface)',
-                            borderRadius: '20px',
-                            padding: '18px',
-                            border: '1px solid var(--border)',
-                            boxShadow: 'var(--shadow)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '14px'
-                        }}
-                    >
-                        <div style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5 }}>
-                            You can also chat directly with your Align Bot on WhatsApp. Just send any thought, reminder, or expense naturally!
-                        </div>
-
-                        {/* Direct WhatsApp link */}
+                {/* ── Group 3: WHATSAPP BOT & QUICK COMMANDS ── */}
+                <div className="settings-group" style={{ marginBottom: 0 }}>
+                    <div className="settings-group-header">WhatsApp Assistant</div>
+                    <div className="settings-card">
+                        {/* Open WhatsApp Chat Row */}
                         <a
                             href="https://wa.me"
                             target="_blank"
                             rel="noopener noreferrer"
-                            style={{
-                                textDecoration: 'none',
-                                padding: '12px 16px',
-                                borderRadius: '12px',
-                                background: '#25D366',
-                                color: '#FFFFFF',
-                                fontWeight: 700,
-                                fontSize: '14px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: '8px',
-                                boxShadow: '0 4px 12px rgba(37,211,102,0.3)'
-                            }}
+                            className="settings-row clickable"
+                            style={{ textDecoration: 'none', cursor: 'pointer' }}
+                            onClick={() => triggerHaptic('light')}
                         >
-                            <IconWhatsApp style={{ width: 18, height: 18 }} />
-                            <span>Open WhatsApp Chat</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+                                <div
+                                    style={{
+                                        width: '32px',
+                                        height: '32px',
+                                        borderRadius: '8px',
+                                        background: '#25D366',
+                                        color: '#FFFFFF',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        flexShrink: 0
+                                    }}
+                                >
+                                    <IconWhatsApp style={{ width: 18, height: 18 }} />
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
+                                        Chat with Align Bot
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '1px' }}>
+                                        Send expenses, voice notes, or questions
+                                    </div>
+                                </div>
+                            </div>
+                            <IconChevronRight style={{ width: 18, height: 18, color: 'var(--text-light)' }} />
                         </a>
 
-                        {/* Commands table */}
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
-                            <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-light)' }}>
-                                Natural Commands You Can Send Anytime:
+                        <div className="settings-divider" style={{ marginLeft: '16px' }} />
+
+                        {/* Natural Commands Section */}
+                        <div style={{ padding: '14px 16px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
+                                    Quick Commands
+                                </span>
+                                {copiedCmd && (
+                                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#25D366' }}>
+                                        Copied!
+                                    </span>
+                                )}
                             </div>
 
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '6px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                                 {[
                                     { cmd: '"what are my tasks for today?"', desc: 'Instant agenda query' },
-                                    { cmd: '"summary time 8:30pm"', desc: 'Changes delivery time instantly' },
-                                    { cmd: '"turn on summary" / "turn off summary"', desc: 'Toggles daily digest' },
-                                    { cmd: '"turn on auto push"', desc: 'Enables automatic rollover' },
-                                    { cmd: '"bought groceries 450"', desc: 'Logs an expense instantly' },
-                                    { cmd: '"remind me to call Mom at 6pm"', desc: 'Schedules a task with alert' }
+                                    { cmd: '"summary time 8:30pm"', desc: 'Change delivery time' },
+                                    { cmd: '"turn on summary" / "turn off summary"', desc: 'Toggle daily digest' },
+                                    { cmd: '"bought groceries 450"', desc: 'Instant expense logging' },
+                                    { cmd: '"remind me to call Mom at 6pm"', desc: 'Schedule task with alert' }
                                 ].map((item, idx) => (
                                     <div
                                         key={idx}
+                                        onClick={() => handleCopyCommand(item.cmd)}
+                                        className="active:scale-[0.99] transition-transform"
                                         style={{
                                             display: 'flex',
-                                            justifyContent: 'space-between',
                                             alignItems: 'center',
-                                            padding: '8px 12px',
-                                            background: 'var(--bg)',
+                                            justifyContent: 'space-between',
+                                            padding: '8px 10px',
                                             borderRadius: '10px',
+                                            background: 'var(--bg)',
                                             border: '1px solid var(--border)',
-                                            fontSize: '12px'
+                                            cursor: 'pointer'
                                         }}
                                     >
-                                        <code style={{ fontWeight: 700, color: 'var(--text)' }}>{item.cmd}</code>
-                                        <span style={{ color: 'var(--text-light)', fontSize: '11px', marginLeft: '8px' }}>{item.desc}</span>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                                            <IconCopy style={{ width: 13, height: 13, color: 'var(--text-light)', flexShrink: 0 }} />
+                                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {item.cmd}
+                                            </span>
+                                        </div>
+                                        <span style={{ fontSize: '11px', color: 'var(--text-light)', flexShrink: 0, marginLeft: '8px' }}>
+                                            {item.desc}
+                                        </span>
                                     </div>
                                 ))}
                             </div>
                         </div>
                     </div>
                 </div>
+
             </div>
         </MobileScreen>
     );
