@@ -144,68 +144,68 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
                     : isExiting
                         ? 'transform 0.26s cubic-bezier(0.32, 0.72, 0, 1)'
                         : 'transform 0.25s cubic-bezier(0.32, 0.72, 0, 1)',
-                backgroundColor: 'var(--bg)',
-                color: 'var(--text)',
-                boxShadow: '-8px 0 25px rgba(0, 0, 0, 0.12)',
+                backgroundColor: darkMode ? '#000000' : '#F2F2F7',
+                color: darkMode ? '#FFFFFF' : '#000000',
+                boxShadow: '-8px 0 25px rgba(0, 0, 0, 0.15)',
             }}
-            className={`fixed inset-0 z-50 flex flex-col w-screen h-screen overflow-hidden select-none overscroll-none ${darkMode ? 'dark-mode' : ''} ${screenClass}`}
+            className={`fixed inset-0 z-[200] flex flex-col w-screen h-screen overflow-hidden select-none overscroll-none ${darkMode ? 'dark-mode' : ''} ${screenClass}`}
         >
             {/* Native Frosted Glass Top Navigation Bar */}
             <header
-                className="flex-shrink-0 flex items-center px-3 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] pb-2.5 border-b"
+                className="flex-shrink-0 flex items-center justify-between px-3 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] pb-2.5 border-b relative"
                 style={{
-                    backgroundColor: darkMode ? 'rgba(28, 28, 30, 0.85)' : 'rgba(255, 255, 255, 0.85)',
+                    backgroundColor: darkMode ? 'rgba(28, 28, 30, 0.85)' : 'rgba(242, 242, 247, 0.85)',
                     backdropFilter: 'blur(20px)',
                     WebkitBackdropFilter: 'blur(20px)',
-                    borderColor: darkMode ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
+                    borderColor: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(60, 60, 67, 0.12)',
+                    minHeight: '44px',
                 }}
             >
                 {/* Back Button with Native Touch Response */}
                 <button
                     type="button"
                     onClick={handleDismiss}
-                    className="flex items-center gap-1 py-1.5 px-2 -ml-1 rounded-xl text-blue-500 active:opacity-40 transition-opacity [-webkit-tap-highlight-color:transparent]"
+                    className="flex items-center gap-0.5 py-1 px-1 -ml-1 active:opacity-40 transition-opacity z-10 [-webkit-tap-highlight-color:transparent]"
                     style={{
                         border: 'none',
                         background: 'transparent',
                         cursor: 'pointer',
-                        color: 'var(--blue)',
+                        color: darkMode ? '#0A84FF' : '#007AFF',
                     }}
                     aria-label="Back"
                 >
                     <IconChevronLeft style={{ width: 22, height: 22 }} />
-                    <span style={{ fontSize: '16px', fontWeight: 500, letterSpacing: '-0.3px', lineHeight: 1 }}>Settings</span>
+                    <span style={{ fontSize: '17px', fontWeight: 400, letterSpacing: '-0.4px', lineHeight: 1 }}>Settings</span>
                 </button>
 
                 {/* Centered Title */}
                 <h1
-                    className="truncate flex-1 text-center pr-14"
+                    className="absolute inset-x-0 text-center pointer-events-none truncate px-20"
                     style={{
                         fontSize: '17px',
-                        fontWeight: 700,
+                        fontWeight: 600,
                         margin: 0,
-                        color: 'var(--text)',
+                        color: darkMode ? '#FFFFFF' : '#000000',
                         letterSpacing: '-0.4px',
                     }}
                 >
                     {title}
                 </h1>
 
-                {headerRight && (
-                    <div className="flex-shrink-0">
-                        {headerRight}
-                    </div>
-                )}
+                {/* Right Action */}
+                <div className="flex-shrink-0 z-10 flex items-center justify-end" style={{ minWidth: '44px' }}>
+                    {headerRight}
+                </div>
             </header>
 
             {/* Scrollable Viewport with safe-area spacing */}
             <main
-                className="flex-1 overflow-y-auto px-4 py-5 pb-[calc(env(safe-area-inset-bottom,0px)+2.5rem)] overscroll-contain"
+                className="flex-1 overflow-y-auto px-4 py-4 pb-[calc(env(safe-area-inset-bottom,0px)+3rem)] overscroll-contain no-scrollbar"
                 style={{
                     WebkitOverflowScrolling: 'touch',
                 }}
             >
-                <div style={{ maxWidth: '580px', width: '100%', margin: '0 auto' }}>
+                <div style={{ maxWidth: '600px', width: '100%', margin: '0 auto' }}>
                     {children}
                 </div>
             </main>

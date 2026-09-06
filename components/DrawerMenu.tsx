@@ -291,8 +291,8 @@ export default function DrawerMenu({
                                 type="button"
                                 className="drawer-item"
                                 onClick={() => {
-                                    onClose();
                                     router.push('/settings/whatsapp');
+                                    setTimeout(() => onClose(), 120);
                                 }}
                             >
                                 <IconWhatsApp />

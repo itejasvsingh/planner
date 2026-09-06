@@ -6,7 +6,9 @@ import {
     IconCheck,
     IconClock,
     IconChevronRight,
-    IconCopy
+    IconCopy,
+    IconZap,
+    IconSparkles
 } from '../../../components/Icons';
 import { db } from '../../../lib/firebase';
 import MobileScreen from '../../../components/MobileScreen';
@@ -36,21 +38,6 @@ function format12Hour(time24: string) {
     return `${h}:${m} ${ampm}`;
 }
 
-function parseToParts(time24: string) {
-    const [hStr, mStr] = (time24 || '22:00').split(':');
-    const h = parseInt(hStr, 10) || 0;
-    const m = parseInt(mStr, 10) || 0;
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const h12 = h % 12 || 12;
-    return { h24: h, h12, minute: m, ampm };
-}
-
-function build24From12(h12: number, minute: number, ampm: 'AM' | 'PM') {
-    let h24 = h12 % 12;
-    if (ampm === 'PM') h24 += 12;
-    return `${String(h24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-}
-
 export default function WhatsAppSettingsPage() {
     const [userPhone, setUserPhone] = useState<string | null>(null);
     const [dailySummaryEnabled, setDailySummaryEnabled] = useState(true);
@@ -61,7 +48,7 @@ export default function WhatsAppSettingsPage() {
     const [testStatus, setTestStatus] = useState<string | null>(null);
     const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
 
-    // 3. User Phone & Preferences retrieval + Firestore sync
+    // Synchronize Phone & Preferences with Firestore and LocalStorage
     useEffect(() => {
         const rawPhone = safeGetItem('planner_user_phone');
         if (!rawPhone) return;
@@ -99,7 +86,7 @@ export default function WhatsAppSettingsPage() {
                 }
             }
         }, err => {
-            console.warn("Preferences subscription notice in WhatsApp settings page:", err);
+            console.warn("Preferences subscription notice:", err);
         });
 
         return () => unsubscribe();
@@ -159,22 +146,22 @@ export default function WhatsAppSettingsPage() {
         if (!userPhone || isSendingTest) return;
         await triggerHaptic('light');
         setIsSendingTest(true);
-        setTestStatus('Dispatching summary to your WhatsApp...');
+        setTestStatus('Sending...');
 
         try {
             const res = await fetch(`/api/cron/daily-summary?phone=${encodeURIComponent(userPhone)}&force=true`);
             const data = await res.json();
             if (data.success) {
                 await triggerHaptic('success');
-                setTestStatus('✅ Summary delivered to WhatsApp!');
+                setTestStatus('Sent ✓');
             } else {
-                setTestStatus(`⚠️ ${data.reason || 'Could not send message'}`);
+                setTestStatus(data.reason || 'Failed');
             }
         } catch {
-            setTestStatus('❌ Network error sending test summary');
+            setTestStatus('Network error');
         } finally {
             setIsSendingTest(false);
-            setTimeout(() => setTestStatus(null), 5000);
+            setTimeout(() => setTestStatus(null), 4000);
         }
     };
 
@@ -189,32 +176,21 @@ export default function WhatsAppSettingsPage() {
         }
     };
 
-    const parts = parseToParts(dailySummaryTime);
-
-    const presetTimes = [
-        { label: '8:00 AM', time: '08:00' },
-        { label: '2:00 PM', time: '14:00' },
-        { label: '8:00 PM', time: '20:00' },
-        { label: '9:00 PM', time: '21:00' },
-        { label: '10:00 PM', time: '22:00' },
-        { label: '11:00 PM', time: '23:00' },
-    ];
-
     const reminderOptions: { id: 'exact' | '1h_before' | 'both'; title: string; desc: string }[] = [
         {
             id: 'exact',
             title: 'At Scheduled Time',
-            desc: 'Receive alerts right when your task or event begins'
+            desc: 'Notification fires right when your task begins'
         },
         {
             id: '1h_before',
             title: '1 Hour Before',
-            desc: 'Receive a heads-up alert 60 minutes prior'
+            desc: 'Advance heads-up notification 60 minutes prior'
         },
         {
             id: 'both',
             title: 'Both (1 Hour Before & At Time)',
-            desc: 'Get an early 60-min warning plus the on-time alert'
+            desc: 'Early 60-min warning plus the on-time alert'
         }
     ];
 
@@ -231,7 +207,7 @@ export default function WhatsAppSettingsPage() {
                         width: '28px',
                         height: '28px',
                         borderRadius: '50%',
-                        background: 'rgba(37,211,102,0.14)',
+                        background: 'rgba(37, 211, 102, 0.14)',
                         color: '#25D366',
                         display: 'flex',
                         alignItems: 'center',
@@ -244,70 +220,68 @@ export default function WhatsAppSettingsPage() {
         >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
 
-                {/* ── Status Card ── */}
-                <div
-                    className="settings-card"
-                    style={{
-                        padding: '16px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '14px',
-                    }}
-                >
-                    <div
-                        style={{
-                            width: '42px',
-                            height: '42px',
-                            borderRadius: '12px',
-                            background: 'rgba(37, 211, 102, 0.12)',
-                            color: '#25D366',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            flexShrink: 0,
-                            boxShadow: '0 2px 8px rgba(37, 211, 102, 0.15)'
-                        }}
-                    >
-                        <IconWhatsApp style={{ width: 22, height: 22 }} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.2px' }}>
-                            {formattedPhone}
+                {/* ── Top Inset Group: WhatsApp Account Status ── */}
+                <div className="settings-group" style={{ marginBottom: 0 }}>
+                    <div className="settings-card" style={{ padding: '14px 16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                            <div
+                                style={{
+                                    width: '46px',
+                                    height: '46px',
+                                    borderRadius: '50%',
+                                    background: '#25D366',
+                                    color: '#FFFFFF',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexShrink: 0,
+                                    boxShadow: '0 2px 8px rgba(37, 211, 102, 0.25)'
+                                }}
+                            >
+                                <IconWhatsApp style={{ width: 24, height: 24 }} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '17px', fontWeight: 600, letterSpacing: '-0.3px', lineHeight: 1.25 }}>
+                                    {formattedPhone}
+                                </div>
+                                <div style={{ fontSize: '13px', color: 'var(--text-light)', marginTop: '2px' }}>
+                                    {dailySummaryEnabled ? `Summary at ${format12Hour(dailySummaryTime)}` : 'Assistant Standby'}
+                                </div>
+                            </div>
+                            <span
+                                style={{
+                                    fontSize: '12px',
+                                    fontWeight: 600,
+                                    padding: '3px 9px',
+                                    borderRadius: '12px',
+                                    background: dailySummaryEnabled ? 'rgba(52, 199, 89, 0.12)' : 'rgba(120, 120, 128, 0.12)',
+                                    color: dailySummaryEnabled ? '#34C759' : 'var(--text-light)',
+                                    flexShrink: 0
+                                }}
+                            >
+                                {dailySummaryEnabled ? 'Connected' : 'Standby'}
+                            </span>
                         </div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px' }}>
-                            {dailySummaryEnabled ? `Daily recap active at ${format12Hour(dailySummaryTime)}` : 'Summary is currently off'}
-                        </div>
                     </div>
-                    <span
-                        style={{
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            padding: '4px 10px',
-                            borderRadius: '16px',
-                            background: dailySummaryEnabled ? 'rgba(37, 211, 102, 0.12)' : 'var(--bg)',
-                            color: dailySummaryEnabled ? '#25D366' : 'var(--text-light)',
-                            border: `1px solid ${dailySummaryEnabled ? 'rgba(37, 211, 102, 0.3)' : 'var(--border)'}`,
-                            flexShrink: 0
-                        }}
-                    >
-                        {dailySummaryEnabled ? 'Active' : 'Standby'}
-                    </span>
                 </div>
 
-                {/* ── Group 1: DAILY RECAP ── */}
+                {/* ── Group 1: DAILY AGENDA DIGEST ── */}
                 <div className="settings-group" style={{ marginBottom: 0 }}>
                     <div className="settings-group-header">Daily Digest</div>
                     <div className="settings-card">
                         {/* Master Switch Row */}
                         <div className="settings-row">
-                            <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
-                                <div style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.2px' }}>
-                                    End-of-Day Summary
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0, paddingRight: '12px' }}>
+                                <div className="settings-icon-box" style={{ backgroundColor: '#34C759' }}>
+                                    <IconSparkles style={{ width: 17, height: 17 }} />
                                 </div>
-                                <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px', lineHeight: 1.3 }}>
-                                    {dailySummaryEnabled
-                                        ? `Automated agenda recap delivered at ${format12Hour(dailySummaryTime)}`
-                                        : 'Automatically sends unfinished tasks and daily recap'}
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '17px', fontWeight: 400, letterSpacing: '-0.3px' }}>
+                                        Daily Summary
+                                    </div>
+                                    <div style={{ fontSize: '13px', color: 'var(--text-light)', marginTop: '1px', lineHeight: 1.25 }}>
+                                        Recap of unfinished tasks &amp; schedule
+                                    </div>
                                 </div>
                             </div>
                             <button
@@ -322,223 +296,97 @@ export default function WhatsAppSettingsPage() {
                             </button>
                         </div>
 
-                        {/* Animated Expandable Configuration */}
+                        {/* Animated Expandable Controls */}
                         <div
                             style={{
-                                maxHeight: dailySummaryEnabled ? '450px' : '0px',
+                                maxHeight: dailySummaryEnabled ? '200px' : '0px',
                                 opacity: dailySummaryEnabled ? 1 : 0,
-                                transform: dailySummaryEnabled ? 'translateY(0)' : 'translateY(-6px)',
                                 overflow: 'hidden',
-                                transition: 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.24s ease, transform 0.24s ease',
+                                transition: 'max-height 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.22s ease',
                             }}
                         >
-                            <div className="settings-divider" style={{ marginLeft: '16px' }} />
+                            <div className="settings-divider" />
 
-                            {/* Scheduled Delivery Time Row */}
-                            <div className="settings-row" style={{ alignItems: 'center' }}>
-                                <div>
-                                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
-                                        Delivery Time
+                            {/* Scheduled Delivery Time Row with Native Wheel Trigger */}
+                            <div className="settings-row">
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+                                    <div className="settings-icon-box" style={{ backgroundColor: '#007AFF' }}>
+                                        <IconClock style={{ width: 17, height: 17 }} />
                                     </div>
-                                    <div style={{ fontSize: '12px', color: '#25D366', fontWeight: 700, marginTop: '2px' }}>
-                                        {format12Hour(dailySummaryTime)}
+                                    <div>
+                                        <div style={{ fontSize: '17px', fontWeight: 400, letterSpacing: '-0.3px' }}>
+                                            Delivery Time
+                                        </div>
+                                        <div style={{ fontSize: '13px', color: 'var(--text-light)', marginTop: '1px' }}>
+                                            Scheduled evening recap
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                    {/* Native iOS Segmented AM/PM Control */}
-                                    <div
-                                        style={{
-                                            display: 'inline-flex',
-                                            background: 'rgba(120, 120, 128, 0.12)',
-                                            padding: '2px',
-                                            borderRadius: '9px',
-                                            gap: '2px'
+                                {/* Compact Native Wheel Trigger Pill */}
+                                <div className="settings-time-pill" title="Tap to adjust summary delivery time">
+                                    <span>{format12Hour(dailySummaryTime)}</span>
+                                    <input
+                                        type="time"
+                                        value={dailySummaryTime}
+                                        onChange={(e) => {
+                                            if (e.target.value) {
+                                                handleChangeDailySummaryTime(e.target.value);
+                                            }
                                         }}
-                                    >
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                if (parts.ampm !== 'AM') {
-                                                    const newTime = build24From12(parts.h12, parts.minute, 'AM');
-                                                    handleChangeDailySummaryTime(newTime);
-                                                }
-                                            }}
-                                            style={{
-                                                border: 'none',
-                                                padding: '4px 10px',
-                                                borderRadius: '7px',
-                                                fontSize: '12px',
-                                                fontWeight: 700,
-                                                cursor: 'pointer',
-                                                background: parts.ampm === 'AM' ? '#25D366' : 'transparent',
-                                                color: parts.ampm === 'AM' ? '#FFFFFF' : 'var(--text-light)',
-                                                boxShadow: parts.ampm === 'AM' ? '0 2px 5px rgba(37,211,102,0.3)' : 'none',
-                                                transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)'
-                                            }}
-                                        >
-                                            AM
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                if (parts.ampm !== 'PM') {
-                                                    const newTime = build24From12(parts.h12, parts.minute, 'PM');
-                                                    handleChangeDailySummaryTime(newTime);
-                                                }
-                                            }}
-                                            style={{
-                                                border: 'none',
-                                                padding: '4px 10px',
-                                                borderRadius: '7px',
-                                                fontSize: '12px',
-                                                fontWeight: 700,
-                                                cursor: 'pointer',
-                                                background: parts.ampm === 'PM' ? '#25D366' : 'transparent',
-                                                color: parts.ampm === 'PM' ? '#FFFFFF' : 'var(--text-light)',
-                                                boxShadow: parts.ampm === 'PM' ? '0 2px 5px rgba(37,211,102,0.3)' : 'none',
-                                                transition: 'all 0.18s cubic-bezier(0.4, 0, 0.2, 1)'
-                                            }}
-                                        >
-                                            PM
-                                        </button>
-                                    </div>
-
-                                    {/* Seamless Native Time Wheel Trigger */}
-                                    <div style={{ position: 'relative' }}>
-                                        <label
-                                            style={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: '6px',
-                                                padding: '6px 10px',
-                                                borderRadius: '10px',
-                                                background: 'var(--bg)',
-                                                border: '1px solid var(--border)',
-                                                cursor: 'pointer',
-                                                fontSize: '13px',
-                                                fontWeight: 700,
-                                                color: 'var(--text)'
-                                            }}
-                                        >
-                                            <IconClock style={{ width: 14, height: 14, color: 'var(--blue)' }} />
-                                            <span>Edit</span>
-                                            <input
-                                                type="time"
-                                                value={dailySummaryTime}
-                                                onChange={(e) => {
-                                                    if (e.target.value) {
-                                                        handleChangeDailySummaryTime(e.target.value);
-                                                    }
-                                                }}
-                                                style={{
-                                                    position: 'absolute',
-                                                    inset: 0,
-                                                    opacity: 0,
-                                                    cursor: 'pointer',
-                                                    width: '100%',
-                                                    height: '100%'
-                                                }}
-                                            />
-                                        </label>
-                                    </div>
+                                        className="settings-native-time-input"
+                                        aria-label="Delivery Time Picker"
+                                    />
                                 </div>
                             </div>
 
-                            {/* Preset Quick Chips */}
-                            <div style={{ padding: '0 16px 14px' }}>
-                                <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-light)', marginBottom: '8px' }}>
-                                    Quick Presets
-                                </div>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                                    {presetTimes.map(p => {
-                                        const isSelected = dailySummaryTime === p.time;
-                                        return (
-                                            <button
-                                                key={p.time}
-                                                type="button"
-                                                onClick={() => handleChangeDailySummaryTime(p.time)}
-                                                style={{
-                                                    border: isSelected ? '1.5px solid #25D366' : '1px solid var(--border)',
-                                                    background: isSelected ? 'rgba(37,211,102,0.12)' : 'var(--bg)',
-                                                    color: isSelected ? '#25D366' : 'var(--text)',
-                                                    padding: '5px 11px',
-                                                    borderRadius: '10px',
-                                                    fontSize: '12px',
-                                                    fontWeight: isSelected ? 800 : 500,
-                                                    cursor: 'pointer',
-                                                    transition: 'all 0.15s ease',
-                                                    boxShadow: isSelected ? '0 2px 6px rgba(37,211,102,0.18)' : 'none'
-                                                }}
-                                                className="active:scale-95 transition-transform"
-                                            >
-                                                {p.label}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            </div>
+                            <div className="settings-divider" />
 
-                            <div className="settings-divider" style={{ marginLeft: '16px' }} />
-
-                            {/* Live Test Trigger */}
-                            <div style={{ padding: '12px 16px' }}>
-                                <button
-                                    type="button"
-                                    onClick={handleSendTestSummary}
-                                    disabled={isSendingTest}
-                                    style={{
-                                        width: '100%',
-                                        padding: '11px 14px',
-                                        borderRadius: '12px',
-                                        border: '1px solid rgba(37,211,102,0.3)',
-                                        background: 'rgba(37,211,102,0.08)',
-                                        color: '#25D366',
-                                        fontWeight: 700,
-                                        fontSize: '13px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        gap: '8px',
-                                        cursor: isSendingTest ? 'wait' : 'pointer',
-                                        opacity: isSendingTest ? 0.7 : 1,
-                                    }}
-                                    className="active:scale-[0.98] transition-transform"
-                                >
-                                    <IconWhatsApp style={{ width: 16, height: 16 }} />
-                                    <span>{isSendingTest ? 'Sending summary...' : 'Send Test Summary Now'}</span>
-                                </button>
-
-                                {testStatus && (
-                                    <div
-                                        style={{
-                                            marginTop: '8px',
-                                            padding: '8px 12px',
-                                            borderRadius: '10px',
-                                            background: testStatus.includes('✅') ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)',
-                                            color: testStatus.includes('✅') ? '#22C55E' : '#EF4444',
-                                            fontSize: '12px',
-                                            fontWeight: 600,
-                                            textAlign: 'center'
-                                        }}
-                                    >
-                                        {testStatus}
+                            {/* Send Live Test Row */}
+                            <div
+                                className="settings-row clickable"
+                                onClick={handleSendTestSummary}
+                                style={{ cursor: isSendingTest ? 'wait' : 'pointer' }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+                                    <div className="settings-icon-box" style={{ backgroundColor: '#AF52DE' }}>
+                                        <IconZap style={{ width: 17, height: 17 }} />
                                     </div>
-                                )}
+                                    <div>
+                                        <div style={{ fontSize: '17px', fontWeight: 400, color: 'var(--blue)', letterSpacing: '-0.3px' }}>
+                                            Send Test Summary Now
+                                        </div>
+                                        <div style={{ fontSize: '13px', color: testStatus ? '#34C759' : 'var(--text-light)', marginTop: '1px' }}>
+                                            {testStatus || 'Dispatch sample message to verify'}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style={{ flexShrink: 0, paddingLeft: '8px' }}>
+                                    {isSendingTest ? (
+                                        <span style={{ fontSize: '14px', color: 'var(--text-light)' }}>Sending...</span>
+                                    ) : testStatus === 'Sent ✓' ? (
+                                        <span style={{ fontSize: '14px', fontWeight: 600, color: '#34C759' }}>Sent ✓</span>
+                                    ) : (
+                                        <IconChevronRight style={{ width: 16, height: 16, color: '#C7C7CC' }} />
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
+                    <div className="settings-group-footer">
+                        Align automatically prepares your unfinished tasks and next-day schedule, then delivers it to your WhatsApp chat at this time every day.
+                    </div>
                 </div>
 
-                {/* ── Group 2: REMINDER ALERTS ── */}
+                {/* ── Group 2: TASK REMINDER ALERTS ── */}
                 <div className="settings-group" style={{ marginBottom: 0 }}>
-                    <div className="settings-group-header">Task Reminder Timing</div>
+                    <div className="settings-group-header">Task Reminder Alerts</div>
                     <div className="settings-card">
                         {reminderOptions.map((opt, idx) => {
                             const isSelected = reminderTiming === opt.id;
                             return (
                                 <React.Fragment key={opt.id}>
-                                    {idx > 0 && <div className="settings-divider" style={{ marginLeft: '16px' }} />}
+                                    {idx > 0 && <div className="settings-divider-full" />}
                                     <div
                                         className="settings-row clickable"
                                         onClick={() => handleChangeReminderTiming(opt.id)}
@@ -547,35 +395,22 @@ export default function WhatsAppSettingsPage() {
                                         <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
                                             <div
                                                 style={{
-                                                    fontSize: '14px',
-                                                    fontWeight: 600,
-                                                    color: isSelected ? 'var(--blue)' : 'var(--text)',
-                                                    letterSpacing: '-0.2px'
+                                                    fontSize: '17px',
+                                                    fontWeight: 400,
+                                                    letterSpacing: '-0.3px',
+                                                    color: 'var(--text)'
                                                 }}
                                             >
                                                 {opt.title}
                                             </div>
-                                            <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px', lineHeight: 1.3 }}>
+                                            <div style={{ fontSize: '13px', color: 'var(--text-light)', marginTop: '1px', lineHeight: 1.25 }}>
                                                 {opt.desc}
                                             </div>
                                         </div>
 
                                         <div style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                             {isSelected && (
-                                                <div
-                                                    style={{
-                                                        width: '20px',
-                                                        height: '20px',
-                                                        borderRadius: '50%',
-                                                        background: 'var(--blue)',
-                                                        color: '#FFFFFF',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center'
-                                                    }}
-                                                >
-                                                    <IconCheck style={{ width: 11, height: 11 }} />
-                                                </div>
+                                                <IconCheck style={{ width: 19, height: 19, color: 'var(--blue)' }} />
                                             )}
                                         </div>
                                     </div>
@@ -583,12 +418,12 @@ export default function WhatsAppSettingsPage() {
                             );
                         })}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-light)', padding: '6px 16px 0', lineHeight: 1.4 }}>
-                        Alerts are delivered directly to your WhatsApp with your daily agenda schedule.
+                    <div className="settings-group-footer">
+                        Reminders arrive as interactive WhatsApp messages with quick status buttons to mark tasks done or snooze.
                     </div>
                 </div>
 
-                {/* ── Group 3: WHATSAPP BOT & QUICK COMMANDS ── */}
+                {/* ── Group 3: WHATSAPP ASSISTANT & COMMANDS ── */}
                 <div className="settings-group" style={{ marginBottom: 0 }}>
                     <div className="settings-group-header">WhatsApp Assistant</div>
                     <div className="settings-card">
@@ -602,78 +437,68 @@ export default function WhatsAppSettingsPage() {
                             onClick={() => triggerHaptic('light')}
                         >
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
-                                <div
-                                    style={{
-                                        width: '32px',
-                                        height: '32px',
-                                        borderRadius: '8px',
-                                        background: '#25D366',
-                                        color: '#FFFFFF',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        flexShrink: 0
-                                    }}
-                                >
+                                <div className="settings-icon-box" style={{ backgroundColor: '#25D366' }}>
                                     <IconWhatsApp style={{ width: 18, height: 18 }} />
                                 </div>
-                                <div>
-                                    <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
-                                        Chat with Align Bot
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '17px', fontWeight: 400, color: 'var(--text)', letterSpacing: '-0.3px' }}>
+                                        Open Align in WhatsApp
                                     </div>
-                                    <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '1px' }}>
-                                        Send expenses, voice notes, or questions
+                                    <div style={{ fontSize: '13px', color: 'var(--text-light)', marginTop: '1px' }}>
+                                        Send voice notes, tasks, or expenses
                                     </div>
                                 </div>
                             </div>
-                            <IconChevronRight style={{ width: 18, height: 18, color: 'var(--text-light)' }} />
+                            <IconChevronRight style={{ width: 16, height: 16, color: '#C7C7CC' }} />
                         </a>
 
-                        <div className="settings-divider" style={{ marginLeft: '16px' }} />
+                        <div className="settings-divider" />
 
-                        {/* Natural Commands Section */}
+                        {/* Quick Natural Commands Section */}
                         <div style={{ padding: '14px 16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-                                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
-                                    Quick Commands
+                                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                                    Tap-To-Copy Commands
                                 </span>
                                 {copiedCmd && (
-                                    <span style={{ fontSize: '11px', fontWeight: 700, color: '#25D366' }}>
-                                        Copied!
+                                    <span style={{ fontSize: '12px', fontWeight: 600, color: '#34C759' }}>
+                                        Copied ✓
                                     </span>
                                 )}
                             </div>
 
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
                                 {[
-                                    { cmd: '"what are my tasks for today?"', desc: 'Instant agenda query' },
-                                    { cmd: '"summary time 8:30pm"', desc: 'Change delivery time' },
+                                    { cmd: '"what are my tasks for today?"', desc: 'Instant agenda recap' },
+                                    { cmd: '"summary time 8:30pm"', desc: 'Update recap delivery time' },
                                     { cmd: '"turn on summary" / "turn off summary"', desc: 'Toggle daily digest' },
-                                    { cmd: '"bought groceries 450"', desc: 'Instant expense logging' },
-                                    { cmd: '"remind me to call Mom at 6pm"', desc: 'Schedule task with alert' }
+                                    { cmd: '"bought groceries 450"', desc: 'Record instant expense' },
+                                    { cmd: '"remind me to call Mom at 6pm"', desc: 'Create task with alert' }
                                 ].map((item, idx) => (
                                     <div
                                         key={idx}
                                         onClick={() => handleCopyCommand(item.cmd)}
-                                        className="active:scale-[0.99] transition-transform"
+                                        className="clickable"
                                         style={{
                                             display: 'flex',
                                             alignItems: 'center',
                                             justifyContent: 'space-between',
-                                            padding: '8px 10px',
+                                            padding: '9px 12px',
                                             borderRadius: '10px',
-                                            background: 'var(--bg)',
-                                            border: '1px solid var(--border)',
-                                            cursor: 'pointer'
+                                            background: 'rgba(120, 120, 128, 0.08)',
+                                            cursor: 'pointer',
+                                            transition: 'background-color 0.12s ease',
+                                            userSelect: 'none',
+                                            WebkitUserSelect: 'none',
                                         }}
                                     >
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                                            <IconCopy style={{ width: 13, height: 13, color: 'var(--text-light)', flexShrink: 0 }} />
-                                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                                            <IconCopy style={{ width: 14, height: 14, color: 'var(--text-light)', flexShrink: 0 }} />
+                                            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                 {item.cmd}
                                             </span>
                                         </div>
-                                        <span style={{ fontSize: '11px', color: 'var(--text-light)', flexShrink: 0, marginLeft: '8px' }}>
+                                        <span style={{ fontSize: '12px', color: 'var(--text-light)', flexShrink: 0, marginLeft: '8px' }}>
                                             {item.desc}
                                         </span>
                                     </div>
@@ -681,10 +506,12 @@ export default function WhatsAppSettingsPage() {
                             </div>
                         </div>
                     </div>
+                    <div className="settings-group-footer">
+                        You can message Align anytime on WhatsApp using plain English or Hindi voice notes to organize tasks, log expenses, and review your day.
+                    </div>
                 </div>
 
             </div>
         </MobileScreen>
     );
 }
-
