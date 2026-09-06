@@ -128,6 +128,7 @@ export default function PlannerApp() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [isListening, setIsListening] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+    const isRollingOverRef = useRef(false);
     
     const [pushEnabled, setPushEnabled] = useState(false);
     const [dailySummaryEnabled, setDailySummaryEnabled] = useState(true);
@@ -333,6 +334,39 @@ export default function PlannerApp() {
 
         return () => { unsubscribeItems(); unsubscribeBudgets(); unsubscribePrefs(); };
     }, [userPhone]);
+
+    // Automatic 12:00 AM / Overdue Task Rollover (when autoPushEnabled is ON)
+    useEffect(() => {
+        if (!userPhone || !autoPushEnabled || items.length === 0 || isRollingOverRef.current) return;
+        const today = formatDateKey(new Date());
+
+        const overdueIncompleteTasks = items.filter((item: any) => {
+            if (item.type !== 'task' || item.done) return false;
+            if (item.id && String(item.id).startsWith('local_')) return false;
+            const taskDate = item.dueDate || item.date;
+            return taskDate && taskDate < today;
+        });
+
+        if (overdueIncompleteTasks.length > 0) {
+            isRollingOverRef.current = true;
+            console.log(`[Auto-Push] Advancing ${overdueIncompleteTasks.length} overdue task(s) to today (${today})`);
+            const batch = db.batch();
+            overdueIncompleteTasks.forEach((task: any) => {
+                const ref = db.collection('planner_items').doc(task.id);
+                const originalDate = task.dueDate || task.date;
+                batch.update(ref, {
+                    dueDate: today,
+                    rolledOverFrom: originalDate,
+                    updatedAt: new Date().toISOString()
+                });
+            });
+            batch.commit()
+                .catch((err: any) => console.warn("[Auto-Push] Rollover notice:", err))
+                .finally(() => {
+                    setTimeout(() => { isRollingOverRef.current = false; }, 2000);
+                });
+        }
+    }, [userPhone, autoPushEnabled, items]);
 
     useEffect(() => {
         if (isAdding && inputRef.current) setTimeout(() => inputRef.current?.focus(), 100);

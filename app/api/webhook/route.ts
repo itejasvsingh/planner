@@ -943,7 +943,7 @@ async function processTextQuery(text: string, senderPhone: string) {
                 db.collection('user_sessions').doc(senderPhone).set({ autoPushEnabled: enable }, { merge: true })
             ]);
             await sendWhatsAppTextMessage(senderPhone, enable 
-                ? `✅ Task Rollover turned *ON*. Incomplete tasks will automatically advance to tomorrow's agenda!`
+                ? `✅ Task Rollover turned *ON*. Incomplete tasks will automatically advance to tomorrow's agenda at 12:00 AM midnight!`
                 : `⏸️ Task Rollover turned *OFF*. Incomplete tasks will stay on their original scheduled date.`
             );
             return;

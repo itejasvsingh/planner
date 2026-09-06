@@ -91,6 +91,7 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
     reason?: string;
     totalSpent?: number;
     completedCount?: number;
+    pendingCount?: number;
     rolledOverCount?: number;
     summaryText?: string;
 }> {
@@ -101,7 +102,7 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
         return { success: false, reason: 'Invalid phone number' };
     }
 
-    const { hours, minutes, todayKey, tomorrowKey, formattedToday, formattedTomorrow } = getKolkataDateInfo();
+    const { hours, minutes, todayKey, formattedToday } = getKolkataDateInfo();
 
     // 1. Check user preferences (independent toggles for Summary and Auto-Push)
     const prefSnap = await db.collection('planner_settings').doc(`preferences_${targetPhone}`).get().catch(() => null);
@@ -113,84 +114,18 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
     const isSummaryEnabled = prefData?.dailySummaryEnabled !== false && sessionData?.dailySummaryEnabled !== false;
     const isAutoPushEnabled = prefData?.autoPushEnabled !== false && sessionData?.autoPushEnabled !== false;
 
-    // If both features are turned off by user and not forced:
-    if (!isSummaryEnabled && !isAutoPushEnabled && !options?.force) {
-        console.log(`⏭️ Skipped for ${targetPhone}: both daily summary and auto-push are disabled by user.`);
-        return { success: false, reason: 'Daily summary and auto-push both disabled' };
-    }
-
-    // 2. Fetch all user's items
-    const snapshot = await db.collection('planner_items')
-        .where('ownerId', '==', targetPhone)
-        .get();
-
-    const items: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-
-    // 3. Filter today's expenses
-    const todayExpenses = items.filter((i: any) => 
-        (i.type === 'expense') && 
-        (i.date === todayKey)
-    );
-
-    const totalSpent = todayExpenses.reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0);
-
-    // 4. Filter today's tasks
-    const todayTasks = items.filter((i: any) => 
-        (i.type === 'task') && 
-        (i.dueDate === todayKey || (!i.dueDate && i.date === todayKey))
-    );
-
-    const completedTasks = todayTasks.filter((t: any) => t.done);
-    const incompleteTasks = todayTasks.filter((t: any) => !t.done);
-
-    // 5. ROLL OVER INCOMPLETE TASKS TO TOMORROW (ONLY IF autoPushEnabled IS TRUE)
-    const rolloverPromises: Promise<any>[] = [];
-    const rolledOverDetails: { id: string; title: string; originalTime: string | null }[] = [];
-
-    if (isAutoPushEnabled || options?.force) {
-        for (const task of incompleteTasks) {
-            const originalTime = task.dueTime || task.reminderTime || null;
-            rolledOverDetails.push({
-                id: task.id,
-                title: task.title || 'Untitled Task',
-                originalTime
-            });
-
-            // Update task dueDate to tomorrow in Firestore
-            rolloverPromises.push(
-                db.collection('planner_items').doc(task.id).update({
-                    dueDate: tomorrowKey,
-                    rolledOverFrom: todayKey,
-                    updatedAt: new Date().toISOString()
-                })
-            );
-        }
-
-        if (rolloverPromises.length > 0) {
-            await Promise.all(rolloverPromises);
-            console.log(`🔄 Rolled over ${rolloverPromises.length} incomplete tasks to tomorrow (${tomorrowKey}) for ${targetPhone}`);
-        }
-    }
-
-    // If WhatsApp summary is disabled by user and not forced, complete task rollover and exit
+    // If daily summary is disabled by user and not forced:
     if (!isSummaryEnabled && !options?.force) {
-        console.log(`✅ Auto-push executed for ${targetPhone}; WhatsApp summary is disabled by user.`);
-        return {
-            success: true,
-            reason: 'Tasks rolled over (WhatsApp summary disabled)',
-            totalSpent,
-            completedCount: completedTasks.length,
-            rolledOverCount: rolledOverDetails.length
-        };
+        console.log(`⏭️ Skipped for ${targetPhone}: daily summary is disabled by user.`);
+        return { success: false, reason: 'Daily summary disabled by user' };
     }
 
-    // 6. Check WhatsApp Summary conditions (already delivered today & scheduled time check)
+    // 2. Check scheduled time and already-delivered condition
     if (!options?.force && sessionData?.lastDailySummaryDate === todayKey) {
         console.log(`⏭️ Daily summary skipped for ${targetPhone}: already delivered today (${todayKey}).`);
         return {
             success: false,
-            reason: 'Already delivered today',
-            rolledOverCount: rolledOverDetails.length
+            reason: 'Already delivered today'
         };
     }
 
@@ -205,20 +140,42 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
             console.log(`⏳ Daily summary for ${targetPhone} scheduled for ${userTargetTime}, current Kolkata time is ${pad(hours)}:${pad(minutes)}. Skipping.`);
             return {
                 success: false,
-                reason: `Scheduled for ${userTargetTime} (current time: ${pad(hours)}:${pad(minutes)})`,
-                rolledOverCount: rolledOverDetails.length
+                reason: `Scheduled for ${userTargetTime} (current time: ${pad(hours)}:${pad(minutes)})`
             };
         }
     }
 
-    // 7. COMPOSE THE WHATSAPP WRAP-UP MESSAGE
+    // 3. Fetch user's items for today's summary
+    const snapshot = await db.collection('planner_items')
+        .where('ownerId', '==', targetPhone)
+        .get();
+
+    const items: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // 4. Filter today's expenses
+    const todayExpenses = items.filter((i: any) => 
+        (i.type === 'expense') && 
+        (i.date === todayKey)
+    );
+
+    const totalSpent = todayExpenses.reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0);
+
+    // 5. Filter today's tasks (READ-ONLY: NEVER MUTATE OR ADVANCE DUE DATES DURING SUMMARY)
+    const todayTasks = items.filter((i: any) => 
+        (i.type === 'task') && 
+        (i.dueDate === todayKey || (!i.dueDate && i.date === todayKey))
+    );
+
+    const completedTasks = todayTasks.filter((t: any) => t.done);
+    const incompleteTasks = todayTasks.filter((t: any) => !t.done);
+
+    // 6. COMPOSE THE WHATSAPP WRAP-UP MESSAGE
     const lines: string[] = [];
     lines.push(`🌙 *Align Daily Wrap-Up — ${formattedToday}*\n`);
 
     // Section A: Financial Wrap-up
     if (todayExpenses.length > 0) {
         lines.push(`💰 *Total Spent Today:* ₹${totalSpent.toLocaleString('en-IN')}`);
-        // Group or list up to 5 items
         todayExpenses.slice(0, 5).forEach((e: any) => {
             const cat = e.category || '#General';
             lines.push(`  • ${e.title}: ₹${e.amount} (${cat})`);
@@ -246,33 +203,32 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
 
     lines.push(''); // blank line
 
-    // Section C: Incomplete Tasks (Differentiating whether pushed or kept on today)
-    if (isAutoPushEnabled && rolledOverDetails.length > 0) {
-        lines.push(`🔄 *Pushed to Tomorrow (${formattedTomorrow}) [${rolledOverDetails.length}]:*`);
-        rolledOverDetails.forEach(t => {
-            const timeTag = t.originalTime ? ` (Originally set for ${t.originalTime})` : '';
-            lines.push(`  • *${t.title}*${timeTag} ➔ *Moved to Tomorrow*`);
-        });
-        lines.push(`\n_These have automatically been added to your agenda for tomorrow._`);
-    } else if (!isAutoPushEnabled && incompleteTasks.length > 0) {
-        lines.push(`⏳ *Pending / Incomplete Tasks [${incompleteTasks.length}]:*`);
+    // Section C: Pending Tasks (Remains on today's agenda; auto-push occurs at 12:00 AM midnight independently)
+    if (incompleteTasks.length > 0) {
+        lines.push(`⏳ *Pending Tasks (${incompleteTasks.length}):*`);
         incompleteTasks.forEach((t: any) => {
             const timeTag = (t.dueTime || t.reminderTime) ? ` (${t.dueTime || t.reminderTime})` : '';
             lines.push(`  • *${t.title || 'Untitled Task'}*${timeTag}`);
         });
-        lines.push(`\n_(Auto-push is off — these remain on today's agenda)_`);
+        if (isAutoPushEnabled) {
+            lines.push(`\n_Note: Auto-push is ON. Incomplete tasks will move to tomorrow at 12:00 AM midnight._`);
+        } else {
+            lines.push(`\n_Note: Auto-push is OFF. Incomplete tasks will stay on today's agenda._`);
+        }
     } else if (todayTasks.length > 0 && completedTasks.length === todayTasks.length) {
         lines.push(`🎉 *Fantastic! All scheduled tasks for today were completed!*`);
+    } else {
+        lines.push(`✨ *No pending tasks for today.*`);
     }
 
     lines.push(`\n✨ Rest well! Your agenda is set for tomorrow.`);
 
     const summaryMessage = lines.join('\n');
 
-    // 8. Deliver to user via WhatsApp
+    // 7. Deliver to user via WhatsApp
     await sendWhatsAppTextMessage(targetPhone, summaryMessage);
 
-    // 9. Update session record
+    // 8. Update session record
     await db.collection('user_sessions').doc(targetPhone).set({
         lastDailySummaryDate: todayKey,
         lastDailySummaryRunAt: new Date().toISOString()
@@ -282,7 +238,7 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
         success: true,
         totalSpent,
         completedCount: completedTasks.length,
-        rolledOverCount: rolledOverDetails.length,
+        pendingCount: incompleteTasks.length,
         summaryText: summaryMessage
     };
 }

@@ -223,7 +223,7 @@ export default function DrawerMenu({
                                             Auto-Push Rollover
                                         </div>
                                         <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '2px' }}>
-                                            Move unfinished tasks to tomorrow
+                                            Move unfinished tasks to tomorrow at 12 AM
                                         </div>
                                     </div>
                                 </div>
