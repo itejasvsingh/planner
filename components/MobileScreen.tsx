@@ -181,3 +181,4 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
         </div>
     );
 }
+
