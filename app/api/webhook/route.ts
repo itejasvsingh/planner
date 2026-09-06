@@ -324,7 +324,9 @@ function getKolkataDate() {
 
 function normalizeTime(timeStr?: string | null): string | null {
     if (!timeStr) return null;
-    const s = timeStr.trim();
+    let s = timeStr.trim().replace(/\s*hrs\.?$/i, ''); // Strip "hrs" or "hrs."
+    s = s.replace(/(\d{1,2})\.(\d{2})/, '$1:$2'); // Replace "08.00" -> "08:00"
+
     // 24-hour format: "08:00" or "8:00"
     const match24 = s.match(/^(\d{1,2}):(\d{2})$/);
     if (match24) {
@@ -368,7 +370,109 @@ function formatFriendlyDate(dateStr: string, timeStr?: string | null): string {
     }
 }
 
-async function handleConversationalQuery(genAI: GoogleGenerativeAI, text: string, senderPhone: string) {
+async function updateSession(senderPhone: string, data: {
+    lastUserMessage?: string;
+    lastBotMessage?: string;
+    lastDocId?: string | null;
+    lastItem?: any;
+    pendingProposal?: any;
+}) {
+    try {
+        await db.collection('user_sessions').doc(senderPhone).set({
+            ...data,
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+    } catch (err) {
+        console.warn("⚠️ Failed to update user session:", err);
+    }
+}
+
+// ==========================================
+// GENERALIZED ITEM PERSISTENCE ENGINE
+// Saves extracted tasks, reminders, and expenses directly to Firestore
+// ==========================================
+async function persistExtractedItems(
+    rawItems: any[], 
+    senderPhone: string, 
+    today: string, 
+    now: Date
+): Promise<{ confirmationText: string; lastDocId: string | null; lastItem: any } | null> {
+    const confirmationLines: string[] = [];
+    let lastSavedDocId: string | null = null;
+    let lastSavedItem: any = null;
+
+    for (const item of rawItems) {
+        // --- 1. EXPENSE ---
+        if (item.type === 'expense' || item.intent === 'EXPENSE') {
+            const rawAmount = String(item.amount || '').replace(/,/g, '');
+            const amount = parseFloat(rawAmount);
+            if (!isNaN(amount) && amount > 0) {
+                const finalCategory = applySmartTags(item.title, item.category);
+                const expenseItem = {
+                    ownerId: senderPhone,
+                    type: 'expense',
+                    title: item.title || 'Expense',
+                    amount: amount,
+                    date: item.date || today,
+                    category: finalCategory,
+                    tags: [finalCategory],
+                    splits: [],
+                    origin: 'whatsapp',
+                    createdAt: now.toISOString()
+                };
+
+                const docRef = await db.collection('planner_items').add(expenseItem);
+                console.log(`✅ Saved expense to Firebase: ${expenseItem.title} for ₹${expenseItem.amount}`);
+                confirmationLines.push(`✅ Logged ₹${expenseItem.amount} for ${expenseItem.title} under ${finalCategory}.`);
+                lastSavedDocId = docRef.id;
+                lastSavedItem = expenseItem;
+            }
+        }
+        // --- 2. REMINDER / TASK / EVENT ---
+        else if (item.type === 'task' || item.intent === 'REMINDER') {
+            if (item.title) {
+                const dueDate = item.dueDate || today;
+                const dueTime = normalizeTime(item.dueTime);
+                const category = item.category || '#General';
+
+                const taskItem = {
+                    ownerId: senderPhone,
+                    type: 'task',
+                    title: item.title,
+                    dueDate: dueDate,
+                    dueTime: dueTime,
+                    reminderTime: dueTime,
+                    endTime: null,
+                    category: category,
+                    tags: [category],
+                    priority: 'P2',
+                    done: false,
+                    subtasks: [],
+                    origin: 'whatsapp',
+                    createdAt: now.toISOString()
+                };
+
+                const docRef = await db.collection('planner_items').add(taskItem);
+                console.log(`✅ Saved reminder to Firebase: "${taskItem.title}" on ${dueDate} ${dueTime || ''}`);
+                const dateFormatted = formatFriendlyDate(dueDate, dueTime);
+                confirmationLines.push(`⏰ Added reminder: *${taskItem.title}*\n📅 *${dateFormatted}*\n🏷️ ${category}`);
+                lastSavedDocId = docRef.id;
+                lastSavedItem = taskItem;
+            }
+        }
+    }
+
+    if (confirmationLines.length > 0) {
+        return {
+            confirmationText: confirmationLines.join('\n\n'),
+            lastDocId: lastSavedDocId,
+            lastItem: lastSavedItem
+        };
+    }
+    return null;
+}
+
+async function handleConversationalQuery(genAI: GoogleGenerativeAI, text: string, senderPhone: string, session?: any) {
     console.log(`Intent: QUERY/CONVERSATION -> Fetching context for "${text.slice(0, 50)}" from ${senderPhone}...`);
 
     const { today, currentDayName } = getKolkataDate();
@@ -405,13 +509,15 @@ async function handleConversationalQuery(genAI: GoogleGenerativeAI, text: string
 Today is: ${today} (${currentDayName}).
 User's upcoming tasks & reminders: ${JSON.stringify(pendingTasks)}
 User's financial transactions this month: ${JSON.stringify(monthlyFinances)}
+${session?.lastBotMessage ? `Your previous reply to the user was: "${session.lastBotMessage}"` : ''}
 
 User message: "${text}"
 
 Instructions:
+- If the user is affirming (like "yes", "sure") or replying to your previous message: respond contextually to what you previously said.
 - If the user asks about their tasks, schedule, agenda, or reminders: answer directly, punchily, and accurately using their task list.
 - If the user asks about their expenses, budget, or spending: answer directly, punchily, and accurately using their transaction data.
-- If the user sent a casual greeting or message: greet them warmly and let them know they can log expenses (e.g., "Spent 200 on lunch"), add reminders or forward deadlines (e.g. forward assignment or "Doctor appointment tomorrow 5pm"), or ask about their schedule/spending.
+- If the user sent a casual greeting: greet them warmly and let them know they can log expenses (e.g., "Spent 200 on lunch"), forward assignments/announcements to add reminders, or ask about their schedule.
 Keep the response punchy, helpful, and under 3 sentences. Do not mention JSON or technical details.`;
 
     const answerResult = await generateWithGemini(genAI, answerPrompt, { temperature: 0.2, maxOutputTokens: 250 });
@@ -419,9 +525,17 @@ Keep the response punchy, helpful, and under 3 sentences. Do not mention JSON or
 
     if (finalAnswer) {
         await sendWhatsAppTextMessage(senderPhone, finalAnswer);
+        await updateSession(senderPhone, {
+            lastUserMessage: text,
+            lastBotMessage: finalAnswer
+        });
     }
 }
 
+// ==========================================
+// GENERALIZED NATURAL LANGUAGE & MULTI-MESSAGE PROCESSOR
+// Reads any message format, decides first what it is, and extracts all details
+// ==========================================
 async function processTextQuery(text: string, senderPhone: string) {
     if (!API_TOKEN) throw new Error("Missing Meta API Token");
     const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -431,39 +545,115 @@ async function processTextQuery(text: string, senderPhone: string) {
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
         const { now, today, currentTime, currentDayName } = getKolkataDate();
 
-        // Intelligent multi-intent prompt: Handles reminders/deadlines, expenses, queries, and conversation
+        // 1. Fetch short-term session memory for this user
+        const sessionRef = db.collection('user_sessions').doc(senderPhone);
+        const sessionSnap = await sessionRef.get().catch(() => null);
+        const session = sessionSnap?.exists ? sessionSnap.data() : null;
+
+        const trimmedText = text.trim().toLowerCase();
+
+        // 2. Fast-path: Handle simple affirmations ("yes", "sure", "add it", etc.)
+        const isAffirmation = /^(yes|yeah|yep|yup|sure|add it|please add|confirm|ok|okay|do it|plz add|haan|ha|yes please|add)$/i.test(trimmedText);
+
+        if (isAffirmation) {
+            // Case A: There is a pending proposal to be added
+            if (session?.pendingProposal) {
+                const p = session.pendingProposal;
+                const result = await persistExtractedItems([p], senderPhone, today, now);
+                if (result) {
+                    await sendWhatsAppTextMessage(senderPhone, result.confirmationText);
+                    await updateSession(senderPhone, {
+                        lastUserMessage: text,
+                        lastBotMessage: result.confirmationText,
+                        lastDocId: result.lastDocId,
+                        lastItem: result.lastItem,
+                        pendingProposal: null
+                    });
+                    return;
+                }
+            }
+
+            // Case B: The last item was already added
+            if (session?.lastItem) {
+                const item = session.lastItem;
+                const dateFormatted = formatFriendlyDate(item.dueDate || item.date || today, item.dueTime);
+                const confirmationText = `✅ All set! *${item.title}* is already on your agenda for *${dateFormatted}*. Let me know if you need to change anything!`;
+
+                await sendWhatsAppTextMessage(senderPhone, confirmationText);
+                await updateSession(senderPhone, {
+                    lastUserMessage: text,
+                    lastBotMessage: confirmationText
+                });
+                return;
+            }
+        }
+
+        // 3. Generalized Multi-Intent AI Intake Engine
         const prompt = `You are "Align", an elite personal planning and financial assistant on WhatsApp.
 Today's date is: ${today} (${currentDayName}).
 Current time is: ${currentTime} (IST).
 
-User message:
+${session?.lastBotMessage ? `Previous conversation turn:\nAlign previously said: "${session.lastBotMessage}"` : ''}
+${session?.lastItem ? `Last logged item: ${JSON.stringify({ id: session.lastDocId, title: session.lastItem.title, date: session.lastItem.dueDate || session.lastItem.date, time: session.lastItem.dueTime })}` : ''}
+
+Current User message:
 "${text}"
 
-Determine the user's primary intent:
-1. "REMINDER": The user wants to add a reminder, task, deadline, appointment, meeting, flight, or has forwarded an announcement/email/assignment containing a deadline, date, time, or action item (e.g., "remind me to call John at 5pm", "Dentist appointment tomorrow 4pm", "Deadline: 07th September (Monday, 08.00 hrs.) submit PPT on Moodle", "Meeting with team on Friday at 11am").
-2. "EXPENSE": The user spent, paid, bought, or received money (e.g., "spent 200 on lunch", "coffee 150 rs", "paid 400 for uber", "swiggy 350", "₹500 groceries", "lunch 120").
-3. "QUERY": The user is asking about their schedule, pending tasks, deadlines, reminders, expenses, budget, or financial summary (e.g., "how much did I spend?", "what are my reminders for tomorrow?", "what's on my agenda today?").
+YOUR OBJECTIVE:
+Read the entire message carefully. People send many diverse types of messages:
+- Forwarded announcements, academic assignments, homework, class syllabi, exam schedules with deadlines
+- Bank debit SMS, credit card alerts, UPI transaction confirmations, payment receipts
+- Flight confirmations, train PNR status, doctor/dental appointments, calendar invites, Zoom meetings
+- Bills and invoices with due dates and amounts
+- Casual expense notes (e.g. "lunch 250", "auto 50", "coffee 150 rs", "spent 400 on dinner")
+- Casual reminders and to-dos (e.g. "remind me to call John at 5pm", "buy groceries tonight")
+- Questions about past spending or schedule
+- Follow-ups and corrections to the previous message ("actually make it 9am")
+
+DECISION STEP (Decide first what this message is):
+1. "INTAKE": The message contains one or more actionable items to save:
+   - EXPENSE: Money spent, paid, bought, or debited (past or current transaction).
+   - REMINDER / TASK: A future task, deadline, appointment, meeting, flight, or to-do.
+   - Note: If a message contains BOTH (e.g. "spent 200 on lunch and remind me to submit PPT on Monday 8am"), extract both into the items array!
+   - CRITICAL: When the user forwards an announcement or assignment with a deadline, DO NOT ask if they want to add it. Immediately extract it as a task so it is added directly to their planner!
+2. "UPDATE_LAST": The user wants to adjust, reschedule, or correct the previous item (e.g., "actually make it 9am", "make it 500", "change date to tomorrow").
+3. "QUERY": The user is asking a question about their schedule, pending tasks, deadlines, reminders, expenses, budget, or financial summary.
 4. "CONVERSATION": Casual greeting, thank you, or general chat with no task, expense, or question.
 
-EXTRACTION RULES:
-- For REMINDER:
-  * "title": A clean, concise, and descriptive title for the task/reminder (e.g., "Submit CRM Case Study PPT on Moodle", "Call John", "Dentist Appointment").
-  * "dueDate": "YYYY-MM-DD" format. Resolve relative dates like "tomorrow", "Monday", "07th September" based on today (${today}, ${currentDayName}). If no date is mentioned, use "${today}".
-  * "dueTime": "HH:mm" in 24-hour format (e.g. "08:00", "16:30") or null if no time is specified. Note: "08.00 hrs" is "08:00".
-  * "category": Choose the most fitting tag: "#Academics", "#Work", "#Personal", or "#General".
-- For EXPENSE:
-  * "title": Vendor or item name (e.g., "Lunch", "Uber", "Groceries").
-  * "amount": Numerical amount (e.g., 250).
-  * "category": "#Dining", "#Travel", "#Academics", or "#General".
+EXTRACTION RULES FOR "INTAKE":
+Extract every detected expense or reminder into the "items" array:
+- For an expense:
+  {
+    "type": "expense",
+    "title": "Clean vendor or item name (e.g., 'Swiggy', 'Lunch', 'Uber', 'Reliance Fresh')",
+    "amount": number (positive numeric amount),
+    "category": "#Dining" | "#Travel" | "#Academics" | "#Shopping" | "#Bills" | "#General"
+  }
+- For a reminder/task:
+  {
+    "type": "task",
+    "title": "Concise, actionable task/event title (e.g., 'Submit CRM Case Study PPT on Moodle', 'Dentist appointment', 'Call John')",
+    "dueDate": "YYYY-MM-DD", // Resolve relative dates like 'tomorrow', 'Monday', '07th September' relative to today (${today}, ${currentDayName}). Default to '${today}' if no date.
+    "dueTime": "HH:mm" | null, // 24-hour format e.g. '08:00', '16:30' or null if no time specified. Note: '08.00 hrs' is '08:00'.
+    "category": "#Academics" | "#Work" | "#Personal" | "#Health" | "#Bills" | "#Travel" | "#General"
+  }
+
+EXTRACTION RULES FOR "UPDATE_LAST":
+- "dueDate": "YYYY-MM-DD" or null if unchanged.
+- "dueTime": "HH:mm" or null if unchanged.
+- "title": string or null if unchanged.
+- "reply": Natural confirmation message (e.g. "Updated time to 09:00 hrs!").
 
 Respond ONLY with a valid raw JSON object. Do not include markdown formatting or backticks.
 Format:
-- If REMINDER: {"intent": "REMINDER", "title": "string", "dueDate": "YYYY-MM-DD", "dueTime": "HH:mm" | null, "category": "string"}
-- If EXPENSE: {"intent": "EXPENSE", "title": "string", "amount": number, "category": "string"}
-- If QUERY: {"intent": "QUERY"}
-- If CONVERSATION: {"intent": "CONVERSATION", "reply": "string"}`;
+{
+  "intent": "INTAKE" | "UPDATE_LAST" | "QUERY" | "CONVERSATION",
+  "items": [ ... ], // Array of extracted expenses and/or tasks (empty if not INTAKE)
+  "update": { "dueDate": "...", "dueTime": "...", "title": "...", "reply": "..." }, // only for UPDATE_LAST
+  "reply": "string" // reply message for CONVERSATION or UPDATE_LAST
+}`;
 
-        const result = await generateWithGemini(genAI, prompt, { temperature: 0.0, maxOutputTokens: 200 });
+        const result = await generateWithGemini(genAI, prompt, { temperature: 0.0, maxOutputTokens: 350 });
         const responseText = result.response.text();
 
         let parsed: any = null;
@@ -474,69 +664,61 @@ Format:
             parsed = null;
         }
 
-        // 1. Handle REMINDER / TASK / DEADLINE
-        if (parsed?.intent === 'REMINDER' && parsed.title) {
-            const dueDate = parsed.dueDate || today;
-            const dueTime = normalizeTime(parsed.dueTime);
-            const category = parsed.category || '#General';
+        // A. Handle INTAKE (Reminders, Tasks, Expenses - Single or Multiple)
+        const itemsToProcess: any[] = [];
+        if (Array.isArray(parsed?.items) && parsed.items.length > 0) {
+            itemsToProcess.push(...parsed.items);
+        } else if (parsed?.intent === 'REMINDER' || parsed?.type === 'task') {
+            itemsToProcess.push({ ...parsed, type: 'task' });
+        } else if (parsed?.intent === 'EXPENSE' || parsed?.type === 'expense') {
+            itemsToProcess.push({ ...parsed, type: 'expense' });
+        }
 
-            const newItem = {
-                ownerId: senderPhone,
-                type: 'task',
-                title: parsed.title,
-                dueDate: dueDate,
-                dueTime: dueTime,
-                reminderTime: dueTime,
-                endTime: null,
-                category: category,
-                tags: [category],
-                priority: 'P2',
-                done: false,
-                subtasks: [],
-                origin: 'whatsapp',
-                createdAt: now.toISOString()
-            };
+        if (itemsToProcess.length > 0) {
+            const saved = await persistExtractedItems(itemsToProcess, senderPhone, today, now);
+            if (saved) {
+                await sendWhatsAppTextMessage(senderPhone, saved.confirmationText);
+                await updateSession(senderPhone, {
+                    lastUserMessage: text,
+                    lastBotMessage: saved.confirmationText,
+                    lastDocId: saved.lastDocId,
+                    lastItem: saved.lastItem,
+                    pendingProposal: null
+                });
+                return;
+            }
+        }
 
-            const dateFormatted = formatFriendlyDate(dueDate, dueTime);
-            const confirmationText = `⏰ Added reminder: *${parsed.title}*\n📅 *${dateFormatted}*\n🏷️ ${category}`;
+        // B. Handle UPDATE_LAST (Corrections/Rescheduling)
+        const updateData = parsed?.update || parsed;
+        if (parsed?.intent === 'UPDATE_LAST' && session?.lastDocId) {
+            const updates: any = {};
+            if (updateData.dueDate) updates.dueDate = updateData.dueDate;
+            if (updateData.dueTime) {
+                const normTime = normalizeTime(updateData.dueTime);
+                updates.dueTime = normTime;
+                updates.reminderTime = normTime;
+            }
+            if (updateData.title) updates.title = updateData.title;
 
-            await Promise.all([
-                db.collection('planner_items').add(newItem).then(() => {
-                    console.log(`✅ Saved reminder to Firebase: "${newItem.title}" on ${dueDate} ${dueTime || ''}`);
-                }),
-                sendWhatsAppTextMessage(senderPhone, confirmationText)
-            ]);
+            if (Object.keys(updates).length > 0) {
+                await db.collection('planner_items').doc(session.lastDocId).update(updates);
+                console.log(`✅ Updated doc ${session.lastDocId} with:`, updates);
+            }
+
+            const replyMsg = updateData.reply || parsed?.reply || "✅ Updated!";
+            await sendWhatsAppTextMessage(senderPhone, replyMsg);
+
+            await updateSession(senderPhone, {
+                lastUserMessage: text,
+                lastBotMessage: replyMsg,
+                lastItem: { ...session.lastItem, ...updates }
+            });
             return;
         }
 
-        // 2. Handle EXPENSE
-        const parsedAmount = parseFloat(parsed?.amount);
-        if (parsed?.intent === 'EXPENSE' && !isNaN(parsedAmount) && parsedAmount > 0) {
-            const finalCategory = applySmartTags(parsed.title, parsed.category);
-
-            const newItem = {
-                ownerId: senderPhone,
-                type: 'expense',
-                title: parsed.title || 'Expense',
-                amount: parsedAmount,
-                date: today,
-                category: finalCategory,
-                tags: [finalCategory],
-                splits: [],
-                createdAt: now.toISOString()
-            };
-
-            await Promise.all([
-                db.collection('planner_items').add(newItem).then(() => {
-                    console.log(`✅ Saved to Firebase: ${newItem.title} for ₹${newItem.amount}`);
-                }),
-                sendWhatsAppTextMessage(senderPhone, `✅ Logged ₹${newItem.amount} for ${newItem.title} under ${finalCategory}.`)
-            ]);
-            return;
-        }
-
-        // 3. Handle QUERY or CONVERSATION or FALLBACK
-        await handleConversationalQuery(genAI, text, senderPhone);
+        // C. Handle QUERY or CONVERSATION or FALLBACK
+        await handleConversationalQuery(genAI, text, senderPhone, session);
 
     } catch (err: any) {
         console.error("❌ processTextQuery failure:", err);
@@ -581,20 +763,29 @@ async function processAudioMessage(audioId: string, senderPhone: string, mimeTyp
 
         // 4. Send audio directly to Gemini with constrained parameters (single roundtrip)
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        const prompt = `Listen to this spoken audio and determine if the user is logging an expense, setting a reminder/task, or asking a question.
+        const prompt = `You are "Align", an elite personal planning and financial assistant on WhatsApp.
+Listen to this audio carefully and determine what it contains:
 Today's date is: ${today} (${currentDayName}). Current time is: ${currentTime}.
 
-Respond in raw JSON format:
-- If logging an expense (e.g. "spent 500 on dinner", "bought coffee for 150"):
-  {"type": "expense", "title": "Vendor or item", "amount": 100, "category": "#Dining" | "#Travel" | "#Academics" | "#General"}
-- If setting a task or reminder (e.g. "remind me to call John at 5pm", "doctor appointment on Monday 8am"):
-  {"type": "task", "title": "Actionable task title", "dueDate": "YYYY-MM-DD", "dueTime": "HH:mm" | null, "category": "#Academics" | "#Work" | "#Personal" | "#General"}
-- If asking a question (e.g. "how much did I spend this week?", "what are my tasks for tomorrow?"):
-  {"type": "query", "question": "the user question verbatim"}
-- If inaudible or silent:
-  {"type": "inaudible"}
+DECISION STEP:
+1. "INTAKE": The user is logging one or more items:
+   - An expense (e.g., "spent 500 on dinner", "bought coffee for 150")
+   - A reminder/task (e.g., "remind me to call John at 5pm", "doctor appointment on Monday 8am", "submit presentation before Monday 8am")
+2. "QUERY": The user is asking a question (e.g. "how much did I spend?", "what are my reminders for tomorrow?").
+3. "inaudible": Audio is silent, background noise, or unclear.
 
-Respond ONLY with a valid JSON object. Do not include markdown formatting or backticks.`;
+Respond ONLY with a valid raw JSON object. Do not include markdown formatting or backticks.
+Format:
+{
+  "intent": "INTAKE" | "QUERY" | "inaudible",
+  "items": [
+    // If expense:
+    { "type": "expense", "title": "Vendor or item name", "amount": 100, "category": "#Dining" | "#Travel" | "#Academics" | "#General" },
+    // If task:
+    { "type": "task", "title": "Actionable task title", "dueDate": "YYYY-MM-DD", "dueTime": "HH:mm" | null, "category": "#Academics" | "#Work" | "#Personal" | "#Health" | "#General" }
+  ],
+  "question": "verbatim user question if QUERY"
+}`;
 
         const audioPart = {
             inlineData: {
@@ -603,7 +794,7 @@ Respond ONLY with a valid JSON object. Do not include markdown formatting or bac
             }
         };
 
-        const result = await generateWithGemini(genAI, [prompt, audioPart], { temperature: 0.0, maxOutputTokens: 200 });
+        const result = await generateWithGemini(genAI, [prompt, audioPart], { temperature: 0.0, maxOutputTokens: 300 });
         const responseText = result.response.text();
         
         let parsed: any = null;
@@ -614,71 +805,36 @@ Respond ONLY with a valid JSON object. Do not include markdown formatting or bac
             parsed = null;
         }
 
-        // Voice Expense
-        const parsedAmount = parseFloat(parsed?.amount);
-        if (parsed?.type === 'expense' && !isNaN(parsedAmount) && parsedAmount > 0) {
-            const finalCategory = applySmartTags(parsed.title, parsed.category);
-
-            const newItem = {
-                ownerId: senderPhone,
-                type: 'expense',
-                title: parsed.title || 'Expense',
-                amount: parsedAmount,
-                date: today,
-                category: finalCategory,
-                tags: [finalCategory],
-                splits: [],
-                createdAt: now.toISOString()
-            };
-
-            await Promise.all([
-                db.collection('planner_items').add(newItem).then(() => {
-                    console.log(`✅ Saved to Firebase (from voice): ${newItem.title} for ₹${newItem.amount}`);
-                }),
-                sendWhatsAppTextMessage(senderPhone, `✅ Logged ₹${newItem.amount} for ${newItem.title} under ${finalCategory}.`)
-            ]);
-            return;
+        // Process any extracted items (voice expense or voice reminder)
+        const itemsToProcess: any[] = [];
+        if (Array.isArray(parsed?.items) && parsed.items.length > 0) {
+            itemsToProcess.push(...parsed.items);
+        } else if (parsed?.type === 'task' || parsed?.intent === 'REMINDER') {
+            itemsToProcess.push({ ...parsed, type: 'task' });
+        } else if (parsed?.type === 'expense' || parsed?.intent === 'EXPENSE') {
+            itemsToProcess.push({ ...parsed, type: 'expense' });
         }
 
-        // Voice Reminder
-        if (parsed?.type === 'task' && parsed.title) {
-            const dueDate = parsed.dueDate || today;
-            const dueTime = normalizeTime(parsed.dueTime);
-            const category = parsed.category || '#General';
-
-            const newItem = {
-                ownerId: senderPhone,
-                type: 'task',
-                title: parsed.title,
-                dueDate: dueDate,
-                dueTime: dueTime,
-                reminderTime: dueTime,
-                endTime: null,
-                category: category,
-                tags: [category],
-                priority: 'P2',
-                done: false,
-                subtasks: [],
-                origin: 'whatsapp',
-                createdAt: now.toISOString()
-            };
-
-            const dateFormatted = formatFriendlyDate(dueDate, dueTime);
-            const confirmationText = `⏰ Added reminder: *${parsed.title}*\n📅 *${dateFormatted}*\n🏷️ ${category}`;
-
-            await Promise.all([
-                db.collection('planner_items').add(newItem).then(() => {
-                    console.log(`✅ Saved voice reminder to Firebase: "${newItem.title}" on ${dueDate} ${dueTime || ''}`);
-                }),
-                sendWhatsAppTextMessage(senderPhone, confirmationText)
-            ]);
-            return;
+        if (itemsToProcess.length > 0) {
+            const saved = await persistExtractedItems(itemsToProcess, senderPhone, today, now);
+            if (saved) {
+                await sendWhatsAppTextMessage(senderPhone, saved.confirmationText);
+                await updateSession(senderPhone, {
+                    lastUserMessage: "[Voice Note]",
+                    lastBotMessage: saved.confirmationText,
+                    lastDocId: saved.lastDocId,
+                    lastItem: saved.lastItem,
+                    pendingProposal: null
+                });
+                return;
+            }
         }
 
         // Voice Query
-        if (parsed?.type === 'query' && parsed.question) {
-            console.log(`🎙️ Voice question: "${parsed.question}"`);
-            await processTextQuery(parsed.question, senderPhone);
+        if (parsed?.intent === 'QUERY' || parsed?.question) {
+            const questionText = parsed.question || "what is my schedule?";
+            console.log(`🎙️ Voice question: "${questionText}"`);
+            await processTextQuery(questionText, senderPhone);
             return;
         }
 
