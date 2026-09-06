@@ -1,5 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 
+export const isNative = typeof window !== 'undefined' ? Capacitor.isNativePlatform() : false;
+
 export const isNativeApp = () => {
     if (typeof window === 'undefined') return false;
     return Capacitor.isNativePlatform();
@@ -8,19 +10,23 @@ export const isNativeApp = () => {
 export const triggerHaptic = async (type: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' = 'light') => {
     if (typeof window === 'undefined') return;
     try {
-        const { Haptics, ImpactStyle, NotificationType } = await import('@capacitor/haptics');
-        if (type === 'light') {
-            await Haptics.impact({ style: ImpactStyle.Light });
-        } else if (type === 'medium') {
-            await Haptics.impact({ style: ImpactStyle.Medium });
-        } else if (type === 'heavy') {
-            await Haptics.impact({ style: ImpactStyle.Heavy });
-        } else if (type === 'success') {
-            await Haptics.notification({ type: NotificationType.Success });
-        } else if (type === 'warning') {
-            await Haptics.notification({ type: NotificationType.Warning });
-        } else if (type === 'error') {
-            await Haptics.notification({ type: NotificationType.Error });
+        if (Capacitor.isNativePlatform()) {
+            const { Haptics, ImpactStyle, NotificationType } = await import('@capacitor/haptics');
+            if (type === 'light') {
+                await Haptics.impact({ style: ImpactStyle.Light });
+            } else if (type === 'medium') {
+                await Haptics.impact({ style: ImpactStyle.Medium });
+            } else if (type === 'heavy') {
+                await Haptics.impact({ style: ImpactStyle.Heavy });
+            } else if (type === 'success') {
+                await Haptics.notification({ type: NotificationType.Success });
+            } else if (type === 'warning') {
+                await Haptics.notification({ type: NotificationType.Warning });
+            } else if (type === 'error') {
+                await Haptics.notification({ type: NotificationType.Error });
+            }
+        } else if ('vibrate' in navigator) {
+            navigator.vibrate(type === 'heavy' ? 25 : 10);
         }
     } catch {
         // Graceful fallback for non-native web environments

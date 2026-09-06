@@ -1,16 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { App } from '@capacitor/app';
 import {
-    IconArrowLeft,
     IconWhatsApp,
     IconClock,
     IconBell,
     IconCheck
 } from '../../../components/Icons';
 import { db } from '../../../lib/firebase';
+import MobileScreen from '../../../components/MobileScreen';
 
 const safeGetItem = (key: string): string | null => {
     try {
@@ -52,8 +50,6 @@ function build24From12(h12: number, minute: number, ampm: 'AM' | 'PM') {
 }
 
 export default function WhatsAppSettingsPage() {
-    const router = useRouter();
-
     const [userPhone, setUserPhone] = useState<string | null>(null);
     const [dailySummaryEnabled, setDailySummaryEnabled] = useState(true);
     const [dailySummaryTime, setDailySummaryTime] = useState('22:00');
@@ -61,47 +57,6 @@ export default function WhatsAppSettingsPage() {
 
     const [isSendingTest, setIsSendingTest] = useState(false);
     const [testStatus, setTestStatus] = useState<string | null>(null);
-    const [darkMode, setDarkMode] = useState(false);
-
-    // 1. Android Hardware Back Button listener via Capacitor
-    useEffect(() => {
-        let handle: any = null;
-        try {
-            App.addListener('backButton', () => {
-                router.back();
-            }).then(h => { handle = h; });
-        } catch (e) {
-            console.warn("Native back button listener unavailable:", e);
-        }
-
-        return () => {
-            if (handle && typeof handle.remove === 'function') {
-                handle.remove();
-            }
-        };
-    }, [router]);
-
-    // 2. Theme synchronization
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-        const savedTheme = safeGetItem('planner_theme');
-        const isDarkPref = safeGetItem('planner_dark_mode') === 'true';
-        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-
-        const computeDark = () => {
-            if (savedTheme === 'dark') return true;
-            if (savedTheme === 'light') return false;
-            if (savedTheme === 'system') return mediaQuery.matches;
-            return isDarkPref || mediaQuery.matches;
-        };
-        setDarkMode(computeDark());
-
-        const handleThemeChange = () => setDarkMode(computeDark());
-        if (mediaQuery.addEventListener) mediaQuery.addEventListener('change', handleThemeChange);
-        return () => {
-            if (mediaQuery.removeEventListener) mediaQuery.removeEventListener('change', handleThemeChange);
-        };
-    }, []);
 
     // 3. User Phone & Preferences retrieval + Firestore sync
     useEffect(() => {
@@ -245,50 +200,9 @@ export default function WhatsAppSettingsPage() {
     ];
 
     return (
-        <div
-            className={`fixed inset-0 z-50 flex flex-col h-screen w-screen overflow-y-auto ${darkMode ? 'dark-mode' : ''}`}
-            style={{
-                backgroundColor: 'var(--bg)',
-                color: 'var(--text)',
-                WebkitOverflowScrolling: 'touch'
-            }}
-        >
-            {/* Top App Bar with Native Back Button */}
-            <div
-                className="sticky top-0 z-10 flex items-center px-4 py-3 border-b"
-                style={{
-                    backgroundColor: 'var(--surface)',
-                    borderColor: 'var(--border)',
-                    paddingTop: 'calc(12px + env(safe-area-inset-top))',
-                    boxShadow: 'var(--shadow)'
-                }}
-            >
-                <button
-                    type="button"
-                    onClick={() => router.back()}
-                    className="p-2 mr-3 bg-transparent rounded-full active:opacity-60 transition-opacity"
-                    style={{
-                        border: 'none',
-                        background: 'transparent',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: 'var(--text)',
-                        padding: '8px'
-                    }}
-                    aria-label="Go back"
-                >
-                    <IconArrowLeft style={{ width: 22, height: 22 }} />
-                </button>
-                <div style={{ flex: 1 }}>
-                    <h1 style={{ fontSize: '18px', fontWeight: 800, margin: 0, color: 'var(--text)', letterSpacing: '-0.3px' }}>
-                        WhatsApp Settings
-                    </h1>
-                    <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '1px' }}>
-                        Automations, daily digests &amp; bot commands
-                    </div>
-                </div>
+        <MobileScreen
+            title="WhatsApp Settings"
+            headerRight={
                 <div
                     style={{
                         width: '32px',
@@ -303,16 +217,10 @@ export default function WhatsAppSettingsPage() {
                 >
                     <IconWhatsApp style={{ width: 18, height: 18 }} />
                 </div>
-            </div>
-
-            {/* Main Content Area */}
+            }
+        >
             <div
-                className="flex-1"
                 style={{
-                    padding: '20px 16px calc(60px + env(safe-area-inset-bottom))',
-                    maxWidth: '680px',
-                    width: '100%',
-                    margin: '0 auto',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '24px'
@@ -719,7 +627,7 @@ export default function WhatsAppSettingsPage() {
                     </div>
                 </div>
             </div>
-        </div>
+        </MobileScreen>
     );
 }
 
