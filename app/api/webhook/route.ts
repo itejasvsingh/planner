@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db } from '../../../lib/firebase';
+import { runDailySummaryForUser } from '../../../lib/dailySummary';
 
 export const dynamic = 'force-dynamic';
 
@@ -73,6 +74,14 @@ export async function POST(req: Request) {
                 
                 // Await in serverless runtime so Vercel does not freeze execution before completion
                 await processAudioMessage(audioId, senderPhone, mimeType).catch(console.error);
+            }
+            // ROUTE D: Handle Interactive Button Replies
+            else if (message.type === 'interactive') {
+                const interactive = message.interactive;
+                console.log(`🔘 Interactive button tapped from ${senderPhone}`);
+                
+                // Await in serverless runtime so Vercel does not freeze execution before completion
+                await processInteractiveMessage(interactive, senderPhone).catch(console.error);
             }
         }
 
@@ -157,23 +166,103 @@ async function sendWhatsAppTextMessage(to: string, text: string) {
     }
 }
 
+interface QuickButton {
+    id: string;
+    title: string; // Meta limit: maximum 20 characters
+}
+
+async function sendWhatsAppInteractiveButtons(to: string, bodyText: string, buttons: QuickButton[]) {
+    const activePhoneId = PHONE_ID || process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
+    const token = API_TOKEN || process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
+    if (!activePhoneId || !token) {
+        console.warn("⚠️ Missing WhatsApp credentials for interactive buttons, falling back to text");
+        return sendWhatsAppTextMessage(to, bodyText);
+    }
+
+    try {
+        const payload = {
+            messaging_product: "whatsapp",
+            to,
+            type: "interactive",
+            interactive: {
+                type: "button",
+                body: { text: bodyText },
+                action: {
+                    buttons: buttons.slice(0, 3).map(btn => ({
+                        type: "reply",
+                        reply: {
+                            id: btn.id,
+                            title: btn.title.slice(0, 20)
+                        }
+                    }))
+                }
+            }
+        };
+
+        const res = await fetch(`https://graph.facebook.com/v21.0/${activePhoneId}/messages`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!res.ok) {
+            const errBody = await res.text();
+            console.warn(`⚠️ Meta Interactive Buttons failed (${res.status}): ${errBody}, falling back to plain text`);
+            await sendWhatsAppTextMessage(to, bodyText);
+        } else {
+            console.log(`✅ WhatsApp interactive buttons delivered to ${to}`);
+        }
+    } catch (err: any) {
+        console.error("❌ Network error sending interactive buttons:", err.message);
+        await sendWhatsAppTextMessage(to, bodyText);
+    }
+}
+
 // ==========================================
-// GEMINI MULTI-MODEL DISPATCHER
+// GEMINI MULTI-MODEL DISPATCHER WITH WARM CACHE
 // ==========================================
+let cachedWorkingConfig: { model: string; apiVersion?: string } | null = null;
+
 async function generateWithGemini(
     genAI: GoogleGenerativeAI, 
     contents: any,
     config?: { temperature?: number; maxOutputTokens?: number }
 ) {
-    // Models with high free-tier limits (1,500 requests/day vs 20 for preview 3.6)
-    const candidateConfigs = [
-        { model: "gemini-2.5-flash" },        // 1,500 RPD free tier!
-        { model: "gemini-2.5-flash-lite" },   // 1,500 RPD free tier!
+    const candidateConfigs: { model: string; apiVersion?: string }[] = [
+        { model: "gemini-2.5-flash" },
+        { model: "gemini-2.0-flash" },
+        { model: "gemini-1.5-flash" },
+        { model: "gemini-2.5-flash-lite" },
+        { model: "gemini-2.0-flash-lite" },
         { model: "gemini-flash-latest" },
-        { model: "gemini-2.5-flash", apiVersion: "v1" },
         { model: "gemini-3.5-flash" },
         { model: "gemini-3.6-flash" },
     ];
+
+    // Fast-path: Reuse the model that already succeeded in this instance to avoid fallback latency!
+    if (cachedWorkingConfig) {
+        try {
+            const requestOptions = cachedWorkingConfig.apiVersion ? { apiVersion: cachedWorkingConfig.apiVersion } : undefined;
+            const model = genAI.getGenerativeModel(
+                { 
+                    model: cachedWorkingConfig.model,
+                    generationConfig: config ? {
+                        temperature: config.temperature ?? 0.1,
+                        maxOutputTokens: config.maxOutputTokens ?? 150,
+                    } : undefined
+                }, 
+                requestOptions
+            );
+            return await model.generateContent(contents);
+        } catch (err: any) {
+            console.warn(`⚠️ Cached model ${cachedWorkingConfig.model} failed (${err?.status || err?.message?.slice(0, 50)}), clearing cache to find working model...`);
+            cachedWorkingConfig = null;
+        }
+    }
+
     let lastError: any;
     for (const item of candidateConfigs) {
         try {
@@ -188,7 +277,11 @@ async function generateWithGemini(
                 }, 
                 requestOptions
             );
-            return await model.generateContent(contents);
+            const result = await model.generateContent(contents);
+            // Cache successful model so all subsequent turns execute with 0 fallback latency!
+            cachedWorkingConfig = item;
+            console.log(`⚡ Cached working Gemini model: ${item.model}`);
+            return result;
         } catch (err: any) {
             lastError = err;
             const isFallbackError = 
@@ -396,10 +489,18 @@ async function persistExtractedItems(
     senderPhone: string, 
     today: string, 
     now: Date
-): Promise<{ confirmationText: string; lastDocId: string | null; lastItem: any } | null> {
+): Promise<{ 
+    confirmationText: string; 
+    lastDocId: string | null; 
+    lastItem: any; 
+    hasTask: boolean;
+    savePromises: Promise<any>[];
+} | null> {
     const confirmationLines: string[] = [];
+    const savePromises: Promise<any>[] = [];
     let lastSavedDocId: string | null = null;
     let lastSavedItem: any = null;
+    let hasTask = false;
 
     for (const item of rawItems) {
         // --- 1. EXPENSE ---
@@ -421,8 +522,12 @@ async function persistExtractedItems(
                     createdAt: now.toISOString()
                 };
 
-                const docRef = await db.collection('planner_items').add(expenseItem);
-                console.log(`✅ Saved expense to Firebase: ${expenseItem.title} for ₹${expenseItem.amount}`);
+                const docRef = db.collection('planner_items').doc();
+                savePromises.push(
+                    docRef.set(expenseItem).then(() => {
+                        console.log(`✅ Saved expense to Firebase: ${expenseItem.title} for ₹${expenseItem.amount}`);
+                    })
+                );
                 confirmationLines.push(`✅ Logged ₹${expenseItem.amount} for ${expenseItem.title} under ${finalCategory}.`);
                 lastSavedDocId = docRef.id;
                 lastSavedItem = expenseItem;
@@ -452,12 +557,17 @@ async function persistExtractedItems(
                     createdAt: now.toISOString()
                 };
 
-                const docRef = await db.collection('planner_items').add(taskItem);
-                console.log(`✅ Saved reminder to Firebase: "${taskItem.title}" on ${dueDate} ${dueTime || ''}`);
+                const docRef = db.collection('planner_items').doc();
+                savePromises.push(
+                    docRef.set(taskItem).then(() => {
+                        console.log(`✅ Saved reminder to Firebase: "${taskItem.title}" on ${dueDate} ${dueTime || ''}`);
+                    })
+                );
                 const dateFormatted = formatFriendlyDate(dueDate, dueTime);
                 confirmationLines.push(`⏰ Added reminder: *${taskItem.title}*\n📅 *${dateFormatted}*\n🏷️ ${category}`);
                 lastSavedDocId = docRef.id;
                 lastSavedItem = taskItem;
+                hasTask = true;
             }
         }
     }
@@ -466,10 +576,121 @@ async function persistExtractedItems(
         return {
             confirmationText: confirmationLines.join('\n\n'),
             lastDocId: lastSavedDocId,
-            lastItem: lastSavedItem
+            lastItem: lastSavedItem,
+            hasTask,
+            savePromises
         };
     }
     return null;
+}
+
+// ==========================================
+// INTERACTIVE BUTTON CLICKS HANDLER
+// Processes button taps: 1h before, keep unchanged, tomorrow, done
+// ==========================================
+async function processInteractiveMessage(interactive: any, senderPhone: string) {
+    if (!interactive) return;
+    const { now } = getKolkataDate();
+
+    const buttonReply = interactive.button_reply;
+    if (!buttonReply) return;
+
+    const buttonId: string = buttonReply.id || '';
+    const buttonTitle: string = buttonReply.title || '';
+    console.log(`🔘 Button pressed: "${buttonTitle}" (ID: ${buttonId}) by ${senderPhone}`);
+
+    const [action, docId] = buttonId.split('|');
+    if (!docId) {
+        console.warn(`⚠️ Interactive button missing docId: ${buttonId}`);
+        return;
+    }
+
+    try {
+        const docRef = db.collection('planner_items').doc(docId);
+        const docSnap = await docRef.get().catch(() => null);
+        const item = docSnap?.exists ? docSnap.data() : null;
+        const itemTitle = item?.title || 'your reminder';
+
+        if (action === '1h_before') {
+            let alertTime = "";
+            if (item?.dueTime) {
+                const [h, m] = item.dueTime.split(':').map(Number);
+                let targetHour = h - 1;
+                if (targetHour < 0) targetHour = 23;
+                alertTime = `${String(targetHour).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            } else {
+                const future = new Date(now.getTime() + 60 * 60 * 1000);
+                const pad = (n: number) => String(n).padStart(2, '0');
+                alertTime = `${pad(future.getHours())}:${pad(future.getMinutes())}`;
+            }
+
+            const confirmMsg = `⏰ Done! I'll remind you 1 hour before (*${alertTime} hrs*) for *${itemTitle}*.`;
+
+            await Promise.all([
+                docRef.update({ reminderTime: alertTime }),
+                sendWhatsAppTextMessage(senderPhone, confirmMsg)
+            ]);
+
+            await updateSession(senderPhone, {
+                lastUserMessage: buttonTitle,
+                lastBotMessage: confirmMsg,
+                lastDocId: docId,
+                lastItem: item ? { ...item, reminderTime: alertTime } : undefined
+            });
+            return;
+        }
+
+        if (action === 'keep') {
+            const confirmMsg = `✅ Locked in! No changes made to *${itemTitle}*.`;
+            await sendWhatsAppTextMessage(senderPhone, confirmMsg);
+            await updateSession(senderPhone, {
+                lastUserMessage: buttonTitle,
+                lastBotMessage: confirmMsg,
+                lastDocId: docId
+            });
+            return;
+        }
+
+        if (action === 'tomorrow') {
+            const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+            const pad = (n: number) => String(n).padStart(2, '0');
+            const tomorrowStr = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
+            const dateFormatted = formatFriendlyDate(tomorrowStr, item?.dueTime);
+
+            const confirmMsg = `📅 Moved to tomorrow (*${dateFormatted}*) for *${itemTitle}*!`;
+
+            await Promise.all([
+                docRef.update({ dueDate: tomorrowStr }),
+                sendWhatsAppTextMessage(senderPhone, confirmMsg)
+            ]);
+
+            await updateSession(senderPhone, {
+                lastUserMessage: buttonTitle,
+                lastBotMessage: confirmMsg,
+                lastDocId: docId,
+                lastItem: item ? { ...item, dueDate: tomorrowStr } : undefined
+            });
+            return;
+        }
+
+        if (action === 'done') {
+            const confirmMsg = `✅ Marked as done! Completed *${itemTitle}*.`;
+            await Promise.all([
+                docRef.update({ done: true }),
+                sendWhatsAppTextMessage(senderPhone, confirmMsg)
+            ]);
+
+            await updateSession(senderPhone, {
+                lastUserMessage: buttonTitle,
+                lastBotMessage: confirmMsg,
+                lastDocId: docId
+            });
+            return;
+        }
+    } catch (err: any) {
+        console.error("❌ processInteractiveMessage error:", err);
+        await sendWhatsAppTextMessage(senderPhone, "⚠️ Couldn't update that reminder. Please try typing your adjustment!");
+    }
 }
 
 async function handleConversationalQuery(genAI: GoogleGenerativeAI, text: string, senderPhone: string, session?: any) {
@@ -552,7 +773,7 @@ async function processTextQuery(text: string, senderPhone: string) {
 
         const trimmedText = text.trim().toLowerCase();
 
-        // 2. Fast-path: Handle simple affirmations ("yes", "sure", "add it", etc.)
+        // 2a. Fast-path: Handle simple affirmations ("yes", "sure", "add it", etc.)
         const isAffirmation = /^(yes|yeah|yep|yup|sure|add it|please add|confirm|ok|okay|do it|plz add|haan|ha|yes please|add)$/i.test(trimmedText);
 
         if (isAffirmation) {
@@ -561,7 +782,19 @@ async function processTextQuery(text: string, senderPhone: string) {
                 const p = session.pendingProposal;
                 const result = await persistExtractedItems([p], senderPhone, today, now);
                 if (result) {
-                    await sendWhatsAppTextMessage(senderPhone, result.confirmationText);
+                    const buttons = (result.hasTask && result.lastDocId) ? [
+                        { id: `1h_before|${result.lastDocId}`, title: "Remind 1h before" },
+                        { id: `keep|${result.lastDocId}`, title: "Nothing to change" },
+                        { id: `tomorrow|${result.lastDocId}`, title: "Tomorrow" }
+                    ] : null;
+
+                    await Promise.all([
+                        Promise.all(result.savePromises),
+                        buttons 
+                            ? sendWhatsAppInteractiveButtons(senderPhone, result.confirmationText, buttons)
+                            : sendWhatsAppTextMessage(senderPhone, result.confirmationText)
+                    ]);
+
                     await updateSession(senderPhone, {
                         lastUserMessage: text,
                         lastBotMessage: result.confirmationText,
@@ -584,6 +817,106 @@ async function processTextQuery(text: string, senderPhone: string) {
                     lastUserMessage: text,
                     lastBotMessage: confirmationText
                 });
+                return;
+            }
+        }
+
+        // 2b. Fast-path: "Nothing to change" / "Looks good" / "Keep it" (<100ms response)
+        const isNoChange = /^(nothing to change|no changes?|looks good|looks great|all good|keep it|keep as is|perfect|leave it|unchanged|no change needed|nothing)$/i.test(trimmedText);
+        if (isNoChange) {
+            const title = session?.lastItem?.title || "your reminder";
+            const confirmMsg = `✅ Locked in! No changes made to *${title}*.`;
+            await sendWhatsAppTextMessage(senderPhone, confirmMsg);
+            await updateSession(senderPhone, {
+                lastUserMessage: text,
+                lastBotMessage: confirmMsg
+            });
+            return;
+        }
+
+        // 2c. Fast-path: "Remind 1h before" / "1 hour before" / "1h before" (<100ms response)
+        const isOneHourBefore = /^(remind( me)? )?(1\s*h(ou)?r|one\s*hour)\s*before$/i.test(trimmedText) || 
+                               /^(remind\s*1h\s*before|1h\s*before|alert\s*1h\s*before)$/i.test(trimmedText);
+        if (isOneHourBefore && session?.lastDocId) {
+            const docSnap = await db.collection('planner_items').doc(session.lastDocId).get().catch(() => null);
+            const docData = docSnap?.exists ? docSnap.data() : session?.lastItem;
+            const itemTitle = docData?.title || 'your reminder';
+
+            let alertTime = "";
+            if (docData?.dueTime) {
+                const [h, m] = docData.dueTime.split(':').map(Number);
+                let targetHour = h - 1;
+                if (targetHour < 0) targetHour = 23;
+                alertTime = `${String(targetHour).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            } else {
+                const future = new Date(now.getTime() + 60 * 60 * 1000);
+                const pad = (n: number) => String(n).padStart(2, '0');
+                alertTime = `${pad(future.getHours())}:${pad(future.getMinutes())}`;
+            }
+
+            const confirmMsg = `⏰ Done! I'll remind you 1 hour before (*${alertTime} hrs*) for *${itemTitle}*.`;
+            await Promise.all([
+                db.collection('planner_items').doc(session.lastDocId).update({ reminderTime: alertTime }),
+                sendWhatsAppTextMessage(senderPhone, confirmMsg)
+            ]);
+
+            await updateSession(senderPhone, {
+                lastUserMessage: text,
+                lastBotMessage: confirmMsg,
+                lastItem: docData ? { ...docData, reminderTime: alertTime } : undefined
+            });
+            return;
+        }
+
+        // 2d. Fast-path: "Tomorrow" / "Push to tomorrow" (<100ms response)
+        const isTomorrow = /^(tomorrow|move to tomorrow|push to tomorrow|reschedule to tomorrow|make it tomorrow)$/i.test(trimmedText);
+        if (isTomorrow && session?.lastDocId) {
+            const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+            const pad = (n: number) => String(n).padStart(2, '0');
+            const tomorrowStr = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
+            const itemTitle = session?.lastItem?.title || 'your reminder';
+            const dateFormatted = formatFriendlyDate(tomorrowStr, session?.lastItem?.dueTime);
+
+            const confirmMsg = `📅 Moved to tomorrow (*${dateFormatted}*) for *${itemTitle}*!`;
+            await Promise.all([
+                db.collection('planner_items').doc(session.lastDocId).update({ dueDate: tomorrowStr }),
+                sendWhatsAppTextMessage(senderPhone, confirmMsg)
+            ]);
+
+            await updateSession(senderPhone, {
+                lastUserMessage: text,
+                lastBotMessage: confirmMsg,
+                lastItem: session?.lastItem ? { ...session.lastItem, dueDate: tomorrowStr } : undefined
+            });
+            return;
+        }
+
+        // 2e. Fast-path: "Daily summary" / "Wrap up" / "End of day summary" (<100ms response)
+        const isDailySummary = /^(daily summary|wrap up|today's summary|todays summary|eod summary|day summary|summarize my day|end of day summary|daily wrap up|daily wrap-up)$/i.test(trimmedText);
+        if (isDailySummary) {
+            console.log(`🌙 On-demand daily summary requested by ${senderPhone}`);
+            await runDailySummaryForUser(senderPhone, { force: true });
+            return;
+        }
+
+        // 2f. Fast-path: Set or update daily summary time (e.g., "summary time 9pm", "set daily summary time to 21:30")
+        const summaryTimeMatch = trimmedText.match(/^(?:set\s+)?(?:daily\s+)?summary\s+time\s+(?:to\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+        if (summaryTimeMatch) {
+            let hour = parseInt(summaryTimeMatch[1], 10);
+            const minute = summaryTimeMatch[2] ? parseInt(summaryTimeMatch[2], 10) : 0;
+            const meridiem = summaryTimeMatch[3]?.toLowerCase();
+
+            if (meridiem === 'pm' && hour < 12) hour += 12;
+            else if (meridiem === 'am' && hour === 12) hour = 0;
+
+            if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+                const formattedTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+                await Promise.all([
+                    db.collection('planner_settings').doc(`preferences_${senderPhone}`).set({ dailySummaryTime: formattedTime, dailySummaryEnabled: true }, { merge: true }),
+                    db.collection('user_sessions').doc(senderPhone).set({ dailySummaryTime: formattedTime, dailySummaryEnabled: true }, { merge: true })
+                ]);
+                const displayTime = `${hour % 12 || 12}:${String(minute).padStart(2, '0')} ${hour >= 12 ? 'PM' : 'AM'}`;
+                await sendWhatsAppTextMessage(senderPhone, `⏰ Daily summary time set to *${displayTime}* (${formattedTime})! Your daily wrap-up will arrive then.`);
                 return;
             }
         }
@@ -677,7 +1010,20 @@ Format:
         if (itemsToProcess.length > 0) {
             const saved = await persistExtractedItems(itemsToProcess, senderPhone, today, now);
             if (saved) {
-                await sendWhatsAppTextMessage(senderPhone, saved.confirmationText);
+                const buttons = (saved.hasTask && saved.lastDocId) ? [
+                    { id: `1h_before|${saved.lastDocId}`, title: "Remind 1h before" },
+                    { id: `keep|${saved.lastDocId}`, title: "Nothing to change" },
+                    { id: `tomorrow|${saved.lastDocId}`, title: "Tomorrow" }
+                ] : null;
+
+                // Concurrent Firestore batch save + WhatsApp message dispatch
+                await Promise.all([
+                    Promise.all(saved.savePromises),
+                    buttons 
+                        ? sendWhatsAppInteractiveButtons(senderPhone, saved.confirmationText, buttons)
+                        : sendWhatsAppTextMessage(senderPhone, saved.confirmationText)
+                ]);
+
                 await updateSession(senderPhone, {
                     lastUserMessage: text,
                     lastBotMessage: saved.confirmationText,
@@ -818,7 +1164,20 @@ Format:
         if (itemsToProcess.length > 0) {
             const saved = await persistExtractedItems(itemsToProcess, senderPhone, today, now);
             if (saved) {
-                await sendWhatsAppTextMessage(senderPhone, saved.confirmationText);
+                const buttons = (saved.hasTask && saved.lastDocId) ? [
+                    { id: `1h_before|${saved.lastDocId}`, title: "Remind 1h before" },
+                    { id: `keep|${saved.lastDocId}`, title: "Nothing to change" },
+                    { id: `tomorrow|${saved.lastDocId}`, title: "Tomorrow" }
+                ] : null;
+
+                // Concurrent Firestore batch save + WhatsApp message dispatch
+                await Promise.all([
+                    Promise.all(saved.savePromises),
+                    buttons 
+                        ? sendWhatsAppInteractiveButtons(senderPhone, saved.confirmationText, buttons)
+                        : sendWhatsAppTextMessage(senderPhone, saved.confirmationText)
+                ]);
+
                 await updateSession(senderPhone, {
                     lastUserMessage: "[Voice Note]",
                     lastBotMessage: saved.confirmationText,

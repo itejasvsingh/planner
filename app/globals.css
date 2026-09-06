@@ -185,11 +185,11 @@ input, select, textarea, button { font-family: inherit; appearance: none; -webki
 .cal-header { display: flex; justify-content: space-between; align-items: center; padding: 0 20px 16px; font-weight: 700; font-size: 18px; }
 .cal-daynames { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; font-size: 12px; color: var(--text-light); font-weight: 700; padding: 0 20px 8px; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px 0; padding: 0 20px; }
-.cal-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 16px; font-weight: 500; cursor: pointer; border-radius: 14px; width: 42px; margin: 0 auto; position: relative; transition: all 0.2s; }
-.cal-cell.today { color: var(--blue); font-weight: 700; background: rgba(0, 122, 255, 0.1); }
-.cal-cell.selected { background: var(--text); color: white; font-weight: 700; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+.cal-cell { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 16px; font-weight: 500; cursor: pointer; border-radius: 14px; width: 42px; margin: 0 auto; position: relative; transition: all 0.2s; color: var(--text); }
+.cal-cell.today { color: var(--blue); font-weight: 700; background: rgba(0, 122, 255, 0.1); border: 1px solid rgba(0, 122, 255, 0.25); }
+.cal-cell.selected { background: var(--blue) !important; color: #FFFFFF !important; font-weight: 800; box-shadow: 0 4px 14px rgba(0, 122, 255, 0.35); border: none; }
 .cal-dot { width: 4px; height: 4px; border-radius: 50%; background: var(--text-light); position: absolute; bottom: 6px; }
-.cal-cell.selected .cal-dot { background: white; }
+.cal-cell.selected .cal-dot { background: #FFFFFF; }
 
 .timeline { padding: 0 20px; margin-top: 24px; }
 .timeline-header { font-size: 13px; font-weight: 600; color: var(--text-light); text-transform: uppercase; margin-bottom: 12px; }
@@ -290,8 +290,11 @@ input, select, textarea, button { font-family: inherit; appearance: none; -webki
 .dark-mode select option { background: var(--surface); color: var(--text); }
 .dark-mode .quick-add-box { border-color: var(--border); }
 .dark-mode .quick-add-input::placeholder { color: var(--text-light); }
-.dark-mode .subtask-row { border-bottom-color: var(--border); }
 .dark-mode .btn-save { background: var(--blue); color: white;}
+.dark-mode .cal-cell { color: var(--text); }
+.dark-mode .cal-cell.today { color: var(--blue); background: rgba(10, 132, 255, 0.18); border: 1px solid rgba(10, 132, 255, 0.4); }
+.dark-mode .cal-cell.selected { background: var(--blue) !important; color: #FFFFFF !important; box-shadow: 0 4px 14px rgba(10, 132, 255, 0.5); }
+.dark-mode .cal-cell.selected .cal-dot { background: #FFFFFF; }
 .theme-options { display: flex; gap: 6px; padding: 4px; margin: 0 0 24px; background: var(--bg); border-radius: 12px; }
 .theme-option { flex: 1; border: 0; border-radius: 9px; padding: 10px 6px; background: transparent; color: var(--text-light); font-size: 12px; font-weight: 700; cursor: pointer; }
 .theme-option.active { background: var(--surface); color: var(--text); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }

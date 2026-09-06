@@ -130,6 +130,8 @@ export default function PlannerApp() {
     const inputRef = useRef<HTMLInputElement>(null);
     
     const [pushEnabled, setPushEnabled] = useState(false);
+    const [dailySummaryEnabled, setDailySummaryEnabled] = useState(true);
+    const [dailySummaryTime, setDailySummaryTime] = useState('22:00');
     const [notifiedItems, setNotifiedItems] = useState(new Set());
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [themeMode, setThemeMode] = useState('system');
@@ -272,6 +274,16 @@ export default function PlannerApp() {
                 console.warn("Firestore items subscription notice:", err);
             });
         
+        // Load cached daily summary preference
+        const cachedSummaryPref = safeGetItem(`align_daily_summary_${userPhone}`);
+        if (cachedSummaryPref !== null) {
+            setDailySummaryEnabled(cachedSummaryPref === 'true');
+        }
+        const cachedSummaryTime = safeGetItem(`align_daily_summary_time_${userPhone}`);
+        if (cachedSummaryTime) {
+            setDailySummaryTime(cachedSummaryTime);
+        }
+
         const unsubscribeBudgets = db.collection('planner_settings').doc(`budgets_${userPhone}`).onSnapshot({ includeMetadataChanges: true }, (doc) => {
             if (doc.exists) {
                 const data = doc.data();
@@ -285,7 +297,23 @@ export default function PlannerApp() {
             console.warn("Firestore budgets subscription notice:", err);
         });
 
-        return () => { unsubscribeItems(); unsubscribeBudgets(); };
+        const unsubscribePrefs = db.collection('planner_settings').doc(`preferences_${userPhone}`).onSnapshot({ includeMetadataChanges: true }, (doc) => {
+            if (doc.exists) {
+                const data = doc.data();
+                if (typeof data?.dailySummaryEnabled === 'boolean') {
+                    setDailySummaryEnabled(data.dailySummaryEnabled);
+                    safeSetItem(`align_daily_summary_${userPhone}`, String(data.dailySummaryEnabled));
+                }
+                if (data?.dailySummaryTime) {
+                    setDailySummaryTime(data.dailySummaryTime);
+                    safeSetItem(`align_daily_summary_time_${userPhone}`, data.dailySummaryTime);
+                }
+            }
+        }, (err) => {
+            console.warn("Firestore preferences subscription notice:", err);
+        });
+
+        return () => { unsubscribeItems(); unsubscribeBudgets(); unsubscribePrefs(); };
     }, [userPhone]);
 
     useEffect(() => {
@@ -891,6 +919,37 @@ export default function PlannerApp() {
         }
     }
 
+    const handleToggleDailySummary = async () => {
+        if (!userPhone) return;
+        const newVal = !dailySummaryEnabled;
+        setDailySummaryEnabled(newVal);
+        safeSetItem(`align_daily_summary_${userPhone}`, String(newVal));
+
+        try {
+            await Promise.all([
+                db.collection('planner_settings').doc(`preferences_${userPhone}`).set({ dailySummaryEnabled: newVal }, { merge: true }),
+                db.collection('user_sessions').doc(userPhone).set({ dailySummaryEnabled: newVal }, { merge: true })
+            ]);
+        } catch (err) {
+            console.warn("Failed to persist daily summary preference:", err);
+        }
+    };
+
+    const handleChangeDailySummaryTime = async (newTime: string) => {
+        if (!userPhone || !newTime) return;
+        setDailySummaryTime(newTime);
+        safeSetItem(`align_daily_summary_time_${userPhone}`, newTime);
+
+        try {
+            await Promise.all([
+                db.collection('planner_settings').doc(`preferences_${userPhone}`).set({ dailySummaryTime: newTime }, { merge: true }),
+                db.collection('user_sessions').doc(userPhone).set({ dailySummaryTime: newTime }, { merge: true })
+            ]);
+        } catch (err) {
+            console.warn("Failed to persist daily summary time:", err);
+        }
+    };
+
 // ==========================================
 // SMART VENDOR AUTO-TAGGING
 // ==========================================
@@ -1272,6 +1331,10 @@ function applySmartTags(vendorName: string, aiGuessedCategory?: string): string 
                 }}
                 onLogout={handleLogout}
                 pendingTasksCount={rawDailyTasks.length}
+                dailySummaryEnabled={dailySummaryEnabled}
+                onToggleDailySummary={handleToggleDailySummary}
+                dailySummaryTime={dailySummaryTime}
+                onChangeDailySummaryTime={handleChangeDailySummaryTime}
             />
             {/* DAILY TAB */}
             {tab === 'daily' && (

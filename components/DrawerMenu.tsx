@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     IconBell, IconMoon, IconSun, IconLogOut,
-    IconRefresh, IconUser, IconShield, IconKey, IconExport, IconFingerprint
+    IconRefresh, IconUser, IconShield, IconKey, IconExport, IconFingerprint, IconRepeat
 } from './Icons';
 import {
     checkBiometricAvailability,
@@ -26,6 +26,10 @@ interface DrawerMenuProps {
     onLogout: () => void;
     onChangePIN: () => void;         // Opens LockScreen in 'choose-length' to reset/set PIN
     pendingTasksCount?: number;
+    dailySummaryEnabled?: boolean;
+    onToggleDailySummary?: () => void;
+    dailySummaryTime?: string;
+    onChangeDailySummaryTime?: (time: string) => void;
 }
 
 export default function DrawerMenu({
@@ -39,7 +43,11 @@ export default function DrawerMenu({
     onEnablePush,
     onLogout,
     onChangePIN,
-    pendingTasksCount = 0
+    pendingTasksCount = 0,
+    dailySummaryEnabled = true,
+    onToggleDailySummary,
+    dailySummaryTime = '22:00',
+    onChangeDailySummaryTime
 }: DrawerMenuProps) {
     const [currentView, setCurrentView] = useState<'main' | 'security'>('main');
     const [isOnline, setIsOnline] = useState(true);
@@ -424,6 +432,99 @@ export default function DrawerMenu({
                                 <span>Notifications</span>
                                 <span className="drawer-value">{pushEnabled ? 'On' : 'Off'}</span>
                             </button>
+                            <button
+                                type="button"
+                                className="drawer-item"
+                                onClick={onToggleDailySummary}
+                                style={{ justifyContent: 'space-between' }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0, flex: 1, textAlign: 'left' }}>
+                                    <IconRepeat />
+                                    <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
+                                            Daily Wrap-Up &amp; Rollover
+                                        </div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '2px' }}>
+                                            WhatsApp summary &amp; auto-push undone tasks
+                                        </div>
+                                    </div>
+                                </div>
+                                <span
+                                    className="drawer-value"
+                                    style={{
+                                        padding: '4px 10px',
+                                        borderRadius: '20px',
+                                        background: dailySummaryEnabled ? '#22C55E' : 'var(--bg)',
+                                        color: dailySummaryEnabled ? '#FFFFFF' : 'var(--text-light)',
+                                        fontWeight: 800,
+                                        fontSize: '12px',
+                                        flexShrink: 0
+                                    }}
+                                >
+                                    {dailySummaryEnabled ? 'ON' : 'OFF'}
+                                </span>
+                            </button>
+                            {dailySummaryEnabled && (
+                                <div style={{
+                                    margin: '-4px 0 12px',
+                                    padding: '12px 14px',
+                                    background: 'var(--bg)',
+                                    borderRadius: '14px',
+                                    border: '1px solid var(--border)',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '10px'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.3px' }}>
+                                            Delivery Time
+                                        </span>
+                                        <input
+                                            type="time"
+                                            value={dailySummaryTime}
+                                            onChange={(e) => onChangeDailySummaryTime?.(e.target.value)}
+                                            style={{
+                                                background: 'var(--surface)',
+                                                color: 'var(--text)',
+                                                border: '1px solid var(--border)',
+                                                borderRadius: '8px',
+                                                padding: '4px 8px',
+                                                fontSize: '13px',
+                                                fontWeight: 700,
+                                                outline: 'none',
+                                                cursor: 'pointer'
+                                            }}
+                                        />
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '6px' }}>
+                                        {['20:00', '21:00', '22:00', '23:00'].map((time) => {
+                                            const label = time === '20:00' ? '8 PM' : time === '21:00' ? '9 PM' : time === '22:00' ? '10 PM' : '11 PM';
+                                            const isActive = dailySummaryTime === time;
+                                            return (
+                                                <button
+                                                    key={time}
+                                                    type="button"
+                                                    onClick={() => onChangeDailySummaryTime?.(time)}
+                                                    style={{
+                                                        flex: 1,
+                                                        padding: '6px 2px',
+                                                        borderRadius: '8px',
+                                                        border: `1px solid ${isActive ? 'var(--blue)' : 'var(--border)'}`,
+                                                        background: isActive ? 'var(--blue)' : 'var(--surface)',
+                                                        color: isActive ? '#FFFFFF' : 'var(--text)',
+                                                        fontSize: '12px',
+                                                        fontWeight: 700,
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.15s ease'
+                                                    }}
+                                                >
+                                                    {label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                             <div className="drawer-item" style={{ cursor: 'default' }}>
                                 {darkMode ? <IconMoon /> : <IconSun />}
                                 <span>Appearance</span>
