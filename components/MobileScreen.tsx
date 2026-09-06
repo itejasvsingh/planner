@@ -17,7 +17,7 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
     const router = useRouter();
     const [dragOffset, setDragOffset] = useState(0);
     const touchStartRef = useRef<{ x: number; y: number } | null>(null);
-    const isDraggingRef = useRef(false);
+    const [isDragging, setIsDragging] = useState(false);
     const [darkMode, setDarkMode] = useState(false);
 
     // 1. Android Capacitor Hardware Back Button (Strictly guarded for native)
@@ -68,19 +68,19 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
         // Only initiate swipe if touch begins within the left 30px
         if (touch.clientX <= 30) {
             touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-            isDraggingRef.current = true;
+            setIsDragging(true);
         }
     };
 
     const handleTouchMove = (e: React.TouchEvent) => {
-        if (!isDraggingRef.current || !touchStartRef.current) return;
+        if (!isDragging || !touchStartRef.current) return;
         const touch = e.touches[0];
         const deltaX = touch.clientX - touchStartRef.current.x;
         const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
 
         // Cancel drag if movement is predominantly vertical
         if (deltaY > deltaX) {
-            isDraggingRef.current = false;
+            setIsDragging(false);
             setDragOffset(0);
             return;
         }
@@ -91,8 +91,8 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
     };
 
     const handleTouchEnd = () => {
-        if (!isDraggingRef.current) return;
-        isDraggingRef.current = false;
+        if (!isDragging) return;
+        setIsDragging(false);
 
         // Trigger back navigation if swiped past threshold
         if (dragOffset > 100) {
@@ -116,7 +116,7 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
             onTouchEnd={handleTouchEnd}
             style={{
                 transform: dragOffset > 0 ? `translateX(${dragOffset}px)` : undefined,
-                transition: isDraggingRef.current ? 'none' : 'transform 0.2s ease-out',
+                transition: isDragging ? 'none' : 'transform 0.2s ease-out',
                 backgroundColor: 'var(--bg)',
                 color: 'var(--text)',
             }}

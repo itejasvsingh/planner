@@ -51,12 +51,9 @@ export default function DrawerMenu({
     pushEnabled,
     onEnablePush,
     onLogout,
-    onChangePIN,
     pendingTasksCount = 0,
     dailySummaryEnabled = true,
-    onToggleDailySummary,
     dailySummaryTime = '22:00',
-    onChangeDailySummaryTime,
     autoPushEnabled = true,
     onToggleAutoPush
 }: DrawerMenuProps) {

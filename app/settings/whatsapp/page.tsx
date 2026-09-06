@@ -3,8 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import {
     IconWhatsApp,
-    IconClock,
-    IconBell,
     IconCheck
 } from '../../../components/Icons';
 import { db } from '../../../lib/firebase';
@@ -36,7 +34,7 @@ function format12Hour(time24: string) {
 
 function parseToParts(time24: string) {
     const [hStr, mStr] = (time24 || '22:00').split(':');
-    let h = parseInt(hStr, 10) || 0;
+    const h = parseInt(hStr, 10) || 0;
     const m = parseInt(mStr, 10) || 0;
     const ampm = h >= 12 ? 'PM' : 'AM';
     const h12 = h % 12 || 12;
@@ -162,7 +160,7 @@ export default function WhatsAppSettingsPage() {
             } else {
                 setTestStatus(`⚠️ ${data.reason || 'Could not send message'}`);
             }
-        } catch (err: any) {
+        } catch {
             setTestStatus('❌ Network error sending test summary');
         } finally {
             setIsSendingTest(false);

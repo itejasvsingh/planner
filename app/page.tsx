@@ -1004,21 +1004,6 @@ export default function PlannerApp() {
         }
     };
 
-    const handleChangeReminderTiming = async (timing: 'exact' | '1h_before' | 'both') => {
-        if (!userPhone) return;
-        setWhatsappReminderTiming(timing);
-        safeSetItem(`align_reminder_timing_${userPhone}`, timing);
-
-        try {
-            await Promise.all([
-                db.collection('planner_settings').doc(`preferences_${userPhone}`).set({ whatsappReminderTiming: timing }, { merge: true }),
-                db.collection('user_sessions').doc(userPhone).set({ whatsappReminderTiming: timing }, { merge: true })
-            ]);
-        } catch (err) {
-            console.warn("Failed to persist reminder timing preference:", err);
-        }
-    };
-
 // ==========================================
 // SMART VENDOR AUTO-TAGGING
 // ==========================================
