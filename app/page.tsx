@@ -132,6 +132,7 @@ export default function PlannerApp() {
     const [pushEnabled, setPushEnabled] = useState(false);
     const [dailySummaryEnabled, setDailySummaryEnabled] = useState(true);
     const [dailySummaryTime, setDailySummaryTime] = useState('22:00');
+    const [autoPushEnabled, setAutoPushEnabled] = useState(true);
     const [notifiedItems, setNotifiedItems] = useState(new Set());
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [themeMode, setThemeMode] = useState('system');
@@ -274,7 +275,7 @@ export default function PlannerApp() {
                 console.warn("Firestore items subscription notice:", err);
             });
         
-        // Load cached daily summary preference
+        // Load cached daily summary & auto-push preferences
         const cachedSummaryPref = safeGetItem(`align_daily_summary_${userPhone}`);
         if (cachedSummaryPref !== null) {
             setDailySummaryEnabled(cachedSummaryPref === 'true');
@@ -282,6 +283,10 @@ export default function PlannerApp() {
         const cachedSummaryTime = safeGetItem(`align_daily_summary_time_${userPhone}`);
         if (cachedSummaryTime) {
             setDailySummaryTime(cachedSummaryTime);
+        }
+        const cachedAutoPush = safeGetItem(`align_auto_push_${userPhone}`);
+        if (cachedAutoPush !== null) {
+            setAutoPushEnabled(cachedAutoPush === 'true');
         }
 
         const unsubscribeBudgets = db.collection('planner_settings').doc(`budgets_${userPhone}`).onSnapshot({ includeMetadataChanges: true }, (doc) => {
@@ -307,6 +312,10 @@ export default function PlannerApp() {
                 if (data?.dailySummaryTime) {
                     setDailySummaryTime(data.dailySummaryTime);
                     safeSetItem(`align_daily_summary_time_${userPhone}`, data.dailySummaryTime);
+                }
+                if (typeof data?.autoPushEnabled === 'boolean') {
+                    setAutoPushEnabled(data.autoPushEnabled);
+                    safeSetItem(`align_auto_push_${userPhone}`, String(data.autoPushEnabled));
                 }
             }
         }, (err) => {
@@ -950,6 +959,22 @@ export default function PlannerApp() {
         }
     };
 
+    const handleToggleAutoPush = async () => {
+        if (!userPhone) return;
+        const newVal = !autoPushEnabled;
+        setAutoPushEnabled(newVal);
+        safeSetItem(`align_auto_push_${userPhone}`, String(newVal));
+
+        try {
+            await Promise.all([
+                db.collection('planner_settings').doc(`preferences_${userPhone}`).set({ autoPushEnabled: newVal }, { merge: true }),
+                db.collection('user_sessions').doc(userPhone).set({ autoPushEnabled: newVal }, { merge: true })
+            ]);
+        } catch (err) {
+            console.warn("Failed to persist auto push preference:", err);
+        }
+    };
+
 // ==========================================
 // SMART VENDOR AUTO-TAGGING
 // ==========================================
@@ -1335,6 +1360,8 @@ function applySmartTags(vendorName: string, aiGuessedCategory?: string): string 
                 onToggleDailySummary={handleToggleDailySummary}
                 dailySummaryTime={dailySummaryTime}
                 onChangeDailySummaryTime={handleChangeDailySummaryTime}
+                autoPushEnabled={autoPushEnabled}
+                onToggleAutoPush={handleToggleAutoPush}
             />
             {/* DAILY TAB */}
             {tab === 'daily' && (

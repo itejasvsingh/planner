@@ -899,8 +899,8 @@ async function processTextQuery(text: string, senderPhone: string) {
             return;
         }
 
-        // 2f. Fast-path: Set or update daily summary time (e.g., "summary time 9pm", "set daily summary time to 21:30")
-        const summaryTimeMatch = trimmedText.match(/^(?:set\s+)?(?:daily\s+)?summary\s+time\s+(?:to\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
+        // 2f. Fast-path: Set or update daily summary time (e.g., "summary time 9am", "set daily summary time to 21:30", "summary time 8:30 pm")
+        const summaryTimeMatch = trimmedText.match(/^(?:(?:set|change)\s+)?(?:daily\s+)?summary\s+time\s+(?:to\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i);
         if (summaryTimeMatch) {
             let hour = parseInt(summaryTimeMatch[1], 10);
             const minute = summaryTimeMatch[2] ? parseInt(summaryTimeMatch[2], 10) : 0;
@@ -916,9 +916,41 @@ async function processTextQuery(text: string, senderPhone: string) {
                     db.collection('user_sessions').doc(senderPhone).set({ dailySummaryTime: formattedTime, dailySummaryEnabled: true }, { merge: true })
                 ]);
                 const displayTime = `${hour % 12 || 12}:${String(minute).padStart(2, '0')} ${hour >= 12 ? 'PM' : 'AM'}`;
-                await sendWhatsAppTextMessage(senderPhone, `⏰ Daily summary time set to *${displayTime}* (${formattedTime})! Your daily wrap-up will arrive then.`);
+                await sendWhatsAppTextMessage(senderPhone, `⏰ Daily summary time set to *${displayTime}* (${formattedTime})! You'll receive your wrap-up then.`);
                 return;
             }
+        }
+
+        // 2g. Fast-path: Toggle WhatsApp Daily Summary (e.g., "turn on summary", "turn off summary", "disable summary")
+        const toggleSummaryMatch = trimmedText.match(/^(turn\s+(?:on|off)|enable|disable)\s+(?:daily\s+)?summary$/i);
+        if (toggleSummaryMatch) {
+            const action = toggleSummaryMatch[1].toLowerCase();
+            const enable = action === 'turn on' || action === 'enable';
+            await Promise.all([
+                db.collection('planner_settings').doc(`preferences_${senderPhone}`).set({ dailySummaryEnabled: enable }, { merge: true }),
+                db.collection('user_sessions').doc(senderPhone).set({ dailySummaryEnabled: enable }, { merge: true })
+            ]);
+            await sendWhatsAppTextMessage(senderPhone, enable 
+                ? `✅ WhatsApp Daily Summary turned *ON*. You will receive your daily spend & task wrap-up!`
+                : `⏸️ WhatsApp Daily Summary turned *OFF*. You will no longer receive automated daily summaries.`
+            );
+            return;
+        }
+
+        // 2h. Fast-path: Toggle Auto Push / Task Rollover (e.g., "turn on auto push", "turn off task rollover")
+        const toggleAutoPushMatch = trimmedText.match(/^(turn\s+(?:on|off)|enable|disable)\s+(?:auto\s*push|task\s*rollover|rollover)$/i);
+        if (toggleAutoPushMatch) {
+            const action = toggleAutoPushMatch[1].toLowerCase();
+            const enable = action === 'turn on' || action === 'enable';
+            await Promise.all([
+                db.collection('planner_settings').doc(`preferences_${senderPhone}`).set({ autoPushEnabled: enable }, { merge: true }),
+                db.collection('user_sessions').doc(senderPhone).set({ autoPushEnabled: enable }, { merge: true })
+            ]);
+            await sendWhatsAppTextMessage(senderPhone, enable 
+                ? `✅ Task Rollover turned *ON*. Incomplete tasks will automatically advance to tomorrow's agenda!`
+                : `⏸️ Task Rollover turned *OFF*. Incomplete tasks will stay on their original scheduled date.`
+            );
+            return;
         }
 
         // 3. Generalized Multi-Intent AI Intake Engine
