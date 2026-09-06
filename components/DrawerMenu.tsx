@@ -57,6 +57,7 @@ interface DrawerMenuProps {
     onChangeDailySummaryTime?: (time: string) => void;
     autoPushEnabled?: boolean;
     onToggleAutoPush?: () => void;
+    onOpenWhatsAppSettings?: () => void;
 }
 
 export default function DrawerMenu({
@@ -76,9 +77,10 @@ export default function DrawerMenu({
     dailySummaryTime = '22:00',
     onChangeDailySummaryTime,
     autoPushEnabled = true,
-    onToggleAutoPush
+    onToggleAutoPush,
+    onOpenWhatsAppSettings
 }: DrawerMenuProps) {
-    const [currentView, setCurrentView] = useState<'main' | 'security' | 'whatsapp-summary' | 'task-rollover'>('main');
+    const [currentView, setCurrentView] = useState<'main' | 'security'>('main');
     const [isOnline, setIsOnline] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
     const [dragX, setDragX] = useState(0);
@@ -124,7 +126,7 @@ export default function DrawerMenu({
         if (!isOpen) return;
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
-                if (currentView !== 'main') setCurrentView('main');
+                if (currentView === 'security') setCurrentView('main');
                 else onClose();
             }
         };
@@ -146,7 +148,7 @@ export default function DrawerMenu({
         if (!isDragging) return;
         setIsDragging(false);
         if (dragX < -60) {
-            if (currentView !== 'main') {
+            if (currentView === 'security') {
                 setCurrentView('main');
             } else {
                 onClose();
@@ -422,404 +424,6 @@ export default function DrawerMenu({
                     </div>
                 )}
 
-                {/* ════════════════════ SUBVIEW: WHATSAPP SUMMARY WINDOW ════════════════════ */}
-                {currentView === 'whatsapp-summary' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                        {/* Top Back Header */}
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            marginBottom: '20px',
-                            paddingBottom: '12px',
-                            borderBottom: '1px solid var(--border)'
-                        }}>
-                            <button
-                                type="button"
-                                onClick={() => setCurrentView('main')}
-                                style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: 'var(--blue)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    fontSize: '15px',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    padding: '6px 0',
-                                }}
-                            >
-                                <span style={{ fontSize: '18px', lineHeight: 1 }}>←</span> Back
-                            </button>
-                            <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text)' }}>
-                                WhatsApp Summary
-                            </span>
-                            <div style={{ width: '48px' }} />
-                        </div>
-
-                        {/* Status Card */}
-                        <div style={{
-                            padding: '16px',
-                            borderRadius: '16px',
-                            background: dailySummaryEnabled ? 'rgba(34,197,94,0.08)' : 'var(--bg)',
-                            border: `1.5px solid ${dailySummaryEnabled ? 'rgba(34,197,94,0.25)' : 'var(--border)'}`,
-                            marginBottom: '20px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '14px'
-                        }}>
-                            <div style={{
-                                width: '44px',
-                                height: '44px',
-                                borderRadius: '12px',
-                                background: dailySummaryEnabled ? '#22C55E' : 'var(--surface)',
-                                color: dailySummaryEnabled ? '#FFFFFF' : 'var(--text-light)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                boxShadow: dailySummaryEnabled ? '0 6px 16px rgba(34,197,94,0.3)' : 'none',
-                                flexShrink: 0
-                            }}>
-                                <IconWhatsApp />
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
-                                    {dailySummaryEnabled ? 'Daily Summary is Active' : 'Daily Summary is Off'}
-                                </div>
-                                <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px', lineHeight: 1.3 }}>
-                                    {dailySummaryEnabled
-                                        ? `Delivers daily spend & task wrap-up at ${format12Hour(dailySummaryTime)}.`
-                                        : 'Enable to receive an automated daily digest on WhatsApp.'}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Master Switch Section */}
-                        <div className="drawer-section">Feature Toggle</div>
-                        <div className="drawer-list" style={{ marginBottom: '20px' }}>
-                            <button
-                                type="button"
-                                className="drawer-item"
-                                onClick={onToggleDailySummary}
-                                style={{ justifyContent: 'space-between' }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <IconWhatsApp />
-                                    <span>WhatsApp Daily Summary</span>
-                                </div>
-                                <span
-                                    className="drawer-value"
-                                    style={{
-                                        padding: '4px 12px',
-                                        borderRadius: '20px',
-                                        background: dailySummaryEnabled ? '#22C55E' : 'var(--bg)',
-                                        color: dailySummaryEnabled ? '#FFFFFF' : 'var(--text-light)',
-                                        fontWeight: 800,
-                                        fontSize: '12px'
-                                    }}
-                                >
-                                    {dailySummaryEnabled ? 'ON' : 'OFF'}
-                                </span>
-                            </button>
-                        </div>
-
-                        {/* Delivery Time Freedom Section */}
-                        {dailySummaryEnabled && (
-                            <>
-                                <div className="drawer-section">Delivery Time (Custom / AM &amp; PM)</div>
-                                <div style={{
-                                    padding: '16px',
-                                    background: 'var(--bg)',
-                                    borderRadius: '16px',
-                                    border: '1px solid var(--border)',
-                                    marginBottom: '20px',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: '14px'
-                                }}>
-                                    {/* Time display & AM/PM switcher */}
-                                    <div style={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        padding: '12px 14px',
-                                        background: 'var(--surface)',
-                                        borderRadius: '12px',
-                                        border: '1px solid var(--border)'
-                                    }}>
-                                        <div>
-                                            <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
-                                                Scheduled Time
-                                            </div>
-                                            <div style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text)', marginTop: '2px' }}>
-                                                {format12Hour(dailySummaryTime)}
-                                            </div>
-                                        </div>
-
-                                        {/* AM / PM switcher button */}
-                                        <div style={{
-                                            display: 'flex',
-                                            background: 'var(--bg)',
-                                            borderRadius: '10px',
-                                            padding: '3px',
-                                            border: '1px solid var(--border)'
-                                        }}>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const parts = parseToParts(dailySummaryTime);
-                                                    if (parts.ampm === 'PM') {
-                                                        const newTime = build24From12(parts.h12, parts.minute, 'AM');
-                                                        onChangeDailySummaryTime?.(newTime);
-                                                    }
-                                                }}
-                                                style={{
-                                                    border: 'none',
-                                                    borderRadius: '7px',
-                                                    padding: '5px 12px',
-                                                    fontWeight: 800,
-                                                    fontSize: '12px',
-                                                    cursor: 'pointer',
-                                                    background: parseToParts(dailySummaryTime).ampm === 'AM' ? 'var(--blue)' : 'transparent',
-                                                    color: parseToParts(dailySummaryTime).ampm === 'AM' ? '#FFFFFF' : 'var(--text-light)',
-                                                    transition: 'all 0.15s ease'
-                                                }}
-                                            >
-                                                AM
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const parts = parseToParts(dailySummaryTime);
-                                                    if (parts.ampm === 'AM') {
-                                                        const newTime = build24From12(parts.h12, parts.minute, 'PM');
-                                                        onChangeDailySummaryTime?.(newTime);
-                                                    }
-                                                }}
-                                                style={{
-                                                    border: 'none',
-                                                    borderRadius: '7px',
-                                                    padding: '5px 12px',
-                                                    fontWeight: 800,
-                                                    fontSize: '12px',
-                                                    cursor: 'pointer',
-                                                    background: parseToParts(dailySummaryTime).ampm === 'PM' ? 'var(--blue)' : 'transparent',
-                                                    color: parseToParts(dailySummaryTime).ampm === 'PM' ? '#FFFFFF' : 'var(--text-light)',
-                                                    transition: 'all 0.15s ease'
-                                                }}
-                                            >
-                                                PM
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Exact Custom Picker input */}
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)' }}>
-                                            Custom Time:
-                                        </span>
-                                        <input
-                                            type="time"
-                                            value={dailySummaryTime}
-                                            onChange={(e) => onChangeDailySummaryTime?.(e.target.value)}
-                                            style={{
-                                                background: 'var(--surface)',
-                                                color: 'var(--text)',
-                                                border: '1.5px solid var(--blue)',
-                                                borderRadius: '10px',
-                                                padding: '6px 12px',
-                                                fontSize: '15px',
-                                                fontWeight: 800,
-                                                outline: 'none',
-                                                cursor: 'pointer'
-                                            }}
-                                        />
-                                    </div>
-
-                                    {/* Quick presets across Day & Night */}
-                                    <div>
-                                        <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-light)', textTransform: 'uppercase', marginBottom: '8px' }}>
-                                            Popular Times
-                                        </div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-                                            {[
-                                                { label: '8:00 AM', time: '08:00' },
-                                                { label: '2:00 PM', time: '14:00' },
-                                                { label: '8:00 PM', time: '20:00' },
-                                                { label: '9:00 PM', time: '21:00' },
-                                                { label: '10:00 PM', time: '22:00' },
-                                                { label: '11:00 PM', time: '23:00' },
-                                            ].map((preset) => {
-                                                const isActive = dailySummaryTime === preset.time;
-                                                return (
-                                                    <button
-                                                        key={preset.time}
-                                                        type="button"
-                                                        onClick={() => onChangeDailySummaryTime?.(preset.time)}
-                                                        style={{
-                                                            padding: '8px 4px',
-                                                            borderRadius: '10px',
-                                                            border: `1.5px solid ${isActive ? 'var(--blue)' : 'var(--border)'}`,
-                                                            background: isActive ? 'var(--blue)' : 'var(--surface)',
-                                                            color: isActive ? '#FFFFFF' : 'var(--text)',
-                                                            fontSize: '12px',
-                                                            fontWeight: 700,
-                                                            cursor: 'pointer',
-                                                            transition: 'all 0.15s ease'
-                                                        }}
-                                                    >
-                                                        {preset.label}
-                                                    </button>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-
-                                    <div style={{ fontSize: '11px', color: 'var(--text-light)', lineHeight: 1.4, marginTop: '2px' }}>
-                                        💡 Delivered based on Indian Standard Time (IST). You can also set any time via WhatsApp (e.g. <em>"summary time 9:30am"</em>).
-                                    </div>
-                                </div>
-                            </>
-                        )}
-                    </div>
-                )}
-
-                {/* ════════════════════ SUBVIEW: TASK ROLLOVER WINDOW ════════════════════ */}
-                {currentView === 'task-rollover' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                        {/* Top Back Header */}
-                        <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            marginBottom: '20px',
-                            paddingBottom: '12px',
-                            borderBottom: '1px solid var(--border)'
-                        }}>
-                            <button
-                                type="button"
-                                onClick={() => setCurrentView('main')}
-                                style={{
-                                    background: 'none',
-                                    border: 'none',
-                                    color: 'var(--blue)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '6px',
-                                    fontSize: '15px',
-                                    fontWeight: 700,
-                                    cursor: 'pointer',
-                                    padding: '6px 0',
-                                }}
-                            >
-                                <span style={{ fontSize: '18px', lineHeight: 1 }}>←</span> Back
-                            </button>
-                            <span style={{ fontSize: '16px', fontWeight: 800, color: 'var(--text)' }}>
-                                Task Rollover
-                            </span>
-                            <div style={{ width: '48px' }} />
-                        </div>
-
-                        {/* Status Card */}
-                        <div style={{
-                            padding: '16px',
-                            borderRadius: '16px',
-                            background: autoPushEnabled ? 'rgba(10,132,255,0.08)' : 'var(--bg)',
-                            border: `1.5px solid ${autoPushEnabled ? 'rgba(10,132,255,0.25)' : 'var(--border)'}`,
-                            marginBottom: '20px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '14px'
-                        }}>
-                            <div style={{
-                                width: '44px',
-                                height: '44px',
-                                borderRadius: '12px',
-                                background: autoPushEnabled ? 'var(--blue)' : 'var(--surface)',
-                                color: autoPushEnabled ? '#FFFFFF' : 'var(--text-light)',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                boxShadow: autoPushEnabled ? '0 6px 16px rgba(10,132,255,0.3)' : 'none',
-                                flexShrink: 0
-                            }}>
-                                <IconRepeat />
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>
-                                    {autoPushEnabled ? 'Auto-Push is Active' : 'Auto-Push is Off'}
-                                </div>
-                                <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px', lineHeight: 1.3 }}>
-                                    {autoPushEnabled
-                                        ? 'Unfinished tasks automatically push forward to tomorrow.'
-                                        : 'Unfinished tasks stay on their original scheduled date.'}
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Master Switch Section */}
-                        <div className="drawer-section">Feature Toggle</div>
-                        <div className="drawer-list" style={{ marginBottom: '20px' }}>
-                            <button
-                                type="button"
-                                className="drawer-item"
-                                onClick={onToggleAutoPush}
-                                style={{ justifyContent: 'space-between' }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <IconRepeat />
-                                    <span>Auto-Push Incomplete Tasks</span>
-                                </div>
-                                <span
-                                    className="drawer-value"
-                                    style={{
-                                        padding: '4px 12px',
-                                        borderRadius: '20px',
-                                        background: autoPushEnabled ? '#22C55E' : 'var(--bg)',
-                                        color: autoPushEnabled ? '#FFFFFF' : 'var(--text-light)',
-                                        fontWeight: 800,
-                                        fontSize: '12px'
-                                    }}
-                                >
-                                    {autoPushEnabled ? 'ON' : 'OFF'}
-                                </span>
-                            </button>
-                        </div>
-
-                        {/* How It Works Section */}
-                        <div className="drawer-section">How It Works</div>
-                        <div style={{
-                            padding: '16px',
-                            background: 'var(--bg)',
-                            borderRadius: '16px',
-                            border: '1px solid var(--border)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '12px'
-                        }}>
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                                <span style={{ fontSize: '16px' }}>🌙</span>
-                                <div style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.4 }}>
-                                    <strong>End of Day Scan:</strong> Align reviews your agenda for any tasks scheduled for today that remain unchecked.
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                                <span style={{ fontSize: '16px' }}>⏩</span>
-                                <div style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.4 }}>
-                                    <strong>Automatic Rollover:</strong> Due dates for unfinished tasks are updated to tomorrow so your morning starts with what matters.
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', gap: '10px' }}>
-                                <span style={{ fontSize: '16px' }}>🔒</span>
-                                <div style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.4 }}>
-                                    <strong>Preserves Details:</strong> Your original reminders, notes, and priority tags remain intact.
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
                 {/* ════════════════════ MAIN MENU VIEW ════════════════════ */}
                 {currentView === 'main' && (
                     <>
@@ -903,67 +507,37 @@ export default function DrawerMenu({
                             </button>
                         </div>
 
-                        {/* ── WhatsApp Summary Entry Item ── */}
-                        <div className="drawer-section">WhatsApp Summary</div>
+                        {/* ── WhatsApp Settings Entry Item ── */}
+                        <div className="drawer-section">WhatsApp &amp; Automations</div>
                         <div className="drawer-list">
                             <button
                                 type="button"
                                 className="drawer-item"
-                                onClick={() => setCurrentView('whatsapp-summary')}
+                                onClick={() => {
+                                    onClose();
+                                    onOpenWhatsAppSettings?.();
+                                }}
                             >
                                 <IconWhatsApp />
                                 <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
                                     <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-                                        Daily WhatsApp Summary
+                                        WhatsApp Settings
                                     </div>
                                     <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '2px' }}>
-                                        {dailySummaryEnabled ? `Active • Sent at ${format12Hour(dailySummaryTime)}` : 'Turned Off'}
+                                        {dailySummaryEnabled ? `Summary at ${format12Hour(dailySummaryTime)} • Active` : 'Summaries, Rollover & Bot'}
                                     </div>
                                 </div>
                                 <span
                                     className="drawer-value"
                                     style={{
-                                        color: dailySummaryEnabled ? '#22C55E' : 'var(--text-light)',
+                                        color: dailySummaryEnabled || autoPushEnabled ? '#22C55E' : 'var(--text-light)',
                                         fontWeight: 700,
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: '4px'
                                     }}
                                 >
-                                    {dailySummaryEnabled ? 'On' : 'Off'}
-                                    <span style={{ fontSize: '14px' }}>›</span>
-                                </span>
-                            </button>
-                        </div>
-
-                        {/* ── Task Rollover Entry Item ── */}
-                        <div className="drawer-section">Task Rollover</div>
-                        <div className="drawer-list">
-                            <button
-                                type="button"
-                                className="drawer-item"
-                                onClick={() => setCurrentView('task-rollover')}
-                            >
-                                <IconRepeat />
-                                <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                                    <div style={{ fontWeight: 600, fontSize: '14px', color: 'var(--text)' }}>
-                                        Auto Push Incomplete Tasks
-                                    </div>
-                                    <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '2px' }}>
-                                        {autoPushEnabled ? 'Active • Undone tasks roll over to tomorrow' : 'Turned Off'}
-                                    </div>
-                                </div>
-                                <span
-                                    className="drawer-value"
-                                    style={{
-                                        color: autoPushEnabled ? '#22C55E' : 'var(--text-light)',
-                                        fontWeight: 700,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '4px'
-                                    }}
-                                >
-                                    {autoPushEnabled ? 'On' : 'Off'}
+                                    {dailySummaryEnabled || autoPushEnabled ? 'Active' : 'Configure'}
                                     <span style={{ fontSize: '14px' }}>›</span>
                                 </span>
                             </button>

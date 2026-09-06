@@ -7,6 +7,7 @@ import { db } from '../lib/firebase';
 import SplitEditor, { calculateSplitAmounts } from '../components/SplitEditor';
 import SwipeAction from '../components/SwipeAction';
 import DrawerMenu from '../components/DrawerMenu';
+import WhatsAppSettingsModal from '../components/WhatsAppSettingsModal';
 import {
     IconCheck, IconStar, IconCalendar, IconTarget, IconWallet,
     IconPlus, IconClock, IconList, IconMic, IconSparkles, IconEdit,
@@ -133,6 +134,8 @@ export default function PlannerApp() {
     const [dailySummaryEnabled, setDailySummaryEnabled] = useState(true);
     const [dailySummaryTime, setDailySummaryTime] = useState('22:00');
     const [autoPushEnabled, setAutoPushEnabled] = useState(true);
+    const [whatsappReminderTiming, setWhatsappReminderTiming] = useState<'exact' | '1h_before' | 'both'>('exact');
+    const [isWhatsAppSettingsOpen, setIsWhatsAppSettingsOpen] = useState(false);
     const [notifiedItems, setNotifiedItems] = useState(new Set());
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [themeMode, setThemeMode] = useState('system');
@@ -288,6 +291,10 @@ export default function PlannerApp() {
         if (cachedAutoPush !== null) {
             setAutoPushEnabled(cachedAutoPush === 'true');
         }
+        const cachedReminderTiming = safeGetItem(`align_reminder_timing_${userPhone}`);
+        if (cachedReminderTiming === 'exact' || cachedReminderTiming === '1h_before' || cachedReminderTiming === 'both') {
+            setWhatsappReminderTiming(cachedReminderTiming);
+        }
 
         const unsubscribeBudgets = db.collection('planner_settings').doc(`budgets_${userPhone}`).onSnapshot({ includeMetadataChanges: true }, (doc) => {
             if (doc.exists) {
@@ -316,6 +323,10 @@ export default function PlannerApp() {
                 if (typeof data?.autoPushEnabled === 'boolean') {
                     setAutoPushEnabled(data.autoPushEnabled);
                     safeSetItem(`align_auto_push_${userPhone}`, String(data.autoPushEnabled));
+                }
+                if (data?.whatsappReminderTiming === 'exact' || data?.whatsappReminderTiming === '1h_before' || data?.whatsappReminderTiming === 'both') {
+                    setWhatsappReminderTiming(data.whatsappReminderTiming);
+                    safeSetItem(`align_reminder_timing_${userPhone}`, data.whatsappReminderTiming);
                 }
             }
         }, (err) => {
@@ -352,17 +363,29 @@ export default function PlannerApp() {
                         if (!isNaN(h) && !isNaN(m)) {
                             const [year, month, day] = item.dueDate.split('-').map((x: string) => parseInt(x, 10));
                             const targetDate = new Date(year, month - 1, day, h, m, 0);
-                            if (targetDate.getTime() > now.getTime()) {
-                                const numId = Math.abs(String(item.id).split('').reduce((acc: number, char: string) => (acc << 5) - acc + char.charCodeAt(0), 0)) % 2147483647;
-                                toSchedule.push({
-                                    title: "Planner Reminder",
-                                    body: item.title,
-                                    id: numId,
-                                    schedule: { at: targetDate, allowWhileIdle: true },
-                                    sound: 'default',
-                                    smallIcon: 'ic_launcher_foreground'
-                                });
+                            const numId = Math.abs(String(item.id).split('').reduce((acc: number, char: string) => (acc << 5) - acc + char.charCodeAt(0), 0)) % 2147483647;
+
+                            const scheduleTimes: { date: Date; label: string; idOffset: number }[] = [];
+                            if (whatsappReminderTiming === 'exact' || whatsappReminderTiming === 'both') {
+                                scheduleTimes.push({ date: targetDate, label: item.title, idOffset: 0 });
                             }
+                            if (whatsappReminderTiming === '1h_before' || whatsappReminderTiming === 'both') {
+                                const oneHourBefore = new Date(targetDate.getTime() - 60 * 60 * 1000);
+                                scheduleTimes.push({ date: oneHourBefore, label: `In 1 hour: ${item.title}`, idOffset: 1 });
+                            }
+
+                            scheduleTimes.forEach(({ date, label, idOffset }) => {
+                                if (date.getTime() > now.getTime()) {
+                                    toSchedule.push({
+                                        title: "Planner Reminder",
+                                        body: label,
+                                        id: (numId + idOffset) % 2147483647,
+                                        schedule: { at: date, allowWhileIdle: true },
+                                        sound: 'default',
+                                        smallIcon: 'ic_launcher_foreground'
+                                    });
+                                }
+                            });
                         }
                     }
                 });
@@ -384,16 +407,24 @@ export default function PlannerApp() {
 
             items.forEach(item => {
                 const reminderMinutes = timeToMinutes(item.reminderTime || item.dueTime);
-                if (item.type === 'task' && !item.done && item.dueDate === today && reminderMinutes === currentMinutes) {
-                    if (!notifiedItems.has(item.id)) {
+                if (reminderMinutes === null) return;
+                if (item.type === 'task' && !item.done && item.dueDate === today) {
+                    const shouldAlertExact = (whatsappReminderTiming === 'exact' || whatsappReminderTiming === 'both') && (reminderMinutes === currentMinutes);
+                    const shouldAlert1h = (whatsappReminderTiming === '1h_before' || whatsappReminderTiming === 'both') && (reminderMinutes - 60 === currentMinutes);
+
+                    if (shouldAlertExact && !notifiedItems.has(`${item.id}_exact`)) {
                         sendNativeNotification("Planner Reminder", item.title);
-                        setNotifiedItems(prev => new Set(prev).add(item.id));
+                        setNotifiedItems(prev => new Set(prev).add(`${item.id}_exact`));
+                    }
+                    if (shouldAlert1h && !notifiedItems.has(`${item.id}_1h`)) {
+                        sendNativeNotification("Upcoming in 1 Hour ⏰", item.title);
+                        setNotifiedItems(prev => new Set(prev).add(`${item.id}_1h`));
                     }
                 }
             });
         }, 10000);
         return () => clearInterval(interval);
-    }, [items, notifiedItems, pushEnabled, userPhone]);
+    }, [items, notifiedItems, pushEnabled, userPhone, whatsappReminderTiming]);
 
     const enablePush = async () => {
         triggerHaptic('light');
@@ -975,6 +1006,21 @@ export default function PlannerApp() {
         }
     };
 
+    const handleChangeReminderTiming = async (timing: 'exact' | '1h_before' | 'both') => {
+        if (!userPhone) return;
+        setWhatsappReminderTiming(timing);
+        safeSetItem(`align_reminder_timing_${userPhone}`, timing);
+
+        try {
+            await Promise.all([
+                db.collection('planner_settings').doc(`preferences_${userPhone}`).set({ whatsappReminderTiming: timing }, { merge: true }),
+                db.collection('user_sessions').doc(userPhone).set({ whatsappReminderTiming: timing }, { merge: true })
+            ]);
+        } catch (err) {
+            console.warn("Failed to persist reminder timing preference:", err);
+        }
+    };
+
 // ==========================================
 // SMART VENDOR AUTO-TAGGING
 // ==========================================
@@ -1362,6 +1408,20 @@ function applySmartTags(vendorName: string, aiGuessedCategory?: string): string 
                 onChangeDailySummaryTime={handleChangeDailySummaryTime}
                 autoPushEnabled={autoPushEnabled}
                 onToggleAutoPush={handleToggleAutoPush}
+                onOpenWhatsAppSettings={() => setIsWhatsAppSettingsOpen(true)}
+            />
+            <WhatsAppSettingsModal
+                isOpen={isWhatsAppSettingsOpen}
+                onClose={() => setIsWhatsAppSettingsOpen(false)}
+                userPhone={userPhone}
+                dailySummaryEnabled={dailySummaryEnabled}
+                onToggleDailySummary={handleToggleDailySummary}
+                dailySummaryTime={dailySummaryTime}
+                onChangeDailySummaryTime={handleChangeDailySummaryTime}
+                autoPushEnabled={autoPushEnabled}
+                onToggleAutoPush={handleToggleAutoPush}
+                reminderTiming={whatsappReminderTiming}
+                onChangeReminderTiming={handleChangeReminderTiming}
             />
             {/* DAILY TAB */}
             {tab === 'daily' && (
