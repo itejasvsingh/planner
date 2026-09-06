@@ -7,7 +7,6 @@ import { db } from '../lib/firebase';
 import SplitEditor, { calculateSplitAmounts } from '../components/SplitEditor';
 import SwipeAction from '../components/SwipeAction';
 import DrawerMenu from '../components/DrawerMenu';
-import WhatsAppSettingsModal from '../components/WhatsAppSettingsModal';
 import {
     IconCheck, IconStar, IconCalendar, IconTarget, IconWallet,
     IconPlus, IconClock, IconList, IconMic, IconSparkles, IconEdit,
@@ -135,7 +134,6 @@ export default function PlannerApp() {
     const [dailySummaryTime, setDailySummaryTime] = useState('22:00');
     const [autoPushEnabled, setAutoPushEnabled] = useState(true);
     const [whatsappReminderTiming, setWhatsappReminderTiming] = useState<'exact' | '1h_before' | 'both'>('exact');
-    const [isWhatsAppSettingsOpen, setIsWhatsAppSettingsOpen] = useState(false);
     const [notifiedItems, setNotifiedItems] = useState(new Set());
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [themeMode, setThemeMode] = useState('system');
@@ -1408,20 +1406,6 @@ function applySmartTags(vendorName: string, aiGuessedCategory?: string): string 
                 onChangeDailySummaryTime={handleChangeDailySummaryTime}
                 autoPushEnabled={autoPushEnabled}
                 onToggleAutoPush={handleToggleAutoPush}
-                onOpenWhatsAppSettings={() => setIsWhatsAppSettingsOpen(true)}
-            />
-            <WhatsAppSettingsModal
-                isOpen={isWhatsAppSettingsOpen}
-                onClose={() => setIsWhatsAppSettingsOpen(false)}
-                userPhone={userPhone}
-                dailySummaryEnabled={dailySummaryEnabled}
-                onToggleDailySummary={handleToggleDailySummary}
-                dailySummaryTime={dailySummaryTime}
-                onChangeDailySummaryTime={handleChangeDailySummaryTime}
-                autoPushEnabled={autoPushEnabled}
-                onToggleAutoPush={handleToggleAutoPush}
-                reminderTiming={whatsappReminderTiming}
-                onChangeReminderTiming={handleChangeReminderTiming}
             />
             {/* DAILY TAB */}
             {tab === 'daily' && (

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import {
     IconBell, IconMoon, IconSun, IconLogOut,
     IconRefresh, IconUser, IconShield, IconKey, IconExport, IconFingerprint, IconRepeat, IconWhatsApp
@@ -57,7 +58,6 @@ interface DrawerMenuProps {
     onChangeDailySummaryTime?: (time: string) => void;
     autoPushEnabled?: boolean;
     onToggleAutoPush?: () => void;
-    onOpenWhatsAppSettings?: () => void;
 }
 
 export default function DrawerMenu({
@@ -77,9 +77,9 @@ export default function DrawerMenu({
     dailySummaryTime = '22:00',
     onChangeDailySummaryTime,
     autoPushEnabled = true,
-    onToggleAutoPush,
-    onOpenWhatsAppSettings
+    onToggleAutoPush
 }: DrawerMenuProps) {
+    const router = useRouter();
     const [currentView, setCurrentView] = useState<'main' | 'security'>('main');
     const [isOnline, setIsOnline] = useState(true);
     const [isSyncing, setIsSyncing] = useState(false);
@@ -515,7 +515,7 @@ export default function DrawerMenu({
                                 className="drawer-item"
                                 onClick={() => {
                                     onClose();
-                                    onOpenWhatsAppSettings?.();
+                                    router.push('/settings/whatsapp');
                                 }}
                             >
                                 <IconWhatsApp />
