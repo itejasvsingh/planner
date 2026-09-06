@@ -457,14 +457,48 @@ export default function DrawerMenu({
                             </div>
                         )}
 
-                        {/* ── Preferences ── */}
-                        <div className="drawer-section">Preferences</div>
+                        {/* ── General Settings ── */}
+                        <div className="drawer-section">General Settings</div>
                         <div className="drawer-list">
                             <button type="button" className="drawer-item" onClick={onEnablePush}>
                                 <IconBell />
                                 <span>Notifications</span>
                                 <span className="drawer-value">{pushEnabled ? 'On' : 'Off'}</span>
                             </button>
+
+                            {/* Auto-Push Rollover Incomplete Tasks */}
+                            <button
+                                type="button"
+                                className="drawer-item"
+                                onClick={onToggleAutoPush}
+                                style={{ justifyContent: 'space-between' }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <IconRepeat />
+                                    <div style={{ textAlign: 'left' }}>
+                                        <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)' }}>
+                                            Auto-Push Rollover
+                                        </div>
+                                        <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '2px' }}>
+                                            Move unfinished tasks to tomorrow
+                                        </div>
+                                    </div>
+                                </div>
+                                <span
+                                    className="drawer-value"
+                                    style={{
+                                        padding: '4px 12px',
+                                        borderRadius: '20px',
+                                        background: autoPushEnabled ? '#22C55E' : 'var(--bg)',
+                                        color: autoPushEnabled ? '#FFFFFF' : 'var(--text-light)',
+                                        fontWeight: 800,
+                                        fontSize: '12px'
+                                    }}
+                                >
+                                    {autoPushEnabled ? 'ON' : 'OFF'}
+                                </span>
+                            </button>
+
                             <div className="drawer-item" style={{ cursor: 'default' }}>
                                 {darkMode ? <IconMoon /> : <IconSun />}
                                 <span>Appearance</span>
@@ -508,7 +542,7 @@ export default function DrawerMenu({
                         </div>
 
                         {/* ── WhatsApp Settings Entry Item ── */}
-                        <div className="drawer-section">WhatsApp &amp; Automations</div>
+                        <div className="drawer-section">WhatsApp &amp; Bot</div>
                         <div className="drawer-list">
                             <button
                                 type="button"
@@ -524,20 +558,20 @@ export default function DrawerMenu({
                                         WhatsApp Settings
                                     </div>
                                     <div style={{ fontSize: '11px', color: 'var(--text-light)', marginTop: '2px' }}>
-                                        {dailySummaryEnabled ? `Summary at ${format12Hour(dailySummaryTime)} • Active` : 'Summaries, Rollover & Bot'}
+                                        {dailySummaryEnabled ? `Summary at ${format12Hour(dailySummaryTime)} • Active` : 'Daily summary, reminders & bot'}
                                     </div>
                                 </div>
                                 <span
                                     className="drawer-value"
                                     style={{
-                                        color: dailySummaryEnabled || autoPushEnabled ? '#22C55E' : 'var(--text-light)',
+                                        color: dailySummaryEnabled ? '#22C55E' : 'var(--text-light)',
                                         fontWeight: 700,
                                         display: 'flex',
                                         alignItems: 'center',
                                         gap: '4px'
                                     }}
                                 >
-                                    {dailySummaryEnabled || autoPushEnabled ? 'Active' : 'Configure'}
+                                    {dailySummaryEnabled ? 'Active' : 'Configure'}
                                     <span style={{ fontSize: '14px' }}>›</span>
                                 </span>
                             </button>

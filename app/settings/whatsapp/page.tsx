@@ -6,7 +6,6 @@ import { App } from '@capacitor/app';
 import {
     IconArrowLeft,
     IconWhatsApp,
-    IconRepeat,
     IconClock,
     IconBell,
     IconCheck
@@ -58,7 +57,6 @@ export default function WhatsAppSettingsPage() {
     const [userPhone, setUserPhone] = useState<string | null>(null);
     const [dailySummaryEnabled, setDailySummaryEnabled] = useState(true);
     const [dailySummaryTime, setDailySummaryTime] = useState('22:00');
-    const [autoPushEnabled, setAutoPushEnabled] = useState(true);
     const [reminderTiming, setReminderTiming] = useState<'exact' | '1h_before' | 'both'>('exact');
 
     const [isSendingTest, setIsSendingTest] = useState(false);
@@ -120,9 +118,6 @@ export default function WhatsAppSettingsPage() {
         const cachedTime = safeGetItem(`align_daily_summary_time_${validPhone}`);
         if (cachedTime) setDailySummaryTime(cachedTime);
 
-        const cachedAutoPush = safeGetItem(`align_auto_push_${validPhone}`);
-        if (cachedAutoPush !== null) setAutoPushEnabled(cachedAutoPush === 'true');
-
         const cachedTiming = safeGetItem(`align_reminder_timing_${validPhone}`);
         if (cachedTiming === 'exact' || cachedTiming === '1h_before' || cachedTiming === 'both') {
             setReminderTiming(cachedTiming);
@@ -139,10 +134,6 @@ export default function WhatsAppSettingsPage() {
                 if (data?.dailySummaryTime) {
                     setDailySummaryTime(data.dailySummaryTime);
                     safeSetItem(`align_daily_summary_time_${validPhone}`, data.dailySummaryTime);
-                }
-                if (typeof data?.autoPushEnabled === 'boolean') {
-                    setAutoPushEnabled(data.autoPushEnabled);
-                    safeSetItem(`align_auto_push_${validPhone}`, String(data.autoPushEnabled));
                 }
                 if (data?.whatsappReminderTiming === 'exact' || data?.whatsappReminderTiming === '1h_before' || data?.whatsappReminderTiming === 'both') {
                     setReminderTiming(data.whatsappReminderTiming);
@@ -185,22 +176,6 @@ export default function WhatsAppSettingsPage() {
             ]);
         } catch (e) {
             console.warn("Failed to persist daily summary time:", e);
-        }
-    };
-
-    const handleToggleAutoPush = async () => {
-        if (!userPhone) return;
-        const nextVal = !autoPushEnabled;
-        setAutoPushEnabled(nextVal);
-        safeSetItem(`align_auto_push_${userPhone}`, String(nextVal));
-
-        try {
-            await Promise.all([
-                db.collection('planner_settings').doc(`preferences_${userPhone}`).set({ autoPushEnabled: nextVal }, { merge: true }),
-                db.collection('user_sessions').doc(userPhone).set({ autoPushEnabled: nextVal }, { merge: true })
-            ]);
-        } catch (e) {
-            console.warn("Failed to persist auto push preference:", e);
         }
     };
 
@@ -587,110 +562,10 @@ export default function WhatsAppSettingsPage() {
                     </div>
                 </div>
 
-                {/* ════════════════ SECTION 2: AUTO PUSH INCOMPLETE TASKS ════════════════ */}
+                {/* ════════════════ SECTION 2: REMINDER TIMING ════════════════ */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.8px', paddingLeft: '4px' }}>
-                        2. Task Rollover (Independent)
-                    </div>
-
-                    <div
-                        style={{
-                            background: 'var(--surface)',
-                            borderRadius: '20px',
-                            padding: '18px',
-                            border: '1px solid var(--border)',
-                            boxShadow: 'var(--shadow)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '14px'
-                        }}
-                    >
-                        {/* Toggle row */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                <div
-                                    style={{
-                                        width: '40px',
-                                        height: '40px',
-                                        borderRadius: '12px',
-                                        background: autoPushEnabled ? 'rgba(59,130,246,0.15)' : 'var(--bg)',
-                                        color: autoPushEnabled ? '#3B82F6' : 'var(--text-light)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        flexShrink: 0
-                                    }}
-                                >
-                                    <IconRepeat style={{ width: 22, height: 22 }} />
-                                </div>
-                                <div>
-                                    <div style={{ fontWeight: 700, fontSize: '15px', color: 'var(--text)' }}>
-                                        Auto-Push Incomplete Tasks
-                                    </div>
-                                    <div style={{ fontSize: '12px', color: 'var(--text-light)', marginTop: '2px' }}>
-                                        {autoPushEnabled ? 'Unfinished tasks automatically roll over to tomorrow' : 'Tasks stay on their scheduled date'}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <button
-                                type="button"
-                                onClick={handleToggleAutoPush}
-                                style={{
-                                    border: 'none',
-                                    padding: '6px 14px',
-                                    borderRadius: '20px',
-                                    background: autoPushEnabled ? '#22C55E' : 'var(--border)',
-                                    color: autoPushEnabled ? '#FFFFFF' : 'var(--text-light)',
-                                    fontWeight: 800,
-                                    fontSize: '12px',
-                                    cursor: 'pointer',
-                                    transition: 'background 0.2s ease',
-                                    flexShrink: 0
-                                }}
-                            >
-                                {autoPushEnabled ? 'ON' : 'OFF'}
-                            </button>
-                        </div>
-
-                        {/* Explainer card */}
-                        <div
-                            style={{
-                                padding: '14px',
-                                background: 'var(--bg)',
-                                borderRadius: '14px',
-                                border: '1px solid var(--border)',
-                                display: 'flex',
-                                flexDirection: 'column',
-                                gap: '10px'
-                            }}
-                        >
-                            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                                <span style={{ fontSize: '14px', lineHeight: 1.2 }}>🌙</span>
-                                <div style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.4 }}>
-                                    <strong>End of Day Scan:</strong> Align reviews your agenda for any unchecked tasks scheduled for today.
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                                <span style={{ fontSize: '14px', lineHeight: 1.2 }}>⏩</span>
-                                <div style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.4 }}>
-                                    <strong>Automatic Rollover:</strong> Due dates for unfinished tasks update to tomorrow so your morning starts with clarity.
-                                </div>
-                            </div>
-                            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
-                                <span style={{ fontSize: '14px', lineHeight: 1.2 }}>🔒</span>
-                                <div style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.4 }}>
-                                    <strong>Preserves Details:</strong> Your original reminders, notes, and priority tags remain intact.
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* ════════════════ SECTION 3: REMINDER TIMING ════════════════ */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                    <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.8px', paddingLeft: '4px' }}>
-                        3. Reminder Timing Alert
+                        2. Reminder Timing Alert
                     </div>
 
                     <div
@@ -761,10 +636,10 @@ export default function WhatsAppSettingsPage() {
                     </div>
                 </div>
 
-                {/* ════════════════ SECTION 4: WHATSAPP BOT & COMMANDS ════════════════ */}
+                {/* ════════════════ SECTION 3: WHATSAPP BOT & COMMANDS ════════════════ */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     <div style={{ fontSize: '12px', fontWeight: 800, color: 'var(--text-light)', textTransform: 'uppercase', letterSpacing: '0.8px', paddingLeft: '4px' }}>
-                        4. WhatsApp Bot &amp; Quick Commands
+                        3. WhatsApp Bot &amp; Quick Commands
                     </div>
 
                     <div
@@ -847,3 +722,4 @@ export default function WhatsAppSettingsPage() {
         </div>
     );
 }
+
