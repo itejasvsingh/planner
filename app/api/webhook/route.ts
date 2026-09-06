@@ -224,7 +224,7 @@ async function sendWhatsAppInteractiveButtons(to: string, bodyText: string, butt
 // ==========================================
 // GEMINI MULTI-MODEL DISPATCHER WITH WARM CACHE
 // ==========================================
-let cachedWorkingConfig: { model: string; apiVersion?: string } | null = null;
+let cachedWorkingConfig: { model: string; apiVersion?: string } | null = { model: "gemini-flash-latest" };
 
 async function generateWithGemini(
     genAI: GoogleGenerativeAI, 
@@ -232,14 +232,10 @@ async function generateWithGemini(
     config?: { temperature?: number; maxOutputTokens?: number }
 ) {
     const candidateConfigs: { model: string; apiVersion?: string }[] = [
-        { model: "gemini-2.5-flash" },
+        { model: "gemini-flash-latest" },
         { model: "gemini-2.0-flash" },
         { model: "gemini-1.5-flash" },
-        { model: "gemini-2.5-flash-lite" },
         { model: "gemini-2.0-flash-lite" },
-        { model: "gemini-flash-latest" },
-        { model: "gemini-3.5-flash" },
-        { model: "gemini-3.6-flash" },
     ];
 
     // Fast-path: Reuse the model that already succeeded in this instance to avoid fallback latency!
