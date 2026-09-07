@@ -31,11 +31,15 @@ function prioLabel(priority?: string) {
 
 import SwipeAction from '@/components/SwipeAction';
 
+import DrawerMenuModal from '@/components/DrawerMenuModal';
+import { Menu } from 'lucide-react-native';
+
 export default function DailyScreen() {
   const theme = useTheme();
   const { phone, logout } = usePhone();
   const { items, toggleDone, deleteItem, addTask } = usePlannerItems(phone);
   const [dailyDate, setDailyDate] = useState(() => new Date());
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [adding, setAdding] = useState(false);
   const [draftTitle, setDraftTitle] = useState('');
   const [hasTime, setHasTime] = useState(false);
@@ -102,12 +106,10 @@ export default function DailyScreen() {
           <Text style={[styles.navArrowText, { color: theme.blue }]}>›</Text>
         </Pressable>
       </View>
-      <View style={{ position: 'absolute', top: 8, right: 16 }}>
-        <Link href="/settings/security" asChild>
-          <Pressable style={({ pressed }) => [{ padding: 8, opacity: pressed ? 0.7 : 1 }]}>
-            <Text style={{ fontSize: 24 }}>⚙️</Text>
-          </Pressable>
-        </Link>
+      <View style={{ position: 'absolute', top: 12, right: 16 }}>
+        <Pressable onPress={() => setIsDrawerOpen(true)} style={({ pressed }) => [{ padding: 4, opacity: pressed ? 0.7 : 1 }]}>
+          <Menu color={theme.text} size={28} />
+        </Pressable>
       </View>
 
       <View style={styles.weekRow}>
@@ -184,7 +186,8 @@ export default function DailyScreen() {
           </View>
         )}
       </ScrollView>
-
+      
+      <DrawerMenuModal visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
     </SafeAreaView>
   );
 }
