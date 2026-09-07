@@ -1,16 +1,20 @@
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Target, TrendingDown, ArrowUpRight } from 'lucide-react-native';
+import { TrendingDown, Users } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems } from '@/lib/use-planner-items';
+import SplitEditorModal from '@/components/SplitEditorModal';
+import { PlannerItem } from '@/lib/planner-item';
 
 export default function FinanceScreen() {
   const theme = useTheme();
   const { phone } = usePhone();
   const { items, deleteItem } = usePlannerItems(phone);
+
+  const [splitExpense, setSplitExpense] = useState<PlannerItem | null>(null);
 
   const expenses = useMemo(() => items.filter(i => i.type === 'expense'), [items]);
   const totalSpent = expenses.reduce((acc, exp) => acc + (parseFloat(exp.amount as string) || 0), 0);
@@ -31,7 +35,7 @@ export default function FinanceScreen() {
           <Text style={[styles.empty, { color: theme.textSecondary }]}>No expenses yet. Tap + to add one.</Text>
         ) : (
           expenses.map(exp => (
-            <View key={exp.id} style={[styles.itemCard, { backgroundColor: theme.backgroundElement }]}>
+            <Pressable key={exp.id} style={[styles.itemCard, { backgroundColor: theme.backgroundElement }]} onPress={() => setSplitExpense(exp)}>
               <View style={[styles.iconBox, { backgroundColor: 'rgba(255,59,48,0.1)' }]}>
                 <TrendingDown color="#FF3B30" size={20} />
               </View>
@@ -39,14 +43,28 @@ export default function FinanceScreen() {
                 <Text style={[styles.itemTitle, { color: theme.text }]}>{exp.title}</Text>
                 <Text style={[styles.itemSub, { color: theme.textSecondary }]}>{exp.category || '#General'} • {exp.date}</Text>
               </View>
-              <Text style={[styles.amount, { color: theme.text }]}>₹{exp.amount}</Text>
-              <Pressable onPress={() => deleteItem(exp.id)} style={styles.deleteBtn}>
-                <Text style={{ color: '#FF3B30', fontSize: 12, fontWeight: '600' }}>Del</Text>
-              </Pressable>
-            </View>
+              
+              <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                <Text style={[styles.amount, { color: theme.text }]}>₹{exp.amount}</Text>
+                {exp.splits && exp.splits.length > 0 && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Users color={theme.blue} size={12} />
+                    <Text style={{ color: theme.blue, fontSize: 12, fontWeight: '600' }}>
+                      {exp.splits.length} split
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </Pressable>
           ))
         )}
       </ScrollView>
+
+      <SplitEditorModal 
+        visible={!!splitExpense} 
+        onClose={() => setSplitExpense(null)} 
+        expense={splitExpense} 
+      />
     </SafeAreaView>
   );
 }
