@@ -115,9 +115,13 @@ export default function WhatsAppSettingsScreen() {
     setTestStatus('Sending...');
     try {
       const apiBase = process.env.EXPO_PUBLIC_API_URL;
+      const secret = process.env.EXPO_PUBLIC_TEST_SUMMARY_SECRET;
       if (!apiBase) { setTestStatus('API URL not configured'); return; }
-      const res = await fetch(`${apiBase}/api/cron/daily-summary?phone=${phone}&force=true`);
-      if (!res.ok) throw new Error(`API error ${res.status}`);
+      const res = await fetch(`${apiBase}/api/cron/daily-summary?phone=${phone}&force=true&secret=${secret}`);
+      if (!res.ok) {
+        setTestStatus(`Failed (${res.status})`);
+        return;
+      }
       setTestStatus('Sent ✓');
     } catch {
       setTestStatus('Network error');

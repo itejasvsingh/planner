@@ -5,22 +5,30 @@ import { runDailySummaryForUser } from '../../../../lib/dailySummary';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
-    const cronSecret = req.headers.get('x-vercel-cron-secret') || new URL(req.url).searchParams.get('secret');
-    if (cronSecret !== process.env.CRON_SECRET) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
     try {
         const { searchParams } = new URL(req.url);
         const targetPhone = searchParams.get('phone');
         const force = searchParams.get('force') === 'true';
 
-        // 1. Single user test mode (e.g., /api/cron/daily-summary?phone=918130595547)
+        const providedSecret = req.headers.get('x-vercel-cron-secret') || searchParams.get('secret');
+        
+        const isCronSecretValid = providedSecret === process.env.CRON_SECRET;
+        const isTestSecretValid = providedSecret === process.env.TEST_SUMMARY_SECRET;
+
         if (targetPhone) {
+            if (!isCronSecretValid && !isTestSecretValid) {
+                return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+            }
             console.log(`🚀 Executing daily summary on-demand for single user: ${targetPhone}`);
             const result = await runDailySummaryForUser(targetPhone, { force: true });
             return NextResponse.json(result);
         }
 
-        // 2. Multi-user automated cron mode
+        // Multi-user automated cron mode
+        if (!isCronSecretValid) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         // Find all unique users who have active sessions or preferences
         const phonesToProcess = new Set<string>();
 
@@ -73,4 +81,3 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
     return GET(req);
 }
-
