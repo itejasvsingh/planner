@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, Animated, Dimensions, Switch, Alert, ScrollView } from 'react-native';
-import { LogOut, Shield, MessageCircle, Moon, Sun, Bell, RefreshCw, Smartphone, Download, Repeat, ChevronRight } from 'lucide-react-native';
+import { LogOut, Shield, MessageCircle, Moon, Sun, Bell, Smartphone, Download, Repeat, ChevronRight } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as FileSystem from 'expo-file-system';
