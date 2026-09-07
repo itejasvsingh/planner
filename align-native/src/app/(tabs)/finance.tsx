@@ -176,16 +176,16 @@ export default function FinanceScreen() {
       <View style={[styles.iconBox, { backgroundColor: exp.type === 'expense' ? 'rgba(255,59,48,0.1)' : 'rgba(52,199,89,0.1)' }]}>
         {exp.type === 'expense' ? <TrendingDown color="#FF3B30" size={20} /> : <TrendingUp color="#34C759" size={20} />}
       </View>
-      <View style={{ flex: 1 }}>
+      <View style={styles.flex1}>
         <Text style={[styles.itemTitle, { color: theme.text }]} numberOfLines={1}>{exp.title}</Text>
         <Text style={[styles.itemSub, { color: theme.textSecondary }]}>{(exp.category || exp.tags?.[0]) || '#General'} • {exp.date || exp.dueDate}</Text>
       </View>
-      <View style={{ alignItems: 'flex-end', gap: 4 }}>
+      <View style={styles.endGap4}>
         <Text style={[styles.amount, { color: exp.type === 'income' ? '#34C759' : theme.text }]}>
           {exp.type === 'expense' ? '-' : '+'}₹{exp.amount}
         </Text>
         {exp.splits && exp.splits.length > 0 && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <View style={styles.rowCenterGap4}>
             <Users color="#007AFF" size={12} />
             <Text style={{ color: '#007AFF', fontSize: 12, fontWeight: '600' }}>
               {exp.splits.length} split
@@ -202,7 +202,7 @@ export default function FinanceScreen() {
         <Pressable onPress={() => setIsDrawerOpen(true)} style={{ padding: 4, marginRight: 12 }}>
           <Menu color={theme.text} size={28} />
         </Pressable>
-        <View style={{ flex: 1 }}>
+        <View style={styles.flex1}>
           <Text style={[styles.title, { color: theme.text }]}>Finance</Text>
         </View>
         <Pressable onPress={openBudgetModal} style={{ padding: 4 }}>
@@ -228,7 +228,7 @@ export default function FinanceScreen() {
         
         {financeView === 'transactions' && (
           <>
-            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
+            <View style={styles.rowGap12Mb20}>
               <Pressable style={[styles.budgetCard, { backgroundColor: theme.backgroundElement }]} onPress={openBudgetModal}>
                 <Text style={{ color: theme.textSecondary, fontSize: 13, fontWeight: '600' }}>TODAY AVAILABLE</Text>
                 <Text style={{ color: dailyRemaining < 0 ? '#FF3B30' : theme.text, fontSize: 24, fontWeight: '800', marginVertical: 4 }}>
@@ -448,6 +448,10 @@ export default function FinanceScreen() {
 }
 
 const styles = StyleSheet.create({
+  flex1: { flex: 1 },
+  rowCenterGap4: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  endGap4: { alignItems: 'flex-end', gap: 4 },
+  rowGap12Mb20: { flexDirection: 'row', gap: 12, marginBottom: 20 },
   safe: { flex: 1 },
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16, flexDirection: 'row', alignItems: 'center' },
   title: { fontSize: 32, fontWeight: '800', letterSpacing: -0.5 },
