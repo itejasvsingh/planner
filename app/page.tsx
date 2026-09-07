@@ -138,6 +138,8 @@ export default function PlannerApp() {
     const [whatsappReminderTiming, setWhatsappReminderTiming] = useState<'exact' | '1h_before' | 'both'>('exact');
     const [notifiedItems, setNotifiedItems] = useState(new Set());
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+    const [isMenuSwiping, setIsMenuSwiping] = useState(false);
     const [themeMode, setThemeMode] = useState('system');
     const [darkMode, setDarkMode] = useState(false);
     // --- HOLY GRAIL iOS KEYBOARD FIX ---
@@ -1391,8 +1393,48 @@ function applySmartTags(vendorName: string, aiGuessedCategory?: string): string 
         </SwipeAction>
     );
 
+    // Left-edge swipe right to open DrawerMenu (iOS native edge gesture)
+    const handleMainTouchStart = (e: React.TouchEvent) => {
+        if (isDrawerOpen) return;
+        const touch = e.touches[0];
+        if (touch.clientX <= 36) {
+            touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+            setIsMenuSwiping(true);
+        }
+    };
+
+    const handleMainTouchMove = (e: React.TouchEvent) => {
+        if (!isMenuSwiping || !touchStartRef.current || isDrawerOpen) return;
+        const touch = e.touches[0];
+        const deltaX = touch.clientX - touchStartRef.current.x;
+        const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+
+        if (deltaY > deltaX && deltaX < 20) {
+            setIsMenuSwiping(false);
+            touchStartRef.current = null;
+            return;
+        }
+
+        if (deltaX > 50) {
+            setIsMenuSwiping(false);
+            touchStartRef.current = null;
+            triggerHaptic('light');
+            setIsDrawerOpen(true);
+        }
+    };
+
+    const handleMainTouchEnd = () => {
+        setIsMenuSwiping(false);
+        touchStartRef.current = null;
+    };
+
     return (
-        <div className={`safe-bottom ${darkMode ? 'dark-mode' : ''}`}>
+        <div 
+            onTouchStart={handleMainTouchStart}
+            onTouchMove={handleMainTouchMove}
+            onTouchEnd={handleMainTouchEnd}
+            className={`safe-bottom ${darkMode ? 'dark-mode' : ''}`}
+        >
             {!isOnline && (
                 <div className="offline-banner">
                     <span className="offline-dot" />
