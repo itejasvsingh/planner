@@ -75,11 +75,16 @@
         "storageBucket": "planner-app-3471f.firebasestorage.app",
         "messagingSenderId": "817744322906",
         "appId": "1:817744322906:web:35d264cd7079a211749363"
+      },
+      "router": {},
+      "eas": {
+        "projectId": "3bbcf086-82d6-41f6-a682-d439a890514d"
       }
     },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "owner": "itejasv"
   }
 }
