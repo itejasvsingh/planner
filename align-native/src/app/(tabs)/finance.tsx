@@ -228,8 +228,8 @@ export default function FinanceScreen() {
         
         {financeView === 'transactions' && (
           <>
-            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
-              <Pressable style={[styles.budgetCard, { backgroundColor: theme.backgroundElement }]} onPress={openBudgetModal}>
+            <View style={{ flexDirection: 'row', width: '100%', marginBottom: 20 }}>
+              <Pressable style={[styles.budgetCard, { backgroundColor: theme.backgroundElement, marginRight: 12 }]} onPress={openBudgetModal}>
                 <Text style={{ color: theme.textSecondary, fontSize: 13, fontWeight: '600' }}>TODAY AVAILABLE</Text>
                 <Text style={{ color: dailyRemaining < 0 ? '#FF3B30' : theme.text, fontSize: 24, fontWeight: '800', marginVertical: 4 }}>
                   ₹{dailyRemaining}
