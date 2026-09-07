@@ -9,6 +9,7 @@ import {
   updateDoc,
   where,
   arrayUnion,
+  setDoc,
 } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -28,7 +29,7 @@ function parseCachedItems(raw: string | null): PlannerItem[] {
 }
 
 export function usePlannerItems(phone: string | null) {
-  const [items, settleUpWith, setItems] = useState<PlannerItem[]>([]);
+  const [items, setItems] = useState<PlannerItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -403,7 +404,7 @@ export function usePlannerItems(phone: string | null) {
         _saveNewItem(item).catch(console.warn);
       });
     }
-  }, [items, settleUpWith, phone, _saveNewItem]);
+  }, [items, phone, _saveNewItem]);
 
   const settleUpWith = useCallback(async (personName: string) => {
     triggerHaptic('medium');
@@ -438,7 +439,8 @@ export function usePlannerItems(phone: string | null) {
   };
 }
 
-const DEFAULT_BUDGET_LIMITS = {
+
+export const DEFAULT_BUDGET_LIMITS: Record<string, number> = {
   MONTHLY: 20000, DAILY: 1000,
   '#Dining': 4000, '#Travel': 3000, '#Academics': 2000, '#General': 5000,
 };
@@ -448,19 +450,19 @@ export function useBudgetLimits(phone: string | null) {
 
   useEffect(() => {
     if (!phone) return;
-    const unsubscribe = onSnapshot(doc(db, 'planner_settings', `budgets_${phone}`), (d) => {
-      if (d.exists()) {
-        setBudgetLimits((prev) => ({ ...prev, ...(d.data() as Record<string, number>) }));
+    const unsubscribe = onSnapshot(doc(db, 'planner_settings', `budgets_${phone}`), (snap) => {
+      if (snap.exists()) {
+        setBudgetLimits((prev) => ({ ...prev, ...(snap.data() as Record<string, number>) }));
       }
     });
     return () => unsubscribe();
   }, [phone]);
 
-  const saveBudget = useCallback(async (updates: Record<string, number>) => {
+  const saveBudgets = useCallback(async (updates: Record<string, number>) => {
     if (!phone) return;
-    setBudgetLimits((prev) => ({ ...prev, ...updates }));
+    setBudgetLimits(updates);
     await setDoc(doc(db, 'planner_settings', `budgets_${phone}`), updates, { merge: true });
   }, [phone]);
 
-  return { budgetLimits, saveBudget };
+  return { budgetLimits, saveBudgets, DEFAULT_BUDGET_LIMITS };
 }

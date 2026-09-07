@@ -27,7 +27,7 @@ export default function QuickAddBar() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isListening, setIsListening] = useState(false);
 
-  useSpeechRecognitionEvent('result', (event) => {
+  useSpeechRecognitionEvent('result', (event: any) => {
     const transcript = event.results[0]?.transcript;
     if (transcript) setText(transcript);
   });
@@ -36,7 +36,7 @@ export default function QuickAddBar() {
     setIsListening(false);
   });
   
-  useSpeechRecognitionEvent('error', (event) => {
+  useSpeechRecognitionEvent('error', (event: any) => {
     console.warn('Speech recognition error:', event);
     setIsListening(false);
   });

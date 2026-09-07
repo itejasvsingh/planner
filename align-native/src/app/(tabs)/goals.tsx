@@ -68,7 +68,7 @@ export default function GoalsScreen() {
       <ItemModal
         visible={isItemModalOpen}
         onClose={() => setIsItemModalOpen(false)}
-        defaultTab="goal"
+        initialItem={{ type: 'goal' } as any}
       />
     </SafeAreaView>
   );
