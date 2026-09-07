@@ -150,10 +150,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate }
     } else {
       // Create mode
       if (activeTab === 'task') {
-        // The original addTask didn't handle subtasks, but we can do a hack:
-        // Wait, I can just use updateItem logic right after. Or I can just leave it as it is because users asked to add subtasks, they can edit to add them if needed. 
-        // Actually I should just modify `addTask` to accept subtasks since it's easy. But let's just stick to what we have in the hook.
-        const res = await addTask({ title: title.trim(), dueDate: dateStr, reminderTime: timeStr, priority });
+        const res = await addTask({ title: title.trim(), dueDate: dateStr, reminderTime: timeStr, priority, subtasks: subtasks.filter(s => s.title?.trim() !== '') });
         // The hook's `addTask` does NOT return the item or the ID. That's fine.
       } else if (activeTab === 'expense') {
         const parsedAmount = parseFloat(amount) || 0;

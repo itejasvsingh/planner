@@ -247,7 +247,7 @@ export function usePlannerItems(phone: string | null) {
   );
 
   const addTask = useCallback(
-    async (input: { title: string; dueDate: string; reminderTime: string | null; priority?: string }) => {
+    async (input: { title: string; dueDate: string; reminderTime: string | null; priority?: string; subtasks?: import('./planner-item').PlannerSubtask[] }) => {
       return _saveNewItem({
         type: 'task',
         title: input.title,
@@ -255,7 +255,7 @@ export function usePlannerItems(phone: string | null) {
         dueDate: input.dueDate,
         reminderTime: input.reminderTime,
         priority: input.priority || 'none',
-        subtasks: [],
+        subtasks: input.subtasks || [],
       });
     },
     [_saveNewItem],
