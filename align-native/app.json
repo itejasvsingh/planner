@@ -13,7 +13,7 @@
         "NSSpeechRecognitionUsageDescription": "Allow Align to securely recognize your speech.",
         "NSMicrophoneUsageDescription": "Allow Align to access your microphone for voice transcription."
       },
-      "bundleIdentifier": "com.anonymous.align-native"
+      "bundleIdentifier": "com.tejasvsingh.align"
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +27,8 @@
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT",
         "android.permission.RECORD_AUDIO"
-      ]
+      ],
+      "package": "com.tejasvsingh.align"
     },
     "web": {
       "output": "static",
