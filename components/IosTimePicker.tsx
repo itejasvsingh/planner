@@ -1,99 +1,197 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { triggerHaptic } from '../lib/native';
 
 interface IosTimePickerProps {
-    value: string; // HH:mm 24h
+    value: string; // HH:mm (24h)
     onChange: (val: string) => void;
 }
 
-const HOURS = Array.from({ length: 12 }, (_, i) => (i === 0 ? 12 : i));
+const HOURS = [12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 const MINUTES = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
 const AMPM = ['AM', 'PM'];
+const ITEM_HEIGHT = 40; // 40px item height for better touch target
 
 export default function IosTimePicker({ value, onChange }: IosTimePickerProps) {
     const hourRef = useRef<HTMLDivElement>(null);
     const minuteRef = useRef<HTMLDivElement>(null);
     const ampmRef = useRef<HTMLDivElement>(null);
 
-    const [h, m] = value.split(':');
-    let hNum = parseInt(h, 10);
-    const isPM = hNum >= 12;
-    hNum = hNum % 12 || 12;
+    const isInitializingRef = useRef(true);
+    const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-    const handleScroll = (type: 'h' | 'm' | 'a') => {
-        let newH = hNum;
-        let newM = parseInt(m, 10) || 0;
-        let newIsPM = isPM;
-
-        if (type === 'h' && hourRef.current) {
-            const idx = Math.round(hourRef.current.scrollTop / 32);
-            newH = HOURS[Math.min(Math.max(idx, 0), HOURS.length - 1)];
-        } else if (type === 'm' && minuteRef.current) {
-            const idx = Math.round(minuteRef.current.scrollTop / 32);
-            newM = parseInt(MINUTES[Math.min(Math.max(idx, 0), MINUTES.length - 1)], 10);
-        } else if (type === 'a' && ampmRef.current) {
-            const idx = Math.round(ampmRef.current.scrollTop / 32);
-            newIsPM = idx === 1;
-        }
-
-        let outH = newH;
-        if (newIsPM && outH !== 12) outH += 12;
-        if (!newIsPM && outH === 12) outH = 0;
-
-        onChange(`${outH.toString().padStart(2, '0')}:${newM.toString().padStart(2, '0')}`);
+    // Parse initial time
+    const parseTime = (timeStr: string) => {
+        if (!timeStr) return { h: 10, m: 0, pm: true };
+        const [hStr, mStr] = timeStr.split(':');
+        let h24 = parseInt(hStr, 10);
+        if (isNaN(h24)) h24 = 22;
+        const m = parseInt(mStr, 10) || 0;
+        const pm = h24 >= 12;
+        let h12 = h24 % 12;
+        if (h12 === 0) h12 = 12;
+        return { h: h12, m, pm };
     };
 
+    const initial = parseTime(value);
+    const [selectedH, setSelectedH] = useState(initial.h);
+    const [selectedM, setSelectedM] = useState(initial.m);
+    const [selectedPm, setSelectedPm] = useState(initial.pm);
+
     useEffect(() => {
-        // Set initial scroll positions
-        if (hourRef.current) hourRef.current.scrollTop = HOURS.indexOf(hNum) * 32;
-        if (minuteRef.current) minuteRef.current.scrollTop = parseInt(m, 10) * 32;
-        if (ampmRef.current) ampmRef.current.scrollTop = (isPM ? 1 : 0) * 32;
+        isInitializingRef.current = true;
+
+        const hIdx = HOURS.indexOf(selectedH);
+        const mIdx = selectedM;
+        const aIdx = selectedPm ? 1 : 0;
+
+        const doSync = () => {
+            if (hourRef.current) hourRef.current.scrollTop = (hIdx >= 0 ? hIdx : 10) * ITEM_HEIGHT;
+            if (minuteRef.current) minuteRef.current.scrollTop = mIdx * ITEM_HEIGHT;
+            if (ampmRef.current) ampmRef.current.scrollTop = aIdx * ITEM_HEIGHT;
+        };
+
+        doSync();
+        const timer1 = setTimeout(doSync, 50);
+        const timer2 = setTimeout(() => {
+            doSync();
+            isInitializingRef.current = false;
+        }, 350);
+
+        return () => {
+            clearTimeout(timer1);
+            clearTimeout(timer2);
+        };
     }, []);
 
+    const handleScroll = () => {
+        if (isInitializingRef.current) return;
+
+        let newH = selectedH;
+        let newM = selectedM;
+        let newPm = selectedPm;
+
+        if (hourRef.current) {
+            const idx = Math.round(hourRef.current.scrollTop / ITEM_HEIGHT);
+            const clampedIdx = Math.min(Math.max(idx, 0), HOURS.length - 1);
+            newH = HOURS[clampedIdx];
+        }
+        if (minuteRef.current) {
+            const idx = Math.round(minuteRef.current.scrollTop / ITEM_HEIGHT);
+            const clampedIdx = Math.min(Math.max(idx, 0), MINUTES.length - 1);
+            newM = clampedIdx;
+        }
+        if (ampmRef.current) {
+            const idx = Math.round(ampmRef.current.scrollTop / ITEM_HEIGHT);
+            const clampedIdx = Math.min(Math.max(idx, 0), AMPM.length - 1);
+            newPm = clampedIdx === 1;
+        }
+
+        if (newH !== selectedH || newM !== selectedM || newPm !== selectedPm) {
+            setSelectedH(newH);
+            setSelectedM(newM);
+            setSelectedPm(newPm);
+            triggerHaptic('light').catch(() => {});
+        }
+
+        if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+        scrollTimeoutRef.current = setTimeout(() => {
+            let h24 = newH;
+            if (newPm && h24 !== 12) h24 += 12;
+            if (!newPm && h24 === 12) h24 = 0;
+            const timeStr = `${h24.toString().padStart(2, '0')}:${newM.toString().padStart(2, '0')}`;
+            onChange(timeStr);
+        }, 200);
+    };
+
     const colStyle: React.CSSProperties = {
-        height: '96px',
+        height: `${ITEM_HEIGHT * 3}px`,
         overflowY: 'scroll',
         scrollSnapType: 'y mandatory',
         scrollbarWidth: 'none',
         msOverflowStyle: 'none',
         flex: 1,
-        textAlign: 'center'
+        textAlign: 'center',
+        WebkitOverflowScrolling: 'touch',
+        touchAction: 'pan-y'
     };
 
     const itemStyle: React.CSSProperties = {
-        height: '32px',
-        lineHeight: '32px',
+        height: `${ITEM_HEIGHT}px`,
+        lineHeight: `${ITEM_HEIGHT}px`,
         scrollSnapAlign: 'center',
-        fontSize: '17px',
-        fontWeight: 500
+        fontSize: '18px',
+        fontWeight: 600,
+        color: 'var(--text)',
+        userSelect: 'none',
+        WebkitUserSelect: 'none'
     };
 
     return (
-        <div style={{ display: 'flex', position: 'relative', height: '96px', background: 'var(--surface)', margin: '0 16px', borderRadius: '12px' }}>
-            {/* Selection Highlight */}
-            <div style={{ position: 'absolute', top: '32px', left: 0, right: 0, height: '32px', background: 'rgba(120,120,128,0.12)', borderRadius: '6px', pointerEvents: 'none' }} />
-            
+        <div style={{
+            display: 'flex',
+            position: 'relative',
+            height: `${ITEM_HEIGHT * 3}px`,
+            background: 'var(--surface)',
+            borderRadius: '14px',
+            border: '1px solid var(--border)',
+            overflow: 'hidden',
+            margin: '8px 16px'
+        }}>
+            {/* Selection Highlight Bar */}
+            <div style={{
+                position: 'absolute',
+                top: `${ITEM_HEIGHT}px`,
+                left: '8px',
+                right: '8px',
+                height: `${ITEM_HEIGHT}px`,
+                background: 'rgba(120, 120, 128, 0.12)',
+                borderRadius: '8px',
+                pointerEvents: 'none',
+                zIndex: 1
+            }} />
+
             <style>{`
-                .hide-scroll::-webkit-scrollbar { display: none; }
+                .ios-picker-col::-webkit-scrollbar { display: none; }
             `}</style>
 
-            <div ref={hourRef} onScroll={() => handleScroll('h')} className="hide-scroll" style={colStyle}>
-                <div style={{ height: '32px' }} />
-                {HOURS.map(hour => <div key={hour} style={itemStyle}>{hour}</div>)}
-                <div style={{ height: '32px' }} />
+            {/* Hours Column */}
+            <div ref={hourRef} onScroll={handleScroll} className="ios-picker-col" style={colStyle}>
+                <div style={{ height: `${ITEM_HEIGHT}px` }} />
+                {HOURS.map(hour => (
+                    <div key={hour} style={{ ...itemStyle, opacity: hour === selectedH ? 1 : 0.35 }}>
+                        {hour}
+                    </div>
+                ))}
+                <div style={{ height: `${ITEM_HEIGHT}px` }} />
             </div>
 
-            <div style={{ lineHeight: '96px', fontWeight: 600, width: '10px', textAlign: 'center' }}>:</div>
-
-            <div ref={minuteRef} onScroll={() => handleScroll('m')} className="hide-scroll" style={colStyle}>
-                <div style={{ height: '32px' }} />
-                {MINUTES.map(min => <div key={min} style={itemStyle}>{min}</div>)}
-                <div style={{ height: '32px' }} />
+            <div style={{ lineHeight: `${ITEM_HEIGHT * 3}px`, fontWeight: 700, fontSize: '18px', color: 'var(--text-light)', width: '12px', textAlign: 'center', zIndex: 2 }}>
+                :
             </div>
 
-            <div ref={ampmRef} onScroll={() => handleScroll('a')} className="hide-scroll" style={colStyle}>
-                <div style={{ height: '32px' }} />
-                {AMPM.map(a => <div key={a} style={itemStyle}>{a}</div>)}
-                <div style={{ height: '32px' }} />
+            {/* Minutes Column */}
+            <div ref={minuteRef} onScroll={handleScroll} className="ios-picker-col" style={colStyle}>
+                <div style={{ height: `${ITEM_HEIGHT}px` }} />
+                {MINUTES.map((minStr, idx) => (
+                    <div key={minStr} style={{ ...itemStyle, opacity: idx === selectedM ? 1 : 0.35 }}>
+                        {minStr}
+                    </div>
+                ))}
+                <div style={{ height: `${ITEM_HEIGHT}px` }} />
+            </div>
+
+            {/* AM / PM Column */}
+            <div ref={ampmRef} onScroll={handleScroll} className="ios-picker-col" style={colStyle}>
+                <div style={{ height: `${ITEM_HEIGHT}px` }} />
+                {AMPM.map((a, idx) => {
+                    const active = (idx === 1) === selectedPm;
+                    return (
+                        <div key={a} style={{ ...itemStyle, opacity: active ? 1 : 0.35 }}>
+                            {a}
+                        </div>
+                    );
+                })}
+                <div style={{ height: `${ITEM_HEIGHT}px` }} />
             </div>
         </div>
     );

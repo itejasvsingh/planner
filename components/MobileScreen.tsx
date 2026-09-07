@@ -178,18 +178,25 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
                 </button>
 
                 {/* Centered Title */}
-                <h1
-                    className="absolute inset-x-0 text-center pointer-events-none truncate px-20"
+                <div
+                    className="absolute inset-0 flex items-center justify-center pointer-events-none px-14"
                     style={{
-                        fontSize: '17px',
-                        fontWeight: 600,
-                        margin: 0,
-                        color: darkMode ? '#FFFFFF' : '#000000',
-                        letterSpacing: '-0.4px',
+                        paddingTop: 'calc(env(safe-area-inset-top, 0px))',
                     }}
                 >
-                    {title}
-                </h1>
+                    <h1
+                        className="truncate text-center"
+                        style={{
+                            fontSize: '17px',
+                            fontWeight: 600,
+                            margin: 0,
+                            color: darkMode ? '#FFFFFF' : '#000000',
+                            letterSpacing: '-0.4px',
+                        }}
+                    >
+                        {title}
+                    </h1>
+                </div>
 
                 {/* Right Action */}
                 <div className="flex-shrink-0 z-10 flex items-center justify-end" style={{ minWidth: '44px' }}>

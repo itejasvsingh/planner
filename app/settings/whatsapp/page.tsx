@@ -8,7 +8,8 @@ import {
     IconChevronRight,
     IconCopy,
     IconZap,
-    IconSparkles
+    IconSparkles,
+    IconBell
 } from '../../../components/Icons';
 import { db } from '../../../lib/firebase';
 import MobileScreen from '../../../components/MobileScreen';
@@ -45,6 +46,7 @@ export default function WhatsAppSettingsPage() {
     const [dailySummaryTime, setDailySummaryTime] = useState('22:00');
     const [isTimePickerOpen, setIsTimePickerOpen] = useState(false);
     const [reminderTiming, setReminderTiming] = useState<'exact' | '1h_before' | 'both'>('exact');
+    const [isReminderPickerOpen, setIsReminderPickerOpen] = useState(false);
 
     const [isSendingTest, setIsSendingTest] = useState(false);
     const [testStatus, setTestStatus] = useState<string | null>(null);
@@ -301,7 +303,7 @@ export default function WhatsAppSettingsPage() {
                         {/* Animated Expandable Controls */}
                         <div
                             style={{
-                                maxHeight: dailySummaryEnabled ? '200px' : '0px',
+                                maxHeight: dailySummaryEnabled ? '500px' : '0px',
                                 opacity: dailySummaryEnabled ? 1 : 0,
                                 overflow: 'hidden',
                                 transition: 'max-height 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.22s ease',
@@ -396,41 +398,86 @@ export default function WhatsAppSettingsPage() {
                 <div className="settings-group" style={{ marginBottom: 0 }}>
                     <div className="settings-group-header">Task Reminder Alerts</div>
                     <div className="settings-card">
-                        {reminderOptions.map((opt, idx) => {
-                            const isSelected = reminderTiming === opt.id;
-                            return (
-                                <React.Fragment key={opt.id}>
-                                    {idx > 0 && <div className="settings-divider-full" />}
-                                    <div
-                                        className="settings-row clickable"
-                                        onClick={() => handleChangeReminderTiming(opt.id)}
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
-                                            <div
-                                                style={{
-                                                    fontSize: '17px',
-                                                    fontWeight: 400,
-                                                    letterSpacing: '-0.3px',
-                                                    color: 'var(--text)'
-                                                }}
-                                            >
-                                                {opt.title}
-                                            </div>
-                                            <div style={{ fontSize: '13px', color: 'var(--text-light)', marginTop: '1px', lineHeight: 1.25 }}>
-                                                {opt.desc}
-                                            </div>
-                                        </div>
-
-                                        <div style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                            {isSelected && (
-                                                <IconCheck style={{ width: 19, height: 19, color: 'var(--blue)' }} />
-                                            )}
-                                        </div>
+                        {/* Task Reminder Timing Trigger Row */}
+                        <div 
+                            className="settings-row clickable" 
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => setIsReminderPickerOpen(!isReminderPickerOpen)}
+                        >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+                                <div className="settings-icon-box" style={{ backgroundColor: '#FF9500' }}>
+                                    <IconBell style={{ width: 17, height: 17 }} />
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontSize: '17px', fontWeight: 400, letterSpacing: '-0.3px' }}>
+                                        Alert Timing
                                     </div>
-                                </React.Fragment>
-                            );
-                        })}
+                                    <div style={{ fontSize: '13px', color: 'var(--text-light)', marginTop: '1px' }}>
+                                        Notification schedule
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Pill showing current timing */}
+                            <div className="settings-time-pill" style={{ background: isReminderPickerOpen ? 'rgba(118, 118, 128, 0.22)' : undefined }}>
+                                <span>
+                                    {reminderTiming === 'exact' 
+                                        ? 'At Scheduled Time' 
+                                        : reminderTiming === '1h_before' 
+                                        ? '1 Hour Before' 
+                                        : 'Both'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Expandable Options List */}
+                        <div 
+                            style={{ 
+                                overflow: 'hidden', 
+                                transition: 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                maxHeight: isReminderPickerOpen ? '300px' : '0'
+                            }}
+                        >
+                            <div className="settings-divider" />
+                            {reminderOptions.map((opt, idx) => {
+                                const isSelected = reminderTiming === opt.id;
+                                return (
+                                    <React.Fragment key={opt.id}>
+                                        {idx > 0 && <div className="settings-divider-full" />}
+                                        <div
+                                            className="settings-row clickable"
+                                            onClick={() => {
+                                                handleChangeReminderTiming(opt.id);
+                                                setIsReminderPickerOpen(false);
+                                            }}
+                                            style={{ cursor: 'pointer', paddingLeft: '24px' }}
+                                        >
+                                            <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
+                                                <div
+                                                    style={{
+                                                        fontSize: '16px',
+                                                        fontWeight: isSelected ? 600 : 400,
+                                                        letterSpacing: '-0.3px',
+                                                        color: isSelected ? 'var(--blue)' : 'var(--text)'
+                                                    }}
+                                                >
+                                                    {opt.title}
+                                                </div>
+                                                <div style={{ fontSize: '13px', color: 'var(--text-light)', marginTop: '1px', lineHeight: 1.25 }}>
+                                                    {opt.desc}
+                                                </div>
+                                            </div>
+
+                                            <div style={{ width: '22px', height: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                {isSelected && (
+                                                    <IconCheck style={{ width: 19, height: 19, color: 'var(--blue)' }} />
+                                                )}
+                                            </div>
+                                        </div>
+                                    </React.Fragment>
+                                );
+                            })}
+                        </div>
                     </div>
                     <div className="settings-group-footer">
                         Reminders arrive as interactive WhatsApp messages with quick status buttons to mark tasks done or snooze.

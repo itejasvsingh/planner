@@ -7,6 +7,7 @@ import { db } from '../lib/firebase';
 import SplitEditor, { calculateSplitAmounts } from '../components/SplitEditor';
 import SwipeAction from '../components/SwipeAction';
 import DrawerMenu from '../components/DrawerMenu';
+
 import {
     IconCheck, IconStar, IconCalendar, IconTarget, IconWallet,
     IconPlus, IconClock, IconList, IconMic, IconSparkles, IconEdit,
@@ -1426,6 +1427,7 @@ function applySmartTags(vendorName: string, aiGuessedCategory?: string): string 
                 autoPushEnabled={autoPushEnabled}
                 onToggleAutoPush={handleToggleAutoPush}
             />
+
             {/* DAILY TAB */}
             {tab === 'daily' && (
                 <div className="safe-top fade-in">
