@@ -28,7 +28,7 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
         setIsExiting(true);
         setTimeout(() => {
             router.back();
-        }, 260);
+        }, 400);
     }, [isExiting, router]);
 
     // 2. Android Capacitor Hardware Back Button (Strictly guarded for native)
@@ -115,7 +115,7 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
             setIsExiting(true);
             setTimeout(() => {
                 router.back();
-            }, 220);
+            }, 400);
         } else {
             setDragOffset(0); // Snap back to origin
         }
@@ -142,11 +142,11 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
                 transition: isDragging
                     ? 'none'
                     : isExiting
-                        ? 'transform 0.26s cubic-bezier(0.32, 0.72, 0, 1)'
-                        : 'transform 0.25s cubic-bezier(0.32, 0.72, 0, 1)',
+                        ? 'transform 0.4s cubic-bezier(0.32, 0.72, 0, 1)'
+                        : 'transform 0.4s cubic-bezier(0.32, 0.72, 0, 1)',
                 backgroundColor: darkMode ? '#000000' : '#F2F2F7',
                 color: darkMode ? '#FFFFFF' : '#000000',
-                boxShadow: '-8px 0 25px rgba(0, 0, 0, 0.15)',
+                boxShadow: '-20px 0 25px rgba(0, 0, 0, 0.15)',
             }}
             className={`fixed inset-0 z-[200] flex flex-col w-screen h-screen overflow-hidden select-none overscroll-none ${darkMode ? 'dark-mode' : ''} ${screenClass}`}
         >
@@ -165,7 +165,7 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
                 <button
                     type="button"
                     onClick={handleDismiss}
-                    className="flex items-center gap-0.5 py-1 px-1 -ml-1 active:opacity-40 transition-opacity z-10 [-webkit-tap-highlight-color:transparent]"
+                    className="flex items-center justify-center w-10 h-10 -ml-2 active:opacity-40 transition-opacity z-10 [-webkit-tap-highlight-color:transparent]"
                     style={{
                         border: 'none',
                         background: 'transparent',
@@ -174,8 +174,7 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
                     }}
                     aria-label="Back"
                 >
-                    <IconChevronLeft style={{ width: 22, height: 22 }} />
-                    <span style={{ fontSize: '17px', fontWeight: 400, letterSpacing: '-0.4px', lineHeight: 1 }}>Settings</span>
+                    <IconChevronLeft style={{ width: 26, height: 26 }} />
                 </button>
 
                 {/* Centered Title */}

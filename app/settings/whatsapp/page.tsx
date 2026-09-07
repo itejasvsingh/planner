@@ -12,6 +12,7 @@ import {
 } from '../../../components/Icons';
 import { db } from '../../../lib/firebase';
 import MobileScreen from '../../../components/MobileScreen';
+import IosTimePicker from '../../../components/IosTimePicker';
 import { triggerHaptic } from '../../../lib/native';
 
 const safeGetItem = (key: string): string | null => {
@@ -42,6 +43,7 @@ export default function WhatsAppSettingsPage() {
     const [userPhone, setUserPhone] = useState<string | null>(null);
     const [dailySummaryEnabled, setDailySummaryEnabled] = useState(true);
     const [dailySummaryTime, setDailySummaryTime] = useState('22:00');
+    const [isTimePickerOpen, setIsTimePickerOpen] = useState(false);
     const [reminderTiming, setReminderTiming] = useState<'exact' | '1h_before' | 'both'>('exact');
 
     const [isSendingTest, setIsSendingTest] = useState(false);
@@ -308,7 +310,11 @@ export default function WhatsAppSettingsPage() {
                             <div className="settings-divider" />
 
                             {/* Scheduled Delivery Time Row with Native Wheel Trigger */}
-                            <div className="settings-row">
+                            <div 
+                                className="settings-row clickable" 
+                                style={{ cursor: 'pointer' }}
+                                onClick={() => setIsTimePickerOpen(!isTimePickerOpen)}
+                            >
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
                                     <div className="settings-icon-box" style={{ backgroundColor: '#007AFF' }}>
                                         <IconClock style={{ width: 17, height: 17 }} />
@@ -324,18 +330,26 @@ export default function WhatsAppSettingsPage() {
                                 </div>
 
                                 {/* Compact Native Wheel Trigger Pill */}
-                                <div className="settings-time-pill" title="Tap to adjust summary delivery time">
+                                <div className="settings-time-pill" style={{ background: isTimePickerOpen ? 'rgba(118, 118, 128, 0.22)' : undefined }}>
                                     <span>{format12Hour(dailySummaryTime)}</span>
-                                    <input
-                                        type="time"
-                                        value={dailySummaryTime}
-                                        onChange={(e) => {
-                                            if (e.target.value) {
-                                                handleChangeDailySummaryTime(e.target.value);
-                                            }
-                                        }}
-                                        className="settings-native-time-input"
-                                        aria-label="Delivery Time Picker"
+                                </div>
+                            </div>
+
+                            {/* INLINE IOS SCROLL WHEEL */}
+                            <div 
+                                style={{ 
+                                    overflow: 'hidden', 
+                                    transition: 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    maxHeight: isTimePickerOpen ? '140px' : '0'
+                                }}
+                            >
+                                <div style={{ paddingBottom: '16px' }}>
+                                    <IosTimePicker 
+                                        value={dailySummaryTime} 
+                                        onChange={(val) => {
+                                            setDailySummaryTime(val); // optimistic UI update
+                                            handleChangeDailySummaryTime(val);
+                                        }} 
                                     />
                                 </div>
                             </div>
