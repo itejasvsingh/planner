@@ -152,7 +152,7 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
         >
             {/* Native Frosted Glass Top Navigation Bar */}
             <header
-                className="flex-shrink-0 flex items-center justify-between px-3 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] pb-2.5 border-b relative"
+                className="flex-shrink-0 grid grid-cols-[60px_1fr_60px] items-center px-3 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] pb-2.5 border-b relative"
                 style={{
                     backgroundColor: darkMode ? 'rgba(28, 28, 30, 0.85)' : 'rgba(242, 242, 247, 0.85)',
                     backdropFilter: 'blur(20px)',
@@ -161,29 +161,26 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
                     minHeight: '44px',
                 }}
             >
-                {/* Back Button with Native Touch Response */}
-                <button
-                    type="button"
-                    onClick={handleDismiss}
-                    className="flex items-center justify-center w-10 h-10 -ml-2 active:opacity-40 transition-opacity z-10 [-webkit-tap-highlight-color:transparent]"
-                    style={{
-                        border: 'none',
-                        background: 'transparent',
-                        cursor: 'pointer',
-                        color: darkMode ? '#0A84FF' : '#007AFF',
-                    }}
-                    aria-label="Back"
-                >
-                    <IconChevronLeft style={{ width: 26, height: 26 }} />
-                </button>
+                {/* Left Column: Back Button */}
+                <div className="flex items-center justify-start">
+                    <button
+                        type="button"
+                        onClick={handleDismiss}
+                        className="flex items-center justify-center w-10 h-10 -ml-2 active:opacity-40 transition-opacity [-webkit-tap-highlight-color:transparent]"
+                        style={{
+                            border: 'none',
+                            background: 'transparent',
+                            cursor: 'pointer',
+                            color: darkMode ? '#0A84FF' : '#007AFF',
+                        }}
+                        aria-label="Back"
+                    >
+                        <IconChevronLeft style={{ width: 26, height: 26 }} />
+                    </button>
+                </div>
 
-                {/* Centered Title */}
-                <div
-                    className="absolute inset-0 flex items-center justify-center pointer-events-none px-14"
-                    style={{
-                        paddingTop: 'calc(env(safe-area-inset-top, 0px))',
-                    }}
-                >
+                {/* Center Column: Centered Title (Non-Overlapping) */}
+                <div className="flex items-center justify-center min-w-0">
                     <h1
                         className="truncate text-center"
                         style={{
@@ -192,14 +189,15 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
                             margin: 0,
                             color: darkMode ? '#FFFFFF' : '#000000',
                             letterSpacing: '-0.4px',
+                            width: '100%',
                         }}
                     >
                         {title}
                     </h1>
                 </div>
 
-                {/* Right Action */}
-                <div className="flex-shrink-0 z-10 flex items-center justify-end" style={{ minWidth: '44px' }}>
+                {/* Right Column: Action Badge */}
+                <div className="flex items-center justify-end">
                     {headerRight}
                 </div>
             </header>
