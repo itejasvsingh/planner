@@ -3,6 +3,7 @@ import { useColorScheme } from 'react-native';
 import { Star, Calendar, Wallet, Target } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 import QuickAddBar from '@/components/QuickAddBar';
+import NotificationsManager from '@/components/NotificationsManager';
 
 export default function TabsLayout() {
   const scheme = useColorScheme();
@@ -56,6 +57,7 @@ export default function TabsLayout() {
       </Tabs>
 
       <QuickAddBar />
+      <NotificationsManager />
     </>
   );
 }

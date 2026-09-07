@@ -56,7 +56,7 @@ function RootNav() {
 
   // If locked, render the LockScreen entirely over the app
   if (isLocked) {
-    return <LockScreen onUnlock={() => setIsLocked(false)} />;
+    return <LockScreen onUnlock={() => setIsLocked(false)} currentPhone={phone} />;
   }
 
   return (

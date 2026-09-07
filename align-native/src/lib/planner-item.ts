@@ -31,6 +31,9 @@ export type PlannerItem = {
   tags?: string[];
   splits?: PlannerSplit[];
   isRecurring?: boolean;
+  recurringFrequency?: 'monthly' | 'weekly' | 'yearly';
+  recurringParentId?: string;
+  isGeneratedRecurring?: boolean;
   
   // Goal specific
   target?: number;

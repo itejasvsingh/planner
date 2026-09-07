@@ -24,7 +24,12 @@ export default function SplitEditorModal({ visible, onClose, expense }: SplitEdi
 
   useEffect(() => {
     if (visible && expense) {
-      setSplits(expense.splits || []);
+      setSplits((expense.splits || []).map(s => ({
+        name: s.name,
+        settled: s.settled,
+        splitMode: 'custom',
+        share: s.amount
+      })));
       Animated.spring(slideAnim, { toValue: 0, useNativeDriver: true, tension: 65, friction: 10 }).start();
     } else {
       Animated.timing(slideAnim, { toValue: 600, duration: 250, useNativeDriver: true }).start();
@@ -33,7 +38,11 @@ export default function SplitEditorModal({ visible, onClose, expense }: SplitEdi
 
   const handleSave = async () => {
     if (expense) {
-      await saveSplit(expense.id, splits);
+      await saveSplit(expense.id, splits.map(s => ({
+        name: s.name,
+        settled: s.settled,
+        amount: Number(s.share) || 0
+      })));
     }
     onClose();
   };
@@ -43,9 +52,8 @@ export default function SplitEditorModal({ visible, onClose, expense }: SplitEdi
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <KeyboardAvoidingView 
-        style={styles.overlay} 
+        style={[styles.overlay, { justifyContent: 'flex-end' }]} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        justifyContent="flex-end"
       >
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         

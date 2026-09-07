@@ -9,7 +9,7 @@ export default function SettingsLayout() {
       screenOptions={{
         headerStyle: { backgroundColor: theme.background },
         headerTintColor: theme.text,
-        headerBackTitleVisible: false,
+        
         headerShadowVisible: false,
       }}>
       <Stack.Screen name="security" options={{ title: 'Security' }} />

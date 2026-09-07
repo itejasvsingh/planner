@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { View, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { Mic, Plus, Sparkles } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
-import AddItemModal from './AddItemModal';
+import ItemModal from './ItemModal';
 import { usePhone } from '@/lib/phone-context';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 
-// Default to localhost for development, in production use your domain
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+// Always use the explicitly configured API URL (fails fast if missing)
+const API_BASE = process.env.EXPO_PUBLIC_API_URL;
 
 export default function QuickAddBar() {
   const theme = useTheme();
@@ -14,16 +15,36 @@ export default function QuickAddBar() {
   const [modalVisible, setModalVisible] = useState(false);
   const [text, setText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isListening, setIsListening] = useState(false);
 
-  const submitToAI = async () => {
-    if (!text.trim() || isProcessing) return;
+  useSpeechRecognitionEvent('result', (event) => {
+    const transcript = event.results[0]?.transcript;
+    if (transcript) setText(transcript);
+  });
+
+  useSpeechRecognitionEvent('end', () => {
+    setIsListening(false);
+  });
+  
+  useSpeechRecognitionEvent('error', (event) => {
+    console.warn('Speech recognition error:', event);
+    setIsListening(false);
+  });
+
+  const submitToAI = async (textToProcess: string) => {
+    if (!textToProcess.trim() || isProcessing) return;
+    if (!API_BASE) {
+      Alert.alert('Configuration Error', 'EXPO_PUBLIC_API_URL is not set.');
+      return;
+    }
+
     setIsProcessing(true);
     
     try {
       const res = await fetch(`${API_BASE}/api/parse`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.trim(), phone }),
+        body: JSON.stringify({ text: textToProcess.trim(), phone }),
       });
       
       if (!res.ok) throw new Error('API error');
@@ -31,9 +52,35 @@ export default function QuickAddBar() {
       setText('');
     } catch (err) {
       console.error(err);
-      Alert.alert('Error', 'Failed to process request. Make sure your Next.js backend is running on localhost:3000.');
+      Alert.alert('Error', `Failed to connect to ${API_BASE}`);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const toggleListening = async () => {
+    if (isListening) {
+      ExpoSpeechRecognitionModule.stop();
+      setIsListening(false);
+      // Wait a tick and then submit if we have text
+      if (text.trim()) {
+        setTimeout(() => submitToAI(text), 100);
+      }
+      return;
+    }
+
+    try {
+      const { status } = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Microphone access is required for voice input.');
+        return;
+      }
+      setIsListening(true);
+      setText('');
+      ExpoSpeechRecognitionModule.start({ lang: 'en-US', interimResults: true });
+    } catch (e) {
+      console.warn('Start listening failed', e);
+      setIsListening(false);
     }
   };
 
@@ -43,29 +90,32 @@ export default function QuickAddBar() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 85 : 0} 
       style={styles.keyboardView}
     >
-      <View style={[styles.container, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
-        <Pressable hitSlop={10} style={styles.iconBtn}>
-          <Mic color={theme.textSecondary} size={22} />
-        </Pressable>
+      <View style={[styles.container, { backgroundColor: theme.backgroundElement, borderColor: theme.border, paddingLeft: 12 }]}>
+
+        {Platform.OS !== 'web' && (
+          <Pressable onPress={toggleListening} hitSlop={10} style={styles.iconBtn}>
+            <Mic color={isListening ? theme.red : theme.textSecondary} size={24} />
+          </Pressable>
+        )}
 
         <TextInput
           style={[styles.input, { color: theme.text }]}
-          placeholder={isProcessing ? "AI is thinking..." : "Tell AI what to add..."}
+          placeholder={isProcessing ? "AI is thinking..." : isListening ? "Listening..." : "Tell AI what to add..."}
           placeholderTextColor={theme.textSecondary}
           value={text}
           onChangeText={setText}
-          onSubmitEditing={submitToAI}
-          editable={!isProcessing}
+          onSubmitEditing={() => submitToAI(text)}
+          editable={!isProcessing && !isListening}
           returnKeyType="send"
         />
 
         <View style={styles.rightActions}>
-          <Pressable onPress={() => setModalVisible(true)} hitSlop={10} style={styles.iconBtn} disabled={isProcessing}>
+          <Pressable onPress={() => setModalVisible(true)} hitSlop={10} style={styles.iconBtn} disabled={isProcessing || isListening}>
             <Plus color={theme.textSecondary} size={24} />
           </Pressable>
           <Pressable 
-            onPress={submitToAI}
-            disabled={!text.trim() || isProcessing}
+            onPress={() => submitToAI(text)}
+            disabled={!text.trim() || isProcessing || isListening}
             style={[styles.submitBtn, { backgroundColor: text.trim() ? theme.blue : 'rgba(120,120,128,0.2)' }]}
           >
             {isProcessing ? (
@@ -77,7 +127,7 @@ export default function QuickAddBar() {
         </View>
       </View>
 
-      <AddItemModal 
+      <ItemModal 
         visible={modalVisible} 
         onClose={() => setModalVisible(false)} 
       />
@@ -109,16 +159,16 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    paddingHorizontal: 12,
+    paddingHorizontal: 8,
     minHeight: 32,
   },
   iconBtn: {
-    padding: 4,
+    padding: 6,
   },
   rightActions: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
   },
   submitBtn: {
     width: 32,

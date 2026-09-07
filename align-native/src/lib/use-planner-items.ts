@@ -15,6 +15,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { db } from '@/lib/firebase';
 import { type PlannerItem, type PlannerSplit } from '@/lib/planner-item';
 import { getItem, itemsCacheKey, setItem } from '@/lib/storage';
+import { triggerHaptic } from '@/lib/haptics';
 
 function parseCachedItems(raw: string | null): PlannerItem[] {
   if (!raw) return [];
@@ -89,6 +90,7 @@ export function usePlannerItems(phone: string | null) {
 
   const toggleDone = useCallback(
     async (id: string, currentDone: boolean) => {
+      triggerHaptic(currentDone ? 'light' : 'success');
       setItems((prev) => {
         const updated = prev.map((item) => (item.id === id ? { ...item, done: !currentDone } : item));
         void persistCache(updated);
@@ -105,6 +107,7 @@ export function usePlannerItems(phone: string | null) {
 
   const deleteItem = useCallback(
     async (id: string) => {
+      triggerHaptic('medium');
       setItems((prev) => {
         const updated = prev.filter((item) => item.id !== id);
         void persistCache(updated);
@@ -119,9 +122,97 @@ export function usePlannerItems(phone: string | null) {
     [persistCache],
   );
 
+  const updateItem = useCallback(
+    async (id: string, patch: Partial<PlannerItem>) => {
+      triggerHaptic('success');
+      setItems((prev) => {
+        const updated = prev.map((item) => (item.id === id ? { ...item, ...patch } : item));
+        void persistCache(updated);
+        return updated;
+      });
+      try {
+        await updateDoc(doc(db, 'planner_items', id), patch);
+      } catch (e) {
+        console.warn('Updated offline:', e);
+      }
+    },
+    [persistCache]
+  );
+
+  const addSubtask = useCallback(
+    async (taskId: string, title: string) => {
+      setItems((prev) => {
+        const updated = prev.map(item => {
+          if (item.id !== taskId) return item;
+          const subtasks = [...(item.subtasks || []), { title, done: false }];
+          return { ...item, subtasks };
+        });
+        void persistCache(updated);
+        
+        // Also fire off update to Firestore
+        const nextItem = updated.find(i => i.id === taskId);
+        if (nextItem && !taskId.startsWith('local_')) {
+          updateDoc(doc(db, 'planner_items', taskId), { subtasks: nextItem.subtasks }).catch(console.warn);
+        }
+        
+        return updated;
+      });
+    },
+    [persistCache]
+  );
+
+  const toggleSubtask = useCallback(
+    async (taskId: string, subtaskIdx: number) => {
+      setItems((prev) => {
+        const updated = prev.map(item => {
+          if (item.id !== taskId) return item;
+          const subtasks = [...(item.subtasks || [])];
+          subtasks[subtaskIdx] = { ...subtasks[subtaskIdx], done: !subtasks[subtaskIdx].done };
+          return { ...item, subtasks };
+        });
+        void persistCache(updated);
+        
+        const nextItem = updated.find(i => i.id === taskId);
+        if (nextItem && !taskId.startsWith('local_')) {
+          updateDoc(doc(db, 'planner_items', taskId), { subtasks: nextItem.subtasks }).catch(console.warn);
+        }
+        
+        return updated;
+      });
+    },
+    [persistCache]
+  );
+
+  const deleteSubtask = useCallback(
+    async (taskId: string, subtaskIdx: number) => {
+      setItems((prev) => {
+        const updated = prev.map(item => {
+          if (item.id !== taskId) return item;
+          const subtasks = (item.subtasks || []).filter((_, i) => i !== subtaskIdx);
+          return { ...item, subtasks };
+        });
+        void persistCache(updated);
+        
+        const nextItem = updated.find(i => i.id === taskId);
+        if (nextItem && !taskId.startsWith('local_')) {
+          updateDoc(doc(db, 'planner_items', taskId), { subtasks: nextItem.subtasks }).catch(console.warn);
+        }
+        
+        return updated;
+      });
+    },
+    [persistCache]
+  );
+
   const _saveNewItem = useCallback(
     async (newItem: Omit<PlannerItem, 'id' | 'createdAt' | 'ownerId'>) => {
       if (!phone) return;
+      
+      // Don't trigger haptics for generated items to avoid vibration spam
+      if (!newItem.isGeneratedRecurring) {
+        triggerHaptic('success');
+      }
+      
       const tempId = 'local_' + Date.now();
       const localItem: PlannerItem = {
         id: tempId,
@@ -170,7 +261,14 @@ export function usePlannerItems(phone: string | null) {
   );
 
   const addExpense = useCallback(
-    async (input: { title: string; amount: number; date: string; category: string }) => {
+    async (input: { 
+      title: string; 
+      amount: number; 
+      date: string; 
+      category: string;
+      isRecurring?: boolean;
+      recurringFrequency?: 'monthly' | 'weekly' | 'yearly';
+    }) => {
       return _saveNewItem({
         type: 'expense',
         title: input.title,
@@ -179,6 +277,8 @@ export function usePlannerItems(phone: string | null) {
         category: input.category,
         tags: [input.category],
         splits: [],
+        isRecurring: input.isRecurring,
+        recurringFrequency: input.recurringFrequency,
       });
     },
     [_saveNewItem],
@@ -255,11 +355,65 @@ export function usePlannerItems(phone: string | null) {
     [saveSplit]
   );
 
+  // --- AUTOMATED RECURRING BILLS INJECTION ---
+  useEffect(() => {
+    if (!phone || items.length === 0) return;
+    
+    // Only run if we actually have templates, avoids thrashing
+    const recurringTemplates = items.filter(it => it.type === 'expense' && it.isRecurring && !it.isGeneratedRecurring);
+    if (recurringTemplates.length === 0) return;
+
+    const now = new Date();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const currentMonthKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
+    const todayStr = `${currentMonthKey}-${pad(now.getDate())}`;
+
+    const newItemsToInject: Omit<PlannerItem, 'id' | 'createdAt' | 'ownerId'>[] = [];
+    
+    recurringTemplates.forEach(rec => {
+      const hasThisMonth = items.some(it =>
+        it.type === 'expense' &&
+        (it.id === rec.id || it.recurringParentId === rec.id) &&
+        (it.date || '').startsWith(currentMonthKey)
+      );
+
+      const recDate = rec.date || '';
+      if (!hasThisMonth && !recDate.startsWith(currentMonthKey)) {
+        const originalDay = recDate.length >= 10 ? recDate.slice(8, 10) : '01';
+        const billDate = `${currentMonthKey}-${originalDay}`;
+
+        newItemsToInject.push({
+          type: 'expense',
+          title: rec.title,
+          amount: rec.amount,
+          date: billDate <= todayStr ? billDate : `${currentMonthKey}-01`,
+          category: rec.category || '#Bills',
+          tags: rec.tags || ['#Bills'],
+          splits: [],
+          isRecurring: true,
+          isGeneratedRecurring: true,
+          recurringParentId: rec.id,
+          recurringFrequency: rec.recurringFrequency || 'monthly'
+        });
+      }
+    });
+
+    if (newItemsToInject.length > 0) {
+      newItemsToInject.forEach(item => {
+        _saveNewItem(item).catch(console.warn);
+      });
+    }
+  }, [items, phone, _saveNewItem]);
+
   return { 
     items, 
     loading, 
     toggleDone, 
-    deleteItem, 
+    deleteItem,
+    updateItem,
+    addSubtask,
+    toggleSubtask,
+    deleteSubtask,
     addTask, 
     addExpense, 
     addGoal, 

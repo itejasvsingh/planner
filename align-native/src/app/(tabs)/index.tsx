@@ -32,6 +32,8 @@ function prioLabel(priority?: string) {
 import SwipeAction from '@/components/SwipeAction';
 
 import DrawerMenuModal from '@/components/DrawerMenuModal';
+import ItemModal from '@/components/ItemModal';
+import TaskCard from '@/components/TaskCard';
 import { Menu } from 'lucide-react-native';
 
 export default function DailyScreen() {
@@ -40,17 +42,15 @@ export default function DailyScreen() {
   const { items, toggleDone, deleteItem, addTask } = usePlannerItems(phone);
   const [dailyDate, setDailyDate] = useState(() => new Date());
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [draftTitle, setDraftTitle] = useState('');
-  const [hasTime, setHasTime] = useState(false);
-  const [draftTime, setDraftTime] = useState('09:00');
+  const [showCompleted, setShowCompleted] = useState(false);
+  const [editingItem, setEditingItem] = useState<PlannerItem | null>(null);
 
   const dateKey = formatDateKey(dailyDate);
   const today = todayKey();
   const weekStart = startOfWeek(dailyDate);
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 
-  const dayTasks = items.filter((item) => isTaskForDate(item, dateKey) && !item.done);
+  const dayTasks = items.filter((item) => isTaskForDate(item, dateKey) && (showCompleted || !item.done));
   const anytimeTasks = dayTasks.filter((item) => !itemTime(item));
   const timedTasks = dayTasks
     .filter((item) => itemTime(item))
@@ -65,51 +65,36 @@ export default function DailyScreen() {
   }
 
   function onTaskPress(item: PlannerItem) {
-    Alert.alert(item.title || 'Task', undefined, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: item.done ? 'Mark undone' : 'Complete', onPress: () => void toggleDone(item.id, !!item.done) },
-      { text: 'Delete', style: 'destructive', onPress: () => void deleteItem(item.id) },
-    ]);
-  }
-
-  async function saveTask() {
-    const title = draftTitle.trim();
-    if (!title) {
-      Alert.alert('Align', 'Please enter a title before saving.');
-      return;
-    }
-    await addTask({
-      title,
-      dueDate: dateKey,
-      reminderTime: hasTime && draftTime.trim() ? draftTime.trim() : null,
-    });
-    setDraftTitle('');
-    setHasTime(false);
-    setAdding(false);
+    setEditingItem(item);
   }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={styles.header}>
-        <Pressable style={[styles.navArrow, { backgroundColor: theme.backgroundElement }]} onPress={() => setDailyDate((d) => addDays(d, -1))}>
-          <Text style={[styles.navArrowText, { color: theme.blue }]}>‹</Text>
-        </Pressable>
-        <Pressable onLongPress={confirmLogout} style={styles.navCenter}>
-          <Text style={[styles.title, { color: theme.text }]}>Agenda</Text>
-          <Text style={[styles.dateSub, { color: theme.textSecondary }]}>
-            {dateKey === today
-              ? 'TODAY'
-              : dailyDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-          </Text>
-        </Pressable>
-        <Pressable style={[styles.navArrow, { backgroundColor: theme.backgroundElement }]} onPress={() => setDailyDate((d) => addDays(d, 1))}>
-          <Text style={[styles.navArrowText, { color: theme.blue }]}>›</Text>
-        </Pressable>
-      </View>
-      <View style={{ position: 'absolute', top: 12, right: 16 }}>
-        <Pressable onPress={() => setIsDrawerOpen(true)} style={({ pressed }) => [{ padding: 4, opacity: pressed ? 0.7 : 1 }]}>
-          <Menu color={theme.text} size={28} />
-        </Pressable>
+        <View style={{ width: 40, alignItems: 'flex-start', justifyContent: 'center' }}>
+          <Pressable onPress={() => setIsDrawerOpen(true)} style={({ pressed }) => [{ padding: 4, opacity: pressed ? 0.7 : 1 }]}>
+            <Menu color={theme.text} size={28} />
+          </Pressable>
+        </View>
+        
+        <View style={styles.navCenter}>
+          <Pressable style={[styles.navArrow, { backgroundColor: theme.backgroundElement }]} onPress={() => setDailyDate((d) => addDays(d, -1))}>
+            <Text style={[styles.navArrowText, { color: theme.blue }]}>‹</Text>
+          </Pressable>
+          <Pressable onLongPress={confirmLogout} style={{ alignItems: 'center', minWidth: 120 }}>
+            <Text style={[styles.title, { color: theme.text }]}>Agenda</Text>
+            <Text style={[styles.dateSub, { color: theme.textSecondary }]}>
+              {dateKey === today
+                ? 'TODAY'
+                : dailyDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+            </Text>
+          </Pressable>
+          <Pressable style={[styles.navArrow, { backgroundColor: theme.backgroundElement }]} onPress={() => setDailyDate((d) => addDays(d, 1))}>
+            <Text style={[styles.navArrowText, { color: theme.blue }]}>›</Text>
+          </Pressable>
+        </View>
+        
+        <View style={{ width: 40 }} />
       </View>
 
       <View style={styles.weekRow}>
@@ -131,12 +116,17 @@ export default function DailyScreen() {
         })}
       </View>
 
+      <View style={styles.toggleRow}>
+        <Text style={[styles.toggleText, { color: theme.text }]}>Show Completed</Text>
+        <Switch value={showCompleted} onValueChange={setShowCompleted} />
+      </View>
+
       <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
         {anytimeTasks.length === 0 && timedTasks.length === 0 && (
           <View style={styles.empty}>
             <Text style={[styles.emptyTitle, { color: theme.text }]}>Schedule is clear</Text>
             <Text style={{ color: theme.textSecondary, fontSize: 15 }}>Add a task or event to get started.</Text>
-            <Pressable style={[styles.addPill, { backgroundColor: theme.blue }]} onPress={() => setAdding(true)}>
+            <Pressable style={[styles.addPill, { backgroundColor: theme.blue }]} onPress={() => setEditingItem(null)}>
               <Text style={styles.addPillText}>+ Add Task</Text>
             </Pressable>
           </View>
@@ -188,56 +178,17 @@ export default function DailyScreen() {
       </ScrollView>
       
       <DrawerMenuModal visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
+      
+      <ItemModal
+        visible={!!editingItem}
+        onClose={() => setEditingItem(null)}
+        initialItem={editingItem}
+      />
     </SafeAreaView>
   );
 }
 
-function TaskCard({
-  item,
-  theme,
-  today,
-  compact,
-  onToggle,
-  onPress,
-  isSwipable,
-}: {
-  item: PlannerItem;
-  theme: ReturnType<typeof useTheme>;
-  today: string;
-  compact?: boolean;
-  onToggle: () => void;
-  onPress: () => void;
-  isSwipable?: boolean;
-}) {
-  const overdue = (item.dueDate || '') < today;
-  const prio = prioLabel(item.priority);
-  const subsTotal = item.subtasks?.length || 0;
-  const subsDone = item.subtasks?.filter((s) => s.done).length || 0;
 
-  return (
-    <Pressable
-      onPress={onPress}
-      style={[styles.card, { backgroundColor: theme.backgroundElement, flex: compact ? 1 : undefined, marginBottom: isSwipable ? 0 : 10 }]}>
-      <Pressable onPress={onToggle} hitSlop={8} style={[styles.check, { borderColor: theme.border }]} />
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.taskTitle, { color: theme.text }]}>{item.title}</Text>
-        <View style={styles.metaRow}>
-          {prio ? (
-            <Text style={[styles.pill, { color: theme.blue, backgroundColor: theme.background }]}>{prio}</Text>
-          ) : null}
-          {subsTotal > 0 ? (
-            <Text style={[styles.pill, { color: theme.text, backgroundColor: theme.background }]}>
-              {subsDone}/{subsTotal}
-            </Text>
-          ) : null}
-          {overdue ? (
-            <Text style={[styles.pill, { color: theme.red, backgroundColor: theme.background }]}>Overdue</Text>
-          ) : null}
-        </View>
-      </View>
-    </Pressable>
-  );
-}
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
@@ -256,7 +207,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   navArrowText: { fontSize: 22, fontWeight: '700' },
-  navCenter: { flex: 1, alignItems: 'center' },
+  navCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
   title: { fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
   dateSub: { fontSize: 14, fontWeight: '600', letterSpacing: 0.5, marginTop: 4 },
   weekRow: {
@@ -273,6 +224,8 @@ const styles = StyleSheet.create({
   },
   weekLabel: { fontSize: 11, fontWeight: '700' },
   weekNum: { fontSize: 16, fontWeight: '800', marginTop: 2 },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12 },
+  toggleText: { fontSize: 16, fontWeight: '600' },
   list: { paddingHorizontal: 16, paddingBottom: 120 },
   empty: { alignItems: 'center', paddingTop: 60, gap: 12 },
   emptyTitle: { fontWeight: '700', fontSize: 18 },

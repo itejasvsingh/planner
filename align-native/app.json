@@ -8,7 +8,12 @@
     "scheme": "align",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/expo.icon",
+      "infoPlist": {
+        "NSSpeechRecognitionUsageDescription": "Allow Align to securely recognize your speech.",
+        "NSMicrophoneUsageDescription": "Allow Align to access your microphone for voice transcription."
+      },
+      "bundleIdentifier": "com.anonymous.align-native"
     },
     "android": {
       "adaptiveIcon": {
@@ -17,7 +22,12 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "output": "static",
@@ -31,6 +41,27 @@
           "backgroundColor": "#F4F5F7",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
+        }
+      ],
+      "expo-sharing",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow Align to securely authenticate you with Face ID."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#007AFF"
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow Align to access your microphone for voice transcription.",
+          "speechRecognitionPermission": "Allow Align to securely recognize your speech."
         }
       ]
     ],

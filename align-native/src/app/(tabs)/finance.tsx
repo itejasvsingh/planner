@@ -1,20 +1,22 @@
-import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Alert } from 'react-native';
+import { useState, useMemo } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { TrendingDown, Users } from 'lucide-react-native';
+import { TrendingDown, Users, Menu } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems } from '@/lib/use-planner-items';
 import SplitEditorModal from '@/components/SplitEditorModal';
+import DrawerMenuModal from '@/components/DrawerMenuModal';
 import { PlannerItem } from '@/lib/planner-item';
 
 export default function FinanceScreen() {
   const theme = useTheme();
   const { phone } = usePhone();
-  const { items, deleteItem } = usePlannerItems(phone);
+  const { items } = usePlannerItems(phone);
 
   const [splitExpense, setSplitExpense] = useState<PlannerItem | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const expenses = useMemo(() => items.filter(i => i.type === 'expense'), [items]);
   const totalSpent = expenses.reduce((acc, exp) => acc + (parseFloat(exp.amount as string) || 0), 0);
@@ -22,7 +24,12 @@ export default function FinanceScreen() {
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>Finance</Text>
+        <Pressable onPress={() => setIsDrawerOpen(true)} style={({ pressed }) => [{ padding: 4, opacity: pressed ? 0.7 : 1, marginRight: 12 }]}>
+          <Menu color={theme.text} size={28} />
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.title, { color: theme.text }]}>Finance</Text>
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.list}>
@@ -65,6 +72,7 @@ export default function FinanceScreen() {
         onClose={() => setSplitExpense(null)} 
         expense={splitExpense} 
       />
+      <DrawerMenuModal visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
     </SafeAreaView>
   );
 }

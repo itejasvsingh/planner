@@ -6,6 +6,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
 import { db } from '@/lib/firebase';
+import { onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { getItem, setItem } from '@/lib/storage';
 import { formatPhone } from '@/lib/phone';
 
@@ -47,9 +48,9 @@ export default function WhatsAppSettingsScreen() {
       }
     });
 
-    const unsubscribe = db.collection('planner_settings').doc(`preferences_${phone}`).onSnapshot(doc => {
-      if (doc.exists) {
-        const data = doc.data();
+    const unsubscribe = onSnapshot(doc(db, 'planner_settings', `preferences_${phone}`), (d) => {
+      if (d.exists()) {
+        const data = d.data();
         if (typeof data?.dailySummaryEnabled === 'boolean') {
           setDailySummaryEnabled(data.dailySummaryEnabled);
           setItem(`align_daily_summary_${phone}`, String(data.dailySummaryEnabled));
@@ -74,8 +75,8 @@ export default function WhatsAppSettingsScreen() {
       await setItem(`align_daily_summary_${phone}`, String(nextVal));
       try {
         await Promise.all([
-          db.collection('planner_settings').doc(`preferences_${phone}`).set({ dailySummaryEnabled: nextVal }, { merge: true }),
-          db.collection('user_sessions').doc(phone).set({ dailySummaryEnabled: nextVal }, { merge: true })
+          setDoc(doc(db, 'planner_settings', `preferences_${phone}`), { dailySummaryEnabled: nextVal }, { merge: true }),
+          setDoc(doc(db, 'user_sessions', phone), { dailySummaryEnabled: nextVal }, { merge: true })
         ]);
       } catch {}
     }
@@ -87,8 +88,8 @@ export default function WhatsAppSettingsScreen() {
       await setItem(`align_daily_summary_time_${phone}`, newTime);
       try {
         await Promise.all([
-          db.collection('planner_settings').doc(`preferences_${phone}`).set({ dailySummaryTime: newTime }, { merge: true }),
-          db.collection('user_sessions').doc(phone).set({ dailySummaryTime: newTime }, { merge: true })
+          setDoc(doc(db, 'planner_settings', `preferences_${phone}`), { dailySummaryTime: newTime }, { merge: true }),
+          setDoc(doc(db, 'user_sessions', phone), { dailySummaryTime: newTime }, { merge: true })
         ]);
       } catch {}
     }
@@ -100,8 +101,8 @@ export default function WhatsAppSettingsScreen() {
       await setItem(`align_reminder_timing_${phone}`, timing);
       try {
         await Promise.all([
-          db.collection('planner_settings').doc(`preferences_${phone}`).set({ whatsappReminderTiming: timing }, { merge: true }),
-          db.collection('user_sessions').doc(phone).set({ whatsappReminderTiming: timing }, { merge: true })
+          setDoc(doc(db, 'planner_settings', `preferences_${phone}`), { whatsappReminderTiming: timing }, { merge: true }),
+          setDoc(doc(db, 'user_sessions', phone), { whatsappReminderTiming: timing }, { merge: true })
         ]);
       } catch {}
     }
@@ -140,9 +141,10 @@ export default function WhatsAppSettingsScreen() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]} contentContainerStyle={styles.content}>
-      <View style={styles.group}>
-        <View style={[styles.card, { backgroundColor: theme.backgroundElement, padding: 16 }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        
+        {/* WhatsApp Account Status Hero */}
+        <View style={[styles.group, { marginBottom: 8 }]}>
+          <View style={[styles.card, { backgroundColor: theme.backgroundElement, padding: 16, flexDirection: 'row', alignItems: 'center' }]}>
             <View style={[styles.heroIcon, { backgroundColor: '#25D366' }]}>
               <MessageCircle color="#FFF" size={24} />
             </View>
@@ -158,7 +160,6 @@ export default function WhatsAppSettingsScreen() {
               </Text>
             </View>
           </View>
-        </View>
       </View>
 
       <View style={styles.group}>
@@ -312,7 +313,9 @@ export default function WhatsAppSettingsScreen() {
               {[
                 { cmd: '"what are my tasks for today?"', desc: 'Instant agenda recap' },
                 { cmd: '"summary time 8:30pm"', desc: 'Update recap delivery time' },
+                { cmd: '"turn on summary" / "turn off summary"', desc: 'Toggle daily digest' },
                 { cmd: '"bought groceries 450"', desc: 'Record instant expense' },
+                { cmd: '"remind me to call Mom at 6pm"', desc: 'Create task with alert' }
               ].map((item, idx) => (
                 <Pressable
                   key={idx}
