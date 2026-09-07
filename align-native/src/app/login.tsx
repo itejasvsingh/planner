@@ -11,11 +11,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useRouter } from "expo-router";
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
 
 export default function LoginScreen() {
   const theme = useTheme();
+  const router = useRouter();
   const { login } = usePhone();
   const [loginInput, setLoginInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -29,6 +31,8 @@ export default function LoginScreen() {
     if (!result.ok) {
       setError(result.message);
       Alert.alert('Align', result.message);
+    } else {
+      router.replace('/(tabs)');
     }
   }
 

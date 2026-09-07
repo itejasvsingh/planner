@@ -34,7 +34,7 @@ function RootNav() {
     
     if (!phone && inTabsGroup) {
       router.replace('/login');
-    } else if (phone && !inTabsGroup && !inSettingsGroup && segments[0] !== 'login') {
+    } else if (phone && !inTabsGroup && !inSettingsGroup ) {
       router.replace('/(tabs)');
     }
   }, [ready, securityReady, phone, segments]);
