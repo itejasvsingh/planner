@@ -248,10 +248,7 @@ export default function FinanceScreen() {
             <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Today's Activity</Text>
             {todayTransactions.length === 0 ? (
               <View style={styles.emptyBox}>
-                <Text style={{ color: theme.textSecondary, marginBottom: 12 }}>No transactions today</Text>
-                <Pressable style={[styles.logBtn, { backgroundColor: '#007AFF' }]} onPress={() => setIsItemModalOpen(true)}>
-                  <Text style={{ color: '#FFF', fontWeight: '600' }}>Log Expense</Text>
-                </Pressable>
+                <Text style={{ color: theme.textSecondary}}>No transactions today</Text>
               </View>
             ) : (
               todayTransactions.map(renderTransactionRow)
@@ -333,10 +330,10 @@ export default function FinanceScreen() {
 
         {financeView === 'balances' && (
           <>
-            <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginBottom: 12 }]}>Who owes you</Text>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary}]}>Who owes you</Text>
             {friendsBalances.length === 0 ? (
               <View style={[styles.emptyBox, { paddingVertical: 60 }]}>
-                <Text style={{ fontSize: 40, marginBottom: 12 }}>🎉</Text>
+                <Text style={{ fontSize: 40}}>🎉</Text>
                 <Text style={{ color: theme.text, fontSize: 18, fontWeight: '600' }}>You're all settled up!</Text>
                 <Text style={{ color: theme.textSecondary, marginTop: 8 }}>No outstanding balances.</Text>
               </View>
@@ -390,7 +387,7 @@ export default function FinanceScreen() {
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 20 }}>
-            <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginBottom: 12 }]}>Global Limits</Text>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary}]}>Global Limits</Text>
             <View style={[styles.budgetInputRow, { borderBottomColor: theme.border }]}>
               <Text style={{ color: theme.text, flex: 1, fontSize: 16 }}>Monthly Limit</Text>
               <Text style={{ color: theme.textSecondary }}>₹</Text>
@@ -412,7 +409,7 @@ export default function FinanceScreen() {
               />
             </View>
 
-            <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: 24, marginBottom: 12 }]}>Category Limits</Text>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: 24}]}>Category Limits</Text>
             {Object.keys(tempBudgets).filter(k => k.startsWith('#')).map(cat => (
               <View key={cat} style={[styles.budgetInputRow, { borderBottomColor: theme.border }]}>
                 <Text style={{ color: theme.text, flex: 1, fontSize: 16 }}>{cat}</Text>
@@ -481,7 +478,7 @@ const styles = StyleSheet.create({
   progressBg: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 4 },
 
-  balanceCard: { padding: 20, borderRadius: 20, marginBottom: 12 },
+  balanceCard: { padding: 20, borderRadius: 20},
   avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#007AFF', alignItems: 'center', justifyContent: 'center' },
   actionBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   
