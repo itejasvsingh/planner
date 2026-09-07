@@ -85,7 +85,7 @@ export default function FinanceScreen() {
       if (exp.type === 'expense' && exp.splits) {
         exp.splits.forEach(s => {
           if (!s.settled && s.name && s.name !== 'Me') {
-            if (!balances[s.name]) balances[s.name] = { amount: 0, recentTitle: exp.title || '' };
+            if (!balances[s.name]) balances[s.name] = { amount: 0, recentTitle: exp.title || '' || '' };
             balances[s.name].amount += (s.amount || 0);
           }
         });
@@ -176,16 +176,16 @@ export default function FinanceScreen() {
       <View style={[styles.iconBox, { backgroundColor: exp.type === 'expense' ? 'rgba(255,59,48,0.1)' : 'rgba(52,199,89,0.1)' }]}>
         {exp.type === 'expense' ? <TrendingDown color="#FF3B30" size={20} /> : <TrendingUp color="#34C759" size={20} />}
       </View>
-      <View style={styles.flex1}>
+      <View style={{ flex: 1 }}>
         <Text style={[styles.itemTitle, { color: theme.text }]} numberOfLines={1}>{exp.title}</Text>
         <Text style={[styles.itemSub, { color: theme.textSecondary }]}>{(exp.category || exp.tags?.[0]) || '#General'} • {exp.date || exp.dueDate}</Text>
       </View>
-      <View style={styles.endGap4}>
+      <View style={{ alignItems: 'flex-end', gap: 4 }}>
         <Text style={[styles.amount, { color: exp.type === 'income' ? '#34C759' : theme.text }]}>
           {exp.type === 'expense' ? '-' : '+'}₹{exp.amount}
         </Text>
         {exp.splits && exp.splits.length > 0 && (
-          <View style={styles.rowCenterGap4}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <Users color="#007AFF" size={12} />
             <Text style={{ color: '#007AFF', fontSize: 12, fontWeight: '600' }}>
               {exp.splits.length} split
@@ -202,7 +202,7 @@ export default function FinanceScreen() {
         <Pressable onPress={() => setIsDrawerOpen(true)} style={{ padding: 4, marginRight: 12 }}>
           <Menu color={theme.text} size={28} />
         </Pressable>
-        <View style={styles.flex1}>
+        <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: theme.text }]}>Finance</Text>
         </View>
         <Pressable onPress={openBudgetModal} style={{ padding: 4 }}>
@@ -228,7 +228,7 @@ export default function FinanceScreen() {
         
         {financeView === 'transactions' && (
           <>
-            <View style={styles.rowGap12Mb20}>
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 20 }}>
               <Pressable style={[styles.budgetCard, { backgroundColor: theme.backgroundElement }]} onPress={openBudgetModal}>
                 <Text style={{ color: theme.textSecondary, fontSize: 13, fontWeight: '600' }}>TODAY AVAILABLE</Text>
                 <Text style={{ color: dailyRemaining < 0 ? '#FF3B30' : theme.text, fontSize: 24, fontWeight: '800', marginVertical: 4 }}>
@@ -248,7 +248,7 @@ export default function FinanceScreen() {
             <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Today's Activity</Text>
             {todayTransactions.length === 0 ? (
               <View style={styles.emptyBox}>
-                <Text style={{ color: theme.textSecondary}}>No transactions today</Text>
+                <Text style={{ color: theme.textSecondary }}>No transactions today</Text>
               </View>
             ) : (
               todayTransactions.map(renderTransactionRow)
@@ -330,10 +330,10 @@ export default function FinanceScreen() {
 
         {financeView === 'balances' && (
           <>
-            <Text style={[styles.sectionTitle, { color: theme.textSecondary}]}>Who owes you</Text>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginBottom: 12 }]}>Who owes you</Text>
             {friendsBalances.length === 0 ? (
               <View style={[styles.emptyBox, { paddingVertical: 60 }]}>
-                <Text style={{ fontSize: 40}}>🎉</Text>
+                <Text style={{ fontSize: 40, marginBottom: 12 }}>🎉</Text>
                 <Text style={{ color: theme.text, fontSize: 18, fontWeight: '600' }}>You're all settled up!</Text>
                 <Text style={{ color: theme.textSecondary, marginTop: 8 }}>No outstanding balances.</Text>
               </View>
@@ -387,7 +387,7 @@ export default function FinanceScreen() {
             </Pressable>
           </View>
           <ScrollView contentContainerStyle={{ padding: 20 }}>
-            <Text style={[styles.sectionTitle, { color: theme.textSecondary}]}>Global Limits</Text>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginBottom: 12 }]}>Global Limits</Text>
             <View style={[styles.budgetInputRow, { borderBottomColor: theme.border }]}>
               <Text style={{ color: theme.text, flex: 1, fontSize: 16 }}>Monthly Limit</Text>
               <Text style={{ color: theme.textSecondary }}>₹</Text>
@@ -409,7 +409,7 @@ export default function FinanceScreen() {
               />
             </View>
 
-            <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: 24}]}>Category Limits</Text>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary, marginTop: 24, marginBottom: 12 }]}>Category Limits</Text>
             {Object.keys(tempBudgets).filter(k => k.startsWith('#')).map(cat => (
               <View key={cat} style={[styles.budgetInputRow, { borderBottomColor: theme.border }]}>
                 <Text style={{ color: theme.text, flex: 1, fontSize: 16 }}>{cat}</Text>
@@ -448,10 +448,6 @@ export default function FinanceScreen() {
 }
 
 const styles = StyleSheet.create({
-  flex1: { flex: 1 },
-  rowCenterGap4: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  endGap4: { alignItems: 'flex-end', gap: 4 },
-  rowGap12Mb20: { flexDirection: 'row', gap: 12, marginBottom: 20 },
   safe: { flex: 1 },
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16, flexDirection: 'row', alignItems: 'center' },
   title: { fontSize: 32, fontWeight: '800', letterSpacing: -0.5 },
@@ -482,7 +478,7 @@ const styles = StyleSheet.create({
   progressBg: { height: 8, borderRadius: 4, overflow: 'hidden' },
   progressFill: { height: '100%', borderRadius: 4 },
 
-  balanceCard: { padding: 20, borderRadius: 20},
+  balanceCard: { padding: 20, borderRadius: 20, marginBottom: 12 },
   avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#007AFF', alignItems: 'center', justifyContent: 'center' },
   actionBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   
