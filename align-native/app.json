@@ -63,7 +63,8 @@
           "microphonePermission": "Allow Align to access your microphone for voice transcription.",
           "speechRecognitionPermission": "Allow Align to securely recognize your speech."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "firebase": {

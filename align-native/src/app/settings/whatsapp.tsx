@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, Pressable, ScrollView, Alert, Linking, Clipboard } from 'react-native';
+import { View, Text, StyleSheet, Switch, Pressable, ScrollView, Alert, Linking } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { MessageCircle, Sparkles, Clock, Zap, ChevronRight, Bell, Check, Copy } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -113,7 +114,10 @@ export default function WhatsAppSettingsScreen() {
     setIsSendingTest(true);
     setTestStatus('Sending...');
     try {
-      // Assuming Next.js backend is still deployed
+      const apiBase = process.env.EXPO_PUBLIC_API_URL;
+      if (!apiBase) { setTestStatus('API URL not configured'); return; }
+      const res = await fetch(`${apiBase}/api/cron/daily-summary?phone=${phone}&force=true`);
+      if (!res.ok) throw new Error(`API error ${res.status}`);
       setTestStatus('Sent ✓');
     } catch {
       setTestStatus('Network error');
@@ -124,7 +128,7 @@ export default function WhatsAppSettingsScreen() {
   };
 
   const handleCopyCommand = (cmdText: string) => {
-    Clipboard.setString(cmdText.replace(/^"|"$/g, ''));
+    Clipboard.setStringAsync(cmdText.replace(/^"|"$/g, ''));
     setCopiedCmd(cmdText);
     setTimeout(() => setCopiedCmd(null), 2000);
   };

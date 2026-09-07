@@ -30,12 +30,11 @@ function RootNav() {
     
     // Auth guard routing
     const inTabsGroup = segments[0] === '(tabs)';
+    const inSettingsGroup = segments[0] === 'settings';
     
     if (!phone && inTabsGroup) {
-      // Redirect to login if not authenticated
       router.replace('/login');
-    } else if (phone && !inTabsGroup) {
-      // Redirect to tabs if authenticated
+    } else if (phone && !inTabsGroup && !inSettingsGroup && segments[0] !== 'login') {
       router.replace('/(tabs)');
     }
   }, [ready, securityReady, phone, segments]);
@@ -64,6 +63,7 @@ function RootNav() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="login" />
+        <Stack.Screen name="settings" />
       </Stack>
     </ThemeProvider>
   );

@@ -42,7 +42,7 @@ export function useLocalReminders(items: PlannerItem[], enabled: boolean) {
               if (targetDate.getTime() > now.getTime()) {
                 toSchedule.push({
                   content: {
-                    title: 'Planner Reminder',
+                    title: 'Align',
                     body: item.title || 'Upcoming Task',
                     sound: true,
                   },

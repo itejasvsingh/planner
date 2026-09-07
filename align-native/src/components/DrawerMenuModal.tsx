@@ -1,9 +1,9 @@
 import { useRef, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, Animated, Dimensions, Switch, Alert, ScrollView } from 'react-native';
-import { LogOut, Shield, MessageCircle, Moon, Sun, Bell, RefreshCw, Smartphone, Download, Repeat } from 'lucide-react-native';
+import { LogOut, Shield, MessageCircle, Moon, Sun, Bell, RefreshCw, Smartphone, Download, Repeat, ChevronRight } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { doc, onSnapshot } from 'firebase/firestore';
 
@@ -119,11 +119,11 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
     try {
       const jsonString = JSON.stringify(items, null, 2);
       const filename = `align_export_${new Date().toISOString().split('T')[0]}.json`;
-      const fileUri = (FileSystem.documentDirectory || '') + filename;
-      await FileSystem.writeAsStringAsync(fileUri, jsonString, { encoding: FileSystem.EncodingType.UTF8 });
+      const file = new FileSystem.File(FileSystem.Paths.document, filename);
+      file.write(jsonString);
       const isAvailable = await Sharing.isAvailableAsync();
       if (isAvailable) {
-        await Sharing.shareAsync(fileUri, { UTI: 'public.json', mimeType: 'application/json' });
+        await Sharing.shareAsync(file.uri, { UTI: 'public.json', mimeType: 'application/json' });
         setExportMsg('✓ Done');
       } else {
         setExportMsg('Failed');
@@ -172,6 +172,19 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
                 </View>
                 <Switch value={pushEnabled} onValueChange={handleTogglePush} />
               </View>
+
+              <Pressable
+                style={[styles.menuItem, { borderBottomColor: theme.border }]}
+                onPress={() => {
+                  onClose();
+                  router.push('/settings/notifications');
+                }}>
+                <Bell color={theme.text} size={22} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.menuText, { color: theme.text }]}>Notification Settings</Text>
+                </View>
+                <ChevronRight color={theme.textSecondary} size={20} />
+              </Pressable>
 
               <View style={[styles.menuItem, { borderBottomColor: theme.border }]}>
                 <Repeat color={theme.text} size={22} />

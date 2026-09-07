@@ -1,16 +1,18 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Target, ArrowUpRight } from 'lucide-react-native';
+import { Target, ArrowUpRight, Plus } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems } from '@/lib/use-planner-items';
+import ItemModal from '@/components/ItemModal';
 
 export default function GoalsScreen() {
   const theme = useTheme();
   const { phone } = usePhone();
   const { items, updateGoalProgress } = usePlannerItems(phone);
+  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
 
   const goals = useMemo(() => items.filter(i => i.type === 'goal'), [items]);
 
@@ -55,6 +57,19 @@ export default function GoalsScreen() {
           })
         )}
       </ScrollView>
+
+      <Pressable 
+        style={[styles.fab, { backgroundColor: theme.blue }]}
+        onPress={() => setIsItemModalOpen(true)}
+      >
+        <Plus color="#FFF" size={28} />
+      </Pressable>
+
+      <ItemModal
+        visible={isItemModalOpen}
+        onClose={() => setIsItemModalOpen(false)}
+        defaultTab="goal"
+      />
     </SafeAreaView>
   );
 }
@@ -114,9 +129,25 @@ const styles = StyleSheet.create({
     marginTop: 16,
     overflow: 'hidden',
   },
+  fab: {
+    position: 'absolute',
+    bottom: 90,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
   progressFill: {
     height: '100%',
     borderRadius: 3,
   }
 });
+
 

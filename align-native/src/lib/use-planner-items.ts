@@ -28,7 +28,7 @@ function parseCachedItems(raw: string | null): PlannerItem[] {
 }
 
 export function usePlannerItems(phone: string | null) {
-  const [items, setItems] = useState<PlannerItem[]>([]);
+  const [items, settleUpWith, setItems] = useState<PlannerItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -403,10 +403,25 @@ export function usePlannerItems(phone: string | null) {
         _saveNewItem(item).catch(console.warn);
       });
     }
-  }, [items, phone, _saveNewItem]);
+  }, [items, settleUpWith, phone, _saveNewItem]);
+
+  const settleUpWith = useCallback(async (personName: string) => {
+    triggerHaptic('medium');
+    const toUpdate = items.filter(
+      (item) => item.type === 'expense' && item.splits?.some((s) => s.name === personName && !s.settled)
+    );
+    await Promise.all(
+      toUpdate.map((item) => {
+        const newSplits = (item.splits ?? []).map((s) =>
+          s.name === personName ? { ...s, settled: true } : s
+        );
+        return updateDoc(doc(db, 'planner_items', item.id), { splits: newSplits });
+      })
+    );
+  }, [items]);
 
   return { 
-    items, 
+    items, settleUpWith, 
     loading, 
     toggleDone, 
     deleteItem,
@@ -421,4 +436,31 @@ export function usePlannerItems(phone: string | null) {
     saveSplit,
     toggleSplit
   };
+}
+
+const DEFAULT_BUDGET_LIMITS = {
+  MONTHLY: 20000, DAILY: 1000,
+  '#Dining': 4000, '#Travel': 3000, '#Academics': 2000, '#General': 5000,
+};
+
+export function useBudgetLimits(phone: string | null) {
+  const [budgetLimits, setBudgetLimits] = useState<Record<string, number>>(DEFAULT_BUDGET_LIMITS);
+
+  useEffect(() => {
+    if (!phone) return;
+    const unsubscribe = onSnapshot(doc(db, 'planner_settings', `budgets_${phone}`), (d) => {
+      if (d.exists()) {
+        setBudgetLimits((prev) => ({ ...prev, ...(d.data() as Record<string, number>) }));
+      }
+    });
+    return () => unsubscribe();
+  }, [phone]);
+
+  const saveBudget = useCallback(async (updates: Record<string, number>) => {
+    if (!phone) return;
+    setBudgetLimits((prev) => ({ ...prev, ...updates }));
+    await setDoc(doc(db, 'planner_settings', `budgets_${phone}`), updates, { merge: true });
+  }, [phone]);
+
+  return { budgetLimits, saveBudget };
 }

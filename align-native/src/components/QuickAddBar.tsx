@@ -4,7 +4,17 @@ import { Mic, Plus, Sparkles } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import ItemModal from './ItemModal';
 import { usePhone } from '@/lib/phone-context';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
+
+let ExpoSpeechRecognitionModule: any = null;
+let useSpeechRecognitionEvent: any = (event: string, cb: any) => {};
+
+try {
+  const SpeechModule = require('expo-speech-recognition');
+  ExpoSpeechRecognitionModule = SpeechModule.ExpoSpeechRecognitionModule;
+  useSpeechRecognitionEvent = SpeechModule.useSpeechRecognitionEvent;
+} catch (e) {
+  console.warn('Speech recognition native module not found - running in Expo Go mode.');
+}
 
 // Always use the explicitly configured API URL (fails fast if missing)
 const API_BASE = process.env.EXPO_PUBLIC_API_URL;
@@ -59,6 +69,11 @@ export default function QuickAddBar() {
   };
 
   const toggleListening = async () => {
+    if (!ExpoSpeechRecognitionModule) {
+      Alert.alert('Not Supported', 'Voice input requires a native build and is not supported in Expo Go.');
+      return;
+    }
+
     if (isListening) {
       ExpoSpeechRecognitionModule.stop();
       setIsListening(false);

@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { ChevronLeft, Download } from 'lucide-react-native';
 import * as Notifications from 'expo-notifications';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -101,13 +101,13 @@ export default function NotificationsSettingsScreen() {
     try {
       const jsonString = JSON.stringify(items, null, 2);
       const filename = `align_export_${new Date().toISOString().split('T')[0]}.json`;
-      const fileUri = (FileSystem.documentDirectory || '') + filename;
+      const file = new FileSystem.File(FileSystem.Paths.document, filename);
       
-      await FileSystem.writeAsStringAsync(fileUri, jsonString, { encoding: FileSystem.EncodingType.UTF8 });
+      file.write(jsonString);
       
       const isAvailable = await Sharing.isAvailableAsync();
       if (isAvailable) {
-        await Sharing.shareAsync(fileUri, { UTI: 'public.json', mimeType: 'application/json' });
+        await Sharing.shareAsync(file.uri, { UTI: 'public.json', mimeType: 'application/json' });
       } else {
         Alert.alert('Export', 'Sharing not available on this device');
       }
