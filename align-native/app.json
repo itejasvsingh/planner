@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "align-native",
+    "name": "Align",
     "slug": "align-native",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "alignnative",
+    "scheme": "align",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"
@@ -28,12 +28,22 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#F4F5F7",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
       ]
     ],
+    "extra": {
+      "firebase": {
+        "apiKey": "AIzaSyDSIN2F2sDc-vB_S7ITCMnKILbr9l-r6co",
+        "authDomain": "planner-app-3471f.firebaseapp.com",
+        "projectId": "planner-app-3471f",
+        "storageBucket": "planner-app-3471f.firebasestorage.app",
+        "messagingSenderId": "817744322906",
+        "appId": "1:817744322906:web:35d264cd7079a211749363"
+      }
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

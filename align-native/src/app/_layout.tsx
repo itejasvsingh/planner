@@ -1,18 +1,82 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useColorScheme } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, View, useColorScheme } from 'react-native';
 
-import { AnimatedSplashOverlay } from '@/components/animated-icon';
-import AppTabs from '@/components/app-tabs';
+import { PhoneProvider, usePhone } from '@/lib/phone-context';
+import LockScreen from '@/components/LockScreen';
+import { isSecurityEnabled } from '@/lib/auth';
 
 SplashScreen.preventAutoHideAsync();
 
-export default function TabLayout() {
+function RootNav() {
   const colorScheme = useColorScheme();
+  const { ready, phone } = usePhone();
+  const router = useRouter();
+  const segments = useSegments();
+  
+  const [securityReady, setSecurityReady] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+
+  useEffect(() => {
+    isSecurityEnabled().then(enabled => {
+      setIsLocked(enabled);
+      setSecurityReady(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!ready || !securityReady) return;
+    
+    // Auth guard routing
+    const inTabsGroup = segments[0] === '(tabs)';
+    
+    if (!phone && inTabsGroup) {
+      // Redirect to login if not authenticated
+      router.replace('/login');
+    } else if (phone && !inTabsGroup) {
+      // Redirect to tabs if authenticated
+      router.replace('/(tabs)');
+    }
+  }, [ready, securityReady, phone, segments]);
+
+  useEffect(() => {
+    if (ready && securityReady) {
+      void SplashScreen.hideAsync();
+    }
+  }, [ready, securityReady]);
+
+  if (!ready || !securityReady) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4F5F7' }}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
+  // If locked, render the LockScreen entirely over the app
+  if (isLocked) {
+    return <LockScreen onUnlock={() => setIsLocked(false)} />;
+  }
+
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AnimatedSplashOverlay />
-      <AppTabs />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="login" />
+      </Stack>
     </ThemeProvider>
+  );
+}
+
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+
+export default function RootLayout() {
+  return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <PhoneProvider>
+        <RootNav />
+      </PhoneProvider>
+    </GestureHandlerRootView>
   );
 }
