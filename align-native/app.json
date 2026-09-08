@@ -29,7 +29,8 @@
         "android.permission.USE_FINGERPRINT",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.tejasvsingh.align"
+      "package": "com.tejasvsingh.align",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",
@@ -66,7 +67,8 @@
           "speechRecognitionPermission": "Allow Align to securely recognize your speech."
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "@react-native-google-signin/google-signin"
     ],
     "extra": {
       "router": {},

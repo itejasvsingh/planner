@@ -1,8 +1,9 @@
-import Constants from 'expo-constants';
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { getFirestore, initializeFirestore, type Firestore } from 'firebase/firestore';
-
-
+import { getAuth, initializeAuth, type Auth } from 'firebase/auth';
+// @ts-ignore
+import { getReactNativePersistence } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -17,8 +18,9 @@ if (!firebaseConfig.apiKey) {
   throw new Error("Missing Firebase configuration. Please check your .env file or app.json extra config.");
 }
 
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+
 function createDb(): Firestore {
-  const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
   try {
     return initializeFirestore(app, { experimentalForceLongPolling: true });
   } catch {
@@ -26,4 +28,16 @@ function createDb(): Firestore {
   }
 }
 
+function createAuth(): Auth {
+  try {
+    return initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } catch {
+    return getAuth(app);
+  }
+}
+
 export const db = createDb();
+export const auth = createAuth();
+
