@@ -2,16 +2,24 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // No auth system yet — lock writes, allow reads
-    // TEMPORARY RULES: tighten further once Firebase Auth is added
-    
+    // No auth system yet — lock down BOTH read and write.
+    // All legitimate access already goes through the Next.js backend
+    // (firebase-admin, which bypasses these rules) — nothing client-side
+    // should be reading this data directly until Firebase Auth is wired
+    // up (tracked alongside the email-OTP login work).
+    // Open reads here would let anyone on the internet query every
+    // user's tasks/expenses/budgets directly via the Firebase SDK,
+    // with no app and no phone number required — that's worse than
+    // useless data protection, don't reopen this without real
+    // per-user auth scoping (e.g. resource.data.phone == request.auth.token.phone).
+
     match /planner_items/{docId} {
-      allow read: if true;
+      allow read: if false;
       allow write: if false;
     }
-    
+
     match /planner_settings/{docId} {
-      allow read: if true;
+      allow read: if false;
       allow write: if false;
     }
     
