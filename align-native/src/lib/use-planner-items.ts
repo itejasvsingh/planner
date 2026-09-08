@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { type PlannerItem, type PlannerSplit } from '@/lib/planner-item';
 import { getItem, itemsCacheKey, setItem } from '@/lib/storage';
 import { triggerHaptic } from '@/lib/haptics';
@@ -33,7 +33,7 @@ export function usePlannerItems(phone: string | null) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!phone) {
+    if (!phone || !auth.currentUser) {
       setItems([]);
       setLoading(false);
       return;
@@ -469,7 +469,7 @@ export function useBudgetLimits(phone: string | null) {
 
   useEffect(() => {
     const activePhone = phone;
-    if (!activePhone) return;
+    if (!activePhone || !auth.currentUser) return;
     let cancelled = false;
     let unsubscribeListener: (() => void) | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;

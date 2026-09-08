@@ -6,7 +6,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { getItem, setItem } from '@/lib/storage';
 import { formatPhone } from '@/lib/phone';
@@ -35,7 +35,7 @@ export default function WhatsAppSettingsScreen() {
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!phone) return;
+    if (!phone || !auth.currentUser) return;
 
     getItem(`align_daily_summary_${phone}`).then(val => {
       if (val !== null) setDailySummaryEnabled(val === 'true');
@@ -49,23 +49,29 @@ export default function WhatsAppSettingsScreen() {
       }
     });
 
-    const unsubscribe = onSnapshot(doc(db, 'planner_settings', `preferences_${phone}`), (d) => {
-      if (d.exists()) {
-        const data = d.data();
-        if (typeof data?.dailySummaryEnabled === 'boolean') {
-          setDailySummaryEnabled(data.dailySummaryEnabled);
-          setItem(`align_daily_summary_${phone}`, String(data.dailySummaryEnabled));
+    const unsubscribe = onSnapshot(
+      doc(db, 'planner_settings', `preferences_${phone}`),
+      (d) => {
+        if (d.exists()) {
+          const data = d.data();
+          if (typeof data?.dailySummaryEnabled === 'boolean') {
+            setDailySummaryEnabled(data.dailySummaryEnabled);
+            setItem(`align_daily_summary_${phone}`, String(data.dailySummaryEnabled));
+          }
+          if (data?.dailySummaryTime) {
+            setDailySummaryTime(data.dailySummaryTime);
+            setItem(`align_daily_summary_time_${phone}`, data.dailySummaryTime);
+          }
+          if (data?.whatsappReminderTiming) {
+            setReminderTiming(data.whatsappReminderTiming);
+            setItem(`align_reminder_timing_${phone}`, data.whatsappReminderTiming);
+          }
         }
-        if (data?.dailySummaryTime) {
-          setDailySummaryTime(data.dailySummaryTime);
-          setItem(`align_daily_summary_time_${phone}`, data.dailySummaryTime);
-        }
-        if (data?.whatsappReminderTiming) {
-          setReminderTiming(data.whatsappReminderTiming);
-          setItem(`align_reminder_timing_${phone}`, data.whatsappReminderTiming);
-        }
+      },
+      (err) => {
+        console.warn('WhatsApp preferences notice:', err);
       }
-    });
+    );
 
     return () => unsubscribe();
   }, [phone]);

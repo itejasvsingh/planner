@@ -12,7 +12,7 @@ import { Appearance } from 'react-native';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems } from '@/lib/use-planner-items';
 import { triggerHaptic } from '@/lib/haptics';
-import { db } from '@/lib/firebase';
+import { db, auth } from '@/lib/firebase';
 import { isSecurityEnabled } from '@/lib/auth';
 
 interface DrawerMenuModalProps {
@@ -57,15 +57,21 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
   }, [visible]);
 
   useEffect(() => {
-    if (!phone) return;
-    const unsubscribe = onSnapshot(doc(db, 'planner_settings', `preferences_${phone}`), (d) => {
-      if (d.exists()) {
-        const data = d.data();
-        if (typeof data?.autoPushEnabled === 'boolean') setAutoPushEnabled(data.autoPushEnabled);
-        if (typeof data?.dailySummaryEnabled === 'boolean') setDailySummaryEnabled(data.dailySummaryEnabled);
-        if (data?.dailySummaryTime) setDailySummaryTime(data.dailySummaryTime);
+    if (!phone || !auth.currentUser) return;
+    const unsubscribe = onSnapshot(
+      doc(db, 'planner_settings', `preferences_${phone}`),
+      (d) => {
+        if (d.exists()) {
+          const data = d.data();
+          if (typeof data?.autoPushEnabled === 'boolean') setAutoPushEnabled(data.autoPushEnabled);
+          if (typeof data?.dailySummaryEnabled === 'boolean') setDailySummaryEnabled(data.dailySummaryEnabled);
+          if (data?.dailySummaryTime) setDailySummaryTime(data.dailySummaryTime);
+        }
+      },
+      (err) => {
+        console.warn('DrawerMenu preferences notice:', err);
       }
-    });
+    );
     return () => unsubscribe();
   }, [phone]);
 
