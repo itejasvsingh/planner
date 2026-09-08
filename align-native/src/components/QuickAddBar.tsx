@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { Mic, Sparkles } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
+import ItemModal from './ItemModal';
 import { usePhone } from '@/lib/phone-context';
 
 let ExpoSpeechRecognitionModule: any = null;
@@ -21,6 +22,7 @@ const API_BASE = process.env.EXPO_PUBLIC_API_URL;
 export default function QuickAddBar() {
   const theme = useTheme();
   const { phone } = usePhone();
+  const [modalVisible, setModalVisible] = useState(false);
   const [text, setText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -123,6 +125,9 @@ export default function QuickAddBar() {
         />
 
         <View style={styles.rightActions}>
+          <Pressable onPress={() => setModalVisible(true)} hitSlop={10} style={styles.iconBtn} disabled={isProcessing || isListening}>
+            <Plus color={theme.textSecondary} size={24} />
+          </Pressable>
           <Pressable 
             onPress={() => submitToAI(text)}
             disabled={!text.trim() || isProcessing || isListening}
@@ -136,6 +141,11 @@ export default function QuickAddBar() {
           </Pressable>
         </View>
       </View>
+
+      <ItemModal 
+        visible={modalVisible} 
+        onClose={() => setModalVisible(false)} 
+      />
     </KeyboardAvoidingView>
   );
 }
