@@ -38,47 +38,66 @@ export function usePlannerItems(phone: string | null) {
       setLoading(false);
       return;
     }
+    const currentPhone: string = phone;
 
     let cancelled = false;
+    let unsubscribeListener: (() => void) | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryCount = 0;
     setLoading(true);
 
     (async () => {
-      const cached = parseCachedItems(await getItem(itemsCacheKey(phone)));
+      const cached = parseCachedItems(await getItem(itemsCacheKey(currentPhone)));
       if (!cancelled && cached.length > 0) {
         setItems(cached);
       }
     })();
 
-    const q = query(collection(db, 'planner_items'), where('ownerId', '==', String(phone)));
-    const unsubscribe = onSnapshot(
-      q,
-      { includeMetadataChanges: true },
-      (snapshot) => {
-        const fetched: PlannerItem[] = snapshot.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Omit<PlannerItem, 'id'>),
-        }));
-        setItems((prev) => {
-          const pendingLocals = prev.filter(
-            (p) =>
-              p.id.startsWith('local_') &&
-              !fetched.some((f) => f.title === p.title && f.dueDate === p.dueDate && f.date === p.date),
-          );
-          const combined = [...pendingLocals, ...fetched];
-          void setItem(itemsCacheKey(phone), JSON.stringify(combined));
-          return combined;
-        });
-        setLoading(false);
-      },
-      (err) => {
-        console.warn('Firestore items subscription notice:', err);
-        setLoading(false);
-      },
-    );
+    function subscribe() {
+      if (cancelled) return;
+      const q = query(collection(db, 'planner_items'), where('ownerId', '==', String(currentPhone)));
+      unsubscribeListener = onSnapshot(
+        q,
+        { includeMetadataChanges: true },
+        (snapshot) => {
+          retryCount = 0;
+          const fetched: PlannerItem[] = snapshot.docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as Omit<PlannerItem, 'id'>),
+          }));
+          setItems((prev) => {
+            const pendingLocals = prev.filter(
+              (p) =>
+                p.id.startsWith('local_') &&
+                !fetched.some((f) => f.title === p.title && f.dueDate === p.dueDate && f.date === p.date),
+            );
+            const combined = [...pendingLocals, ...fetched];
+            void setItem(itemsCacheKey(currentPhone), JSON.stringify(combined));
+            return combined;
+          });
+          setLoading(false);
+        },
+        (err) => {
+          console.warn('Firestore items subscription notice:', err);
+          setLoading(false);
+          if (!cancelled && retryCount < 5) {
+            retryCount++;
+            const delay = Math.min(1000 * retryCount, 4000);
+            retryTimer = setTimeout(() => {
+              if (unsubscribeListener) unsubscribeListener();
+              subscribe();
+            }, delay);
+          }
+        },
+      );
+    }
+
+    subscribe();
 
     return () => {
       cancelled = true;
-      unsubscribe();
+      if (retryTimer) clearTimeout(retryTimer);
+      if (unsubscribeListener) unsubscribeListener();
     };
   }, [phone]);
 
@@ -449,13 +468,43 @@ export function useBudgetLimits(phone: string | null) {
   const [budgetLimits, setBudgetLimits] = useState<Record<string, number>>(DEFAULT_BUDGET_LIMITS);
 
   useEffect(() => {
-    if (!phone) return;
-    const unsubscribe = onSnapshot(doc(db, 'planner_settings', `budgets_${phone}`), (snap) => {
-      if (snap.exists()) {
-        setBudgetLimits((prev) => ({ ...prev, ...(snap.data() as Record<string, number>) }));
-      }
-    });
-    return () => unsubscribe();
+    const activePhone = phone;
+    if (!activePhone) return;
+    let cancelled = false;
+    let unsubscribeListener: (() => void) | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let retryCount = 0;
+
+    function subscribe() {
+      if (cancelled) return;
+      unsubscribeListener = onSnapshot(
+        doc(db, 'planner_settings', `budgets_${activePhone}`),
+        (snap) => {
+          retryCount = 0;
+          if (snap.exists()) {
+            setBudgetLimits((prev) => ({ ...prev, ...(snap.data() as Record<string, number>) }));
+          }
+        },
+        (err) => {
+          console.warn('Budget subscription notice:', err);
+          if (!cancelled && retryCount < 5) {
+            retryCount++;
+            retryTimer = setTimeout(() => {
+              if (unsubscribeListener) unsubscribeListener();
+              subscribe();
+            }, Math.min(1000 * retryCount, 4000));
+          }
+        }
+      );
+    }
+
+    subscribe();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      if (unsubscribeListener) unsubscribeListener();
+    };
   }, [phone]);
 
   const saveBudgets = useCallback(async (updates: Record<string, number>) => {

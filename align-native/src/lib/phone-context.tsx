@@ -104,6 +104,13 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
         { merge: true }
       );
 
+      // Verify the write is readable immediately before setting state & mounting listeners
+      try {
+        await getDoc(doc(db, 'users', currentUser.uid));
+      } catch (_) {
+        // non-blocking fallback
+      }
+
       await setItem(PHONE_KEY, cleaned);
       setPhone(cleaned);
       setNeedsPhoneSetup(false);
