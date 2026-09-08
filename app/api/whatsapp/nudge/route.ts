@@ -31,6 +31,12 @@ async function sendWhatsAppMessage(to: string, text: string) {
 
 export async function POST(req: Request) {
     try {
+        const authHeader = req.headers.get('authorization');
+        const expectedToken = process.env.NUDGE_API_SECRET;
+        if (!expectedToken || authHeader !== `Bearer ${expectedToken}`) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
         const { friendName, amount, title, friendPhone } = await req.json();
         const itemName = title || 'our recent expenses';
         const messageText = `Hey ${friendName || 'there'}! Just a quick reminder from Align: you owe ₹${amount} for ${itemName}. 🍕`;

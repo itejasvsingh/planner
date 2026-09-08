@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // No auth system yet — lock by phone-based ownerId minimum
+    // TEMPORARY RULES: tighten further once Firebase Auth is added
+    
+    match /planner_items/{docId} {
+      // Only allow read/write if the ownerId field matches the requesting phone
+      // Until real auth exists, this at least blocks cross-user reads via REST
+      allow read, write: if false; // All access via Admin SDK server routes only
+    }
+    
+    match /planner_settings/{docId} {
+      allow read, write: if false; // All access via Admin SDK server routes only
+    }
+    
+    // Block everything not explicitly allowed
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

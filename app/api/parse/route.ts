@@ -7,7 +7,10 @@ export const dynamic = 'force-dynamic';
 
 function getAdminDb() {
     if (!getApps().length) {
-        const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'planner-app-3471f';
+        const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+        if (!projectId) {
+            throw new Error('Firebase Project ID is missing');
+        }
         const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
         const privateKey = process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined;
 
@@ -28,7 +31,7 @@ function getAdminDb() {
 
 function corsHeaders() {
     return {
-        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Origin': process.env.ALLOWED_ORIGIN || 'https://planner-wheat-three.vercel.app',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     };
@@ -37,6 +40,9 @@ function corsHeaders() {
 export async function OPTIONS() {
     return new NextResponse(null, { status: 204, headers: corsHeaders() });
 }
+
+// Simple in-memory rate limiting (max 30 requests per phone per hour)
+const rateLimits = new Map<string, { count: number; resetAt: number }>();
 
 export async function POST(req: Request) {
     try {
@@ -48,6 +54,21 @@ export async function POST(req: Request) {
         }
 
         const ownerId = phone ? String(phone).replace(/\D/g, '') : 'default_user';
+        if (!ownerId || ownerId.length < 10 || ownerId === 'default_user') {
+            return NextResponse.json({ error: 'Valid phone required' }, { status: 400, headers: corsHeaders() });
+        }
+
+        const limitRecord = rateLimits.get(ownerId) || { count: 0, resetAt: Date.now() + 3600000 };
+        if (Date.now() > limitRecord.resetAt) {
+            limitRecord.count = 0;
+            limitRecord.resetAt = Date.now() + 3600000;
+        }
+        limitRecord.count++;
+        rateLimits.set(ownerId, limitRecord);
+
+        if (limitRecord.count > 30) {
+            return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429, headers: corsHeaders() });
+        }
         const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
         const pad = (n: number) => String(n).padStart(2, '0');
         const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
@@ -62,7 +83,7 @@ export async function POST(req: Request) {
                 const prompt = `
                 You are a smart personal planner assistant.
                 Today's date is: ${today}.
-                User input: "${text}"
+                User input: """${text.slice(0, 500)}"""
 
                 Parse the input into structured items (tasks, expenses, or income).
                 Return ONLY a JSON object:

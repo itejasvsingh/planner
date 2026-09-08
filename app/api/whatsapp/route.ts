@@ -7,7 +7,10 @@ export const dynamic = 'force-dynamic';
 
 function getAdminDb() {
     if (!getApps().length) {
-        const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'planner-app-3471f';
+        const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+        if (!projectId) {
+            throw new Error('Firebase Project ID is missing');
+        }
         const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
         const privateKey = process.env.FIREBASE_PRIVATE_KEY ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n') : undefined;
 
@@ -58,7 +61,7 @@ export async function GET(req: Request) {
     const challenge = searchParams.get('hub.challenge');
     
     // Verifies using the token from your original file
-    if (mode === 'subscribe' && token === 'planner_secure_token_2026') {
+    if (mode === 'subscribe' && token === process.env.WHATSAPP_VERIFY_TOKEN) {
         return new NextResponse(challenge, { status: 200 });
     }
     return new NextResponse('Verification failed', { status: 403 });

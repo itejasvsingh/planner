@@ -17,7 +17,11 @@ async function sha256(text: string): Promise<string> {
 /* ─────────────────── PIN Helpers ─────────────────── */
 
 export async function savePin(pin: string): Promise<void> {
-    const hash = await sha256(pin);
+    const phone = (await getItem(PHONE_KEY)) ?? '';
+    const hash = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        pin + 'align_2026_' + phone
+    );
     await setItem(PIN_HASH_KEY, hash);
     await setSecurityEnabled(true);
 }
@@ -25,7 +29,11 @@ export async function savePin(pin: string): Promise<void> {
 export async function verifyPin(input: string): Promise<boolean> {
     const stored = await getItem(PIN_HASH_KEY);
     if (!stored) return false;
-    const hash = await sha256(input);
+    const phone = (await getItem(PHONE_KEY)) ?? '';
+    const hash = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        input + 'align_2026_' + phone
+    );
     return hash === stored;
 }
 
