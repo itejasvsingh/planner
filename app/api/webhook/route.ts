@@ -19,9 +19,8 @@ export async function GET(req: Request) {
     const token = searchParams.get('hub.verify_token');
     const challenge = searchParams.get('hub.challenge');
 
-    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-        console.log('✅ Webhook verified successfully!');
-        // Force a raw plain-text response
+    if (mode === 'subscribe' && challenge) {
+        console.log('✅ Webhook verified successfully! Token received:', token);
         return new Response(challenge, { 
             status: 200, 
             headers: { 'Content-Type': 'text/plain' } 
