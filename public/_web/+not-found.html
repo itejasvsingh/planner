@@ -296,8 +296,8 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
 .r-eqz5dr{flex-direction:column;}
 .r-eu3ka{height:40px;}
 .r-fdjqy7{text-align:left;}
+.r-g3i4l6{bottom:96px;}
 .r-g3mlsw{animation-name:r-t2lo5v;}
-.r-gbzkui{bottom:85px;}
 .r-ghxds0{transform:translateY(0%);}
 .r-gtdqiz{position:-webkit-sticky;position:sticky;}
 .r-h0d30l{height:28px;}
@@ -420,10 +420,25 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
       -webkit-user-select: auto !important;
       font-size: 16px !important;
     }
+    /* Bottom tab bar and label preservation on iOS */
+    div[role="tablist"] {
+      padding-bottom: max(env(safe-area-inset-bottom, 28px), 28px) !important;
+      height: calc(56px + max(env(safe-area-inset-bottom, 28px), 28px)) !important;
+      min-height: calc(56px + max(env(safe-area-inset-bottom, 28px), 28px)) !important;
+      box-sizing: border-box !important;
+      overflow: visible !important;
+    }
+    div[role="tab"] {
+      overflow: visible !important;
+      height: 48px !important;
+    }
+    div[role="tab"] * {
+      overflow: visible !important;
+    }
     /* iOS Install banner styling */
     #ios-install-banner {
       position: fixed;
-      bottom: 24px;
+      bottom: calc(96px + max(env(safe-area-inset-bottom, 20px), 20px));
       left: 16px;
       right: 16px;
       max-width: 440px;
@@ -483,7 +498,7 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
       if (banner) banner.style.display = 'none';
     }
   </script>
-</head><body><div id="root"><div class="css-g5y9jx r-13awgt0"></div></div><script src="/_expo/static/js/web/entry-a35670eeffbcc25f21c708fd98cf67b3.js" defer></script>
+</head><body><div id="root"><div class="css-g5y9jx r-13awgt0"></div></div><script src="/_expo/static/js/web/entry-f15fc59ca5254cf559c77ecd2eae71f7.js" defer></script>
 
 <div id="ios-install-banner">
   <div style="display:flex; align-items:flex-start; gap:14px;">

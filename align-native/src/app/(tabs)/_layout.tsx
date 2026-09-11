@@ -10,7 +10,9 @@ export default function TabsLayout() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
   const insets = useSafeAreaInsets();
-  const bottomPadding = Math.max(insets.bottom, Platform.OS === 'web' ? 12 : 8);
+  const isWeb = Platform.OS === 'web';
+  const bottomPadding = isWeb ? 28 : Math.max(insets.bottom, 12);
+  const tabHeight = isWeb ? 84 : 54 + bottomPadding;
 
   return (
     <>
@@ -18,10 +20,16 @@ export default function TabsLayout() {
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: true,
+          tabBarItemStyle: {
+            paddingTop: 4,
+            paddingBottom: 2,
+            height: 46,
+          },
           tabBarLabelStyle: {
-            fontSize: 11,
+            fontSize: 12,
             fontWeight: '600',
             marginTop: 2,
+            lineHeight: 14,
           },
           tabBarStyle: {
             backgroundColor: colors.background,
@@ -29,9 +37,9 @@ export default function TabsLayout() {
             borderTopColor: colors.border,
             elevation: 0,
             shadowOpacity: 0,
-            paddingTop: 8,
+            paddingTop: 4,
             paddingBottom: bottomPadding,
-            height: 56 + bottomPadding,
+            height: tabHeight,
           },
           tabBarActiveTintColor: colors.blue,
           tabBarInactiveTintColor: colors.textSecondary,

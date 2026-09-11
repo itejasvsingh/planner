@@ -143,7 +143,7 @@ export default function QuickAddBar() {
 const styles = StyleSheet.create({
   keyboardView: {
     position: 'absolute',
-    bottom: 85, // Above the tab bar
+    bottom: Platform.OS === 'web' ? 96 : 85, // Above the tab bar
     left: 16,
     right: 16,
     zIndex: 1000,
