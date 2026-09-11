@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db } from '../../../lib/firebase';
 import { runDailySummaryForUser } from '../../../lib/dailySummary';
@@ -49,40 +49,39 @@ export async function POST(req: Request) {
         // If it's a valid message (not just a read receipt)
         if (message) {
             const senderPhone = message.from; // e.g., "918130595547"
-            
-            // ROUTE A: Handle Images (Receipts)
-            if (message.type === 'image') {
-                const imageId = message.image.id;
-                console.log(`📸 Image received from ${senderPhone}. ID: ${imageId} (Phone ID: ${PHONE_ID || 'default'})`);
-                
-                // Await in serverless runtime so Vercel does not freeze execution before completion
-                await processReceiptImage(imageId, senderPhone).catch(console.error);
-            } 
-            // ROUTE B: Handle Text
-            else if (message.type === 'text') {
-                const textBody = message.text.body;
-                console.log(`💬 Text from ${senderPhone}: ${textBody}`);
-                
-                // Await in serverless runtime so Vercel does not freeze execution before completion
-                await processTextQuery(textBody, senderPhone).catch(console.error);
-            }
-            // ROUTE C: Handle Voice Notes / Audio
-            else if (message.type === 'audio') {
-                const audioId = message.audio.id;
-                const mimeType = message.audio.mime_type;
-                console.log(`🎙️ Voice note from ${senderPhone}. ID: ${audioId} (MIME: ${mimeType || 'default'})`);
-                
-                // Await in serverless runtime so Vercel does not freeze execution before completion
-                await processAudioMessage(audioId, senderPhone, mimeType).catch(console.error);
-            }
-            // ROUTE D: Handle Interactive Button Replies
-            else if (message.type === 'interactive') {
-                const interactive = message.interactive;
-                console.log(`🔘 Interactive button tapped from ${senderPhone}`);
-                
-                // Await in serverless runtime so Vercel does not freeze execution before completion
-                await processInteractiveMessage(interactive, senderPhone).catch(console.error);
-            }
+
+            // Dispatch in background via Next.js after() to immediately return 200 OK to Meta
+            after(async () => {
+                try {
+                    // ROUTE A: Handle Images (Receipts)
+                    if (message.type === 'image') {
+                        const imageId = message.image.id;
+                        console.log(`📸 Image received from ${senderPhone}. ID: ${imageId}`);
+                        await processReceiptImage(imageId, senderPhone);
+                    } 
+                    // ROUTE B: Handle Text
+                    else if (message.type === 'text') {
+                        const textBody = message.text.body;
+                        console.log(`💬 Text from ${senderPhone}: ${textBody}`);
+                        await processTextQuery(textBody, senderPhone);
+                    }
+                    // ROUTE C: Handle Voice Notes / Audio
+                    else if (message.type === 'audio') {
+                        const audioId = message.audio.id;
+                        const mimeType = message.audio.mime_type;
+                        console.log(`🎙️ Voice note from ${senderPhone}. ID: ${audioId}`);
+                        await processAudioMessage(audioId, senderPhone, mimeType);
+                    }
+                    // ROUTE D: Handle Interactive Button Replies
+                    else if (message.type === 'interactive') {
+                        const interactive = message.interactive;
+                        console.log(`🔘 Interactive button tapped from ${senderPhone}`);
+                        await processInteractiveMessage(interactive, senderPhone);
+                    }
+                } catch (procErr) {
+                    console.error("❌ Background processing error:", procErr);
+                }
+            });
         }
 
         // Meta REQUIRES a 200 OK within 3 seconds, or they will retry and eventually block you
@@ -366,6 +365,10 @@ async function generateWithGemini(
             return result;
         } catch (err: any) {
             lastError = err;
+            if (err?.message?.includes("API_KEY_INVALID") || err?.message?.includes("API key not valid") || err?.status === 400) {
+                console.warn("⚠️ Invalid Gemini API key, skipping multi-model retry to use heuristics immediately");
+                throw err;
+            }
             const isFallbackError = 
                 err?.status === 404 || 
                 err?.status === 429 || 
