@@ -23,13 +23,13 @@ export default function TabsLayout() {
   };
 
   return (
-    <SafeAreaInsetsContext.Provider value={flushInsets}>
+    <SafeAreaInsetsContext.Provider value={{ top: insets.top, left: insets.left, right: insets.right, bottom: 0 }}>
       <Tabs
         // @ts-ignore - pass safeAreaInsets directly to BottomTabView navigator
-        safeAreaInsets={flushInsets}
+        safeAreaInsets={{ bottom: 0 }}
         screenOptions={{
           // @ts-ignore
-          safeAreaInsets: flushInsets,
+          safeAreaInsets: { bottom: 0 },
           headerShown: false,
           tabBarShowLabel: true,
           tabBarLabelPosition: 'below-icon',

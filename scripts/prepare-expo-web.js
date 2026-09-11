@@ -255,7 +255,7 @@ function processHtmlFile(sourcePath, targetPath) {
   // Replace viewport with complete iOS cover attributes
   content = content.replace(
     /<meta name="viewport"[^>]*>/,
-    '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />'
+    '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />'
   );
 
   // Inject PWA snippet before </head> if not present
