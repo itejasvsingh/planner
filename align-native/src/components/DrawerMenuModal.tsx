@@ -260,6 +260,23 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
                 <Text style={{ color: theme.textSecondary, textTransform: 'capitalize', fontWeight: '600' }}>{themeMode}</Text>
               </Pressable>
 
+              <Pressable
+                style={[styles.menuItem, { borderBottomColor: theme.border }]}
+                onPress={() => {
+                  Alert.alert(
+                    'Install Align on iOS',
+                    'To install Align with full Dynamic Island & full-screen experience:\n\n1. In Safari, tap the Share button (box with upward arrow) at the bottom.\n2. Scroll down and tap "Add to Home Screen".\n3. Tap "Add" in the top right.\n\nThen launch Align directly from your Home Screen!',
+                    [{ text: 'Got it' }]
+                  );
+                }}>
+                <Smartphone color={theme.blue} size={22} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.menuText, { color: theme.text }]}>Add to Home Screen</Text>
+                  <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Dynamic Island & full screen setup</Text>
+                </View>
+                <ChevronRight color={theme.textSecondary} size={20} />
+              </Pressable>
+
               <Pressable style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={handleExportData}>
                 <Download color={theme.text} size={22} />
                 <View style={{ flex: 1 }}>
