@@ -9,24 +9,10 @@ import NotificationsManager from '@/components/NotificationsManager';
 export default function TabsLayout() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
-  const insets = useSafeAreaInsets();
-  const isWeb = Platform.OS === 'web';
-  const isStandalone =
-    isWeb &&
-    typeof window !== 'undefined' &&
-    (Boolean((window.navigator as any)?.standalone) ||
-      Boolean(window.matchMedia?.('(display-mode: standalone)').matches));
   
-  // Compact, Apple HIG-compliant tab bar content height (50px)
-  const tabContentHeight = 50;
-  
-  // On iOS standalone (home screen PWA): snug 24px clearance above home indicator bar
-  // On regular mobile Safari / desktop web: minimal 6px padding flush with browser chrome
-  const bottomPadding = isStandalone
-    ? (insets.bottom > 0 ? Math.min(insets.bottom, 24) : 20)
-    : (insets.bottom > 0 ? insets.bottom : 6);
-
-  const tabHeight = tabContentHeight + bottomPadding;
+  // Sleek, compact 56px tab bar with no excessive bottom void
+  const tabHeight = 56;
+  const bottomPadding = 6;
 
   return (
     <>
@@ -56,7 +42,7 @@ export default function TabsLayout() {
             borderTopColor: colors.border,
             elevation: 0,
             shadowOpacity: 0,
-            paddingTop: 2,
+            paddingTop: 3,
             paddingBottom: bottomPadding,
             height: tabHeight,
           },

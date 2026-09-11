@@ -98,25 +98,13 @@ export default function QuickAddBar() {
     }
   };
 
-  const insets = useSafeAreaInsets();
-  const isWeb = Platform.OS === 'web';
-  const isStandalone =
-    isWeb &&
-    typeof window !== 'undefined' &&
-    (Boolean((window.navigator as any)?.standalone) ||
-      Boolean(window.matchMedia?.('(display-mode: standalone)').matches));
-
-  const bottomBarPadding = isStandalone
-    ? (insets.bottom > 0 ? Math.min(insets.bottom, 24) : 20)
-    : (insets.bottom > 0 ? insets.bottom : 6);
-
-  const tabHeight = 50 + bottomBarPadding;
-  const quickAddBottom = tabHeight + 8;
+  // Position cleanly 8px above the 56px bottom tab bar
+  const quickAddBottom = 56 + 8;
 
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0} 
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 56 : 0} 
       style={[styles.keyboardView, { bottom: quickAddBottom }]}
     >
       <View style={[styles.container, { backgroundColor: theme.backgroundElement, borderColor: theme.border, paddingLeft: 12 }]}>
