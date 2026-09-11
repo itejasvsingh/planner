@@ -2,8 +2,6 @@
 
 import React, { useEffect, useRef, useState, useCallback, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import { Capacitor } from '@capacitor/core';
-import { App } from '@capacitor/app';
 import { IconChevronLeft } from './Icons';
 import { triggerHaptic } from '../lib/native';
 
@@ -30,26 +28,6 @@ export default function MobileScreen({ title, children, headerRight }: MobileScr
             router.back();
         }, 400);
     }, [isExiting, router]);
-
-    // 2. Android Capacitor Hardware Back Button (Strictly guarded for native)
-    useEffect(() => {
-        if (!Capacitor.isNativePlatform()) return;
-
-        let handle: any = null;
-        try {
-            App.addListener('backButton', () => {
-                handleDismiss();
-            }).then((h) => { handle = h; });
-        } catch (e) {
-            console.warn("Native back button listener unavailable:", e);
-        }
-
-        return () => {
-            if (handle && typeof handle.remove === 'function') {
-                handle.remove();
-            }
-        };
-    }, [handleDismiss]);
 
     // 2. Theme Synchronization
     useEffect(() => {

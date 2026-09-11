@@ -1,61 +1,50 @@
-import { Capacitor } from '@capacitor/core';
+// Web / PWA-first native helpers for iOS Add-to-HomeScreen and mobile browsers
 
-export const isNative = typeof window !== 'undefined' ? Capacitor.isNativePlatform() : false;
-
-export const isNativeApp = () => {
+export const isStandalonePWA = (): boolean => {
     if (typeof window === 'undefined') return false;
-    return Capacitor.isNativePlatform();
+    return (
+        window.matchMedia('(display-mode: standalone)').matches ||
+        (window.navigator as any).standalone === true
+    );
 };
+
+export const isNative = false;
+export const isNativeApp = () => isStandalonePWA();
 
 export const triggerHaptic = async (type: 'light' | 'medium' | 'heavy' | 'success' | 'warning' | 'error' = 'light') => {
     if (typeof window === 'undefined') return;
     try {
-        if (Capacitor.isNativePlatform()) {
-            const { Haptics, ImpactStyle, NotificationType } = await import('@capacitor/haptics');
-            if (type === 'light') {
-                await Haptics.impact({ style: ImpactStyle.Light });
-            } else if (type === 'medium') {
-                await Haptics.impact({ style: ImpactStyle.Medium });
-            } else if (type === 'heavy') {
-                await Haptics.impact({ style: ImpactStyle.Heavy });
-            } else if (type === 'success') {
-                await Haptics.notification({ type: NotificationType.Success });
-            } else if (type === 'warning') {
-                await Haptics.notification({ type: NotificationType.Warning });
-            } else if (type === 'error') {
-                await Haptics.notification({ type: NotificationType.Error });
+        if ('vibrate' in navigator) {
+            if (type === 'heavy' || type === 'error') {
+                navigator.vibrate([30, 50, 30]);
+            } else if (type === 'medium' || type === 'warning') {
+                navigator.vibrate(25);
+            } else {
+                navigator.vibrate(10);
             }
-        } else if ('vibrate' in navigator) {
-            navigator.vibrate(type === 'heavy' ? 25 : 10);
         }
     } catch {
-        // Graceful fallback for non-native web environments
+        // Haptic feedback not supported or suppressed by browser
     }
 };
 
 export const updateStatusBar = async (isDark: boolean) => {
-    if (typeof window === 'undefined') return;
+    if (typeof document === 'undefined') return;
     try {
-        const { StatusBar, Style } = await import('@capacitor/status-bar');
-        if (Capacitor.isNativePlatform()) {
-            await StatusBar.setStyle({ style: isDark ? Style.Dark : Style.Light });
-            await StatusBar.setBackgroundColor({ color: isDark ? '#0F172A' : '#F8FAFC' });
+        let meta = document.querySelector('meta[name="theme-color"]');
+        if (!meta) {
+            meta = document.createElement('meta');
+            meta.setAttribute('name', 'theme-color');
+            document.head.appendChild(meta);
         }
+        meta.setAttribute('content', isDark ? '#0F172A' : '#F8FAFC');
     } catch {
         // Ignore in unsupported environments
     }
 };
 
 export const hideSplashScreen = async () => {
-    if (typeof window === 'undefined') return;
-    try {
-        const { SplashScreen } = await import('@capacitor/splash-screen');
-        if (Capacitor.isNativePlatform()) {
-            await SplashScreen.hide();
-        }
-    } catch {
-        // Ignore
-    }
+    // No-op on Web PWA
 };
 
 function hashCode(str: string): number {
@@ -70,11 +59,7 @@ function hashCode(str: string): number {
 export const requestNotificationPermission = async (): Promise<boolean> => {
     if (typeof window === 'undefined') return false;
     try {
-        if (Capacitor.isNativePlatform()) {
-            const { LocalNotifications } = await import('@capacitor/local-notifications');
-            const res = await LocalNotifications.requestPermissions();
-            return res.display === 'granted';
-        } else if ('Notification' in window) {
+        if ('Notification' in window) {
             const perm = await window.Notification.requestPermission();
             return perm === 'granted';
         }
@@ -87,11 +72,7 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
 export const checkNotificationPermission = async (): Promise<boolean> => {
     if (typeof window === 'undefined') return false;
     try {
-        if (Capacitor.isNativePlatform()) {
-            const { LocalNotifications } = await import('@capacitor/local-notifications');
-            const res = await LocalNotifications.checkPermissions();
-            return res.display === 'granted';
-        } else if ('Notification' in window) {
+        if ('Notification' in window) {
             return window.Notification.permission === 'granted';
         }
     } catch {
@@ -103,29 +84,17 @@ export const checkNotificationPermission = async (): Promise<boolean> => {
 export const sendNativeNotification = async (title: string, body: string, id?: number, scheduleAt?: Date) => {
     if (typeof window === 'undefined') return;
     try {
-        if (Capacitor.isNativePlatform()) {
-            const { LocalNotifications } = await import('@capacitor/local-notifications');
-            const numId = id || Math.abs(hashCode(title + body + (scheduleAt ? scheduleAt.getTime() : Date.now())));
-            await LocalNotifications.schedule({
-                notifications: [
-                    {
-                        title,
-                        body,
-                        id: numId % 2147483647,
-                        schedule: scheduleAt ? { at: scheduleAt, allowWhileIdle: true } : undefined,
-                        sound: 'default',
-                        smallIcon: 'ic_launcher_foreground',
-                        actionTypeId: '',
-                        extra: null
-                    }
-                ]
-            });
-        } else if ('Notification' in window && window.Notification.permission === 'granted') {
-            new window.Notification(title, { body, icon: '/favicon.ico' });
+        if ('Notification' in window && window.Notification.permission === 'granted') {
+            const delay = scheduleAt ? Math.max(0, scheduleAt.getTime() - Date.now()) : 0;
+            if (delay > 0) {
+                setTimeout(() => {
+                    new window.Notification(title, { body, icon: '/favicon.ico' });
+                }, delay);
+            } else {
+                new window.Notification(title, { body, icon: '/favicon.ico' });
+            }
         }
     } catch (e) {
         console.warn('Failed to send notification:', e);
     }
 };
-
-

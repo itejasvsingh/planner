@@ -49,6 +49,9 @@
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",
     "android": "expo run:android",
+    "build:apk": "eas build -p android --profile preview",
+    "build:apk:local": "eas build -p android --profile preview --local",
+    "prebuild:android": "expo prebuild -p android",
     "ios": "expo run:ios",
     "web": "expo start --web",
     "lint": "expo lint"

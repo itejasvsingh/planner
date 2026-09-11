@@ -14,10 +14,9 @@ import {
     IconTrendingUp, IconMenu, IconWhatsApp, IconRepeat
 } from '../components/Icons';
 import { triggerHaptic, updateStatusBar, hideSplashScreen, requestNotificationPermission, checkNotificationPermission, sendNativeNotification } from '../lib/native';
-import { Capacitor } from '@capacitor/core';
-import { OtaKit } from '@otakit/capacitor-updater';
 import LockScreen, { type AuthStage } from '../components/LockScreen';
 import { hasPinSet, isSecurityEnabled } from '../lib/auth';
+
 
 // --- HELPERS ---
 function pad(n: number | string) { return String(n).padStart(2, '0'); }
@@ -161,21 +160,7 @@ export default function PlannerApp() {
     const [vpStyle, setVpStyle] = useState({ height: '100dvh', top: '0px' });
     const [kbHeight, setKbHeight] = useState(0);
     const [isOnline, setIsOnline] = useState(true);
-    // Android WebView strips out the Web Speech API entirely, so voice input
-    // never works in the native app shell - only in a real browser/PWA.
-    const [isNativePlatform, setIsNativePlatform] = useState(false);
-    useEffect(() => {
-        if (typeof window !== 'undefined') setIsNativePlatform(Capacitor.isNativePlatform());
-    }, []);
-
-    // Notify OTA Updater that app is ready (prevents rollback)
-    useEffect(() => {
-        if (typeof window !== 'undefined' && Capacitor.isNativePlatform()) {
-            try {
-                OtaKit.notifyAppReady().catch(() => {});
-            } catch {}
-        }
-    }, []);
+    const isNativePlatform = false;
 
     // Online / Offline Status Detection
     useEffect(() => {
@@ -395,62 +380,8 @@ export default function PlannerApp() {
     useEffect(() => {
         if (!userPhone || !pushEnabled) return;
 
-        // Schedule future task reminders natively on device
-        const scheduleUpcoming = async () => {
-            if (typeof window === 'undefined' || !Capacitor.isNativePlatform()) return;
-            try {
-                const { LocalNotifications } = await import('@capacitor/local-notifications');
-                const pending = await LocalNotifications.getPending();
-                if (pending.notifications.length > 0) {
-                    await LocalNotifications.cancel({ notifications: pending.notifications });
-                }
-                const now = new Date();
-                const toSchedule: any[] = [];
-
-                items.forEach((item: any) => {
-                    if (item.type === 'task' && !item.done && item.dueDate && (item.reminderTime || item.dueTime)) {
-                        const timeStr = item.reminderTime || item.dueTime;
-                        const [h, m] = timeStr.split(':').map((x: string) => parseInt(x, 10));
-                        if (!isNaN(h) && !isNaN(m)) {
-                            const [year, month, day] = item.dueDate.split('-').map((x: string) => parseInt(x, 10));
-                            const targetDate = new Date(year, month - 1, day, h, m, 0);
-                            const numId = Math.abs(String(item.id).split('').reduce((acc: number, char: string) => (acc << 5) - acc + char.charCodeAt(0), 0)) % 2147483647;
-
-                            const scheduleTimes: { date: Date; label: string; idOffset: number }[] = [];
-                            if (whatsappReminderTiming === 'exact' || whatsappReminderTiming === 'both') {
-                                scheduleTimes.push({ date: targetDate, label: item.title, idOffset: 0 });
-                            }
-                            if (whatsappReminderTiming === '1h_before' || whatsappReminderTiming === 'both') {
-                                const oneHourBefore = new Date(targetDate.getTime() - 60 * 60 * 1000);
-                                scheduleTimes.push({ date: oneHourBefore, label: `In 1 hour: ${item.title}`, idOffset: 1 });
-                            }
-
-                            scheduleTimes.forEach(({ date, label, idOffset }) => {
-                                if (date.getTime() > now.getTime()) {
-                                    toSchedule.push({
-                                        title: "Planner Reminder",
-                                        body: label,
-                                        id: (numId + idOffset) % 2147483647,
-                                        schedule: { at: date, allowWhileIdle: true },
-                                        sound: 'default',
-                                        smallIcon: 'ic_launcher_foreground'
-                                    });
-                                }
-                            });
-                        }
-                    }
-                });
-
-                if (toSchedule.length > 0) {
-                    await LocalNotifications.schedule({ notifications: toSchedule });
-                }
-            } catch (e) {
-                console.warn("Local notification scheduling:", e);
-            }
-        };
-        scheduleUpcoming();
-
         // Realtime interval check when app is open
+
         const interval = setInterval(() => {
             const now = new Date();
             const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -1095,9 +1026,7 @@ function applySmartTags(vendorName: string, aiGuessedCategory?: string): string 
 
         // 1. Try calling the /api/parse route
         try {
-            const apiUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' && !Capacitor.isNativePlatform()
-                ? '/api/parse'
-                : 'https://planner-wheat-three.vercel.app/api/parse';
+            const apiUrl = '/api/parse';
 
             const res = await fetch(apiUrl, {
                 method: 'POST',
@@ -1198,7 +1127,6 @@ function applySmartTags(vendorName: string, aiGuessedCategory?: string): string 
     }
 
     function startListening() {
-        if (Capacitor.isNativePlatform()) { alert("Voice input isn't available in the app - try the manual/text entry instead."); return; }
         const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
         if (!SpeechRecognition) { alert("Voice recognition not supported on this browser."); return; }
         const recognition = new SpeechRecognition();

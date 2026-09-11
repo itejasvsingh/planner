@@ -3,11 +3,8 @@
  * PIN hashing + biometric helpers for Align app lock screen.
  *
  * PIN storage: SHA-256 hash of the 4-6 digit PIN is stored in localStorage.
- * Biometrics: wrapped via @aparajita/capacitor-biometric-auth for native,
- * and WebAuthn (PublicKeyCredential) for Web / PWA.
+ * Biometrics: WebAuthn (PublicKeyCredential) platform authenticator (Touch ID, Face ID, Fingerprint).
  */
-
-import { Capacitor } from '@capacitor/core';
 
 const PIN_HASH_KEY = 'align_pin_hash';
 const PHONE_KEY = 'planner_user_phone';
@@ -80,29 +77,13 @@ export function setSecurityEnabled(enabled: boolean): void {
 /* ─────────────────── Biometric Helpers ─────────────────── */
 
 export type BiometricAvailability =
-    | 'face'       // Face ID (iOS) or Face Unlock (Android)
+    | 'face'        // Face ID (iOS)
     | 'fingerprint' // Touch ID / fingerprint
     | 'device'      // PIN/pattern (device credential fallback)
     | 'none';       // Not available
 
 export async function checkBiometricAvailability(): Promise<BiometricAvailability> {
-    // 1. Native Capacitor App Platform
-    if (Capacitor.isNativePlatform()) {
-        try {
-            const { BiometricAuth, BiometryType } = await import('@aparajita/capacitor-biometric-auth');
-            const result = await BiometricAuth.checkBiometry();
-            if (!result.isAvailable) {
-                return result.deviceIsSecure ? 'device' : 'none';
-            }
-            const t = result.biometryType;
-            if (t === BiometryType.faceId || t === BiometryType.faceAuthentication) return 'face';
-            return 'fingerprint';
-        } catch {
-            return 'none';
-        }
-    }
-
-    // 2. Web / Safari PWA WebAuthn Platform Authenticator (Face ID / Touch ID / Fingerprint)
+    // Web / Safari PWA WebAuthn Platform Authenticator (Face ID / Touch ID / Fingerprint)
     if (typeof window !== 'undefined' && window.PublicKeyCredential) {
         try {
             const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
@@ -111,7 +92,7 @@ export async function checkBiometricAvailability(): Promise<BiometricAvailabilit
                 if (/iPhone|iPad|iPod/.test(ua)) {
                     return 'face'; // iOS Face ID / Touch ID
                 }
-                return 'fingerprint'; // Android Fingerprint / Face / Mac Touch ID
+                return 'fingerprint'; // Touch ID / Fingerprint
             }
         } catch {}
     }
@@ -174,25 +155,6 @@ async function promptWebAuthn(): Promise<boolean> {
  * Prompt biometric / device-credential authentication.
  * Resolves true on success, false on cancel / failure / not available.
  */
-export async function promptBiometric(reason: string = 'Unlock Align'): Promise<boolean> {
-    // 1. Native Capacitor Platform
-    if (Capacitor.isNativePlatform()) {
-        try {
-            const { BiometricAuth } = await import('@aparajita/capacitor-biometric-auth');
-            await BiometricAuth.authenticate({
-                reason,
-                cancelTitle: 'Use PIN',
-                allowDeviceCredential: true,
-                iosFallbackTitle: 'Use PIN',
-                androidTitle: 'Align',
-                androidSubtitle: reason,
-            });
-            return true;
-        } catch {
-            return false;
-        }
-    }
-
-    // 2. Web / Safari PWA Platform Authenticator (Face ID / Touch ID / Fingerprint)
+export async function promptBiometric(_reason: string = 'Unlock Align'): Promise<boolean> {
     return await promptWebAuthn();
 }
