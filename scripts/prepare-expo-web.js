@@ -155,6 +155,22 @@ const pwaHeadSnippet = `
       }
     } catch(e) {}
 
+    // Auto-updater for iOS Standalone PWA
+    (function() {
+      var isStandalone = window.navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+      if (isStandalone) {
+        fetch('/?_cb=' + Date.now(), { cache: 'no-store' })
+          .then(function(r) { return r.text(); })
+          .then(function(html) {
+            var m = html.match(/entry-([a-f0-9]+)\.js/);
+            if (m && m[0] && !document.documentElement.innerHTML.includes(m[0])) {
+              window.location.reload(true);
+            }
+          })
+          .catch(function() {});
+      }
+    })();
+
     // Cache purger
     if ('caches' in window) {
       caches.keys().then(function(keys) {
