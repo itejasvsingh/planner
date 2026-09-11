@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, Animated, Dimensions, Switch, Alert, ScrollView } from 'react-native';
-import { LogOut, Shield, MessageCircle, Moon, Sun, Bell, Smartphone, Download, Repeat, ChevronRight } from 'lucide-react-native';
+import { LogOut, Shield, MessageCircle, Moon, Sun, Bell, Smartphone, Download, Repeat, ChevronRight, Star, Calendar, Wallet, Target } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as FileSystem from 'expo-file-system';
@@ -166,6 +166,55 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
+            {/* Views / Navigation */}
+            <View style={styles.section}>
+              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Views</Text>
+
+              <Pressable
+                style={[styles.menuItem, { borderBottomColor: theme.border }]}
+                onPress={() => navigateTo('/')}>
+                <Star color={theme.blue} size={22} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.menuText, { color: theme.text }]}>Daily Agenda</Text>
+                  <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Today's tasks & schedule</Text>
+                </View>
+                <ChevronRight color={theme.textSecondary} size={20} />
+              </Pressable>
+
+              <Pressable
+                style={[styles.menuItem, { borderBottomColor: theme.border }]}
+                onPress={() => navigateTo('/calendar')}>
+                <Calendar color={theme.blue} size={22} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.menuText, { color: theme.text }]}>Calendar</Text>
+                  <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Monthly view & schedule</Text>
+                </View>
+                <ChevronRight color={theme.textSecondary} size={20} />
+              </Pressable>
+
+              <Pressable
+                style={[styles.menuItem, { borderBottomColor: theme.border }]}
+                onPress={() => navigateTo('/finance')}>
+                <Wallet color={theme.blue} size={22} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.menuText, { color: theme.text }]}>Expense Tracker & Finance</Text>
+                  <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Track spending, budgets & splits</Text>
+                </View>
+                <ChevronRight color={theme.textSecondary} size={20} />
+              </Pressable>
+
+              <Pressable
+                style={[styles.menuItem, { borderBottomColor: theme.border }]}
+                onPress={() => navigateTo('/goals')}>
+                <Target color={theme.blue} size={22} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.menuText, { color: theme.text }]}>Goals</Text>
+                  <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Milestones & targets</Text>
+                </View>
+                <ChevronRight color={theme.textSecondary} size={20} />
+              </Pressable>
+            </View>
+
             {/* Preferences */}
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Preferences</Text>
