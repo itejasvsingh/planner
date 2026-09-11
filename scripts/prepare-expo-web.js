@@ -24,6 +24,11 @@ if (!process.env.VERCEL && hasAlignNodeModules) {
   console.log('Using pre-bundled align-native web artifacts.');
 }
 
+if (!fs.existsSync(distDir)) {
+  console.log('align-native/dist does not exist. Using pre-committed public web assets.');
+  process.exit(0);
+}
+
 console.log('--- Step 2: Preparing public directories ---');
 if (!fs.existsSync(publicDir)) {
   fs.mkdirSync(publicDir, { recursive: true });
