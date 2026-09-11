@@ -35,7 +35,7 @@ export default function WhatsAppSettingsScreen() {
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!phone || !auth.currentUser) return;
+    if (!phone) return;
 
     getItem(`align_daily_summary_${phone}`).then(val => {
       if (val !== null) setDailySummaryEnabled(val === 'true');

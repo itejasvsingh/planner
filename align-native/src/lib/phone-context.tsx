@@ -25,6 +25,30 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
   const [needsPhoneSetup, setNeedsPhoneSetup] = useState(false);
 
+  // 1. Load persisted phone from storage immediately on startup
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const raw = await getItem(PHONE_KEY);
+        const cleaned = raw ? normalizePhone(raw) : '';
+        if (!cancelled && cleaned.length >= 10) {
+          setPhone(cleaned);
+        }
+      } catch (e) {
+        console.warn('Error reading phone from storage:', e);
+      } finally {
+        if (!cancelled) {
+          setReady(true);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 2. Track Firebase Auth state without destroying local phone persistence
   useEffect(() => {
     let cancelled = false;
 
@@ -33,10 +57,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
 
       if (!user) {
         setFirebaseUser(null);
-        setPhone(null);
         setNeedsPhoneSetup(false);
-        await removeItem(PHONE_KEY);
-        setReady(true);
         return;
       }
 
@@ -49,29 +70,33 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
         if (cancelled) return;
 
         if (snap.exists() && snap.data()?.phone) {
-          const userPhone = String(snap.data().phone);
+          const userPhone = normalizePhone(String(snap.data().phone));
           await setItem(PHONE_KEY, userPhone);
           setPhone(userPhone);
           setNeedsPhoneSetup(false);
         } else {
-          // User exists in Firebase Auth but has not linked phone number yet
-          setPhone(null);
-          setNeedsPhoneSetup(true);
+          // If phone is already stored locally, auto-link it with this Google account!
+          const localPhone = await getItem(PHONE_KEY);
+          if (localPhone && localPhone.length >= 10) {
+            const cleaned = normalizePhone(localPhone);
+            await setDoc(
+              userDocRef,
+              {
+                phone: cleaned,
+                email: user.email || null,
+                displayName: user.displayName || null,
+                createdAt: serverTimestamp(),
+              },
+              { merge: true }
+            );
+            setPhone(cleaned);
+            setNeedsPhoneSetup(false);
+          } else {
+            setNeedsPhoneSetup(true);
+          }
         }
       } catch (err) {
         console.warn('Error fetching users doc:', err);
-        // Fallback to local storage cache if offline
-        const cached = await getItem(PHONE_KEY);
-        if (cached && cached.length >= 10) {
-          setPhone(cached);
-          setNeedsPhoneSetup(false);
-        } else {
-          setNeedsPhoneSetup(true);
-        }
-      } finally {
-        if (!cancelled) {
-          setReady(true);
-        }
       }
     });
 
@@ -84,40 +109,33 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   const savePhone = useCallback(async (raw: string) => {
     const cleaned = normalizePhone(raw);
     if (!isValidPhone(cleaned)) {
-      return { ok: false as const, message: 'Please enter a valid phone number with country code (e.g., 919876543210).' };
-    }
-
-    const currentUser = auth.currentUser;
-    if (!currentUser) {
-      return { ok: false as const, message: 'Please sign in with Google first.' };
+      return { ok: false as const, message: 'Please enter a valid phone number (e.g., 9876543210).' };
     }
 
     try {
-      await setDoc(
-        doc(db, 'users', currentUser.uid),
-        {
-          phone: cleaned,
-          email: currentUser.email || null,
-          displayName: currentUser.displayName || null,
-          createdAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
-
-      // Verify the write is readable immediately before setting state & mounting listeners
-      try {
-        await getDoc(doc(db, 'users', currentUser.uid));
-      } catch (_) {
-        // non-blocking fallback
-      }
-
       await setItem(PHONE_KEY, cleaned);
       setPhone(cleaned);
       setNeedsPhoneSetup(false);
+
+      // If user is signed in with Google, also persist the mapping to Firestore
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        setDoc(
+          doc(db, 'users', currentUser.uid),
+          {
+            phone: cleaned,
+            email: currentUser.email || null,
+            displayName: currentUser.displayName || null,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        ).catch((err) => console.warn('Non-blocking user mapping sync notice:', err));
+      }
+
       return { ok: true as const };
     } catch (err: any) {
-      console.error('Failed to save user phone mapping:', err);
-      return { ok: false as const, message: err.message || 'Failed to link phone number.' };
+      console.error('Failed to save phone:', err);
+      return { ok: false as const, message: err.message || 'Failed to save phone number.' };
     }
   }, []);
 

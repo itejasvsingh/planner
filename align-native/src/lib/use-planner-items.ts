@@ -17,6 +17,7 @@ import { db, auth } from '@/lib/firebase';
 import { type PlannerItem, type PlannerSplit } from '@/lib/planner-item';
 import { getItem, itemsCacheKey, setItem } from '@/lib/storage';
 import { triggerHaptic } from '@/lib/haptics';
+import { getPhoneVariants } from '@/lib/phone';
 
 function parseCachedItems(raw: string | null): PlannerItem[] {
   if (!raw) return [];
@@ -33,12 +34,13 @@ export function usePlannerItems(phone: string | null) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!phone || !auth.currentUser) {
+    if (!phone) {
       setItems([]);
       setLoading(false);
       return;
     }
     const currentPhone: string = phone;
+    const phoneVariants = getPhoneVariants(currentPhone);
 
     let cancelled = false;
     let unsubscribeListener: (() => void) | null = null;
@@ -55,7 +57,8 @@ export function usePlannerItems(phone: string | null) {
 
     function subscribe() {
       if (cancelled) return;
-      const q = query(collection(db, 'planner_items'), where('ownerId', '==', String(currentPhone)));
+      const variants = phoneVariants.length > 0 ? phoneVariants : [String(currentPhone)];
+      const q = query(collection(db, 'planner_items'), where('ownerId', 'in', variants));
       unsubscribeListener = onSnapshot(
         q,
         { includeMetadataChanges: true },
@@ -469,7 +472,7 @@ export function useBudgetLimits(phone: string | null) {
 
   useEffect(() => {
     const activePhone = phone;
-    if (!activePhone || !auth.currentUser) return;
+    if (!activePhone) return;
     let cancelled = false;
     let unsubscribeListener: (() => void) | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;

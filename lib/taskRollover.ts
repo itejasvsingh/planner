@@ -1,6 +1,22 @@
 import { db } from './firebase';
 import { getKolkataDateInfo } from './dailySummary';
 
+function getPhoneVariants(phone: string | null): string[] {
+    if (!phone) return [];
+    const digits = String(phone).replace(/\D/g, '');
+    if (!digits) return [];
+    const variants = new Set<string>();
+    variants.add(digits);
+    if (digits.length === 10) {
+        variants.add(`91${digits}`);
+        variants.add(`+91${digits}`);
+    } else if (digits.length === 12 && digits.startsWith('91')) {
+        variants.add(digits.slice(2));
+        variants.add(`+${digits}`);
+    }
+    return Array.from(variants);
+}
+
 export interface RolloverResult {
     success: boolean;
     reason?: string;
@@ -41,8 +57,9 @@ export async function runTaskRolloverForUser(userPhone: string, options?: { forc
     const { todayKey } = getKolkataDateInfo();
 
     // 2. Query incomplete tasks for this user
+    const variants = getPhoneVariants(targetPhone);
     const snapshot = await db.collection('planner_items')
-        .where('ownerId', '==', targetPhone)
+        .where('ownerId', 'in', variants.length > 0 ? variants : [targetPhone])
         .where('type', '==', 'task')
         .where('done', '==', false)
         .get();

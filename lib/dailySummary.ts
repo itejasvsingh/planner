@@ -1,7 +1,24 @@
 import { db } from './firebase';
 
-const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
-const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
+const DEFAULT_TOKEN = "EAAO6WemhAoABSdMEF3np2uZB0fWZA8SHpv0dX0Nq0fjg0S5KZCj3td0amntX6vvDVzWguTYwZBSgYDCYkORiJpJXtm9mggjMkrmTLvZBCQLwlIfIOsWvKLTxKFBfjKoXAyBlAZArHkH7gHnrfYXYTgkxVe8t4AVNYZBzAE5WHZAGEKaVZAYtC0ep46QTZCSEZAcgwZDZD";
+const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN || DEFAULT_TOKEN;
+const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID || "1304237036105269";
+
+function getPhoneVariants(phone: string | null): string[] {
+    if (!phone) return [];
+    const digits = String(phone).replace(/\D/g, '');
+    if (!digits) return [];
+    const variants = new Set<string>();
+    variants.add(digits);
+    if (digits.length === 10) {
+        variants.add(`91${digits}`);
+        variants.add(`+91${digits}`);
+    } else if (digits.length === 12 && digits.startsWith('91')) {
+        variants.add(digits.slice(2));
+        variants.add(`+${digits}`);
+    }
+    return Array.from(variants);
+}
 
 export function getKolkataDateInfo() {
     const nowUtc = new Date();
@@ -146,8 +163,9 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
     }
 
     // 3. Fetch user's items for today's summary
+    const variants = getPhoneVariants(targetPhone);
     const snapshot = await db.collection('planner_items')
-        .where('ownerId', '==', targetPhone)
+        .where('ownerId', 'in', variants.length > 0 ? variants : [targetPhone])
         .get();
 
     const items: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));

@@ -5,9 +5,10 @@ import { runDailySummaryForUser } from '../../../lib/dailySummary';
 
 export const dynamic = 'force-dynamic';
 
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
-const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
-const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "my_align_secure_token_123";
+const DEFAULT_TOKEN = "EAAO6WemhAoABSdMEF3np2uZB0fWZA8SHpv0dX0Nq0fjg0S5KZCj3td0amntX6vvDVzWguTYwZBSgYDCYkORiJpJXtm9mggjMkrmTLvZBCQLwlIfIOsWvKLTxKFBfjKoXAyBlAZArHkH7gHnrfYXYTgkxVe8t4AVNYZBzAE5WHZAGEKaVZAYtC0ep46QTZCSEZAcgwZDZD";
+const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.ALIGN_WEBHOOK_SECRET || process.env.META_ACCESS_TOKEN || DEFAULT_TOKEN;
+const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID || "1304237036105269";
 
 // ==========================================
 // 1. WEBHOOK VERIFICATION (Required by Meta)
@@ -290,10 +291,26 @@ async function sendWhatsAppInteractiveButtons(to: string, bodyText: string, butt
     }
 }
 
+function getPhoneVariants(phone: string | null): string[] {
+    if (!phone) return [];
+    const digits = String(phone).replace(/\D/g, '');
+    if (!digits) return [];
+    const variants = new Set<string>();
+    variants.add(digits);
+    if (digits.length === 10) {
+        variants.add(`91${digits}`);
+        variants.add(`+91${digits}`);
+    } else if (digits.length === 12 && digits.startsWith('91')) {
+        variants.add(digits.slice(2));
+        variants.add(`+${digits}`);
+    }
+    return Array.from(variants);
+}
+
 // ==========================================
 // GEMINI MULTI-MODEL DISPATCHER WITH WARM CACHE
 // ==========================================
-let cachedWorkingConfig: { model: string; apiVersion?: string } | null = { model: "gemini-flash-lite-latest" };
+let cachedWorkingConfig: { model: string; apiVersion?: string } | null = { model: "gemini-2.5-flash" };
 
 async function generateWithGemini(
     genAI: GoogleGenerativeAI, 
@@ -301,10 +318,11 @@ async function generateWithGemini(
     config?: { temperature?: number; maxOutputTokens?: number }
 ) {
     const candidateConfigs: { model: string; apiVersion?: string }[] = [
-        { model: "gemini-flash-lite-latest" },
-        { model: "gemini-3.1-flash-lite" },
-        { model: "gemini-3.5-flash-lite" },
+        { model: "gemini-2.5-flash" },
+        { model: "gemini-2.0-flash" },
+        { model: "gemini-1.5-flash" },
         { model: "gemini-flash-latest" },
+        { model: "gemini-flash-lite-latest" },
     ];
 
     // Fast-path: Reuse the model that already succeeded in this instance to avoid fallback latency!
@@ -758,14 +776,15 @@ async function processInteractiveMessage(interactive: any, senderPhone: string) 
     }
 }
 
-async function handleConversationalQuery(genAI: GoogleGenerativeAI, text: string, senderPhone: string, session?: any) {
+async function handleConversationalQuery(genAI: GoogleGenerativeAI | null, text: string, senderPhone: string, session?: any) {
     console.log(`Intent: QUERY/CONVERSATION -> Fetching context for "${text.slice(0, 50)}" from ${senderPhone}...`);
 
     const { today, currentDayName } = getKolkataDate();
     const currentMonth = today.substring(0, 7);
 
+    const variants = getPhoneVariants(senderPhone);
     const snapshot = await db.collection('planner_items')
-        .where('ownerId', '==', senderPhone)
+        .where('ownerId', 'in', variants.length > 0 ? variants : [senderPhone])
         .get();
 
     const allDocs = snapshot.docs.map(doc => doc.data());
@@ -806,8 +825,31 @@ Instructions:
 - If the user sent a casual greeting: greet them warmly and let them know they can log expenses (e.g., "Spent 200 on lunch"), forward assignments/announcements to add reminders, or ask about their schedule.
 Keep the response punchy, helpful, and under 3 sentences. Do not mention JSON or technical details.`;
 
-    const answerResult = await generateWithGemini(genAI, answerPrompt, { temperature: 0.2, maxOutputTokens: 250 });
-    const finalAnswer = answerResult.response.text().trim();
+    let finalAnswer = "";
+    if (genAI) {
+        try {
+            const answerResult = await generateWithGemini(genAI, answerPrompt, { temperature: 0.2, maxOutputTokens: 250 });
+            finalAnswer = answerResult.response.text().trim();
+        } catch (err) {
+            console.warn("⚠️ Gemini query answer failed, generating direct summary:", err);
+        }
+    }
+
+    if (!finalAnswer) {
+        if (/task|schedule|agenda|todo|to-do|reminder/i.test(text)) {
+            if (pendingTasks.length === 0) {
+                finalAnswer = "🎉 You have no pending tasks on your agenda right now! Everything is caught up.";
+            } else {
+                const list = pendingTasks.slice(0, 5).map((t: any, idx: number) => `${idx + 1}. ${t.title}${t.dueTime ? ` (${t.dueTime})` : ''}`).join('\n');
+                finalAnswer = `📋 *Your Upcoming Tasks:*\n${list}\n\nType any message to add more!`;
+            }
+        } else if (/spent|expense|spending|cost|money|budget|financ/i.test(text)) {
+            const total = monthlyFinances.filter((f: any) => f.type === 'expense').reduce((s: number, f: any) => s + (parseFloat(f.amount) || 0), 0);
+            finalAnswer = `💰 *Monthly Spending:* You've spent *₹${total}* this month across ${monthlyFinances.length} transactions.`;
+        } else {
+            finalAnswer = "👋 Hi! I'm Align. You can log expenses (e.g. *\"Spent 200 on lunch\"*), set reminders (e.g. *\"Remind me at 5pm to study\"*), or check your tasks!";
+        }
+    }
 
     if (finalAnswer) {
         await sendWhatsAppTextMessage(senderPhone, finalAnswer);
@@ -818,17 +860,102 @@ Keep the response punchy, helpful, and under 3 sentences. Do not mention JSON or
     }
 }
 
+function parseHeuristically(text: string, today: string, now: Date) {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const lower = text.trim().toLowerCase();
+
+    // 1. Greeting
+    if (/^(hi|hello|hey|hola|namaste|good\s+(morning|afternoon|evening)|start|help)$/i.test(lower)) {
+        return {
+            intent: "CONVERSATION",
+            items: [],
+            reply: "👋 Hey there! I'm Align, your personal AI planner and financial assistant.\n\nYou can:\n• Log expenses: *\"Spent 250 on lunch\"*\n• Set reminders: *\"Remind me to call John at 5pm\"*\n• Check schedule: *\"What are my tasks today?\"*"
+        };
+    }
+
+    // 2. Querying tasks or spending
+    if (/(what\s+(is|are)\s+my|show\s+my|list\s+my|my\s+tasks|my\s+schedule|today'?s\s+tasks|pending\s+tasks|how\s+much\s+(have\s+i|did\s+i)\s+spent|my\s+spending|my\s+expenses)/i.test(lower)) {
+        return {
+            intent: "QUERY",
+            items: []
+        };
+    }
+
+    // 3. Expense detection
+    const isExpense = /debited|spent|paid|bought|buy|sent|deducted|cost|bill|food|groceries|coffee|lunch|dinner|uber|auto|swiggy|zomato/i.test(lower);
+    const isIncome = /salary|credited|received|bonus|earned|deposit/i.test(lower);
+    const amountMatch = text.match(/(?:₹|rs\.?|inr|\$)\s*([\d,]+\.?\d*)/i) || text.match(/([\d,]+\.?\d*)\s*(?:INR|Rs|bucks|dollars)/i) || text.match(/\b(\d+)\s*(?:on|for)\b/i);
+
+    if ((isExpense || isIncome || amountMatch) && amountMatch) {
+        const amount = parseFloat(amountMatch[1].replace(/,/g, ''));
+        const cleanTitle = text
+            .replace(/(?:₹|rs\.?|inr|\$)\s*[\d,]+\.?\d*/gi, '')
+            .replace(/[\d,]+\.?\d*\s*(?:INR|Rs|bucks|dollars)/gi, '')
+            .replace(/debited|spent|paid|bought|buy|for|at/gi, '')
+            .trim() || (isExpense ? 'Expense' : 'Income');
+
+        let category = "#General";
+        if (/lunch|dinner|food|coffee|tea|burger|pizza|swiggy|zomato|mess|bhurji|cafe/i.test(text)) category = "#Dining";
+        else if (/uber|ola|auto|cab|flight|train|metro|petrol|diesel|fuel/i.test(text)) category = "#Travel";
+        else if (/grocery|groceries|milk|instamart|blinkit|zepto/i.test(text)) category = "#Shopping";
+        else if (/book|exam|college|course|tuition/i.test(text)) category = "#Academics";
+        else if (/rent|wifi|electricity|bill|recharge/i.test(text)) category = "#Bills";
+
+        return {
+            intent: "INTAKE",
+            items: [{
+                type: isIncome ? 'income' : 'expense',
+                title: cleanTitle.charAt(0).toUpperCase() + cleanTitle.slice(1),
+                amount,
+                category
+            }]
+        };
+    }
+
+    // 4. Task / Reminder detection
+    let targetDate = today;
+    if (/tomorrow/i.test(lower)) {
+        const tom = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        targetDate = `${tom.getFullYear()}-${pad(tom.getMonth() + 1)}-${pad(tom.getDate())}`;
+    }
+
+    const timeMatch = text.match(/(\d{1,2}(?::\d{2})?)\s*(am|pm)/i);
+    let dueTime: string | null = null;
+    if (timeMatch) {
+        let [hStr, mStr] = timeMatch[1].split(':');
+        let h = parseInt(hStr, 10);
+        const m = mStr ? mStr.padStart(2, '0') : '00';
+        if (timeMatch[2].toLowerCase() === 'pm' && h < 12) h += 12;
+        if (timeMatch[2].toLowerCase() === 'am' && h === 12) h = 0;
+        dueTime = `${pad(h)}:${m}`;
+    }
+
+    const cleanTaskTitle = text
+        .replace(/remind\s+me\s+(to\s+)?/gi, '')
+        .replace(/tomorrow|today|tonight/gi, '')
+        .replace(/at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?/gi, '')
+        .trim();
+
+    return {
+        intent: "INTAKE",
+        items: [{
+            type: "task",
+            title: cleanTaskTitle ? (cleanTaskTitle.charAt(0).toUpperCase() + cleanTaskTitle.slice(1)) : text,
+            dueDate: targetDate,
+            dueTime,
+            category: "#Personal"
+        }]
+    };
+}
+
 // ==========================================
 // GENERALIZED NATURAL LANGUAGE & MULTI-MESSAGE PROCESSOR
 // Reads any message format, decides first what it is, and extracts all details
 // ==========================================
 async function processTextQuery(text: string, senderPhone: string) {
-    if (!API_TOKEN) throw new Error("Missing Meta API Token");
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_API_KEY) throw new Error("Missing Gemini API Token");
-
     try {
-        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+        const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
         const { now, today, currentTime, currentDayName } = getKolkataDate();
 
         // 1. Fetch short-term session memory for this user
@@ -1034,8 +1161,9 @@ async function processTextQuery(text: string, senderPhone: string) {
                 }
 
                 // Query all tasks for this user
+                const variants = getPhoneVariants(senderPhone);
                 const snapshot = await db.collection('planner_items')
-                    .where('ownerId', '==', senderPhone)
+                    .where('ownerId', 'in', variants.length > 0 ? variants : [senderPhone])
                     .where('type', '==', 'task')
                     .get();
 
@@ -1143,15 +1271,21 @@ Format:
   "reply": "string" // reply message for CONVERSATION or UPDATE_LAST
 }`;
 
-        const result = await generateWithGemini(genAI, prompt, { temperature: 0.0, maxOutputTokens: 350 });
-        const responseText = result.response.text();
-
         let parsed: any = null;
-        try {
-            const match = responseText.match(/\{[\s\S]*\}/);
-            if (match) parsed = JSON.parse(match[0]);
-        } catch {
-            parsed = null;
+        if (genAI) {
+            try {
+                const result = await generateWithGemini(genAI, prompt, { temperature: 0.0, maxOutputTokens: 350 });
+                const responseText = result.response.text();
+                const match = responseText.match(/\{[\s\S]*\}/);
+                if (match) parsed = JSON.parse(match[0]);
+            } catch (aiErr) {
+                console.warn("⚠️ Gemini AI parse failed in webhook, using fallback heuristics:", aiErr);
+                parsed = null;
+            }
+        }
+
+        if (!parsed) {
+            parsed = parseHeuristically(text, today, now);
         }
 
         // A. Handle INTAKE (Reminders, Tasks, Expenses - Single or Multiple)

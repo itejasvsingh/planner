@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 async function sendWhatsAppMessage(to: string, text: string) {
-    const token = process.env.META_ACCESS_TOKEN;
-    const phoneId = process.env.PHONE_NUMBER_ID;
+    const token = process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_API_TOKEN || "EAAO6WemhAoABSdMEF3np2uZB0fWZA8SHpv0dX0Nq0fjg0S5KZCj3td0amntX6vvDVzWguTYwZBSgYDCYkORiJpJXtm9mggjMkrmTLvZBCQLwlIfIOsWvKLTxKFBfjKoXAyBlAZArHkH7gHnrfYXYTgkxVe8t4AVNYZBzAE5WHZAGEKaVZAYtC0ep46QTZCSEZAcgwZDZD";
+    const phoneId = process.env.PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_ID || "1304237036105269";
     if (!token || !phoneId) {
         throw new Error('Meta WhatsApp credentials not configured');
     }

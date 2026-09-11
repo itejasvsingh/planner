@@ -46,6 +46,21 @@ function normalizePhone(phone: string | null) {
     const digits = String(phone || '').replace(/\D/g, '');
     return digits.length === 10 ? `91${digits}` : digits;
 }
+function getPhoneVariants(phone: string | null): string[] {
+    if (!phone) return [];
+    const digits = String(phone).replace(/\D/g, '');
+    if (!digits) return [];
+    const variants = new Set<string>();
+    variants.add(digits);
+    if (digits.length === 10) {
+        variants.add(`91${digits}`);
+        variants.add(`+91${digits}`);
+    } else if (digits.length === 12 && digits.startsWith('91')) {
+        variants.add(digits.slice(2));
+        variants.add(`+${digits}`);
+    }
+    return Array.from(variants);
+}
 const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 function formatTimeInput(timeStr: string) {
@@ -265,8 +280,9 @@ export default function PlannerApp() {
     useEffect(() => {
         if (!userPhone) return;
 
+        const variants = getPhoneVariants(userPhone);
         const unsubscribeItems = db.collection('planner_items')
-            .where('ownerId', '==', String(userPhone))
+            .where('ownerId', 'in', variants.length > 0 ? variants : [String(userPhone)])
             .onSnapshot({ includeMetadataChanges: true }, (snapshot) => {
                 const fetched: any[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 setItems(prev => {

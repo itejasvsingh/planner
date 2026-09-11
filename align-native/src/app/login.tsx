@@ -20,18 +20,37 @@ import { signInWithGoogle, signOutGoogle } from '@/lib/google-auth';
 export default function LoginScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { phone, firebaseUser, needsPhoneSetup, savePhone, logout } = usePhone();
+  const { phone, firebaseUser, needsPhoneSetup, savePhone, login, logout } = usePhone();
 
   const [phoneInput, setPhoneInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // If user is already authenticated and phone is linked, navigate to main tabs
-    if (firebaseUser && phone && !needsPhoneSetup) {
+    // If user has a phone set up, navigate directly to main tabs
+    if (phone && !needsPhoneSetup) {
       router.replace('/(tabs)');
     }
-  }, [firebaseUser, phone, needsPhoneSetup, router]);
+  }, [phone, needsPhoneSetup, router]);
+
+  async function handlePhoneLogin() {
+    if (!phoneInput.trim()) {
+      setError('Please enter your WhatsApp number.');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+
+    const result = await login(phoneInput.trim());
+    setBusy(false);
+
+    if (!result.ok) {
+      setError(result.message);
+      Alert.alert('Login Notice', result.message);
+    } else {
+      router.replace('/(tabs)');
+    }
+  }
 
   async function handleGoogleSignIn() {
     setBusy(true);
@@ -39,11 +58,9 @@ export default function LoginScreen() {
     try {
       const user = await signInWithGoogle();
       if (!user) {
-        // User cancelled sign in
         setBusy(false);
         return;
       }
-      // Sign in succeeded. PhoneProvider will detect auth change and check users/{uid}
     } catch (err: any) {
       console.error('Google sign-in error:', err);
       const msg = err.message || 'Failed to sign in with Google.';
@@ -55,22 +72,7 @@ export default function LoginScreen() {
   }
 
   async function handleCompletePhoneSetup() {
-    if (!phoneInput.trim()) {
-      setError('Please enter your WhatsApp number.');
-      return;
-    }
-    setBusy(true);
-    setError(null);
-
-    const result = await savePhone(phoneInput.trim());
-    setBusy(false);
-
-    if (!result.ok) {
-      setError(result.message);
-      Alert.alert('Setup Error', result.message);
-    } else {
-      router.replace('/(tabs)');
-    }
+    return handlePhoneLogin();
   }
 
   // Show one-time phone capture step if user has signed in with Google but has no linked phone
@@ -87,10 +89,54 @@ export default function LoginScreen() {
           <>
             <Text style={[styles.title, { color: theme.text }]}>Align</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              Intelligent personal timeline, finances, and WhatsApp assistant in one place.
+              Enter your WhatsApp number to sync your personalized timeline and finances.
             </Text>
 
+            <TextInput
+              value={phoneInput}
+              onChangeText={(t) => {
+                setPhoneInput(t);
+                if (error) setError(null);
+              }}
+              placeholder="e.g. 919876543210"
+              placeholderTextColor={theme.textSecondary}
+              keyboardType="phone-pad"
+              autoFocus
+              textAlign="center"
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.backgroundElement,
+                  borderColor: theme.border,
+                },
+              ]}
+            />
+
             {error ? <Text style={[styles.error, { color: theme.red }]}>{error}</Text> : null}
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Continue"
+              onPress={handlePhoneLogin}
+              disabled={busy}
+              style={({ pressed }) => [
+                styles.button,
+                { backgroundColor: theme.blue, opacity: pressed || busy ? 0.8 : 1 },
+              ]}
+            >
+              {busy ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.buttonText}>Continue</Text>
+              )}
+            </Pressable>
+
+            <View style={styles.dividerRow}>
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+              <Text style={[styles.dividerText, { color: theme.textSecondary }]}>OR</Text>
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+            </View>
 
             <Pressable
               accessibilityRole="button"
@@ -106,16 +152,12 @@ export default function LoginScreen() {
                 },
               ]}
             >
-              {busy ? (
-                <ActivityIndicator color={theme.text} />
-              ) : (
-                <View style={styles.googleButtonContent}>
-                  <Text style={styles.googleIconText}>G</Text>
-                  <Text style={[styles.googleButtonText, { color: theme.text }]}>
-                    Sign in with Google
-                  </Text>
-                </View>
-              )}
+              <View style={styles.googleButtonContent}>
+                <Text style={styles.googleIconText}>G</Text>
+                <Text style={[styles.googleButtonText, { color: theme.text }]}>
+                  Sign in with Google
+                </Text>
+              </View>
             </Pressable>
           </>
         ) : (
@@ -133,7 +175,10 @@ export default function LoginScreen() {
 
             <TextInput
               value={phoneInput}
-              onChangeText={setPhoneInput}
+              onChangeText={(t) => {
+                setPhoneInput(t);
+                if (error) setError(null);
+              }}
               placeholder="e.g. 919876543210"
               placeholderTextColor={theme.textSecondary}
               keyboardType="phone-pad"
@@ -175,7 +220,7 @@ export default function LoginScreen() {
               style={styles.switchAccountBtn}
             >
               <Text style={[styles.switchAccountText, { color: theme.blue }]}>
-                Use a different Google account
+                Use a different account
               </Text>
             </Pressable>
           </>
@@ -275,5 +320,23 @@ const styles = StyleSheet.create({
   switchAccountText: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 340,
+    marginVertical: 20,
+    gap: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    opacity: 0.6,
+  },
+  dividerText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 1,
   },
 });

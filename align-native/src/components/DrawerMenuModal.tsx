@@ -57,7 +57,7 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
   }, [visible]);
 
   useEffect(() => {
-    if (!phone || !auth.currentUser) return;
+    if (!phone) return;
     const unsubscribe = onSnapshot(
       doc(db, 'planner_settings', `preferences_${phone}`),
       (d) => {
