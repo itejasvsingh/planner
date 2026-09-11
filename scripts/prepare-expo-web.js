@@ -71,8 +71,8 @@ const pwaHeadSnippet = `
 
   <style>
     :root {
-      --sat: env(safe-area-inset-top, 47px);
-      --sab: env(safe-area-inset-bottom, 34px);
+      --sat: env(safe-area-inset-top, 0px);
+      --sab: env(safe-area-inset-bottom, 0px);
       --sal: env(safe-area-inset-left, 0px);
       --sar: env(safe-area-inset-right, 0px);
     }
@@ -85,12 +85,14 @@ const pwaHeadSnippet = `
       user-select: none;
       -webkit-user-select: none;
       height: 100%;
+      height: 100dvh;
       width: 100%;
       position: fixed;
       overflow: hidden;
     }
     #root {
       height: 100%;
+      height: 100dvh;
       width: 100%;
       display: flex;
       flex-direction: column;
@@ -120,7 +122,7 @@ const pwaHeadSnippet = `
     /* iOS Install banner styling */
     #ios-install-banner {
       position: fixed;
-      bottom: calc(96px + max(env(safe-area-inset-bottom, 20px), 20px));
+      bottom: calc(72px + env(safe-area-inset-bottom, 0px));
       left: 16px;
       right: 16px;
       max-width: 440px;

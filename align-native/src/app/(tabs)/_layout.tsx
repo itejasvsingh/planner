@@ -11,13 +11,21 @@ export default function TabsLayout() {
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
-  const isIOS =
-    Platform.OS === 'ios' ||
-    (isWeb && typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent));
+  const isStandalone =
+    isWeb &&
+    typeof window !== 'undefined' &&
+    (Boolean((window.navigator as any)?.standalone) ||
+      Boolean(window.matchMedia?.('(display-mode: standalone)').matches));
   
-  // 60px content height provides ample vertical room for 24px icon + margin + 14px label
-  const tabContentHeight = 60;
-  const bottomPadding = Math.max(insets.bottom, isIOS ? 24 : 8);
+  // Compact, Apple HIG-compliant tab bar content height (50px)
+  const tabContentHeight = 50;
+  
+  // On iOS standalone (home screen PWA): snug 24px clearance above home indicator bar
+  // On regular mobile Safari / desktop web: minimal 6px padding flush with browser chrome
+  const bottomPadding = isStandalone
+    ? (insets.bottom > 0 ? Math.min(insets.bottom, 24) : 20)
+    : (insets.bottom > 0 ? insets.bottom : 6);
+
   const tabHeight = tabContentHeight + bottomPadding;
 
   return (
@@ -37,10 +45,10 @@ export default function TabsLayout() {
             height: 24,
           },
           tabBarLabelStyle: {
-            fontSize: 11,
+            fontSize: 10,
             fontWeight: '600',
             marginTop: 2,
-            lineHeight: 14,
+            lineHeight: 12,
           },
           tabBarStyle: {
             backgroundColor: colors.background,
@@ -48,7 +56,7 @@ export default function TabsLayout() {
             borderTopColor: colors.border,
             elevation: 0,
             shadowOpacity: 0,
-            paddingTop: 4,
+            paddingTop: 2,
             paddingBottom: bottomPadding,
             height: tabHeight,
           },

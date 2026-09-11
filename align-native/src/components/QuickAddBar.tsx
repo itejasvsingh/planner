@@ -100,16 +100,23 @@ export default function QuickAddBar() {
 
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
-  const isIOS =
-    Platform.OS === 'ios' ||
-    (isWeb && typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent));
-  const bottomBarPadding = Math.max(insets.bottom, isIOS ? 24 : 8);
-  const quickAddBottom = 60 + bottomBarPadding + 12;
+  const isStandalone =
+    isWeb &&
+    typeof window !== 'undefined' &&
+    (Boolean((window.navigator as any)?.standalone) ||
+      Boolean(window.matchMedia?.('(display-mode: standalone)').matches));
+
+  const bottomBarPadding = isStandalone
+    ? (insets.bottom > 0 ? Math.min(insets.bottom, 24) : 20)
+    : (insets.bottom > 0 ? insets.bottom : 6);
+
+  const tabHeight = 50 + bottomBarPadding;
+  const quickAddBottom = tabHeight + 8;
 
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 85 : 0} 
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0} 
       style={[styles.keyboardView, { bottom: quickAddBottom }]}
     >
       <View style={[styles.container, { backgroundColor: theme.backgroundElement, borderColor: theme.border, paddingLeft: 12 }]}>
