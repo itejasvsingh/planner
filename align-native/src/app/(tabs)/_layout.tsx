@@ -10,9 +10,8 @@ export default function TabsLayout() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
   
-  // Sleek, compact 56px tab bar with no excessive bottom void
-  const tabHeight = 56;
-  const bottomPadding = 6;
+  // Clean, ultra-compact 50px tab bar with zero wasted bottom space
+  const tabHeight = 50;
 
   return (
     <>
@@ -33,7 +32,7 @@ export default function TabsLayout() {
           tabBarLabelStyle: {
             fontSize: 10,
             fontWeight: '600',
-            marginTop: 2,
+            marginTop: 1,
             lineHeight: 12,
           },
           tabBarStyle: {
@@ -42,8 +41,8 @@ export default function TabsLayout() {
             borderTopColor: colors.border,
             elevation: 0,
             shadowOpacity: 0,
-            paddingTop: 3,
-            paddingBottom: bottomPadding,
+            paddingTop: 0,
+            paddingBottom: 0,
             height: tabHeight,
           },
           tabBarActiveTintColor: colors.blue,

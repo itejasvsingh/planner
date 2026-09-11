@@ -98,13 +98,13 @@ export default function QuickAddBar() {
     }
   };
 
-  // Position cleanly 8px above the 56px bottom tab bar
-  const quickAddBottom = 56 + 8;
+  // Position cleanly 8px above the 50px bottom tab bar
+  const quickAddBottom = 50 + 8;
 
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 56 : 0} 
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 50 : 0} 
       style={[styles.keyboardView, { bottom: quickAddBottom }]}
     >
       <View style={[styles.container, { backgroundColor: theme.backgroundElement, borderColor: theme.border, paddingLeft: 12 }]}>

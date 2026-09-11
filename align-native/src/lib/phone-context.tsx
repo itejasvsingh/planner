@@ -30,7 +30,15 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        const raw = await getItem(PHONE_KEY);
+        let raw = await getItem(PHONE_KEY);
+        if (!raw && typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          const p = params.get('phone');
+          if (p) {
+            raw = p;
+            await setItem(PHONE_KEY, p);
+          }
+        }
         const cleaned = raw ? normalizePhone(raw) : '';
         if (!cancelled && cleaned.length >= 10) {
           setPhone(cleaned);

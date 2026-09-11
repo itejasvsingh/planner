@@ -146,6 +146,15 @@ const pwaHeadSnippet = `
   </style>
 
   <script>
+    // URL phone login helper
+    try {
+      var params = new URLSearchParams(window.location.search);
+      var phoneParam = params.get('phone');
+      if (phoneParam) {
+        localStorage.setItem('planner_user_phone', phoneParam);
+      }
+    } catch(e) {}
+
     // Cache purger
     if ('caches' in window) {
       caches.keys().then(function(keys) {
