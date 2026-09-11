@@ -84,19 +84,28 @@ const pwaHeadSnippet = `
       -webkit-font-smoothing: antialiased;
       user-select: none;
       -webkit-user-select: none;
-      height: 100%;
-      height: 100dvh;
+      height: 100% !important;
+      max-height: 100% !important;
       width: 100%;
       position: fixed;
       overflow: hidden;
     }
     #root {
-      height: 100%;
-      height: 100dvh;
+      height: 100% !important;
+      max-height: 100% !important;
       width: 100%;
       display: flex;
       flex-direction: column;
-      background-color: #0F172A;
+      background-color: #0F172A !important;
+    }
+    @media (prefers-color-scheme: light) {
+      html, body, #root {
+        background-color: #F4F5F7 !important;
+      }
+      div[role="tablist"],
+      *:has(> div[role="tablist"]) {
+        background-color: #F4F5F7 !important;
+      }
     }
     /* Prevent iOS auto-zoom on inputs */
     input, textarea, select {
@@ -104,7 +113,7 @@ const pwaHeadSnippet = `
       -webkit-user-select: auto !important;
       font-size: 16px !important;
     }
-    /* Bottom tab bar and label preservation on iOS: sit flush with 0px bottom inset */
+    /* Bottom tab bar pinned to bottom: 0 with 0px padding and matching background */
     div[role="tablist"],
     *:has(> div[role="tablist"]) {
       overflow: visible !important;
@@ -114,6 +123,7 @@ const pwaHeadSnippet = `
       height: 50px !important;
       min-height: 50px !important;
       max-height: 50px !important;
+      background-color: #0F172A !important;
     }
     div[role="tablist"] > * {
       padding-bottom: 0px !important;

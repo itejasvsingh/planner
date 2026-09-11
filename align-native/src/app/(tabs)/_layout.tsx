@@ -60,6 +60,7 @@ export default function TabsLayout() {
             paddingBottom: 0,
             height: tabHeight,
             marginBottom: 0,
+            bottom: 0,
           },
           tabBarActiveTintColor: colors.blue,
           tabBarInactiveTintColor: colors.textSecondary,
