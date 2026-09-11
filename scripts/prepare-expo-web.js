@@ -104,9 +104,20 @@ const pwaHeadSnippet = `
       -webkit-user-select: auto !important;
       font-size: 16px !important;
     }
-    /* Bottom tab bar and label preservation on iOS */
-    div[role="tablist"] {
+    /* Bottom tab bar and label preservation on iOS: sit flush with 0px bottom inset */
+    div[role="tablist"],
+    *:has(> div[role="tablist"]) {
       overflow: visible !important;
+      padding-bottom: 0px !important;
+      margin-bottom: 0px !important;
+      bottom: 0px !important;
+      height: 50px !important;
+      min-height: 50px !important;
+      max-height: 50px !important;
+    }
+    div[role="tablist"] > * {
+      padding-bottom: 0px !important;
+      margin-bottom: 0px !important;
     }
     div[role="tab"] {
       overflow: visible !important;
@@ -114,6 +125,12 @@ const pwaHeadSnippet = `
       flex-direction: column !important;
       align-items: center !important;
       justify-content: center !important;
+      height: 50px !important;
+      min-height: 50px !important;
+      max-height: 50px !important;
+      padding-top: 0px !important;
+      padding-bottom: 0px !important;
+      margin-bottom: 0px !important;
     }
     div[role="tab"] > div,
     div[role="tab"] span {

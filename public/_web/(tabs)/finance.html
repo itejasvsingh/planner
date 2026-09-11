@@ -166,6 +166,7 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
 .r-1d5kdc7{flex-direction:column-reverse;}
 .r-1ddef8g{-webkit-text-decoration-line:underline;text-decoration-line:underline;}
 .r-1dernwh{height:70%;}
+.r-1dqleds{bottom:58px;}
 .r-1ei5mc7{cursor:inherit;}
 .r-1enofrn{font-size:12px;}
 .r-1euycsn{flex-direction:row-reverse;}
@@ -296,7 +297,6 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
 .r-eqz5dr{flex-direction:column;}
 .r-eu3ka{height:40px;}
 .r-fdjqy7{text-align:left;}
-.r-g3i4l6{bottom:96px;}
 .r-g3mlsw{animation-name:r-t2lo5v;}
 .r-ghxds0{transform:translateY(0%);}
 .r-gtdqiz{position:-webkit-sticky;position:sticky;}
@@ -422,9 +422,20 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
       -webkit-user-select: auto !important;
       font-size: 16px !important;
     }
-    /* Bottom tab bar and label preservation on iOS */
-    div[role="tablist"] {
+    /* Bottom tab bar and label preservation on iOS: sit flush with 0px bottom inset */
+    div[role="tablist"],
+    *:has(> div[role="tablist"]) {
       overflow: visible !important;
+      padding-bottom: 0px !important;
+      margin-bottom: 0px !important;
+      bottom: 0px !important;
+      height: 50px !important;
+      min-height: 50px !important;
+      max-height: 50px !important;
+    }
+    div[role="tablist"] > * {
+      padding-bottom: 0px !important;
+      margin-bottom: 0px !important;
     }
     div[role="tab"] {
       overflow: visible !important;
@@ -432,6 +443,12 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
       flex-direction: column !important;
       align-items: center !important;
       justify-content: center !important;
+      height: 50px !important;
+      min-height: 50px !important;
+      max-height: 50px !important;
+      padding-top: 0px !important;
+      padding-bottom: 0px !important;
+      margin-bottom: 0px !important;
     }
     div[role="tab"] > div,
     div[role="tab"] span {
@@ -525,7 +542,7 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
       if (banner) banner.style.display = 'none';
     }
   </script>
-</head><body><div id="root"><div class="css-g5y9jx r-13awgt0"><!--$--><div class="css-g5y9jx r-13awgt0"><div class="css-g5y9jx" style="flex:1"><div class="css-g5y9jx" style="flex:1;align-items:center;justify-content:center;background-color:rgba(244,245,247,1.00)"><div role="progressbar" aria-valuemax="1" aria-valuemin="0" class="css-g5y9jx r-1awozwy r-1777fci"><div class="css-g5y9jx r-z80fyv r-19wmn03 r-17bb2tj r-1muvv40 r-1yef0xd r-1ldzwu0"><svg height="100%" viewBox="0 0 32 32" width="100%"><circle cx="16" cy="16" fill="none" r="14" stroke-width="4" style="stroke:#1976D2;opacity:0.2"></circle><circle cx="16" cy="16" fill="none" r="14" stroke-width="4" style="stroke:#1976D2;stroke-dasharray:80;stroke-dashoffset:60"></circle></svg></div></div></div></div></div><!--/$--></div></div><script src="/_expo/static/js/web/entry-3fc2975b977e061a8c10d95cd29f8f82.js" defer></script>
+</head><body><div id="root"><div class="css-g5y9jx r-13awgt0"><!--$--><div class="css-g5y9jx r-13awgt0"><div class="css-g5y9jx" style="flex:1"><div class="css-g5y9jx" style="flex:1;align-items:center;justify-content:center;background-color:rgba(244,245,247,1.00)"><div role="progressbar" aria-valuemax="1" aria-valuemin="0" class="css-g5y9jx r-1awozwy r-1777fci"><div class="css-g5y9jx r-z80fyv r-19wmn03 r-17bb2tj r-1muvv40 r-1yef0xd r-1ldzwu0"><svg height="100%" viewBox="0 0 32 32" width="100%"><circle cx="16" cy="16" fill="none" r="14" stroke-width="4" style="stroke:#1976D2;opacity:0.2"></circle><circle cx="16" cy="16" fill="none" r="14" stroke-width="4" style="stroke:#1976D2;stroke-dasharray:80;stroke-dashoffset:60"></circle></svg></div></div></div></div></div><!--/$--></div></div><script src="/_expo/static/js/web/entry-3c454456cf8c025f83bae74f19a356bb.js" defer></script>
 
 <div id="ios-install-banner">
   <div style="display:flex; align-items:flex-start; gap:14px;">

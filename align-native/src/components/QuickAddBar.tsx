@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { View, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { Mic, Sparkles } from 'lucide-react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
 
@@ -147,7 +146,7 @@ export default function QuickAddBar() {
 const styles = StyleSheet.create({
   keyboardView: {
     position: 'absolute',
-    bottom: Platform.OS === 'web' ? 96 : 85, // Above the tab bar
+    bottom: 58, // Sits directly 8px above the 50px bottom tab bar
     left: 16,
     right: 16,
     zIndex: 1000,

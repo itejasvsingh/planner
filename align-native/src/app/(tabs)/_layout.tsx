@@ -1,6 +1,6 @@
 import { Tabs } from 'expo-router';
-import { useColorScheme, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useColorScheme } from 'react-native';
+import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Star, Calendar, Wallet, Target } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 import QuickAddBar from '@/components/QuickAddBar';
@@ -9,14 +9,27 @@ import NotificationsManager from '@/components/NotificationsManager';
 export default function TabsLayout() {
   const scheme = useColorScheme();
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const insets = useSafeAreaInsets();
   
-  // Clean, ultra-compact 50px tab bar with zero wasted bottom space
+  // Clean, ultra-compact 50px tab bar with zero bottom safe area space
   const tabHeight = 50;
 
+  // Explicitly ignore and eliminate bottom safe area inset for tab bar flush alignment
+  const flushInsets = {
+    top: insets.top,
+    left: insets.left,
+    right: insets.right,
+    bottom: 0,
+  };
+
   return (
-    <>
+    <SafeAreaInsetsContext.Provider value={flushInsets}>
       <Tabs
+        // @ts-ignore - pass safeAreaInsets directly to BottomTabView navigator
+        safeAreaInsets={flushInsets}
         screenOptions={{
+          // @ts-ignore
+          safeAreaInsets: flushInsets,
           headerShown: false,
           tabBarShowLabel: true,
           tabBarLabelPosition: 'below-icon',
@@ -24,6 +37,8 @@ export default function TabsLayout() {
             flex: 1,
             alignItems: 'center',
             justifyContent: 'center',
+            paddingTop: 0,
+            paddingBottom: 0,
           },
           tabBarIconStyle: {
             width: 24,
@@ -44,6 +59,7 @@ export default function TabsLayout() {
             paddingTop: 0,
             paddingBottom: 0,
             height: tabHeight,
+            marginBottom: 0,
           },
           tabBarActiveTintColor: colors.blue,
           tabBarInactiveTintColor: colors.textSecondary,
@@ -84,6 +100,6 @@ export default function TabsLayout() {
 
       <QuickAddBar />
       <NotificationsManager />
-    </>
+    </SafeAreaInsetsContext.Provider>
   );
 }
