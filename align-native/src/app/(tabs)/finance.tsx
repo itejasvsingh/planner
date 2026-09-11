@@ -1,6 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, Alert, Linking, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { TrendingDown, TrendingUp, Users, Menu, Edit3, Repeat, ChevronRight, RotateCcw, Plus } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
@@ -197,7 +196,7 @@ export default function FinanceScreen() {
   );
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
         <Pressable onPress={() => setIsDrawerOpen(true)} style={{ padding: 4, marginRight: 12 }}>
           <Menu color={theme.text} size={28} />
@@ -379,7 +378,7 @@ export default function FinanceScreen() {
 
       {/* BUDGET MODAL */}
       <Modal visible={isBudgetModalOpen} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setIsBudgetModalOpen(false)}>
-        <SafeAreaView style={[styles.modalSafe, { backgroundColor: theme.backgroundElement }]}>
+        <View style={[styles.modalSafe, { backgroundColor: theme.backgroundElement }]}>
           <View style={styles.modalHeader}>
             <Text style={[styles.modalTitle, { color: theme.text }]}>Edit Budgets</Text>
             <Pressable onPress={() => setIsBudgetModalOpen(false)}>
@@ -440,10 +439,10 @@ export default function FinanceScreen() {
               <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '600' }}>Save Limits</Text>
             </TouchableOpacity>
           </ScrollView>
-        </SafeAreaView>
+        </View>
       </Modal>
 
-    </SafeAreaView>
+    </View>
   );
 }
 

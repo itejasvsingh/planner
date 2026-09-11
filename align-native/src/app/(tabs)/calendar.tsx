@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
 import { ChevronLeft, ChevronRight, Plus, Menu } from 'lucide-react-native';
 
@@ -55,7 +54,7 @@ export default function CalendarScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
         <Pressable onPress={() => setIsDrawerOpen(true)} style={({ pressed }) => [{ padding: 4, opacity: pressed ? 0.7 : 1, marginRight: 12 }]}>
           <Menu color={theme.text} size={28} />
@@ -169,7 +168,7 @@ export default function CalendarScreen() {
         defaultDate={selectedKey}
       />
       <DrawerMenuModal visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
-    </SafeAreaView>
+    </View>
   );
 }
 

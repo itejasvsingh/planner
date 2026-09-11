@@ -10,7 +10,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link } from 'expo-router';
 
 import { useTheme } from '@/hooks/use-theme';
@@ -69,7 +68,7 @@ export default function DailyScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
         <View style={{ width: 40, alignItems: 'flex-start', justifyContent: 'center' }}>
           <Pressable onPress={() => setIsDrawerOpen(true)} style={({ pressed }) => [{ padding: 4, opacity: pressed ? 0.7 : 1 }]}>
@@ -184,7 +183,7 @@ export default function DailyScreen() {
         onClose={() => setEditingItem(null)}
         initialItem={editingItem}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

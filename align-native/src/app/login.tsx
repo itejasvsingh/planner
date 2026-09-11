@@ -10,7 +10,6 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { useTheme } from '@/hooks/use-theme';
@@ -79,7 +78,7 @@ export default function LoginScreen() {
   const showPhoneStep = Boolean(firebaseUser && needsPhoneSetup);
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]}>
+    <View style={[styles.safe, { backgroundColor: theme.background }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.center}>
         <View style={styles.logo}>
           <Text style={styles.logoMark}>⚡</Text>
@@ -226,7 +225,7 @@ export default function LoginScreen() {
           </>
         )}
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 

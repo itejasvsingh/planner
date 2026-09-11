@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Switch, Alert, Platform, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Stack, useRouter } from 'expo-router';
 import { ChevronLeft, Download } from 'lucide-react-native';
 import * as Notifications from 'expo-notifications';
@@ -118,7 +117,7 @@ export default function NotificationsSettingsScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: theme.background }]}>
       <Stack.Screen options={{ headerShown: false }} />
       
       <View style={styles.header}>
@@ -187,7 +186,7 @@ export default function NotificationsSettingsScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

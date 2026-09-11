@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Target, ArrowUpRight, Plus } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
@@ -17,7 +16,7 @@ export default function GoalsScreen() {
   const goals = useMemo(() => items.filter(i => i.type === 'goal'), [items]);
 
   return (
-    <SafeAreaView style={[styles.safe, { backgroundColor: theme.background }]} edges={['top']}>
+    <View style={[styles.safe, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>Goals</Text>
       </View>
@@ -70,7 +69,7 @@ export default function GoalsScreen() {
         onClose={() => setIsItemModalOpen(false)}
         initialItem={{ type: 'goal' } as any}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
