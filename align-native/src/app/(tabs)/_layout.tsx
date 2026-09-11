@@ -11,8 +11,8 @@ export default function TabsLayout() {
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
-  const bottomPadding = isWeb ? 28 : Math.max(insets.bottom, 12);
-  const tabHeight = isWeb ? 84 : 54 + bottomPadding;
+  const bottomPadding = isWeb ? 28 : Math.max(insets.bottom, 16);
+  const tabHeight = isWeb ? 84 : 56 + bottomPadding;
 
   return (
     <>
@@ -20,16 +20,16 @@ export default function TabsLayout() {
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: true,
+          tabBarLabelPosition: 'below-icon',
           tabBarItemStyle: {
-            paddingTop: 4,
-            paddingBottom: 2,
-            height: 46,
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
           },
           tabBarLabelStyle: {
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: '600',
-            marginTop: 2,
-            lineHeight: 14,
+            marginTop: 3,
           },
           tabBarStyle: {
             backgroundColor: colors.background,
@@ -37,7 +37,7 @@ export default function TabsLayout() {
             borderTopColor: colors.border,
             elevation: 0,
             shadowOpacity: 0,
-            paddingTop: 4,
+            paddingTop: 6,
             paddingBottom: bottomPadding,
             height: tabHeight,
           },
@@ -48,6 +48,7 @@ export default function TabsLayout() {
           name="index"
           options={{
             title: 'Daily',
+            tabBarLabel: 'Daily',
             tabBarIcon: ({ color }) => <Star color={color} size={22} />,
           }}
         />
@@ -55,6 +56,7 @@ export default function TabsLayout() {
           name="calendar"
           options={{
             title: 'Calendar',
+            tabBarLabel: 'Calendar',
             tabBarIcon: ({ color }) => <Calendar color={color} size={22} />,
           }}
         />
@@ -62,6 +64,7 @@ export default function TabsLayout() {
           name="finance"
           options={{
             title: 'Expenses',
+            tabBarLabel: 'Expenses',
             tabBarIcon: ({ color }) => <Wallet color={color} size={22} />,
           }}
         />
@@ -69,6 +72,7 @@ export default function TabsLayout() {
           name="goals"
           options={{
             title: 'Goals',
+            tabBarLabel: 'Goals',
             tabBarIcon: ({ color }) => <Target color={color} size={22} />,
           }}
         />

@@ -104,15 +104,10 @@ const pwaHeadSnippet = `
     }
     /* Bottom tab bar and label preservation on iOS */
     div[role="tablist"] {
-      padding-bottom: max(env(safe-area-inset-bottom, 28px), 28px) !important;
-      height: calc(56px + max(env(safe-area-inset-bottom, 28px), 28px)) !important;
-      min-height: calc(56px + max(env(safe-area-inset-bottom, 28px), 28px)) !important;
-      box-sizing: border-box !important;
       overflow: visible !important;
     }
     div[role="tab"] {
       overflow: visible !important;
-      height: 48px !important;
     }
     div[role="tab"] * {
       overflow: visible !important;
