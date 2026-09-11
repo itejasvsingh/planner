@@ -108,8 +108,13 @@ const pwaHeadSnippet = `
     }
     div[role="tab"] {
       overflow: visible !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
     }
-    div[role="tab"] * {
+    div[role="tab"] > div,
+    div[role="tab"] span {
       overflow: visible !important;
     }
     /* iOS Install banner styling */

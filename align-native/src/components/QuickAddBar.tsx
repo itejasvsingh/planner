@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { View, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { Mic, Sparkles } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
 
@@ -97,11 +98,19 @@ export default function QuickAddBar() {
     }
   };
 
+  const insets = useSafeAreaInsets();
+  const isWeb = Platform.OS === 'web';
+  const isIOS =
+    Platform.OS === 'ios' ||
+    (isWeb && typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent));
+  const bottomBarPadding = Math.max(insets.bottom, isIOS ? 24 : 8);
+  const quickAddBottom = 60 + bottomBarPadding + 12;
+
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
       keyboardVerticalOffset={Platform.OS === 'ios' ? 85 : 0} 
-      style={styles.keyboardView}
+      style={[styles.keyboardView, { bottom: quickAddBottom }]}
     >
       <View style={[styles.container, { backgroundColor: theme.backgroundElement, borderColor: theme.border, paddingLeft: 12 }]}>
 

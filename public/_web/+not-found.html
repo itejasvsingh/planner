@@ -426,8 +426,13 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
     }
     div[role="tab"] {
       overflow: visible !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
     }
-    div[role="tab"] * {
+    div[role="tab"] > div,
+    div[role="tab"] span {
       overflow: visible !important;
     }
     /* iOS Install banner styling */
@@ -493,7 +498,7 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
       if (banner) banner.style.display = 'none';
     }
   </script>
-</head><body><div id="root"><div class="css-g5y9jx r-13awgt0"></div></div><script src="/_expo/static/js/web/entry-73693114655d75ac397cce180e4d12d7.js" defer></script>
+</head><body><div id="root"><div class="css-g5y9jx r-13awgt0"></div></div><script src="/_expo/static/js/web/entry-8de740bc2244b2d319c0fb6faaa82c1f.js" defer></script>
 
 <div id="ios-install-banner">
   <div style="display:flex; align-items:flex-start; gap:14px;">

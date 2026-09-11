@@ -11,8 +11,14 @@ export default function TabsLayout() {
   const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
   const insets = useSafeAreaInsets();
   const isWeb = Platform.OS === 'web';
-  const bottomPadding = isWeb ? 28 : Math.max(insets.bottom, 16);
-  const tabHeight = isWeb ? 84 : 56 + bottomPadding;
+  const isIOS =
+    Platform.OS === 'ios' ||
+    (isWeb && typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent));
+  
+  // 60px content height provides ample vertical room for 24px icon + margin + 14px label
+  const tabContentHeight = 60;
+  const bottomPadding = Math.max(insets.bottom, isIOS ? 24 : 8);
+  const tabHeight = tabContentHeight + bottomPadding;
 
   return (
     <>
@@ -26,10 +32,15 @@ export default function TabsLayout() {
             alignItems: 'center',
             justifyContent: 'center',
           },
+          tabBarIconStyle: {
+            width: 24,
+            height: 24,
+          },
           tabBarLabelStyle: {
             fontSize: 11,
             fontWeight: '600',
-            marginTop: 3,
+            marginTop: 2,
+            lineHeight: 14,
           },
           tabBarStyle: {
             backgroundColor: colors.background,
@@ -37,7 +48,7 @@ export default function TabsLayout() {
             borderTopColor: colors.border,
             elevation: 0,
             shadowOpacity: 0,
-            paddingTop: 6,
+            paddingTop: 4,
             paddingBottom: bottomPadding,
             height: tabHeight,
           },
