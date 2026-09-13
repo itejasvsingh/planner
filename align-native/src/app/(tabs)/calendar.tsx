@@ -29,8 +29,8 @@ export default function CalendarScreen() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const topPadding = Platform.OS === 'web'
-    ? ('calc(env(safe-area-inset-top, 24px) + 14px)' as any)
-    : Math.max(insets.top, 24) + 14;
+    ? ('max(env(safe-area-inset-top, 0px), 52px)' as any)
+    : Math.max(insets.top, 52);
 
   const today = todayKey();
   const selectedKey = formatDateKey(selectedDate);

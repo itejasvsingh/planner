@@ -63,7 +63,7 @@ const pwaHeadSnippet = `
   <!-- iOS Native & Dynamic Island Optimization -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Align">
   <meta name="theme-color" content="#0F172A">
   <meta name="format-detection" content="telephone=no">
@@ -91,6 +91,14 @@ const pwaHeadSnippet = `
       overscroll-behavior-y: none;
       -webkit-tap-highlight-color: transparent;
       -webkit-font-smoothing: antialiased;
+      -webkit-touch-callout: none;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+    }
+    input, textarea {
+      user-select: auto;
+      -webkit-user-select: auto;
     }
     #root {
       height: 100%;
@@ -105,12 +113,30 @@ const pwaHeadSnippet = `
       }
     }
     div[role="tablist"] {
-      height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
-      min-height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
+      position: fixed !important;
+      left: 0 !important;
+      right: 0 !important;
       bottom: 0 !important;
-      margin-bottom: 0 !important;
+      height: calc(50px + env(safe-area-inset-bottom, 0px)) !important;
+      min-height: calc(50px + env(safe-area-inset-bottom, 0px)) !important;
+      max-height: calc(50px + env(safe-area-inset-bottom, 0px)) !important;
       padding-bottom: env(safe-area-inset-bottom, 0px) !important;
-      box-sizing: content-box !important;
+      box-sizing: border-box !important;
+      background-color: rgba(15, 23, 42, 0.88) !important;
+      backdrop-filter: blur(20px) !important;
+      -webkit-backdrop-filter: blur(20px) !important;
+      border-top: 0.5px solid rgba(255, 255, 255, 0.12) !important;
+      z-index: 999 !important;
+    }
+    @media (prefers-color-scheme: light) {
+      div[role="tablist"] {
+        background-color: rgba(248, 250, 252, 0.88) !important;
+        border-top: 0.5px solid rgba(0, 0, 0, 0.1) !important;
+      }
+    }
+    div[role="tablist"] > * {
+      height: 50px !important;
+      max-height: 50px !important;
     }
     input, textarea, select { font-size: 16px; }
     :focus-visible { outline: 2px solid #137C66; outline-offset: 3px; }

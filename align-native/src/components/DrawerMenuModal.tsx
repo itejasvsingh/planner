@@ -38,8 +38,8 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
   const router = useRouter();
 
   const topPadding = Platform.OS === 'web'
-    ? ('calc(env(safe-area-inset-top, 24px) + 20px)' as any)
-    : Math.max(insets.top, 24) + 20;
+    ? ('max(env(safe-area-inset-top, 0px), 52px)' as any)
+    : Math.max(insets.top, 52);
 
   const [slideAnim] = useState(() => new Animated.Value(-DRAWER_WIDTH));
   const [fadeAnim] = useState(() => new Animated.Value(0));

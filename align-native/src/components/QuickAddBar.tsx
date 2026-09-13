@@ -140,10 +140,10 @@ export default function QuickAddBar() {
     }
   };
 
-  // Position cleanly 8px above the bottom tab bar (taking into account safe area on iOS/web)
+  // Position cleanly 8px above the 50px bottom tab bar (taking into account safe area on iOS/web)
   const quickAddBottom = Platform.OS === 'web'
-    ? ('calc(60px + env(safe-area-inset-bottom, 0px))' as any)
-    : (60 + insets.bottom);
+    ? ('calc(58px + env(safe-area-inset-bottom, 0px))' as any)
+    : (58 + insets.bottom);
 
   return (
     <KeyboardAvoidingView 
@@ -207,13 +207,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 18,
+    paddingVertical: 9,
+    borderRadius: 22,
     borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
     elevation: 4,
   },
   input: {

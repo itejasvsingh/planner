@@ -10,6 +10,7 @@ import { usePlannerItems } from '@/lib/use-planner-items';
 import DrawerMenuModal from '@/components/DrawerMenuModal';
 import ItemModal from '@/components/ItemModal';
 import TaskCard from '@/components/TaskCard';
+import { triggerHaptic } from '@/lib/haptics';
 
 const FILTERS = ['All', 'Open', 'Completed'] as const;
 type Filter = typeof FILTERS[number];
@@ -71,28 +72,31 @@ export default function DailyScreen() {
     );
   }
 
-  // Safe area top padding for Chrome iOS Web App & Dynamic Island
+  // Safe area top padding for Dynamic Island / Chrome iOS Web App
   const topPadding = Platform.OS === 'web'
-    ? ('calc(env(safe-area-inset-top, 24px) + 14px)' as any)
-    : Math.max(insets.top, 24) + 14;
+    ? ('max(env(safe-area-inset-top, 0px), 52px)' as any)
+    : Math.max(insets.top, 52);
 
   return (
     <View style={[styles.safe, { backgroundColor: theme.background }]}>
-      {/* 1. Header Bar: Menu on LEFT, Brand center, Add Task on RIGHT */}
+      {/* 1. iOS Top Navigation Bar: Menu on Left, Brand in Center, Add on Right */}
       <View style={[styles.topBar, { paddingTop: topPadding }]}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Open menu"
-          onPress={() => setIsDrawerOpen(true)}
+          onPress={() => {
+            triggerHaptic('light');
+            setIsDrawerOpen(true);
+          }}
           hitSlop={15}
           style={[styles.iconButton, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
         >
-          <Menu color={theme.text} size={22} />
+          <Menu color={theme.text} size={20} />
         </Pressable>
 
         <View style={styles.brand}>
           <View style={[styles.brandMark, { backgroundColor: theme.blue }]}>
-            <Check size={17} color="#fff" strokeWidth={3} />
+            <Check size={14} color="#fff" strokeWidth={3} />
           </View>
           <Text style={[styles.brandText, { color: theme.text }]}>
             align<Text style={{ color: theme.blue }}>.</Text>
@@ -102,11 +106,14 @@ export default function DailyScreen() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Add task"
-          onPress={() => openEditor()}
+          onPress={() => {
+            triggerHaptic('light');
+            openEditor();
+          }}
           hitSlop={15}
           style={[styles.iconButton, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
         >
-          <Plus color={theme.blue} size={22} />
+          <Plus color={theme.blue} size={20} />
         </Pressable>
       </View>
 
@@ -115,7 +122,7 @@ export default function DailyScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        {/* 2. Date Title & Remaining Task Counter */}
+        {/* 2. Apple iOS Large Title Row */}
         <View style={styles.dateHeaderRow}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.dateTitle, { color: theme.text }]}>
@@ -127,7 +134,7 @@ export default function DailyScreen() {
           </View>
           <View style={[styles.countBadge, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
             <Text style={[styles.countBadgeText, { color: theme.blue }]}>
-              {loading ? '…' : open === 0 && completed > 0 ? 'All done ✓' : `${open} ${open === 1 ? 'task' : 'tasks'}`}
+              {loading ? '…' : open === 0 && completed > 0 ? 'All done ✓' : `${open} remaining`}
             </Text>
           </View>
         </View>
@@ -145,7 +152,10 @@ export default function DailyScreen() {
                 accessibilityRole="button"
                 accessibilityLabel={day.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 accessibilityState={{ selected }}
-                onPress={() => setDailyDate(day)}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setDailyDate(day);
+                }}
                 style={[
                   styles.weekDay,
                   {
@@ -166,7 +176,7 @@ export default function DailyScreen() {
                     height: 4,
                     borderRadius: 2,
                     backgroundColor: hasTasks ? (selected ? '#fff' : theme.blue) : 'transparent',
-                    marginTop: 2,
+                    marginTop: 3,
                   }}
                 />
               </Pressable>
@@ -178,7 +188,10 @@ export default function DailyScreen() {
         {dateKey === today && overdue.length > 0 && (
           <Pressable
             accessibilityRole="button"
-            onPress={() => setDailyDate(new Date(`${overdue.map(i => i.dueDate!).sort()[0]}T12:00:00`))}
+            onPress={() => {
+              triggerHaptic('light');
+              setDailyDate(new Date(`${overdue.map(i => i.dueDate!).sort()[0]}T12:00:00`));
+            }}
             style={[styles.notice, { backgroundColor: theme.backgroundSelected, borderColor: theme.border }]}
           >
             <Text style={{ color: theme.text, flex: 1, fontSize: 13, fontWeight: '500' }}>
@@ -188,8 +201,8 @@ export default function DailyScreen() {
           </Pressable>
         )}
 
-        {/* 5. Minimal Filter Chips */}
-        <View style={styles.filterRow}>
+        {/* 5. iOS Native Segmented Control */}
+        <View style={[styles.segmentedControl, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
           {FILTERS.map(f => {
             const active = filter === f;
             return (
@@ -197,15 +210,24 @@ export default function DailyScreen() {
                 key={f}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
-                onPress={() => setFilter(f)}
+                onPress={() => {
+                  triggerHaptic('selection');
+                  setFilter(f);
+                }}
                 style={[
-                  styles.filterChip,
-                  active
-                    ? { backgroundColor: theme.blue }
-                    : { backgroundColor: theme.backgroundElement, borderColor: theme.border, borderWidth: 1 }
+                  styles.segment,
+                  active && [styles.segmentActive, { backgroundColor: theme.backgroundSelected, borderColor: theme.border }]
                 ]}
               >
-                <Text style={[styles.filterChipText, { color: active ? '#fff' : theme.textSecondary }]}>
+                <Text
+                  style={[
+                    styles.segmentText,
+                    {
+                      color: active ? theme.blue : theme.textSecondary,
+                      fontWeight: active ? '700' : '500',
+                    }
+                  ]}
+                >
                   {f}
                 </Text>
               </Pressable>
@@ -278,28 +300,28 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingBottom: 10,
+    paddingBottom: 8,
   },
   brand: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
+    gap: 6,
   },
   brandMark: {
-    width: 26,
-    height: 26,
-    borderRadius: 8,
+    width: 22,
+    height: 22,
+    borderRadius: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
   brandText: {
-    fontSize: 21,
+    fontSize: 19,
     fontWeight: '800',
     letterSpacing: -0.5,
   },
   iconButton: {
-    width: 40,
-    height: 40,
+    width: 38,
+    height: 38,
     borderWidth: 1,
     borderRadius: 12,
     justifyContent: 'center',
@@ -307,33 +329,35 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 120,
+    paddingTop: 4,
+    paddingBottom: 130,
     width: '100%',
     maxWidth: 720,
     alignSelf: 'center',
   },
   dateHeaderRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'space-between',
-    marginTop: 6,
+    marginTop: 4,
     marginBottom: 14,
   },
   dateTitle: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: '800',
     letterSpacing: -0.5,
   },
   dateSubtitle: {
     fontSize: 13,
     marginTop: 2,
+    fontWeight: '500',
   },
   countBadge: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 11,
     paddingVertical: 5,
     borderRadius: 12,
     borderWidth: 1,
+    alignSelf: 'center',
   },
   countBadgeText: {
     fontSize: 12,
@@ -348,16 +372,16 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     borderWidth: 1,
-    paddingVertical: 9,
+    paddingVertical: 8,
     borderRadius: 12,
-    gap: 3,
+    gap: 2,
   },
   weekLabel: {
     fontSize: 11,
     fontWeight: '600',
   },
   weekNum: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
   notice: {
@@ -369,59 +393,74 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
-  filterRow: {
+  segmentedControl: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 14,
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 3,
+    marginBottom: 16,
+    gap: 4,
   },
-  filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
+  segment: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 9,
   },
-  filterChipText: {
-    fontSize: 12,
-    fontWeight: '600',
+  segmentActive: {
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  segmentText: {
+    fontSize: 13,
   },
   tasksContainer: {
-    gap: 2,
+    gap: 8,
   },
   sectionHeader: {
     fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 1,
+    letterSpacing: 0.8,
     marginTop: 10,
-    marginBottom: 6,
+    marginBottom: 4,
+    textTransform: 'uppercase',
   },
   taskItem: {
-    marginBottom: 2,
+    gap: 4,
   },
   timeLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
-    marginBottom: 2,
-    marginLeft: 4,
+    marginLeft: 2,
   },
   empty: {
     alignItems: 'center',
-    padding: 32,
-    gap: 8,
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderRadius: 16,
-    marginTop: 10,
+    marginTop: 12,
   },
   emptyIconBox: {
     width: 44,
     height: 44,
-    borderRadius: 14,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
+    marginBottom: 12,
   },
   emptyTitle: {
     fontSize: 16,
     fontWeight: '700',
+    marginBottom: 4,
   },
   emptyText: {
     fontSize: 13,
