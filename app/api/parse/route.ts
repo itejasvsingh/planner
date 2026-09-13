@@ -53,39 +53,38 @@ export async function OPTIONS() {
 
 export async function POST(req: Request) {
     try {
-        // 1. Authenticate user via Firebase ID Token
-        const authHeader = req.headers.get('authorization');
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return NextResponse.json(
-                { error: 'Unauthorized: Missing or invalid Authorization header' },
-                { status: 401, headers: corsHeaders() }
-            );
-        }
-
-        const idToken = authHeader.substring(7).trim();
-        let decodedToken;
-        try {
-            const adminAuth = getAdminAuth();
-            decodedToken = await adminAuth.verifyIdToken(idToken);
-        } catch (authErr: any) {
-            console.error('Firebase token verification failed in /api/parse:', authErr);
-            return NextResponse.json(
-                { error: 'Unauthorized: Invalid authentication token' },
-                { status: 401, headers: corsHeaders() }
-            );
-        }
-
-        const body = await req.json();
-        const { text } = body;
+        const body = await req.json().catch(() => ({}));
+        const { text, phone } = body;
 
         if (!text || typeof text !== 'string') {
             return NextResponse.json({ error: 'Text is required' }, { status: 400, headers: corsHeaders() });
         }
 
+        // 1. Optional authentication check via Firebase ID Token if provided
+        const authHeader = req.headers.get('authorization');
+        let decodedToken: any = null;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const idToken = authHeader.substring(7).trim();
+            try {
+                const adminAuth = getAdminAuth();
+                decodedToken = await adminAuth.verifyIdToken(idToken);
+            } catch (authErr: any) {
+                console.warn('Firebase token verification note (continuing unauthenticated):', authErr?.message || authErr);
+            }
+        }
+
         const db = getAdminDb();
 
-        // 2. Persistent Firestore rate limiting (max 30 requests per user per hour)
-        const rateLimitRef = db.collection('rate_limits').doc(`parse_${decodedToken.uid}`);
+        // 2. Persistent Firestore rate limiting (max 30 requests per hour by UID, phone, or IP)
+        const forwardedFor = req.headers.get('x-forwarded-for');
+        const clientIp = forwardedFor ? forwardedFor.split(',')[0].trim() : (req.headers.get('x-real-ip') || 'unknown-ip');
+        const rateLimitKey = decodedToken?.uid
+            ? `user_${decodedToken.uid}`
+            : (phone && typeof phone === 'string' && phone.trim().length >= 4)
+                ? `phone_${phone.replace(/\D/g, '') || 'valid'}`
+                : `ip_${clientIp.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+
+        const rateLimitRef = db.collection('rate_limits').doc(`parse_${rateLimitKey}`);
         const ONE_HOUR_MS = 60 * 60 * 1000;
         const MAX_REQUESTS_PER_HOUR = 30;
 
@@ -98,7 +97,7 @@ export async function POST(req: Request) {
                     count: 1,
                     resetAt: nowMs + ONE_HOUR_MS,
                     updatedAt: FieldValue.serverTimestamp(),
-                    uid: decodedToken.uid,
+                    key: rateLimitKey,
                 });
                 return true;
             }
@@ -111,7 +110,7 @@ export async function POST(req: Request) {
                     count: 1,
                     resetAt: nowMs + ONE_HOUR_MS,
                     updatedAt: FieldValue.serverTimestamp(),
-                    uid: decodedToken.uid,
+                    key: rateLimitKey,
                 });
                 return true;
             }
@@ -134,18 +133,28 @@ export async function POST(req: Request) {
             );
         }
 
-        // 3. Derive ownerId securely from verified token or verified user profile
-        let ownerId = decodedToken.uid;
-        try {
-            const userDoc = await db.collection('users').doc(decodedToken.uid).get();
-            if (userDoc.exists && userDoc.data()?.phone) {
-                const cleanedPhone = String(userDoc.data()!.phone).replace(/\D/g, '');
-                if (cleanedPhone.length >= 10) {
-                    ownerId = cleanedPhone;
+        // 3. Derive ownerId: from verified token, or provided phone, or fallback to 'guest'
+        let ownerId = 'guest';
+        if (decodedToken?.uid) {
+            ownerId = decodedToken.uid;
+            try {
+                const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+                if (userDoc.exists && userDoc.data()?.phone) {
+                    const cleanedPhone = String(userDoc.data()!.phone).replace(/\D/g, '');
+                    if (cleanedPhone.length >= 10) {
+                        ownerId = cleanedPhone;
+                    }
                 }
+            } catch (e) {
+                console.warn('Could not fetch user phone for ownerId derivation, using uid:', e);
             }
-        } catch (e) {
-            console.warn('Could not fetch user phone for ownerId derivation, using uid:', e);
+        } else if (phone && typeof phone === 'string') {
+            const cleanedPhone = phone.replace(/\D/g, '');
+            if (cleanedPhone.length >= 4) {
+                ownerId = cleanedPhone;
+            } else if (phone.trim()) {
+                ownerId = phone.trim();
+            }
         }
 
         const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));

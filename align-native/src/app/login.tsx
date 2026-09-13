@@ -158,6 +158,20 @@ export default function LoginScreen() {
                 </Text>
               </View>
             </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Continue without sign-in"
+              onPress={async () => {
+                await login('guest');
+                router.replace('/(tabs)');
+              }}
+              style={styles.guestButton}
+            >
+              <Text style={[styles.guestButtonText, { color: theme.textSecondary }]}>
+                Continue without sign-in →
+              </Text>
+            </Pressable>
           </>
         ) : (
           <>
@@ -337,5 +351,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1,
+  },
+  guestButton: {
+    marginTop: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  guestButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

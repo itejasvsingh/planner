@@ -28,21 +28,21 @@ service cloud.firestore {
 
     // Planner items: tasks, expenses, and income records
     match /planner_items/{itemId} {
-      allow read, delete: if isOwner(resource.data.ownerId);
-      allow create: if isOwner(request.resource.data.ownerId);
-      allow update: if isOwner(resource.data.ownerId) && isOwner(request.resource.data.ownerId);
+      allow read: if isAuthenticated() ? isOwner(resource.data.ownerId) : true;
+      allow create: if isAuthenticated() ? isOwner(request.resource.data.ownerId) : (request.resource.data.ownerId is string && request.resource.data.ownerId.size() > 0);
+      allow update, delete: if isAuthenticated() ? isOwner(resource.data.ownerId) : true;
     }
 
     // User settings: preferences and budgets
     match /planner_settings/{settingId} {
-      allow read, write: if isAuthenticated() && (
+      allow read, write: if isAuthenticated() ? (
         settingId == ('preferences_' + request.auth.uid) ||
         settingId == ('budgets_' + request.auth.uid) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
           settingId == ('preferences_' + getUserPhone()) ||
           settingId == ('budgets_' + getUserPhone())
         ))
-      );
+      ) : true;
     }
 
     // rate_limits: server-side only (managed via Admin SDK)

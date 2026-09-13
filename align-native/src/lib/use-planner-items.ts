@@ -19,7 +19,7 @@ import { getItem, itemsCacheKey, setItem } from '@/lib/storage';
 import { triggerHaptic } from '@/lib/haptics';
 import { getPhoneVariants } from '@/lib/phone';
 
-function parseCachedItems(raw: string | null): PlannerItem[] {
+export function parseCachedItems(raw: string | null): PlannerItem[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -29,18 +29,30 @@ function parseCachedItems(raw: string | null): PlannerItem[] {
   }
 }
 
+export async function injectParsedItemsLocally(targetPhone: string | null, newItems: PlannerItem[]) {
+  const effectivePhone = targetPhone || 'guest';
+  try {
+    const raw = await getItem(itemsCacheKey(effectivePhone));
+    const current = parseCachedItems(raw);
+    const existingIds = new Set(current.map(i => i.id));
+    const toAdd = newItems.filter(i => !existingIds.has(i.id));
+    const combined = [...toAdd, ...current];
+    await setItem(itemsCacheKey(effectivePhone), JSON.stringify(combined));
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('align_items_updated', { detail: { phone: effectivePhone } }));
+    }
+  } catch (e) {
+    console.warn('Error injecting parsed items:', e);
+  }
+}
+
 export function usePlannerItems(phone: string | null) {
   const [items, setItems] = useState<PlannerItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!phone) {
-      setItems([]);
-      setLoading(false);
-      return;
-    }
-    const currentPhone: string = phone;
+    const currentPhone: string = phone || 'guest';
     const phoneVariants = getPhoneVariants(currentPhone);
 
     let cancelled = false;
@@ -49,6 +61,19 @@ export function usePlannerItems(phone: string | null) {
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let retryCount = 0;
     setLoading(true);
+
+    const handleUpdate = () => {
+      getItem(itemsCacheKey(currentPhone)).then((raw) => {
+        const cached = parseCachedItems(raw);
+        if (!cancelled && cached.length > 0) {
+          setItems(cached);
+        }
+      });
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('align_items_updated', handleUpdate);
+    }
 
     (async () => {
       const cached = parseCachedItems(await getItem(itemsCacheKey(currentPhone)));
@@ -104,6 +129,9 @@ export function usePlannerItems(phone: string | null) {
 
     return () => {
       cancelled = true;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('align_items_updated', handleUpdate);
+      }
       if (retryTimer) clearTimeout(retryTimer);
       if (unsubscribeListener) unsubscribeListener();
     };
@@ -111,7 +139,8 @@ export function usePlannerItems(phone: string | null) {
 
   const persistCache = useCallback(
     async (next: PlannerItem[]) => {
-      if (phone) await setItem(itemsCacheKey(phone), JSON.stringify(next));
+      const effectiveKey = phone || 'guest';
+      await setItem(itemsCacheKey(effectiveKey), JSON.stringify(next));
     },
     [phone],
   );
@@ -236,7 +265,7 @@ export function usePlannerItems(phone: string | null) {
 
   const _saveNewItem = useCallback(
     async (newItem: Omit<PlannerItem, 'id' | 'createdAt' | 'ownerId'>) => {
-      if (!phone) throw new Error('Please sign in before adding an item.');
+      const effectiveOwner = phone || 'guest';
       setError(null);
       
       // Don't trigger haptics for generated items to avoid vibration spam
@@ -247,7 +276,7 @@ export function usePlannerItems(phone: string | null) {
       const tempId = 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
       const localItem: PlannerItem = {
         id: tempId,
-        ownerId: phone,
+        ownerId: effectiveOwner,
         ...newItem,
         createdAt: new Date().toISOString(),
       };

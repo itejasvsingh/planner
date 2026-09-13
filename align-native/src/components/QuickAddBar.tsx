@@ -6,6 +6,9 @@ import ItemModal from '@/components/ItemModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth } from '@/lib/firebase';
 
+import { usePhone } from '@/lib/phone-context';
+import { injectParsedItemsLocally } from '@/lib/use-planner-items';
+
 let ExpoSpeechRecognitionModule: any = null;
 let useSpeechRecognitionEvent: any = () => {};
 
@@ -23,6 +26,7 @@ const API_BASE = Platform.OS === 'web' ? '' : process.env.EXPO_PUBLIC_API_URL;
 export default function QuickAddBar() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { phone } = usePhone();
   const [manualOpen, setManualOpen] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [hasError, setHasError] = useState(false);
@@ -54,29 +58,32 @@ export default function QuickAddBar() {
       return;
     }
 
-    const user = auth.currentUser;
-    if (!user) {
-      setFeedback('Sign in to use AI Quick Add. You can keep your text here.');
-      setHasError(true);
-      return;
-    }
-
     setIsProcessing(true);
     
     try {
-      const token = await user.getIdToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+
+      const user = auth.currentUser;
+      if (user) {
+        try {
+          const token = await user.getIdToken();
+          headers['Authorization'] = `Bearer ${token}`;
+        } catch (tokenErr) {
+          console.warn('Could not get Firebase token, sending without token:', tokenErr);
+        }
+      }
+
       const res = await fetch(`${API_BASE}/api/parse`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ text: textToProcess.trim() }),
+        headers,
+        body: JSON.stringify({
+          text: textToProcess.trim(),
+          phone: phone || undefined,
+        }),
       });
       
-      if (res.status === 401) {
-        throw new Error('Authentication expired. Please sign in again.');
-      }
       if (res.status === 429) {
         throw new Error('Rate limit reached (30 requests/hour). Please try again later.');
       }
@@ -87,6 +94,10 @@ export default function QuickAddBar() {
       
       const result = await res.json();
       if (!result.success || !Array.isArray(result.items)) throw new Error('The item was not saved. Please try again.');
+
+      // Immediately inject parsed items into local state and cache so they render instantly
+      await injectParsedItemsLocally(phone, result.items);
+
       setFeedback(`${result.items.length} ${result.items.length === 1 ? 'item' : 'items'} added to your planner.`);
       setText('');
     } catch (err: any) {

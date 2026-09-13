@@ -40,7 +40,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
           }
         }
         const cleaned = raw ? normalizePhone(raw) : '';
-        if (!cancelled && cleaned.length >= 10) {
+        if (!cancelled && (cleaned.length >= 10 || cleaned === 'guest')) {
           setPhone(cleaned);
         }
       } catch (e) {
