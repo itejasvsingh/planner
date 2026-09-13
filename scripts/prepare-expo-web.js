@@ -85,7 +85,7 @@ const pwaHeadSnippet = `
       margin: 0;
       padding: 0;
       height: 100%;
-      height: -webkit-fill-available;
+      
       width: 100%;
       background-color: #0F172A;
       overscroll-behavior-y: none;

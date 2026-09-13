@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
@@ -76,9 +77,12 @@ export default function LoginScreen() {
 
   // Show one-time phone capture step if user has signed in with Google but has no linked phone
   const showPhoneStep = Boolean(firebaseUser && needsPhoneSetup);
+  
+  const insets = useSafeAreaInsets();
+  const topPadding = Platform.OS === 'web' ? 64 : Math.max(insets.top, 52);
 
   return (
-    <View style={[styles.safe, { backgroundColor: theme.background }]}>
+    <View style={[styles.safe, { backgroundColor: theme.background, paddingTop: topPadding }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.center}>
         <View style={styles.logo}>
           <Text style={styles.logoMark}>⚡</Text>
