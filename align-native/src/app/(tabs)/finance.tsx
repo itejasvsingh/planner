@@ -27,7 +27,7 @@ export default function FinanceScreen() {
   const { items, settleUpWith } = usePlannerItems(phone);
 
   const topPadding = Platform.OS === 'web'
-    ? ('calc(env(safe-area-inset-top, 0px) + 24px)' as any)
+    ? 64
     : Math.max(insets.top, 52);
   const { budgetLimits, saveBudgets, DEFAULT_BUDGET_LIMITS } = useBudgetLimits(phone);
 

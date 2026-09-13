@@ -20,7 +20,7 @@ export default function GoalsScreen() {
   const [showCompleted, setShowCompleted] = useState(false);
 
   const topPadding = Platform.OS === 'web'
-    ? ('calc(env(safe-area-inset-top, 0px) + 24px)' as any)
+    ? 64
     : Math.max(insets.top, 52);
 
   const goals = items.filter(item => item.type === 'goal');
