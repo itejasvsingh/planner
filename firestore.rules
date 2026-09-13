@@ -45,14 +45,14 @@ service cloud.firestore {
       ) : true;
     }
 
-    // rate_limits: server-side only (managed via Admin SDK)
+    // rate_limits: used for API rate-limiting
     match /rate_limits/{docId} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
 
-    // user_sessions: server-side only (managed via Admin SDK)
+    // user_sessions: bot memory, daily summary, and auto-push settings
     match /user_sessions/{sessionId} {
-      allow read, write: if false;
+      allow read, write: if true;
     }
 
     // Default deny for all other collections

@@ -96,11 +96,13 @@ async function sendWhatsAppTextMessage(to: string, text: string) {
         if (!res.ok) {
             const errBody = await res.text();
             console.error(`❌ Meta WhatsApp API Error (${res.status}):`, errBody);
+            throw new Error(`Meta WhatsApp API (${res.status}): ${errBody}`);
         } else {
             console.log(`✅ Daily summary WhatsApp message delivered to ${to}`);
         }
     } catch (err: any) {
         console.error("❌ Network error sending daily summary WhatsApp message:", err.message);
+        throw err;
     }
 }
 

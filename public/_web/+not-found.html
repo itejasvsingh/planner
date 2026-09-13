@@ -390,8 +390,8 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
 @keyframes r-1pzkwqh{0%{transform:translateY(100%);}100%{transform:translateY(0%);}}
 @keyframes r-imtty0{0%{opacity:0;}100%{opacity:1;}}
 @keyframes r-q67da2{0%{transform:translateX(-100%);}100%{transform:translateX(400%);}}
-@keyframes r-t2lo5v{0%{opacity:1;}100%{opacity:0;}}</style><link rel="icon" href="/favicon.ico"/><script type="module">globalThis.__EXPO_ROUTER_HYDRATE__=true;</script><link rel="preload" href="/_expo/static/css/global-665b4a15f7e331f86ba47d0099288ee1.css" as="style">
-<link rel="stylesheet" href="/_expo/static/css/global-665b4a15f7e331f86ba47d0099288ee1.css">
+@keyframes r-t2lo5v{0%{opacity:1;}100%{opacity:0;}}</style><link rel="icon" href="/favicon.ico"/><script type="module">globalThis.__EXPO_ROUTER_HYDRATE__=true;</script><link rel="preload" href="/_expo/static/css/global-04314ca52199c80bbfbd6aad11699ec4.css" as="style">
+<link rel="stylesheet" href="/_expo/static/css/global-04314ca52199c80bbfbd6aad11699ec4.css">
   <!-- iOS Native & Dynamic Island Optimization -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -417,6 +417,7 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
       margin: 0;
       padding: 0;
       height: 100%;
+      height: -webkit-fill-available;
       width: 100%;
       background-color: #0F172A;
       overscroll-behavior-y: none;
@@ -436,12 +437,12 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
       }
     }
     div[role="tablist"] {
-      height: 52px !important;
-      min-height: 52px !important;
-      max-height: 52px !important;
+      height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
+      min-height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
       bottom: 0 !important;
       margin-bottom: 0 !important;
-      padding-bottom: 0 !important;
+      padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+      box-sizing: content-box !important;
     }
     input, textarea, select { font-size: 16px; }
     :focus-visible { outline: 2px solid #137C66; outline-offset: 3px; }
@@ -536,7 +537,7 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
       if (banner) banner.style.display = 'none';
     }
   </script>
-</head><body><div id="root"><div class="css-g5y9jx r-13awgt0"></div></div><script src="/_expo/static/js/web/entry-1843324c24671519f5fbe25817811cbc.js" defer></script>
+</head><body><div id="root"><div class="css-g5y9jx r-13awgt0"></div></div><script src="/_expo/static/js/web/entry-bad284a4a6a0d69fcca5d8b5519cca1d.js" defer></script>
 
 <div id="ios-install-banner">
   <div style="display:flex; align-items:flex-start; gap:14px;">

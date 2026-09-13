@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, Pressable, ScrollView, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, Switch, Pressable, ScrollView, Alert, Linking, Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
-import { MessageCircle, Sparkles, Clock, Zap, ChevronRight, Bell, Check, Copy } from 'lucide-react-native';
+import { MessageCircle, Sparkles, Clock, Zap, ChevronRight, Bell, Check, Copy, Repeat } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { useTheme } from '@/hooks/use-theme';
@@ -10,6 +10,7 @@ import { db, auth } from '@/lib/firebase';
 import { onSnapshot, doc, setDoc } from 'firebase/firestore';
 import { getItem, setItem } from '@/lib/storage';
 import { formatPhone } from '@/lib/phone';
+import { triggerHaptic } from '@/lib/haptics';
 
 function format12Hour(time24: string) {
   if (!time24) return '10:00 PM';
@@ -29,6 +30,7 @@ export default function WhatsAppSettingsScreen() {
   const [isTimePickerOpen, setIsTimePickerOpen] = useState(false);
   const [reminderTiming, setReminderTiming] = useState<'exact' | '1h_before' | 'both'>('exact');
   const [isReminderPickerOpen, setIsReminderPickerOpen] = useState(false);
+  const [autoPushEnabled, setAutoPushEnabled] = useState(false);
 
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [testStatus, setTestStatus] = useState<string | null>(null);
@@ -48,6 +50,9 @@ export default function WhatsAppSettingsScreen() {
         setReminderTiming(val);
       }
     });
+    getItem(`align_auto_push_${phone}`).then(val => {
+      if (val !== null) setAutoPushEnabled(val === 'true');
+    });
 
     const unsubscribe = onSnapshot(
       doc(db, 'planner_settings', `preferences_${phone}`),
@@ -65,6 +70,10 @@ export default function WhatsAppSettingsScreen() {
           if (data?.whatsappReminderTiming) {
             setReminderTiming(data.whatsappReminderTiming);
             setItem(`align_reminder_timing_${phone}`, data.whatsappReminderTiming);
+          }
+          if (typeof data?.autoPushEnabled === 'boolean') {
+            setAutoPushEnabled(data.autoPushEnabled);
+            setItem(`align_auto_push_${phone}`, String(data.autoPushEnabled));
           }
         }
       },
@@ -102,6 +111,23 @@ export default function WhatsAppSettingsScreen() {
     }
   };
 
+  const handleToggleAutoPush = async () => {
+    triggerHaptic('light');
+    const next = !autoPushEnabled;
+    setAutoPushEnabled(next);
+    if (phone) {
+      await setItem(`align_auto_push_${phone}`, String(next));
+      try {
+        await Promise.all([
+          setDoc(doc(db, 'planner_settings', `preferences_${phone}`), { autoPushEnabled: next }, { merge: true }),
+          setDoc(doc(db, 'user_sessions', phone), { autoPushEnabled: next }, { merge: true }),
+        ]);
+      } catch (e) {
+        console.warn('Error saving autoPush in whatsapp settings:', e);
+      }
+    }
+  };
+
   const handleChangeReminderTiming = async (timing: 'exact' | '1h_before' | 'both') => {
     setReminderTiming(timing);
     if (phone) {
@@ -120,8 +146,7 @@ export default function WhatsAppSettingsScreen() {
     setIsSendingTest(true);
     setTestStatus('Sending...');
     try {
-      const apiBase = process.env.EXPO_PUBLIC_API_URL;
-      if (!apiBase) { setTestStatus('API URL not configured'); return; }
+      const apiBase = Platform.OS === 'web' ? '' : (process.env.EXPO_PUBLIC_API_URL || '');
       const res = await fetch(`${apiBase}/api/whatsapp/test-summary?phone=${phone}`);
       if (!res.ok) {
         setTestStatus(`Failed (${res.status})`);
@@ -298,6 +323,25 @@ export default function WhatsAppSettingsScreen() {
             </>
           )}
         </View>
+      </View>
+
+      <View style={styles.group}>
+        <Text style={[styles.groupHeader, { color: theme.textSecondary }]}>AUTO-PUSH TASK ROLLOVER</Text>
+        <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+          <View style={styles.row}>
+            <View style={[styles.iconBox, { backgroundColor: '#34C759' }]}>
+              <Repeat color="#FFF" size={18} />
+            </View>
+            <View style={styles.rowContent}>
+              <Text style={[styles.rowTitle, { color: theme.text }]}>Auto-Push Tasks</Text>
+              <Text style={[styles.rowSub, { color: theme.textSecondary }]}>Move unfinished tasks to tomorrow at 12:00 AM</Text>
+            </View>
+            <Switch value={autoPushEnabled} onValueChange={handleToggleAutoPush} />
+          </View>
+        </View>
+        <Text style={[styles.groupFooter, { color: theme.textSecondary }]}>
+          Automatically rolls over incomplete tasks to the next day's agenda every night at 12:00 AM midnight.
+        </Text>
       </View>
 
       <View style={styles.group}>

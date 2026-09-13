@@ -1,16 +1,13 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, Animated, Dimensions, Switch, Alert, ScrollView, Platform } from 'react-native';
-import { LogOut, Shield, MessageCircle, Moon, Sun, Bell, Smartphone, Download, Repeat, ChevronRight, X } from 'lucide-react-native';
+import { LogOut, Shield, MessageCircle, Moon, Sun, Bell, Smartphone, Repeat, ChevronRight, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import { doc, onSnapshot } from 'firebase/firestore';
 
 import { useTheme } from '@/hooks/use-theme';
 import { useThemeMode } from '@/lib/theme-context';
 import { usePhone } from '@/lib/phone-context';
-import { usePlannerItems } from '@/lib/use-planner-items';
 import { triggerHaptic } from '@/lib/haptics';
 import { db } from '@/lib/firebase';
 import { isSecurityEnabled } from '@/lib/auth';
@@ -38,7 +35,6 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { phone, firebaseUser, logout } = usePhone();
-  const { items } = usePlannerItems(phone);
   const router = useRouter();
 
   const topPadding = Platform.OS === 'web'
@@ -52,7 +48,6 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
   const [pushEnabled, setPushEnabled] = useState(false);
   const [autoPushEnabled, setAutoPushEnabled] = useState(false);
   const { mode: themeMode, scheme, setMode } = useThemeMode();
-  const [exportMsg, setExportMsg] = useState('JSON');
   
   const [securityActive, setSecurityActive] = useState(false);
   const [dailySummaryEnabled, setDailySummaryEnabled] = useState(true);
@@ -118,44 +113,28 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
     }
   };
 
+  const handleToggleAutoPush = async () => {
+    triggerHaptic('light');
+    const next = !autoPushEnabled;
+    setAutoPushEnabled(next);
+    if (phone) {
+      try {
+        await Promise.all([
+          setDoc(doc(db, 'planner_settings', `preferences_${phone}`), { autoPushEnabled: next }, { merge: true }),
+          setDoc(doc(db, 'user_sessions', phone), { autoPushEnabled: next }, { merge: true })
+        ]);
+      } catch (e) {
+        console.warn('Error saving autoPush in drawer:', e);
+      }
+    }
+  };
+
   const cycleTheme = () => {
     triggerHaptic('light');
     setMode(themeMode === 'system' ? 'light' : themeMode === 'light' ? 'dark' : 'system');
   };
 
-  const handleExportData = async () => {
-    triggerHaptic('medium');
-    setExportMsg('Exporting...');
-    try {
-      const jsonString = JSON.stringify(items, null, 2);
-      const filename = `align_export_${new Date().toISOString().split('T')[0]}.json`;
-      if (Platform.OS === 'web') {
-        const url = URL.createObjectURL(new Blob([jsonString], { type: 'application/json' }));
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-        link.click();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-        setExportMsg('Downloaded');
-        setTimeout(() => setExportMsg('JSON'), 3000);
-        return;
-      }
-      const file = new FileSystem.File(FileSystem.Paths.document, filename);
-      file.write(jsonString);
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        await Sharing.shareAsync(file.uri, { UTI: 'public.json', mimeType: 'application/json' });
-        setExportMsg('✓ Done');
-      } else {
-        setExportMsg('Failed');
-        Alert.alert('Export', 'Sharing not available on this device');
-      }
-    } catch {
-      setExportMsg('Failed');
-      Alert.alert('Export Error', 'Failed to export data');
-    }
-    setTimeout(() => setExportMsg('JSON'), 3000);
-  };
+
 
   const formattedPhone = phone ? (phone.length > 10 ? `+${phone.slice(0, phone.length - 10)} ` : '') + `******${phone.slice(-4)}` : '';
 
@@ -240,9 +219,7 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
                   <Text style={[styles.menuText, { color: theme.text }]}>Auto-Push Rollover</Text>
                   <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Move unfinished tasks to tomorrow</Text>
                 </View>
-                <View style={[styles.badge, { backgroundColor: autoPushEnabled ? '#34C759' : theme.backgroundElement }]}>
-                  <Text style={[styles.badgeText, { color: autoPushEnabled ? '#FFFFFF' : theme.textSecondary }]}>{autoPushEnabled ? 'ON' : 'OFF'}</Text>
-                </View>
+                <Switch value={autoPushEnabled} onValueChange={handleToggleAutoPush} />
               </View>
               
               <Pressable style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={cycleTheme}>
@@ -251,33 +228,6 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
                   <Text style={[styles.menuText, { color: theme.text }]}>Appearance</Text>
                 </View>
                 <Text style={{ color: theme.textSecondary, textTransform: 'capitalize', fontWeight: '600' }}>{themeMode}</Text>
-              </Pressable>
-
-              <Pressable
-                style={[styles.menuItem, { borderBottomColor: theme.border }]}
-                onPress={() => {
-                  Alert.alert(
-                    'Install Align on iOS',
-                    'To install Align with full Dynamic Island & full-screen experience:\n\n1. In Safari, tap the Share button (box with upward arrow) at the bottom.\n2. Scroll down and tap "Add to Home Screen".\n3. Tap "Add" in the top right.\n\nThen launch Align directly from your Home Screen!',
-                    [{ text: 'Got it' }]
-                  );
-                }}>
-                <Smartphone color={theme.blue} size={22} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.menuText, { color: theme.text }]}>Add to Home Screen</Text>
-                  <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Install your planner for quick access</Text>
-                </View>
-                <ChevronRight color={theme.textSecondary} size={20} />
-              </Pressable>
-
-              <Pressable style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={handleExportData}>
-                <Download color={theme.text} size={22} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.menuText, { color: theme.text }]}>Export Data</Text>
-                </View>
-                <Text style={{ color: exportMsg.includes('✓') ? '#34C759' : exportMsg === 'Failed' ? '#FF3B30' : theme.textSecondary, fontWeight: '600' }}>
-                  {exportMsg}
-                </Text>
               </Pressable>
             </View>
 

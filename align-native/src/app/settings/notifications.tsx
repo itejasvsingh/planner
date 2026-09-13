@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Switch, Alert, Platform, ScrollView } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import { ChevronLeft, Download } from 'lucide-react-native';
+import { ChevronLeft } from 'lucide-react-native';
 import * as Notifications from 'expo-notifications';
-import * as FileSystem from 'expo-file-system';
-import * as Sharing from 'expo-sharing';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { useTheme } from '@/hooks/use-theme';
@@ -12,13 +10,11 @@ import { usePhone } from '@/lib/phone-context';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { triggerHaptic } from '@/lib/haptics';
-import { usePlannerItems } from '@/lib/use-planner-items';
 
 export default function NotificationsSettingsScreen() {
   const theme = useTheme();
   const router = useRouter();
   const { phone } = usePhone();
-  const { items } = usePlannerItems(phone);
 
   const [pushEnabled, setPushEnabled] = useState(false);
   const [dailySummaryEnabled, setDailySummaryEnabled] = useState(false);
@@ -54,7 +50,10 @@ export default function NotificationsSettingsScreen() {
   const savePreferences = async (patch: any) => {
     if (!phone) return;
     try {
-      await setDoc(doc(db, 'planner_settings', `preferences_${phone}`), patch, { merge: true });
+      await Promise.all([
+        setDoc(doc(db, 'planner_settings', `preferences_${phone}`), patch, { merge: true }),
+        setDoc(doc(db, 'user_sessions', phone), patch, { merge: true }),
+      ]);
     } catch (e) {
       console.warn('Failed to save preference', e);
     }
@@ -95,26 +94,7 @@ export default function NotificationsSettingsScreen() {
     savePreferences({ autoPushEnabled: next });
   };
 
-  const handleExportData = async () => {
-    triggerHaptic('medium');
-    try {
-      const jsonString = JSON.stringify(items, null, 2);
-      const filename = `align_export_${new Date().toISOString().split('T')[0]}.json`;
-      const file = new FileSystem.File(FileSystem.Paths.document, filename);
-      
-      file.write(jsonString);
-      
-      const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        await Sharing.shareAsync(file.uri, { UTI: 'public.json', mimeType: 'application/json' });
-      } else {
-        Alert.alert('Export', 'Sharing not available on this device');
-      }
-    } catch (e) {
-      console.warn(e);
-      Alert.alert('Export Error', 'Failed to export data');
-    }
-  };
+
 
   return (
     <View style={[styles.safe, { backgroundColor: theme.background }]}>
@@ -174,16 +154,6 @@ export default function NotificationsSettingsScreen() {
           <Text style={[styles.footerText, { color: theme.textSecondary }]}>
             Automatically push undone tasks to the next day.
           </Text>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>DATA</Text>
-          <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
-            <Pressable style={styles.row} onPress={handleExportData}>
-              <Text style={[styles.rowText, { color: theme.text }]}>Export All Data (JSON)</Text>
-              <Download color={theme.blue} size={20} />
-            </Pressable>
-          </View>
         </View>
       </ScrollView>
     </View>

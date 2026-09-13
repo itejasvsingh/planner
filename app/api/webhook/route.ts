@@ -5,13 +5,13 @@ import { runDailySummaryForUser } from '../../../lib/dailySummary';
 
 export const dynamic = 'force-dynamic';
 
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.META_VERIFY_TOKEN;
 const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
 const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
 
 // Validate essential webhook credentials at startup
 if (!VERIFY_TOKEN) {
-    console.error('❌ CRITICAL: Missing required environment variable WHATSAPP_VERIFY_TOKEN');
+    console.error('❌ CRITICAL: Missing required environment variable WHATSAPP_VERIFY_TOKEN or META_VERIFY_TOKEN');
 }
 if (!API_TOKEN) {
     console.error('❌ CRITICAL: Missing required environment variable WHATSAPP_API_TOKEN or META_ACCESS_TOKEN');
@@ -406,8 +406,8 @@ async function generateWithGemini(
 // ==========================================
 async function processReceiptImage(imageId: string, senderPhone: string) {
     if (!API_TOKEN) throw new Error("Missing Meta API Token");
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_API_KEY) throw new Error("Missing Gemini API Token");
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+    if (!GEMINI_API_KEY) throw new Error("Missing Gemini API Token (GEMINI_API_KEY or GOOGLE_API_KEY)");
 
     try {
         // 1. Ask Meta for the secure download URL
@@ -969,7 +969,7 @@ function parseHeuristically(text: string, today: string, now: Date) {
 // ==========================================
 async function processTextQuery(text: string, senderPhone: string) {
     try {
-        const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
         const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
         const { now, today, currentTime, currentDayName } = getKolkataDate();
 
@@ -1387,8 +1387,8 @@ Format:
 // ==========================================
 async function processAudioMessage(audioId: string, senderPhone: string, mimeType?: string) {
     if (!API_TOKEN) throw new Error("Missing Meta API Token");
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_API_KEY) throw new Error("Missing Gemini API Token");
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+    if (!GEMINI_API_KEY) throw new Error("Missing Gemini API Token (GEMINI_API_KEY or GOOGLE_API_KEY)");
 
     try {
         const { now, today, currentTime, currentDayName } = getKolkataDate();

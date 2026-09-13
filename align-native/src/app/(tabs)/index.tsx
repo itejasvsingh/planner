@@ -11,7 +11,7 @@ import DrawerMenuModal from '@/components/DrawerMenuModal';
 import ItemModal from '@/components/ItemModal';
 import TaskCard from '@/components/TaskCard';
 
-const FILTERS = ['Open', 'All', 'Completed'] as const;
+const FILTERS = ['All', 'Open', 'Completed'] as const;
 type Filter = typeof FILTERS[number];
 
 export default function DailyScreen() {
@@ -21,7 +21,7 @@ export default function DailyScreen() {
   const { items, loading, error, toggleDone } = usePlannerItems(phone);
   const [dailyDate, setDailyDate] = useState(() => new Date());
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [filter, setFilter] = useState<Filter>('Open');
+  const [filter, setFilter] = useState<Filter>('All');
   const [editingItem, setEditingItem] = useState<PlannerItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [actionError, setActionError] = useState('');

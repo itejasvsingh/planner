@@ -85,6 +85,7 @@ const pwaHeadSnippet = `
       margin: 0;
       padding: 0;
       height: 100%;
+      height: -webkit-fill-available;
       width: 100%;
       background-color: #0F172A;
       overscroll-behavior-y: none;
@@ -104,12 +105,12 @@ const pwaHeadSnippet = `
       }
     }
     div[role="tablist"] {
-      height: 52px !important;
-      min-height: 52px !important;
-      max-height: 52px !important;
+      height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
+      min-height: calc(52px + env(safe-area-inset-bottom, 0px)) !important;
       bottom: 0 !important;
       margin-bottom: 0 !important;
-      padding-bottom: 0 !important;
+      padding-bottom: env(safe-area-inset-bottom, 0px) !important;
+      box-sizing: content-box !important;
     }
     input, textarea, select { font-size: 16px; }
     :focus-visible { outline: 2px solid #137C66; outline-offset: 3px; }

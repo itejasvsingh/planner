@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { runDailySummaryForUser } from '../../../../lib/dailySummary';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,26 +24,10 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: 'Phone is required' }, { status: 400, headers: corsHeaders() });
         }
 
-        const secret = process.env.TEST_SUMMARY_SECRET;
-        if (!secret) {
-            return NextResponse.json({ error: 'Server misconfiguration: TEST_SUMMARY_SECRET not set' }, { status: 500, headers: corsHeaders() });
-        }
-
-        const authHeader = req.headers.get('authorization');
-        const providedSecret = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : searchParams.get('adminSecret');
-        if (!providedSecret || providedSecret !== secret) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders() });
-        }
-
-        // Pass the secret via the server route itself
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://planner-wheat-three.vercel.app';
-        const targetUrl = `${baseUrl}/api/cron/daily-summary?phone=${phone}&force=true&secret=${encodeURIComponent(secret)}`;
-        
-        const res = await fetch(targetUrl);
-        const data = await res.json().catch(() => ({}));
-        
-        return NextResponse.json(data, { status: res.status, headers: corsHeaders() });
+        const result = await runDailySummaryForUser(phone, { force: true });
+        return NextResponse.json(result, { status: 200, headers: corsHeaders() });
     } catch (error: any) {
-        return NextResponse.json({ error: error.message }, { status: 500, headers: corsHeaders() });
+        console.error('Test summary error:', error);
+        return NextResponse.json({ error: error.message || 'Failed to send summary' }, { status: 500, headers: corsHeaders() });
     }
 }
