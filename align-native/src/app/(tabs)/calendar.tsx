@@ -29,7 +29,7 @@ export default function CalendarScreen() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const topPadding = Platform.OS === 'web'
-    ? ('max(env(safe-area-inset-top, 0px), 52px)' as any)
+    ? ('calc(env(safe-area-inset-top, 0px) + 24px)' as any)
     : Math.max(insets.top, 52);
 
   const today = todayKey();
