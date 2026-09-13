@@ -39,11 +39,25 @@ export default function TabsLayout() {
             borderTopColor: colors.border,
             elevation: 0,
             shadowOpacity: 0,
-            height: Platform.OS === 'web' ? undefined : (tabHeight + insets.bottom),
-            paddingTop: 2,
-            paddingBottom: Platform.OS === 'web' ? ('env(safe-area-inset-bottom, 0px)' as any) : insets.bottom,
-            marginBottom: 0,
+            position: 'absolute' as const,
             bottom: 0,
+            left: 0,
+            right: 0,
+            height: Platform.OS === 'web'
+              ? ('calc(50px + env(safe-area-inset-bottom, 0px))' as any)
+              : (50 + insets.bottom),
+            paddingBottom: Platform.OS === 'web'
+              ? ('env(safe-area-inset-bottom, 0px)' as any)
+              : insets.bottom,
+            paddingTop: 0,
+            marginBottom: 0,
+          },
+          tabBarItemStyle: {
+            height: 50,
+            paddingTop: 6,
+            paddingBottom: 4,
+            justifyContent: 'center' as const,
+            alignItems: 'center' as const,
           },
           tabBarActiveTintColor: colors.blue,
           tabBarInactiveTintColor: colors.textSecondary,

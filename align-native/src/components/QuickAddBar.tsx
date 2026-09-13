@@ -142,7 +142,7 @@ export default function QuickAddBar() {
 
   // Position cleanly 8px above the 50px bottom tab bar (taking into account safe area on iOS/web)
   const quickAddBottom = Platform.OS === 'web'
-    ? ('calc(58px + env(safe-area-inset-bottom, 0px))' as any)
+    ? ('calc(58px + env(safe-area-inset-bottom, 34px))' as any)
     : (58 + insets.bottom);
 
   return (

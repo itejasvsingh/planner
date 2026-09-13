@@ -18,3 +18,18 @@ body {
     color: #182B32;
   }
 }
+
+:root {
+  --tab-bar-bg: #0F172A;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --tab-bar-bg: #F4F7F6;
+  }
+}
+
+body {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  background-color: var(--tab-bar-bg);
+}
