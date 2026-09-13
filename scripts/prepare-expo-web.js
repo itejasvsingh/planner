@@ -103,6 +103,14 @@ const pwaHeadSnippet = `
         background-color: #F4F7F6;
       }
     }
+    div[role="tablist"] {
+      height: 52px !important;
+      min-height: 52px !important;
+      max-height: 52px !important;
+      bottom: 0 !important;
+      margin-bottom: 0 !important;
+      padding-bottom: 0 !important;
+    }
     input, textarea, select { font-size: 16px; }
     :focus-visible { outline: 2px solid #137C66; outline-offset: 3px; }
     @media (prefers-reduced-motion: reduce) {
