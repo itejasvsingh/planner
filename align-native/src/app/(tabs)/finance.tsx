@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, Alert, Linking, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Modal, TextInput, Alert, Linking, TouchableOpacity, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TrendingDown, TrendingUp, Users, Menu, Edit3, Repeat, ChevronRight, RotateCcw, Plus } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
@@ -21,8 +22,13 @@ function getBudgetColor(spent: number, limit: number): string {
 
 export default function FinanceScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { phone } = usePhone();
   const { items, settleUpWith } = usePlannerItems(phone);
+
+  const topPadding = Platform.OS === 'web'
+    ? ('calc(env(safe-area-inset-top, 24px) + 14px)' as any)
+    : Math.max(insets.top, 24) + 14;
   const { budgetLimits, saveBudgets, DEFAULT_BUDGET_LIMITS } = useBudgetLimits(phone);
 
   const [financeView, setFinanceView] = useState<'transactions' | 'insights' | 'balances'>('transactions');
@@ -199,8 +205,8 @@ export default function FinanceScreen() {
 
   return (
     <View style={[styles.safe, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => setIsDrawerOpen(true)} style={{ padding: 4, marginRight: 12 }}>
+      <View style={[styles.header, { paddingTop: topPadding }]}>
+        <Pressable onPress={() => setIsDrawerOpen(true)} hitSlop={15} style={{ padding: 6, marginRight: 10 }}>
           <Menu color={theme.text} size={28} />
         </Pressable>
         <View style={{ flex: 1 }}>

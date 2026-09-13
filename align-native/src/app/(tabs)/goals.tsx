@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Target, Plus, Check, Menu, ArrowUpRight } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
@@ -10,19 +11,33 @@ import DrawerMenuModal from '@/components/DrawerMenuModal';
 
 export default function GoalsScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { phone } = usePhone();
   const { items, loading, error, updateGoalProgress } = usePlannerItems(phone);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<PlannerItem | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
+
+  const topPadding = Platform.OS === 'web'
+    ? ('calc(env(safe-area-inset-top, 24px) + 14px)' as any)
+    : Math.max(insets.top, 24) + 14;
+
   const goals = items.filter(item => item.type === 'goal');
   const done = goals.filter(goal => (goal.current || 0) >= (goal.target || 1));
   const visible = goals.filter(goal => ((goal.current || 0) >= (goal.target || 1)) === showCompleted);
   function addGoal() { setEditing(null); setModalOpen(true); }
   return <View style={{ flex: 1, backgroundColor: theme.background }}>
-    <ScrollView contentContainerStyle={styles.content}>
-      <View style={styles.header}><View style={{ flex: 1 }}><Text style={[styles.eyebrow, { color: theme.blue }]}>THE BIGGER PICTURE</Text><Text style={[styles.title, { color: theme.text }]}>Small steps. Real progress.</Text><Text style={[styles.subtitle, { color: theme.textSecondary }]}>Give what matters a little momentum.</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Open menu" onPress={() => setDrawerOpen(true)} style={styles.iconButton}><Menu color={theme.text} size={22} /></Pressable></View>
+    <ScrollView contentContainerStyle={[styles.content, { paddingTop: topPadding }]}>
+      <View style={styles.header}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Open menu" onPress={() => setDrawerOpen(true)} hitSlop={15} style={styles.iconButton}>
+          <Menu color={theme.text} size={24} />
+        </Pressable>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.title, { color: theme.text }]}>Goals</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>Small steps. Real progress.</Text>
+        </View>
+      </View>
       <View style={[styles.summary, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>{[{ label: 'Active goals', value: goals.length - done.length }, { label: 'Milestones reached', value: done.length }].map(stat => <View key={stat.label} style={{ flex: 1 }}><Text style={{ color: theme.blue, fontSize: 30, fontWeight: '700' }}>{stat.value}</Text><Text style={[styles.subtitle, { color: theme.textSecondary }]}>{stat.label}</Text></View>)}</View>
       <View style={styles.toolbar}><View style={{ flexDirection: 'row', gap: 6 }}>{[false, true].map(value => <Pressable key={String(value)} accessibilityRole="button" accessibilityState={{ selected: showCompleted === value }} onPress={() => setShowCompleted(value)} style={[styles.filter, { backgroundColor: showCompleted === value ? theme.backgroundSelected : 'transparent' }]}><Text style={{ color: showCompleted === value ? theme.blue : theme.textSecondary, fontSize: 13, fontWeight: '600' }}>{value ? 'Completed' : 'In progress'}</Text></Pressable>)}</View><Pressable accessibilityRole="button" accessibilityLabel="Create goal" onPress={addGoal} style={[styles.add, { backgroundColor: theme.blue }]}><Plus size={16} color="#fff" /><Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>New goal</Text></Pressable></View>
       {!!error && <Text accessibilityRole="alert" style={{ color: theme.red }}>{error}</Text>}

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/hooks/use-theme';
 import { ChevronLeft, ChevronRight, Plus, Menu } from 'lucide-react-native';
 
@@ -17,6 +18,7 @@ const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 export default function CalendarScreen() {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { phone } = usePhone();
   const { items, toggleDone, deleteItem } = usePlannerItems(phone);
 
@@ -25,6 +27,10 @@ export default function CalendarScreen() {
   const [editingItem, setEditingItem] = useState<PlannerItem | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const topPadding = Platform.OS === 'web'
+    ? ('calc(env(safe-area-inset-top, 24px) + 14px)' as any)
+    : Math.max(insets.top, 24) + 14;
 
   const today = todayKey();
   const selectedKey = formatDateKey(selectedDate);
@@ -56,8 +62,8 @@ export default function CalendarScreen() {
 
   return (
     <View style={[styles.safe, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <Pressable onPress={() => setIsDrawerOpen(true)} style={({ pressed }) => [{ padding: 4, opacity: pressed ? 0.7 : 1, marginRight: 12 }]}>
+      <View style={[styles.header, { paddingTop: topPadding }]}>
+        <Pressable onPress={() => setIsDrawerOpen(true)} hitSlop={15} style={({ pressed }) => [{ padding: 6, opacity: pressed ? 0.7 : 1, marginRight: 10 }]}>
           <Menu color={theme.text} size={28} />
         </Pressable>
         <View style={{ flex: 1 }}>

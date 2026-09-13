@@ -14,6 +14,7 @@ import { usePlannerItems } from '@/lib/use-planner-items';
 import { triggerHaptic } from '@/lib/haptics';
 import { db } from '@/lib/firebase';
 import { isSecurityEnabled } from '@/lib/auth';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface DrawerMenuModalProps {
   visible: boolean;
@@ -34,9 +35,14 @@ export function format12Hour(timeStr: string) {
 
 export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalProps) {
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const { phone, logout } = usePhone();
   const { items } = usePlannerItems(phone);
   const router = useRouter();
+
+  const topPadding = Platform.OS === 'web'
+    ? ('calc(env(safe-area-inset-top, 24px) + 20px)' as any)
+    : Math.max(insets.top, 24) + 20;
 
   const [slideAnim] = useState(() => new Animated.Value(-DRAWER_WIDTH));
   const [fadeAnim] = useState(() => new Animated.Value(0));
@@ -159,7 +165,7 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         </Animated.View>
 
-        <Animated.View style={[styles.drawer, { backgroundColor: theme.background, transform: [{ translateX: slideAnim }] }]}>
+        <Animated.View style={[styles.drawer, { backgroundColor: theme.background, paddingTop: topPadding, transform: [{ translateX: slideAnim }] }]}>
           <View style={styles.header}>
             <View style={[styles.avatar, { backgroundColor: theme.backgroundElement }]}>
               <Smartphone color={theme.text} size={24} />
