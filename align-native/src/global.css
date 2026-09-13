@@ -1,18 +1,19 @@
 html, body {
-  height: 100vh;
-  height: -webkit-fill-available;
-  background-color: #1E2336;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
 }
 
 body {
   margin: 0;
-  background-color: #1E2336;
+  background-color: #0F172A;
   color: #F5F5F7;
 }
 
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   body {
-    background-color: #1E2336;
-    color: #F5F5F7;
+    background-color: #F4F7F6;
+    color: #182B32;
   }
 }

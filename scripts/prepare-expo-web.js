@@ -63,9 +63,9 @@ const pwaHeadSnippet = `
   <!-- iOS Native & Dynamic Island Optimization -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Align">
-  <meta name="theme-color" content="#1E2336">
+  <meta name="theme-color" content="#0F172A">
   <meta name="format-detection" content="telephone=no">
   <meta name="apple-touch-fullscreen" content="yes">
   <link rel="manifest" href="/manifest.json">
@@ -83,10 +83,10 @@ const pwaHeadSnippet = `
     }
     html, body {
       margin: 0;
-      height: 100vh;
-      height: -webkit-fill-available;
-      background-color: #1E2336;
+      padding: 0;
+      height: 100%;
       width: 100%;
+      background-color: #0F172A;
       overscroll-behavior-y: none;
       -webkit-tap-highlight-color: transparent;
       -webkit-font-smoothing: antialiased;
@@ -96,12 +96,12 @@ const pwaHeadSnippet = `
       width: 100%;
       display: flex;
       flex-direction: column;
-      background-color: #1E2336;
+      background-color: #0F172A;
     }
-    div[role="tablist"],
-    *:has(> div[role="tablist"]) {
-      padding-bottom: env(safe-area-inset-bottom, 20px) !important;
-      background-color: #1E2336 !important;
+    @media (prefers-color-scheme: light) {
+      html, body, #root {
+        background-color: #F4F7F6;
+      }
     }
     input, textarea, select { font-size: 16px; }
     :focus-visible { outline: 2px solid #137C66; outline-offset: 3px; }

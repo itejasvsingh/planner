@@ -129,8 +129,8 @@ export default function QuickAddBar() {
     }
   };
 
-  // Position cleanly 8px above the 50px bottom tab bar
-  const quickAddBottom = 64 + insets.bottom + 10;
+  // Position cleanly 10px above the bottom tab bar
+  const quickAddBottom = 60 + insets.bottom + 10;
 
   return (
     <KeyboardAvoidingView 
