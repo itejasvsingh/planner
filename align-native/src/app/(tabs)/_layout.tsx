@@ -1,4 +1,5 @@
 import { Tabs } from 'expo-router';
+import { Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ListTodo, Calendar, Wallet, Target } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
@@ -17,7 +18,15 @@ export default function TabsLayout() {
         tabBarItemStyle: { paddingTop: 4, paddingBottom: 4 },
         tabBarIconStyle: { height: 22, width: 24 },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600', marginTop: 3, lineHeight: 14, minHeight: 14, flexShrink: 0 },
-        tabBarStyle: { backgroundColor: colors.backgroundElement, borderTopWidth: 1, borderTopColor: colors.border, elevation: 0, shadowOpacity: 0, height: 64 + insets.bottom, paddingBottom: insets.bottom },
+        tabBarStyle: {
+          backgroundColor: '#1E2336',
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          elevation: 0,
+          shadowOpacity: 0,
+          height: Platform.OS === 'web' ? ('calc(54px + env(safe-area-inset-bottom, 20px))' as any) : (64 + insets.bottom),
+          paddingBottom: Platform.OS === 'web' ? ('env(safe-area-inset-bottom, 20px)' as any) : insets.bottom,
+        },
         tabBarActiveTintColor: colors.blue,
         tabBarInactiveTintColor: colors.textSecondary,
       }}>

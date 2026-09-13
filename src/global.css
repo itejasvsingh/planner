@@ -1,0 +1,5 @@
+html, body {
+  height: 100vh;
+  height: -webkit-fill-available;
+  background-color: #1E2336;
+}

@@ -6,7 +6,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   viewportFit: 'cover',
   userScalable: false,
-  themeColor: '#0F172A',
+  themeColor: '#1E2336',
 };
 
 export const metadata: Metadata = {
@@ -28,7 +28,9 @@ export default function RootLayout({
     <html lang="en">
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
-        <meta name="theme-color" content="#0F172A" />
+        <meta name="theme-color" content="#1E2336" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body>{children}</body>
     </html>

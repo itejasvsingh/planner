@@ -65,7 +65,7 @@ const pwaHeadSnippet = `
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Align">
-  <meta name="theme-color" content="#0F172A">
+  <meta name="theme-color" content="#1E2336">
   <meta name="format-detection" content="telephone=no">
   <meta name="apple-touch-fullscreen" content="yes">
   <link rel="manifest" href="/manifest.json">
@@ -83,7 +83,9 @@ const pwaHeadSnippet = `
     }
     html, body {
       margin: 0;
-      height: 100%;
+      height: 100vh;
+      height: -webkit-fill-available;
+      background-color: #1E2336;
       width: 100%;
       overscroll-behavior-y: none;
       -webkit-tap-highlight-color: transparent;
@@ -94,6 +96,12 @@ const pwaHeadSnippet = `
       width: 100%;
       display: flex;
       flex-direction: column;
+      background-color: #1E2336;
+    }
+    div[role="tablist"],
+    *:has(> div[role="tablist"]) {
+      padding-bottom: env(safe-area-inset-bottom, 20px) !important;
+      background-color: #1E2336 !important;
     }
     input, textarea, select { font-size: 16px; }
     :focus-visible { outline: 2px solid #137C66; outline-offset: 3px; }
