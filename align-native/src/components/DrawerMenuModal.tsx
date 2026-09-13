@@ -15,6 +15,7 @@ import { triggerHaptic } from '@/lib/haptics';
 import { db } from '@/lib/firebase';
 import { isSecurityEnabled } from '@/lib/auth';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { signInWithGoogle } from '@/lib/google-auth';
 
 interface DrawerMenuModalProps {
   visible: boolean;
@@ -36,7 +37,7 @@ export function format12Hour(timeStr: string) {
 export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalProps) {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
-  const { phone, logout } = usePhone();
+  const { phone, firebaseUser, logout } = usePhone();
   const { items } = usePlannerItems(phone);
   const router = useRouter();
 
@@ -171,14 +172,38 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
               <Smartphone color={theme.text} size={24} />
             </View>
             <View style={styles.accountInfo}>
-              <Text style={[styles.phoneText, { color: theme.text }]}>{formattedPhone}</Text>
+              <Text style={[styles.phoneText, { color: theme.text }]} numberOfLines={1}>
+                {firebaseUser?.displayName || firebaseUser?.email || formattedPhone || 'Personal Workspace'}
+              </Text>
               <View style={styles.statusRow}>
-                <View style={styles.statusDot} />
-                <Text style={{ color: theme.textSecondary, fontSize: 13 }}>Your personal workspace</Text>
+                <View style={[styles.statusDot, { backgroundColor: firebaseUser ? '#34C759' : '#FF9500' }]} />
+                <Text style={{ color: theme.textSecondary, fontSize: 13 }} numberOfLines={1}>
+                  {firebaseUser?.email && formattedPhone ? formattedPhone : firebaseUser ? 'Google Account' : formattedPhone ? 'WhatsApp Synced' : 'Guest'}
+                </Text>
               </View>
             </View>
             <Pressable accessibilityRole="button" accessibilityLabel="Close menu" onPress={onClose} style={{ padding: 10 }}><X size={22} color={theme.textSecondary} /></Pressable>
           </View>
+
+          {!firebaseUser && (
+            <Pressable
+              onPress={async () => {
+                try {
+                  const u = await signInWithGoogle();
+                  if (u) {
+                    triggerHaptic('success');
+                    Alert.alert('Signed In', `Welcome, ${u.displayName || u.email || 'friend'}!`);
+                  }
+                } catch (e: any) {
+                  Alert.alert('Sign In Notice', e.message || 'Could not complete Google Sign-In');
+                }
+              }}
+              style={[styles.quickGoogleBtn, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
+            >
+              <Text style={styles.googleG}>G</Text>
+              <Text style={[styles.quickGoogleText, { color: theme.text }]}>Sign in with Google</Text>
+            </Pressable>
+          )}
 
           <ScrollView showsVerticalScrollIndicator={false}>
             {/* Preferences */}
@@ -297,11 +322,20 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
 
             <View style={{ height: 40 }} />
 
-            <Pressable style={[styles.menuItem, { borderBottomWidth: 0, paddingTop: 0 }]} onPress={() => { onClose(); logout(); }}>
+            <Pressable 
+              style={[styles.menuItem, { borderBottomWidth: 0, paddingTop: 0 }]} 
+              onPress={() => { 
+                onClose(); 
+                logout(); 
+                router.replace('/login');
+              }}
+            >
               <View style={[styles.avatar, { width: 40, height: 40, backgroundColor: 'rgba(255,59,48,0.1)' }]}>
                 <LogOut color="#FF3B30" size={20} />
               </View>
-              <Text style={[styles.menuText, { color: '#FF3B30', fontWeight: '700' }]}>Log out</Text>
+              <Text style={[styles.menuText, { color: '#FF3B30', fontWeight: '700' }]}>
+                {phone || firebaseUser ? 'Log out / Switch account' : 'Sign in'}
+              </Text>
             </Pressable>
           </ScrollView>
         </Animated.View>
@@ -313,7 +347,27 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
 const styles = StyleSheet.create({
   container: { flex: 1, flexDirection: 'row' },
   overlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.5)' },
-  drawer: { width: DRAWER_WIDTH, height: '100%', paddingTop: 32, paddingHorizontal: 20, paddingBottom: 40, shadowColor: '#000', shadowOffset: { width: 4, height: 0 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 10 },
+  drawer: { width: DRAWER_WIDTH, height: '100%', paddingHorizontal: 20, paddingBottom: 40, shadowColor: '#000', shadowOffset: { width: 4, height: 0 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 10 },
+  quickGoogleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1,
+    marginBottom: 20,
+    gap: 10,
+  },
+  googleG: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#4285F4',
+  },
+  quickGoogleText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
   header: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
   avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   accountInfo: { flex: 1 },

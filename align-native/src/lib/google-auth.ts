@@ -1,16 +1,28 @@
 import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import { GoogleAuthProvider, signInWithCredential, signOut as fbSignOut } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithCredential, signInWithPopup, signOut as fbSignOut } from 'firebase/auth';
+import { Platform } from 'react-native';
 import { auth } from './firebase';
 
 export const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 
-if (WEB_CLIENT_ID) {
-  GoogleSignin.configure({
-    webClientId: WEB_CLIENT_ID,
-  });
+if (Platform.OS !== 'web' && WEB_CLIENT_ID) {
+  try {
+    GoogleSignin.configure({
+      webClientId: WEB_CLIENT_ID,
+    });
+  } catch (e) {
+    console.warn('GoogleSignin.configure notice:', e);
+  }
 }
 
 export async function signInWithGoogle() {
+  if (Platform.OS === 'web') {
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+    const userCredential = await signInWithPopup(auth, provider);
+    return userCredential.user;
+  }
+
   if (!WEB_CLIENT_ID) {
     throw new Error('Google Sign-In is misconfigured: EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is missing.');
   }
@@ -33,10 +45,12 @@ export async function signInWithGoogle() {
 }
 
 export async function signOutGoogle() {
-  try {
-    await GoogleSignin.signOut();
-  } catch (e) {
-    console.warn('GoogleSignin.signOut notice:', e);
+  if (Platform.OS !== 'web') {
+    try {
+      await GoogleSignin.signOut();
+    } catch (e) {
+      console.warn('GoogleSignin.signOut notice:', e);
+    }
   }
   try {
     await fbSignOut(auth);
