@@ -2,10 +2,11 @@ import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getAuth } from 'firebase-admin/auth';
 
 export const dynamic = 'force-dynamic';
 
-function getAdminDb() {
+function initAdmin() {
     if (!getApps().length) {
         const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
         if (!projectId) {
@@ -26,7 +27,16 @@ function getAdminDb() {
             initializeApp({ projectId });
         }
     }
+}
+
+function getAdminDb() {
+    initAdmin();
     return getFirestore();
+}
+
+function getAdminAuth() {
+    initAdmin();
+    return getAuth();
 }
 
 function corsHeaders() {
@@ -41,34 +51,103 @@ export async function OPTIONS() {
     return new NextResponse(null, { status: 204, headers: corsHeaders() });
 }
 
-// Simple in-memory rate limiting (max 30 requests per phone per hour)
-const rateLimits = new Map<string, { count: number; resetAt: number }>();
-
 export async function POST(req: Request) {
     try {
+        // 1. Authenticate user via Firebase ID Token
+        const authHeader = req.headers.get('authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return NextResponse.json(
+                { error: 'Unauthorized: Missing or invalid Authorization header' },
+                { status: 401, headers: corsHeaders() }
+            );
+        }
+
+        const idToken = authHeader.substring(7).trim();
+        let decodedToken;
+        try {
+            const adminAuth = getAdminAuth();
+            decodedToken = await adminAuth.verifyIdToken(idToken);
+        } catch (authErr: any) {
+            console.error('Firebase token verification failed in /api/parse:', authErr);
+            return NextResponse.json(
+                { error: 'Unauthorized: Invalid authentication token' },
+                { status: 401, headers: corsHeaders() }
+            );
+        }
+
         const body = await req.json();
-        const { text, phone } = body;
+        const { text } = body;
 
         if (!text || typeof text !== 'string') {
             return NextResponse.json({ error: 'Text is required' }, { status: 400, headers: corsHeaders() });
         }
 
-        const ownerId = phone ? String(phone).replace(/\D/g, '') : 'default_user';
-        if (!ownerId || ownerId.length < 10 || ownerId === 'default_user') {
-            return NextResponse.json({ error: 'Valid phone required' }, { status: 400, headers: corsHeaders() });
+        const db = getAdminDb();
+
+        // 2. Persistent Firestore rate limiting (max 30 requests per user per hour)
+        const rateLimitRef = db.collection('rate_limits').doc(`parse_${decodedToken.uid}`);
+        const ONE_HOUR_MS = 60 * 60 * 1000;
+        const MAX_REQUESTS_PER_HOUR = 30;
+
+        const isAllowed = await db.runTransaction(async (transaction) => {
+            const doc = await transaction.get(rateLimitRef);
+            const nowMs = Date.now();
+
+            if (!doc.exists) {
+                transaction.set(rateLimitRef, {
+                    count: 1,
+                    resetAt: nowMs + ONE_HOUR_MS,
+                    updatedAt: FieldValue.serverTimestamp(),
+                    uid: decodedToken.uid,
+                });
+                return true;
+            }
+
+            const data = doc.data()!;
+            const resetAt = typeof data.resetAt === 'number' ? data.resetAt : 0;
+
+            if (nowMs > resetAt) {
+                transaction.set(rateLimitRef, {
+                    count: 1,
+                    resetAt: nowMs + ONE_HOUR_MS,
+                    updatedAt: FieldValue.serverTimestamp(),
+                    uid: decodedToken.uid,
+                });
+                return true;
+            }
+
+            if ((data.count || 0) >= MAX_REQUESTS_PER_HOUR) {
+                return false;
+            }
+
+            transaction.update(rateLimitRef, {
+                count: FieldValue.increment(1),
+                updatedAt: FieldValue.serverTimestamp(),
+            });
+            return true;
+        });
+
+        if (!isAllowed) {
+            return NextResponse.json(
+                { error: 'Rate limit exceeded: maximum 30 AI parse requests per hour.' },
+                { status: 429, headers: corsHeaders() }
+            );
         }
 
-        const limitRecord = rateLimits.get(ownerId) || { count: 0, resetAt: Date.now() + 3600000 };
-        if (Date.now() > limitRecord.resetAt) {
-            limitRecord.count = 0;
-            limitRecord.resetAt = Date.now() + 3600000;
+        // 3. Derive ownerId securely from verified token or verified user profile
+        let ownerId = decodedToken.uid;
+        try {
+            const userDoc = await db.collection('users').doc(decodedToken.uid).get();
+            if (userDoc.exists && userDoc.data()?.phone) {
+                const cleanedPhone = String(userDoc.data()!.phone).replace(/\D/g, '');
+                if (cleanedPhone.length >= 10) {
+                    ownerId = cleanedPhone;
+                }
+            }
+        } catch (e) {
+            console.warn('Could not fetch user phone for ownerId derivation, using uid:', e);
         }
-        limitRecord.count++;
-        rateLimits.set(ownerId, limitRecord);
 
-        if (limitRecord.count > 30) {
-            return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429, headers: corsHeaders() });
-        }
         const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
         const pad = (n: number) => String(n).padStart(2, '0');
         const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
@@ -170,7 +249,6 @@ export async function POST(req: Request) {
         }
 
         // 3. Save to Firestore
-        const db = getAdminDb();
         const batch = db.batch();
         const savedList: any[] = [];
 

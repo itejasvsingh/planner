@@ -1,8 +1,7 @@
 import { db } from './firebase';
 
-const DEFAULT_TOKEN = "EAAO6WemhAoABSdMEF3np2uZB0fWZA8SHpv0dX0Nq0fjg0S5KZCj3td0amntX6vvDVzWguTYwZBSgYDCYkORiJpJXtm9mggjMkrmTLvZBCQLwlIfIOsWvKLTxKFBfjKoXAyBlAZArHkH7gHnrfYXYTgkxVe8t4AVNYZBzAE5WHZAGEKaVZAYtC0ep46QTZCSEZAcgwZDZD";
-const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN || DEFAULT_TOKEN;
-const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID || "1304237036105269";
+const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
+const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
 
 function getPhoneVariants(phone: string | null): string[] {
     if (!phone) return [];
@@ -70,11 +69,13 @@ export function getKolkataDateInfo() {
 }
 
 async function sendWhatsAppTextMessage(to: string, text: string) {
-    const activePhoneId = PHONE_ID || process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
-    const token = API_TOKEN || process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
-    if (!activePhoneId || !token) {
-        console.error("❌ Missing WhatsApp credentials for daily summary dispatch");
-        return;
+    const activePhoneId = PHONE_ID;
+    const token = API_TOKEN;
+    if (!activePhoneId) {
+        throw new Error("Missing required environment variable: WHATSAPP_PHONE_ID or PHONE_NUMBER_ID");
+    }
+    if (!token) {
+        throw new Error("Missing required environment variable: WHATSAPP_API_TOKEN or META_ACCESS_TOKEN");
     }
 
     try {

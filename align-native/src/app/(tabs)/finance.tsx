@@ -9,6 +9,7 @@ import SplitEditorModal from '@/components/SplitEditorModal';
 import DrawerMenuModal from '@/components/DrawerMenuModal';
 import ItemModal from '@/components/ItemModal';
 import { PlannerItem } from '@/lib/planner-item';
+import { todayKey, formatDateKey } from '@/lib/dates';
 import { triggerHaptic } from '@/lib/haptics';
 
 function getBudgetColor(spent: number, limit: number): string {
@@ -40,8 +41,8 @@ export default function FinanceScreen() {
   }, [items]);
 
   const { monthExp, monthInc, dayExp, dayInc, categorySpend, todayTransactions, olderTransactions } = useMemo(() => {
-    const monthPrefix = new Date().toISOString().substring(0, 7);
-    const todayStr = new Date().toISOString().split('T')[0];
+    const monthPrefix = todayKey().substring(0, 7);
+    const todayStr = todayKey();
 
     let mExp = 0, mInc = 0, dExp = 0, dInc = 0;
     const catSpend: Record<string, number> = {};
@@ -114,8 +115,9 @@ export default function FinanceScreen() {
     const months = [];
     for (let i = 5; i >= 0; i--) {
       const d = new Date();
+      d.setDate(1);
       d.setMonth(d.getMonth() - i);
-      const prefix = d.toISOString().substring(0, 7);
+      const prefix = formatDateKey(d).substring(0, 7);
       const label = d.toLocaleString('default', { month: 'short' });
       let exp = 0, inc = 0;
       allTransactions.forEach(t => {
@@ -204,7 +206,8 @@ export default function FinanceScreen() {
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: theme.text }]}>Finance</Text>
         </View>
-        <Pressable onPress={openBudgetModal} style={{ padding: 4 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel="Add expense" onPress={() => setIsItemModalOpen(true)} style={{ padding: 12 }}><Plus color={theme.blue} size={24} /></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Edit budgets" onPress={openBudgetModal} style={{ padding: 4 }}>
           <Edit3 color={theme.text} size={24} />
         </Pressable>
       </View>
@@ -214,7 +217,7 @@ export default function FinanceScreen() {
           <Pressable 
             key={tab} 
             onPress={() => { triggerHaptic('light'); setFinanceView(tab); }}
-            style={[styles.segmentBtn, financeView === tab && { backgroundColor: '#007AFF' }]}
+            style={[styles.segmentBtn, financeView === tab && { backgroundColor: theme.blue }]}
           >
             <Text style={[styles.segmentText, financeView === tab ? { color: '#FFF', fontWeight: '600' } : { color: theme.textSecondary }]}>
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -223,7 +226,7 @@ export default function FinanceScreen() {
         ))}
       </View>
 
-      <ScrollView contentContainerStyle={styles.list}>
+      <ScrollView contentContainerStyle={[styles.list, { width: '100%', maxWidth: 880, alignSelf: 'center' }]}>
         
         {financeView === 'transactions' && (
           <>
@@ -233,14 +236,14 @@ export default function FinanceScreen() {
                 <Text style={{ color: dailyRemaining < 0 ? '#FF3B30' : theme.text, fontSize: 24, fontWeight: '800', marginVertical: 4 }}>
                   ₹{dailyRemaining}
                 </Text>
-                <Text style={{ color: theme.textSecondary, fontSize: 12 }}>Spent: ₹{dayExp} • Rx: ₹{dayInc}</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 12 }}>Spent: ₹{dayExp} • Income: ₹{dayInc}</Text>
               </Pressable>
               <Pressable style={[styles.budgetCard, { backgroundColor: theme.backgroundElement }]} onPress={openBudgetModal}>
                 <Text style={{ color: theme.textSecondary, fontSize: 13, fontWeight: '600' }}>MONTH AVAILABLE</Text>
                 <Text style={{ color: monthlyRemaining < 0 ? '#FF3B30' : theme.text, fontSize: 24, fontWeight: '800', marginVertical: 4 }}>
                   ₹{monthlyRemaining}
                 </Text>
-                <Text style={{ color: theme.textSecondary, fontSize: 12 }}>Spent: ₹{monthExp} • Rx: ₹{monthInc}</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 12 }}>Spent: ₹{monthExp} • Income: ₹{monthInc}</Text>
               </Pressable>
             </View>
 
@@ -365,15 +368,9 @@ export default function FinanceScreen() {
 
       </ScrollView>
 
-      {financeView === 'transactions' && (
-        <Pressable style={[styles.fab, { backgroundColor: '#007AFF' }]} onPress={() => setIsItemModalOpen(true)}>
-          <Plus color="#FFF" size={28} />
-        </Pressable>
-      )}
-
       {/* MODALS */}
       <SplitEditorModal visible={!!splitExpense} onClose={() => setSplitExpense(null)} expense={splitExpense} />
-      <ItemModal visible={isItemModalOpen} onClose={() => setIsItemModalOpen(false)} initialItem={{ type: 'expense' } as any} />
+      <ItemModal visible={isItemModalOpen} onClose={() => setIsItemModalOpen(false)} defaultType="expense" />
       <DrawerMenuModal visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
 
       {/* BUDGET MODAL */}
@@ -435,7 +432,7 @@ export default function FinanceScreen() {
               </Pressable>
             </View>
 
-            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: '#007AFF' }]} onPress={handleSaveBudgets}>
+            <TouchableOpacity style={[styles.saveBtn, { backgroundColor: theme.blue }]} onPress={handleSaveBudgets}>
               <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '600' }}>Save Limits</Text>
             </TouchableOpacity>
           </ScrollView>
@@ -478,7 +475,7 @@ const styles = StyleSheet.create({
   progressFill: { height: '100%', borderRadius: 4 },
 
   balanceCard: { padding: 20, borderRadius: 20, marginBottom: 12 },
-  avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#007AFF', alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#137C66', alignItems: 'center', justifyContent: 'center' },
   actionBtn: { flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   
   modalSafe: { flex: 1 },

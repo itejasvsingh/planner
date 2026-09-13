@@ -25,7 +25,13 @@ export async function GET(req: Request) {
 
         const secret = process.env.TEST_SUMMARY_SECRET;
         if (!secret) {
-            return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500, headers: corsHeaders() });
+            return NextResponse.json({ error: 'Server misconfiguration: TEST_SUMMARY_SECRET not set' }, { status: 500, headers: corsHeaders() });
+        }
+
+        const authHeader = req.headers.get('authorization');
+        const providedSecret = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : searchParams.get('adminSecret');
+        if (!providedSecret || providedSecret !== secret) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401, headers: corsHeaders() });
         }
 
         // Pass the secret via the server route itself

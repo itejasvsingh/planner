@@ -18,14 +18,19 @@ if (!process.env.VERCEL && hasAlignNodeModules) {
       env: { ...process.env, EXPO_NO_TELEMETRY: '1' }
     });
   } catch (err) {
-    console.warn('Warning during expo export:', err.message);
+    console.error('Expo export failed; refusing to publish stale assets:', err.message);
+    process.exit(1);
   }
 } else {
   console.log('Using pre-bundled align-native web artifacts.');
 }
 
 if (!fs.existsSync(distDir)) {
-  console.log('align-native/dist does not exist. Using pre-committed public web assets.');
+  if (!fs.existsSync(path.join(webTargetDir, 'index.html'))) {
+    console.error('No web export found. Install align-native dependencies and run npm run export:web.');
+    process.exit(1);
+  }
+  console.log('Using pre-committed public web assets.');
   process.exit(0);
 }
 
@@ -77,74 +82,23 @@ const pwaHeadSnippet = `
       --sar: env(safe-area-inset-right, 0px);
     }
     html, body {
-      background-color: #0F172A !important;
+      margin: 0;
+      height: 100%;
+      width: 100%;
       overscroll-behavior-y: none;
       -webkit-tap-highlight-color: transparent;
-      -webkit-touch-callout: none;
       -webkit-font-smoothing: antialiased;
-      user-select: none;
-      -webkit-user-select: none;
-      height: 100% !important;
-      max-height: 100% !important;
-      width: 100%;
-      position: fixed;
-      overflow: hidden;
     }
     #root {
-      height: 100% !important;
-      max-height: 100% !important;
+      height: 100%;
       width: 100%;
       display: flex;
       flex-direction: column;
-      background-color: #0F172A !important;
     }
-    @media (prefers-color-scheme: light) {
-      html, body, #root {
-        background-color: #F4F5F7 !important;
-      }
-      div[role="tablist"],
-      *:has(> div[role="tablist"]) {
-        background-color: #F4F5F7 !important;
-      }
-    }
-    /* Prevent iOS auto-zoom on inputs */
-    input, textarea, select {
-      user-select: auto !important;
-      -webkit-user-select: auto !important;
-      font-size: 16px !important;
-    }
-    /* Bottom tab bar pinned to bottom: 0 with 0px padding and matching background */
-    div[role="tablist"],
-    *:has(> div[role="tablist"]) {
-      overflow: visible !important;
-      padding-bottom: 0px !important;
-      margin-bottom: 0px !important;
-      bottom: 0px !important;
-      height: 50px !important;
-      min-height: 50px !important;
-      max-height: 50px !important;
-      background-color: #0F172A !important;
-    }
-    div[role="tablist"] > * {
-      padding-bottom: 0px !important;
-      margin-bottom: 0px !important;
-    }
-    div[role="tab"] {
-      overflow: visible !important;
-      display: flex !important;
-      flex-direction: column !important;
-      align-items: center !important;
-      justify-content: center !important;
-      height: 50px !important;
-      min-height: 50px !important;
-      max-height: 50px !important;
-      padding-top: 0px !important;
-      padding-bottom: 0px !important;
-      margin-bottom: 0px !important;
-    }
-    div[role="tab"] > div,
-    div[role="tab"] span {
-      overflow: visible !important;
+    input, textarea, select { font-size: 16px; }
+    :focus-visible { outline: 2px solid #137C66; outline-offset: 3px; }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
     }
     /* iOS Install banner styling */
     #ios-install-banner {
@@ -243,7 +197,7 @@ const iosBannerHtml = `
     <div style="flex:1;">
       <div style="font-weight:700; font-size:15px; color:#FFFFFF; margin-bottom:4px;">Install Align on iOS</div>
       <div style="font-size:13px; color:#94A3B8; line-height:1.45;">
-        For full screen & Dynamic Island experience:
+        Keep your planner a tap away:
         <div style="margin-top:6px; font-weight:500; color:#E2E8F0;">
           1. Tap <strong>Share</strong> <span style="display:inline-block; font-size:15px;">⎋</span> at the bottom
           <br>
@@ -265,7 +219,7 @@ function processHtmlFile(sourcePath, targetPath) {
   // Replace viewport with complete iOS cover attributes
   content = content.replace(
     /<meta name="viewport"[^>]*>/,
-    '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />'
+    '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />'
   );
 
   // Inject PWA snippet before </head> if not present

@@ -1,26 +1,31 @@
 import { useState } from 'react';
-import { View, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
-import { Mic, Sparkles } from 'lucide-react-native';
+import { View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
+import { Mic, Sparkles, Plus, X } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
-import { usePhone } from '@/lib/phone-context';
+import ItemModal from '@/components/ItemModal';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { auth } from '@/lib/firebase';
 
 let ExpoSpeechRecognitionModule: any = null;
-let useSpeechRecognitionEvent: any = (event: string, cb: any) => {};
+let useSpeechRecognitionEvent: any = () => {};
 
 try {
   const SpeechModule = require('expo-speech-recognition');
   ExpoSpeechRecognitionModule = SpeechModule.ExpoSpeechRecognitionModule;
   useSpeechRecognitionEvent = SpeechModule.useSpeechRecognitionEvent;
-} catch (e) {
+} catch {
   console.warn('Speech recognition native module not found - running in Expo Go mode.');
 }
 
 // Always use the explicitly configured API URL (fails fast if missing)
-const API_BASE = process.env.EXPO_PUBLIC_API_URL;
+const API_BASE = Platform.OS === 'web' ? '' : process.env.EXPO_PUBLIC_API_URL;
 
 export default function QuickAddBar() {
   const theme = useTheme();
-  const { phone } = usePhone();
+  const insets = useSafeAreaInsets();
+  const [manualOpen, setManualOpen] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const [hasError, setHasError] = useState(false);
   const [text, setText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -41,26 +46,53 @@ export default function QuickAddBar() {
 
   const submitToAI = async (textToProcess: string) => {
     if (!textToProcess.trim() || isProcessing) return;
-    if (!API_BASE) {
-      Alert.alert('Configuration Error', 'EXPO_PUBLIC_API_URL is not set.');
+    setFeedback('');
+    setHasError(false);
+    if (Platform.OS !== 'web' && !API_BASE) {
+      setFeedback('Quick Add is not configured. Use + to add an item manually.');
+      setHasError(true);
+      return;
+    }
+
+    const user = auth.currentUser;
+    if (!user) {
+      setFeedback('Sign in to use AI Quick Add. You can keep your text here.');
+      setHasError(true);
       return;
     }
 
     setIsProcessing(true);
     
     try {
+      const token = await user.getIdToken();
       const res = await fetch(`${API_BASE}/api/parse`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: textToProcess.trim(), phone }),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text: textToProcess.trim() }),
       });
       
-      if (!res.ok) throw new Error('API error');
+      if (res.status === 401) {
+        throw new Error('Authentication expired. Please sign in again.');
+      }
+      if (res.status === 429) {
+        throw new Error('Rate limit reached (30 requests/hour). Please try again later.');
+      }
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || `Server responded with status ${res.status}`);
+      }
       
+      const result = await res.json();
+      if (!result.success || !Array.isArray(result.items)) throw new Error('The item was not saved. Please try again.');
+      setFeedback(`${result.items.length} ${result.items.length === 1 ? 'item' : 'items'} added to your planner.`);
       setText('');
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      Alert.alert('Error', `Failed to connect to ${API_BASE}`);
+      setHasError(true);
+      setFeedback(err.message || 'Could not connect. Your text is here to retry.');
     } finally {
       setIsProcessing(false);
     }
@@ -98,7 +130,7 @@ export default function QuickAddBar() {
   };
 
   // Position cleanly 8px above the 50px bottom tab bar
-  const quickAddBottom = 50 + 8;
+  const quickAddBottom = 64 + insets.bottom + 10;
 
   return (
     <KeyboardAvoidingView 
@@ -106,8 +138,10 @@ export default function QuickAddBar() {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 50 : 0} 
       style={[styles.keyboardView, { bottom: quickAddBottom }]}
     >
+      {!!feedback && <View style={[styles.feedback, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}><Text accessibilityLiveRegion="polite" style={{ color: hasError ? theme.red : theme.blue, flex: 1, fontSize: 13, lineHeight: 19 }}>{feedback}</Text><Pressable accessibilityRole="button" accessibilityLabel="Dismiss message" onPress={() => setFeedback('')}><X size={16} color={theme.textSecondary} /></Pressable></View>}
       <View style={[styles.container, { backgroundColor: theme.backgroundElement, borderColor: theme.border, paddingLeft: 12 }]}>
 
+        <Pressable accessibilityRole="button" accessibilityLabel="Add item manually" onPress={() => setManualOpen(true)} style={styles.iconBtn}><Plus size={22} color={theme.blue} /></Pressable>
         {Platform.OS !== 'web' && (
           <Pressable onPress={toggleListening} hitSlop={10} style={styles.iconBtn}>
             <Mic color={isListening ? theme.red : theme.textSecondary} size={24} />
@@ -115,8 +149,10 @@ export default function QuickAddBar() {
         )}
 
         <TextInput
+          accessibilityLabel="AI quick add"
+          maxLength={500}
           style={[styles.input, { color: theme.text }]}
-          placeholder={isProcessing ? "AI is thinking..." : isListening ? "Listening..." : "Tell AI what to add..."}
+          placeholder={isProcessing ? "AI is thinking..." : isListening ? "Listening..." : "Plan a task or log an expense…"}
           placeholderTextColor={theme.textSecondary}
           value={text}
           onChangeText={setText}
@@ -126,7 +162,7 @@ export default function QuickAddBar() {
         />
 
         <View style={styles.rightActions}>
-          <Pressable 
+          <Pressable accessibilityRole="button" accessibilityLabel="Add with AI"
             onPress={() => submitToAI(text)}
             disabled={!text.trim() || isProcessing || isListening}
             style={[styles.submitBtn, { backgroundColor: text.trim() ? theme.blue : 'rgba(120,120,128,0.2)' }]}
@@ -139,16 +175,19 @@ export default function QuickAddBar() {
           </Pressable>
         </View>
       </View>
+      <ItemModal visible={manualOpen} onClose={() => setManualOpen(false)} />
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
+  feedback: { padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10 },
   keyboardView: {
     position: 'absolute',
     bottom: 58, // Sits directly 8px above the 50px bottom tab bar
-    left: 16,
-    right: 16,
+    width: '92%',
+    maxWidth: 820,
+    alignSelf: 'center',
     zIndex: 1000,
   },
   container: {
@@ -156,7 +195,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 10,
-    borderRadius: 24,
+    borderRadius: 18,
     borderWidth: 1,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },

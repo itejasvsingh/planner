@@ -1,8 +1,9 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View, useColorScheme } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 
+import { ThemeModeProvider, useThemeMode } from '@/lib/theme-context';
 import { PhoneProvider, usePhone } from '@/lib/phone-context';
 import LockScreen from '@/components/LockScreen';
 import { isSecurityEnabled } from '@/lib/auth';
@@ -10,7 +11,7 @@ import { isSecurityEnabled } from '@/lib/auth';
 SplashScreen.preventAutoHideAsync();
 
 function RootNav() {
-  const colorScheme = useColorScheme();
+  const { scheme: colorScheme } = useThemeMode();
   const { ready, phone } = usePhone();
   const router = useRouter();
   const segments = useSegments();
@@ -76,9 +77,11 @@ export default function RootLayout() {
   return (
     <SafeAreaProvider>
       <GestureHandlerRootView style={{ flex: 1 }}>
+        <ThemeModeProvider>
         <PhoneProvider>
           <RootNav />
         </PhoneProvider>
+        </ThemeModeProvider>
       </GestureHandlerRootView>
     </SafeAreaProvider>
   );

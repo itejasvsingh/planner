@@ -2,15 +2,18 @@ import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-si
 import { GoogleAuthProvider, signInWithCredential, signOut as fbSignOut } from 'firebase/auth';
 import { auth } from './firebase';
 
-export const WEB_CLIENT_ID =
-  process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID ||
-  '817744322906-n09aggnfr6nef792qod0gukh4k2j0put.apps.googleusercontent.com';
+export const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 
-GoogleSignin.configure({
-  webClientId: WEB_CLIENT_ID,
-});
+if (WEB_CLIENT_ID) {
+  GoogleSignin.configure({
+    webClientId: WEB_CLIENT_ID,
+  });
+}
 
 export async function signInWithGoogle() {
+  if (!WEB_CLIENT_ID) {
+    throw new Error('Google Sign-In is misconfigured: EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is missing.');
+  }
   await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
   const response = await GoogleSignin.signIn();
 

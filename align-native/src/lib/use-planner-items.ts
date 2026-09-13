@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { useCallback, useEffect, useState } from 'react';
 
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { type PlannerItem, type PlannerSplit } from '@/lib/planner-item';
 import { getItem, itemsCacheKey, setItem } from '@/lib/storage';
 import { triggerHaptic } from '@/lib/haptics';
@@ -32,6 +32,7 @@ function parseCachedItems(raw: string | null): PlannerItem[] {
 export function usePlannerItems(phone: string | null) {
   const [items, setItems] = useState<PlannerItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!phone) {
@@ -43,6 +44,7 @@ export function usePlannerItems(phone: string | null) {
     const phoneVariants = getPhoneVariants(currentPhone);
 
     let cancelled = false;
+    let receivedSnapshot = false;
     let unsubscribeListener: (() => void) | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let retryCount = 0;
@@ -50,7 +52,7 @@ export function usePlannerItems(phone: string | null) {
 
     (async () => {
       const cached = parseCachedItems(await getItem(itemsCacheKey(currentPhone)));
-      if (!cancelled && cached.length > 0) {
+      if (!cancelled && !receivedSnapshot && cached.length > 0) {
         setItems(cached);
       }
     })();
@@ -64,6 +66,8 @@ export function usePlannerItems(phone: string | null) {
         { includeMetadataChanges: true },
         (snapshot) => {
           retryCount = 0;
+          receivedSnapshot = true;
+          setError(null);
           const fetched: PlannerItem[] = snapshot.docs.map((d) => ({
             id: d.id,
             ...(d.data() as Omit<PlannerItem, 'id'>),
@@ -82,6 +86,7 @@ export function usePlannerItems(phone: string | null) {
         },
         (err) => {
           console.warn('Firestore items subscription notice:', err);
+          setError('Could not sync your planner. Showing available data; reconnect or sign in again.');
           setLoading(false);
           if (!cancelled && retryCount < 5) {
             retryCount++;
@@ -121,8 +126,9 @@ export function usePlannerItems(phone: string | null) {
       });
       try {
         await updateDoc(doc(db, 'planner_items', id), { done: !currentDone });
-      } catch (e) {
-        console.warn('Toggled offline:', e);
+      } catch {
+        setError('Could not update this task. Please try again.');
+        setItems(prev => prev.map(item => item.id === id ? { ...item, done: currentDone } : item));
       }
     },
     [persistCache],
@@ -156,7 +162,8 @@ export function usePlannerItems(phone: string | null) {
       try {
         await updateDoc(doc(db, 'planner_items', id), patch);
       } catch (e) {
-        console.warn('Updated offline:', e);
+        setError('Could not save changes. Please try again.');
+        throw e;
       }
     },
     [persistCache]
@@ -229,14 +236,15 @@ export function usePlannerItems(phone: string | null) {
 
   const _saveNewItem = useCallback(
     async (newItem: Omit<PlannerItem, 'id' | 'createdAt' | 'ownerId'>) => {
-      if (!phone) return;
+      if (!phone) throw new Error('Please sign in before adding an item.');
+      setError(null);
       
       // Don't trigger haptics for generated items to avoid vibration spam
       if (!newItem.isGeneratedRecurring) {
         triggerHaptic('success');
       }
       
-      const tempId = 'local_' + Date.now();
+      const tempId = 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
       const localItem: PlannerItem = {
         id: tempId,
         ownerId: phone,
@@ -251,9 +259,10 @@ export function usePlannerItems(phone: string | null) {
       });
       
       try {
+        // Firestore rejects undefined values; optional fields must be omitted.
+        const cleanPayload = Object.fromEntries(Object.entries(localItem).filter(([key, value]) => key !== 'id' && value !== undefined));
         const docRef = await addDoc(collection(db, 'planner_items'), {
-          ...localItem,
-          id: undefined, // let firestore assign id
+          ...cleanPayload,
           createdAt: serverTimestamp(),
         });
         setItems((prev) => {
@@ -262,7 +271,13 @@ export function usePlannerItems(phone: string | null) {
           return updated;
         });
       } catch (error) {
-        console.warn('Saved offline in local cache (will sync when online):', error);
+        setItems(prev => {
+          const next = prev.filter(item => item.id !== tempId);
+          void persistCache(next);
+          return next;
+        });
+        setError('Could not save this item. Your form is still available to retry.');
+        throw error;
       }
     },
     [phone, persistCache],
@@ -445,7 +460,7 @@ export function usePlannerItems(phone: string | null) {
 
   return { 
     items, settleUpWith, 
-    loading, 
+    loading, error, 
     toggleDone, 
     deleteItem,
     updateItem,

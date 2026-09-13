@@ -5,10 +5,20 @@ import { runDailySummaryForUser } from '../../../lib/dailySummary';
 
 export const dynamic = 'force-dynamic';
 
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "my_align_secure_token_123";
-const DEFAULT_TOKEN = "EAAO6WemhAoABSdMEF3np2uZB0fWZA8SHpv0dX0Nq0fjg0S5KZCj3td0amntX6vvDVzWguTYwZBSgYDCYkORiJpJXtm9mggjMkrmTLvZBCQLwlIfIOsWvKLTxKFBfjKoXAyBlAZArHkH7gHnrfYXYTgkxVe8t4AVNYZBzAE5WHZAGEKaVZAYtC0ep46QTZCSEZAcgwZDZD";
-const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.ALIGN_WEBHOOK_SECRET || process.env.META_ACCESS_TOKEN || DEFAULT_TOKEN;
-const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID || "1304237036105269";
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN;
+const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
+const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
+
+// Validate essential webhook credentials at startup
+if (!VERIFY_TOKEN) {
+    console.error('❌ CRITICAL: Missing required environment variable WHATSAPP_VERIFY_TOKEN');
+}
+if (!API_TOKEN) {
+    console.error('❌ CRITICAL: Missing required environment variable WHATSAPP_API_TOKEN or META_ACCESS_TOKEN');
+}
+if (!PHONE_ID) {
+    console.error('❌ CRITICAL: Missing required environment variable WHATSAPP_PHONE_ID or PHONE_NUMBER_ID');
+}
 
 // ==========================================
 // 1. WEBHOOK VERIFICATION (Required by Meta)
@@ -19,8 +29,13 @@ export async function GET(req: Request) {
     const token = searchParams.get('hub.verify_token');
     const challenge = searchParams.get('hub.challenge');
 
-    if (mode === 'subscribe' && challenge) {
-        console.log('✅ Webhook verified successfully! Token received:', token);
+    if (!VERIFY_TOKEN) {
+        console.error('❌ Webhook GET error: WHATSAPP_VERIFY_TOKEN is not configured');
+        return new Response('Webhook verification not configured', { status: 500 });
+    }
+
+    if (mode === 'subscribe' && token === VERIFY_TOKEN && challenge) {
+        console.log('✅ Webhook verified successfully! Token matched.');
         return new Response(challenge, { 
             status: 200, 
             headers: { 'Content-Type': 'text/plain' } 
@@ -197,15 +212,13 @@ function applySmartTags(vendorName: string, aiGuessedCategory?: string): string 
 // WHATSAPP OUTBOUND MESSAGE SENDER
 // ==========================================
 async function sendWhatsAppTextMessage(to: string, text: string) {
-    const activePhoneId = PHONE_ID || process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
+    const activePhoneId = PHONE_ID;
     if (!activePhoneId) {
-        console.error("❌ Missing WhatsApp Phone ID (WHATSAPP_PHONE_ID / PHONE_ID not set)");
-        return;
+        throw new Error("Missing required environment variable: WHATSAPP_PHONE_ID (or PHONE_NUMBER_ID)");
     }
-    const token = API_TOKEN || process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
+    const token = API_TOKEN;
     if (!token) {
-        console.error("❌ Missing Meta API Token (WHATSAPP_API_TOKEN / API_TOKEN / META_ACCESS_TOKEN not set)");
-        return;
+        throw new Error("Missing required environment variable: WHATSAPP_API_TOKEN (or META_ACCESS_TOKEN)");
     }
 
     try {
@@ -231,6 +244,7 @@ async function sendWhatsAppTextMessage(to: string, text: string) {
         }
     } catch (err: any) {
         console.error("❌ Network error sending WhatsApp message:", err.message);
+        throw err;
     }
 }
 
@@ -240,11 +254,10 @@ interface QuickButton {
 }
 
 async function sendWhatsAppInteractiveButtons(to: string, bodyText: string, buttons: QuickButton[]) {
-    const activePhoneId = PHONE_ID || process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
-    const token = API_TOKEN || process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
+    const activePhoneId = PHONE_ID;
+    const token = API_TOKEN;
     if (!activePhoneId || !token) {
-        console.warn("⚠️ Missing WhatsApp credentials for interactive buttons, falling back to text");
-        return sendWhatsAppTextMessage(to, bodyText);
+        throw new Error("Missing required WhatsApp credentials (WHATSAPP_PHONE_ID or WHATSAPP_API_TOKEN)");
     }
 
     try {

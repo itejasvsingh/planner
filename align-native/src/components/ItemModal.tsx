@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, TextInput, KeyboardAvoidingView, Platform, Animated, Switch, ScrollView } from 'react-native';
 import { Calendar, Wallet, Target, X, Plus, Trash2, CheckCircle2, Circle } from 'lucide-react-native';
 
@@ -6,6 +6,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems } from '@/lib/use-planner-items';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { formatDateKey, parseDateKey, timeToMinutes } from '@/lib/dates';
 import { type PlannerItem, type PlannerSubtask } from '@/lib/planner-item';
 
 interface ItemModalProps {
@@ -13,22 +14,28 @@ interface ItemModalProps {
   onClose: () => void;
   initialItem?: PlannerItem | null;
   defaultDate?: string;
+  defaultType?: 'task' | 'expense' | 'goal';
 }
 
 type TabType = 'task' | 'expense' | 'goal';
 
-export default function ItemModal({ visible, onClose, initialItem, defaultDate }: ItemModalProps) {
+export default function ItemModal({ visible, onClose, initialItem, defaultDate, defaultType = 'task' }: ItemModalProps) {
   const theme = useTheme();
   const { phone } = usePhone();
   const { addTask, addExpense, addGoal, updateItem } = usePlannerItems(phone);
   
-  const [activeTab, setActiveTab] = useState<TabType>('task');
+  const [activeTab, setActiveTab] = useState<TabType>(defaultType);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   
   // Form State
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('#General');
   const [target, setTarget] = useState('');
+  const [currentProgress, setCurrentProgress] = useState('0');
   const [unit, setUnit] = useState('');
   const [priority, setPriority] = useState('none');
   
@@ -45,10 +52,14 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate }
   const [isTimeEnabled, setIsTimeEnabled] = useState(false);
   const [selectedTime, setSelectedTime] = useState(new Date());
 
-  const slideAnim = useRef(new Animated.Value(600)).current;
+  const [slideAnim] = useState(() => new Animated.Value(600));
 
   useEffect(() => {
     if (visible) {
+      setFormError('');
+      setNewSubtask('');
+      setShowDatePicker(false);
+      setShowTimePicker(false);
       if (initialItem) {
         // Edit Mode
         const typeStr = initialItem.type || 'task';
@@ -57,9 +68,10 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate }
         setAmount(String(initialItem.amount || ''));
         setCategory(initialItem.category || '#General');
         setTarget(String(initialItem.target || ''));
+        setCurrentProgress(String(initialItem.current || 0));
         setUnit(initialItem.unit || 'times');
         setPriority(initialItem.priority || 'none');
-        setSubtasks(initialItem.subtasks || []);
+        setSubtasks((initialItem.subtasks || []).map(subtask => ({ ...subtask })));
         setIsRecurring(initialItem.isRecurring || false);
         setRecurringFrequency(initialItem.recurringFrequency || 'monthly');
 
@@ -74,9 +86,9 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate }
         const tStr = initialItem.reminderTime || initialItem.dueTime;
         if (tStr) {
           setIsTimeEnabled(true);
-          const [h, min] = tStr.split(':');
+          const minutes = timeToMinutes(tStr) ?? 0;
           const tDate = new Date();
-          tDate.setHours(parseInt(h), parseInt(min), 0, 0);
+          tDate.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0);
           setSelectedTime(tDate);
         } else {
           setIsTimeEnabled(false);
@@ -84,9 +96,12 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate }
         }
       } else {
         // Create Mode
+        setActiveTab(defaultType);
+        setCategory('#General');
         setTitle('');
         setAmount('');
         setTarget('');
+        setCurrentProgress('0');
         setUnit('');
         setPriority('none');
         setSubtasks([]);
@@ -108,10 +123,17 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate }
     } else {
       Animated.timing(slideAnim, { toValue: 800, duration: 250, useNativeDriver: true }).start();
     }
-  }, [visible, initialItem]);
+  }, [visible, initialItem, defaultDate, defaultType, slideAnim]);
 
   const handleSave = async () => {
-    if (!title.trim()) return;
+    if (saving) return;
+    if (!title.trim()) { setFormError('Give this item a title first.'); return; }
+    if (activeTab === 'expense' && (!Number.isFinite(Number(amount)) || Number(amount) <= 0)) { setFormError('Enter an amount greater than zero.'); return; }
+    if (activeTab === 'goal' && (!Number.isFinite(Number(target)) || Number(target) <= 0)) { setFormError('Enter a target greater than zero.'); return; }
+    if (activeTab === 'goal' && initialItem && (!Number.isFinite(Number(currentProgress)) || Number(currentProgress) < 0 || Number(currentProgress) > Number(target))) { setFormError('Progress must be between zero and your target.'); return; }
+    setFormError('');
+    setSaving(true);
+    try {
 
     const pad = (n: number) => String(n).padStart(2, '0');
     const dateStr = `${selectedDate.getFullYear()}-${pad(selectedDate.getMonth() + 1)}-${pad(selectedDate.getDate())}`;
@@ -131,6 +153,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate }
       if (activeTab === 'task') {
         patch.dueDate = dateStr;
         patch.reminderTime = timeStr;
+        patch.dueTime = timeStr;
         patch.priority = priority;
         patch.subtasks = subtasks.filter(s => s.title?.trim() !== '');
       } else if (activeTab === 'expense') {
@@ -142,7 +165,9 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate }
         patch.recurringFrequency = recurringFrequency;
       } else if (activeTab === 'goal') {
         patch.date = dateStr;
-        patch.target = parseInt(target, 10) || 1;
+        patch.target = Number(target);
+        patch.current = Number(currentProgress);
+        if (patch.current !== (initialItem.current || 0)) patch.progressHistory = [...(initialItem.progressHistory || []), { value: patch.current, at: new Date().toISOString() }];
         patch.unit = unit.trim() || 'times';
       }
       
@@ -150,7 +175,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate }
     } else {
       // Create mode
       if (activeTab === 'task') {
-        const res = await addTask({ title: title.trim(), dueDate: dateStr, reminderTime: timeStr, priority, subtasks: subtasks.filter(s => s.title?.trim() !== '') });
+        await addTask({ title: title.trim(), dueDate: dateStr, reminderTime: timeStr, priority, subtasks: subtasks.filter(s => s.title?.trim() !== '') });
         // The hook's `addTask` does NOT return the item or the ID. That's fine.
       } else if (activeTab === 'expense') {
         const parsedAmount = parseFloat(amount) || 0;
@@ -163,12 +188,17 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate }
           recurringFrequency 
         });
       } else if (activeTab === 'goal') {
-        const parsedTarget = parseInt(target, 10) || 1;
+        const parsedTarget = Number(target);
         await addGoal({ title: title.trim(), target: parsedTarget, unit: unit.trim() || 'times', date: dateStr });
       }
     }
 
     onClose();
+    } catch {
+      setFormError('This item could not be saved. Check your connection and try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const addSubtaskInline = () => {
@@ -177,12 +207,12 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate }
     setNewSubtask('');
   };
 
-  const TabButton = ({ type, icon: Icon, label }: { type: TabType, icon: any, label: string }) => {
+  const renderTabButton = ({ type, icon: Icon, label }: { type: TabType, icon: any, label: string }) => {
     const isActive = activeTab === type;
     return (
-      <Pressable 
+      <Pressable accessibilityRole="button" accessibilityState={{ selected: isActive }}
         style={[styles.tabButton, isActive && { backgroundColor: theme.backgroundElement }]} 
-        onPress={() => !initialItem && setActiveTab(type)}
+        onPress={() => { if (!initialItem) { setActiveTab(type); setFormError(''); } }}
         disabled={!!initialItem} // Cannot change type while editing
       >
         <Icon color={isActive ? theme.blue : theme.textSecondary} size={18} />
@@ -194,31 +224,32 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate }
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={() => !saving && onClose()}>
       <KeyboardAvoidingView 
         style={[styles.overlay, { justifyContent: 'flex-end' }]} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={() => !saving && onClose()} />
         
         <Animated.View style={[styles.sheet, { backgroundColor: theme.background, transform: [{ translateY: slideAnim }] }]}>
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.text }]}>{initialItem ? 'Edit Item' : 'Add New'}</Text>
-            <Pressable onPress={onClose} hitSlop={10} style={styles.closeBtn}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close editor" disabled={saving} onPress={onClose} hitSlop={10} style={styles.closeBtn}>
               <X color={theme.textSecondary} size={24} />
             </Pressable>
           </View>
 
           {!initialItem && (
             <View style={[styles.tabsWrapper, { backgroundColor: 'rgba(120,120,128,0.12)' }]}>
-              <TabButton type="task" icon={Calendar} label="Task" />
-              <TabButton type="expense" icon={Wallet} label="Expense" />
-              <TabButton type="goal" icon={Target} label="Goal" />
+              {renderTabButton({ type: 'task', icon: Calendar, label: 'Task' })}
+              {renderTabButton({ type: 'expense', icon: Wallet, label: 'Expense' })}
+              {renderTabButton({ type: 'goal', icon: Target, label: 'Goal' })}
             </View>
           )}
 
           <ScrollView style={{ maxHeight: '80%' }} contentContainerStyle={styles.form} showsVerticalScrollIndicator={false}>
             <TextInput
+              accessibilityLabel="Title"
               style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement, fontSize: 18 }]}
               placeholder={activeTab === 'expense' ? "What did you pay for?" : "What do you want to do?"}
               placeholderTextColor={theme.textSecondary}
@@ -237,6 +268,8 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate }
                   onChangeText={setAmount}
                   keyboardType="decimal-pad"
                 />
+                <Text style={{ color: theme.textSecondary, fontSize: 13 }}>Category</Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{['#General', '#Dining', '#Travel', '#Shopping', '#Bills', '#Health'].map(cat => <Pressable key={cat} accessibilityRole="button" onPress={() => setCategory(cat)} style={[styles.pill, { backgroundColor: category === cat ? theme.backgroundSelected : theme.backgroundElement }]}><Text style={{ color: category === cat ? theme.blue : theme.textSecondary }}>{cat.slice(1)}</Text></Pressable>)}</View>
                 <View style={[styles.row, { alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 }]}>
                   <Text style={{ color: theme.text, fontSize: 16 }}>Recurring Bill</Text>
                   <Switch value={isRecurring} onValueChange={setIsRecurring} />
@@ -280,6 +313,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate }
               </View>
             )}
 
+            {activeTab === 'goal' && initialItem && <><Text style={{ color: theme.textSecondary, fontSize: 13 }}>Current progress</Text><TextInput accessibilityLabel="Current progress" value={currentProgress} onChangeText={setCurrentProgress} keyboardType="decimal-pad" style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement }]} /></>}
             {activeTab === 'task' && (
               <>
                 <View style={{ marginVertical: 8 }}>
@@ -349,31 +383,23 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate }
               </View>
             )}
             
-            {(activeTab !== 'task' || isTimeEnabled) && (
-              <View style={[styles.row, { marginTop: 12, justifyContent: 'space-between', marginBottom: 24 }]}>
-                <DateTimePicker
-                  value={selectedDate}
-                  mode="date"
-                  display="compact"
-                  onChange={(_, d) => d && setSelectedDate(d)}
-                />
-                {activeTab === 'task' && isTimeEnabled && (
-                  <DateTimePicker
-                    value={selectedTime}
-                    mode="time"
-                    display="compact"
-                    onChange={(_, t) => t && setSelectedTime(t)}
-                  />
-                )}
-              </View>
-            )}
+            <Text style={{ color: theme.textSecondary, fontSize: 13, fontWeight: '600' }}>{activeTab === 'goal' ? 'Target date' : 'Date'}</Text>
+            {Platform.OS === 'web' ? (
+              <input aria-label="Date" type="date" value={formatDateKey(selectedDate)} onChange={event => { if (event.target.value) setSelectedDate(parseDateKey(event.target.value)); }} style={{ padding: 13, borderRadius: 12, border: `1px solid ${theme.border}`, background: theme.backgroundElement, color: theme.text, font: 'inherit', minHeight: 46, boxSizing: 'border-box', width: '100%' }} />
+            ) : <><Pressable accessibilityRole="button" onPress={() => setShowDatePicker(true)} style={[styles.input, { backgroundColor: theme.backgroundElement }]}><Text style={{ color: theme.text }}>{selectedDate.toLocaleDateString()}</Text></Pressable>{showDatePicker && <DateTimePicker value={selectedDate} mode="date" onChange={(_, date) => { setShowDatePicker(Platform.OS === 'ios'); if (date) setSelectedDate(date); }} />}</>}
+            {activeTab === 'task' && isTimeEnabled && (Platform.OS === 'web' ?
+              <input aria-label="Reminder time" type="time" value={`${String(selectedTime.getHours()).padStart(2, '0')}:${String(selectedTime.getMinutes()).padStart(2, '0')}`} onChange={event => { if (!event.target.value) return; const [h, m] = event.target.value.split(':').map(Number); const next = new Date(selectedTime); next.setHours(h, m); setSelectedTime(next); }} style={{ padding: 13, borderRadius: 12, border: `1px solid ${theme.border}`, background: theme.backgroundElement, color: theme.text, font: 'inherit', minHeight: 46, boxSizing: 'border-box', width: '100%' }} /> :
+              <><Pressable accessibilityRole="button" onPress={() => setShowTimePicker(true)} style={[styles.input, { backgroundColor: theme.backgroundElement }]}><Text style={{ color: theme.text }}>{selectedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text></Pressable>{showTimePicker && <DateTimePicker value={selectedTime} mode="time" onChange={(_, time) => { setShowTimePicker(Platform.OS === 'ios'); if (time) setSelectedTime(time); }} />}</>)}
+            {!!formError && <Text accessibilityRole="alert" style={{ color: theme.red, fontSize: 14 }}>{formError}</Text>}
 
             {/* Save Button */}
             <Pressable 
               style={({ pressed }) => [styles.saveBtn, { backgroundColor: theme.blue, opacity: pressed ? 0.8 : 1 }]}
+              accessibilityRole="button"
+              disabled={saving}
               onPress={handleSave}
             >
-              <Text style={styles.saveBtnText}>Save</Text>
+              <Text style={styles.saveBtnText}>{saving ? 'Saving…' : initialItem ? 'Save changes' : `Create ${activeTab}`}</Text>
             </Pressable>
           </ScrollView>
         </Animated.View>
@@ -388,6 +414,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   sheet: {
+    width: '100%',
+    maxWidth: 560,
+    maxHeight: '92%',
+    alignSelf: 'center',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 24,

@@ -3,10 +3,13 @@ import { NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 async function sendWhatsAppMessage(to: string, text: string) {
-    const token = process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_API_TOKEN || "EAAO6WemhAoABSdMEF3np2uZB0fWZA8SHpv0dX0Nq0fjg0S5KZCj3td0amntX6vvDVzWguTYwZBSgYDCYkORiJpJXtm9mggjMkrmTLvZBCQLwlIfIOsWvKLTxKFBfjKoXAyBlAZArHkH7gHnrfYXYTgkxVe8t4AVNYZBzAE5WHZAGEKaVZAYtC0ep46QTZCSEZAcgwZDZD";
-    const phoneId = process.env.PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_ID || "1304237036105269";
-    if (!token || !phoneId) {
-        throw new Error('Meta WhatsApp credentials not configured');
+    const token = process.env.META_ACCESS_TOKEN || process.env.WHATSAPP_API_TOKEN;
+    const phoneId = process.env.PHONE_NUMBER_ID || process.env.WHATSAPP_PHONE_ID;
+    if (!token) {
+        throw new Error('Missing required environment variable: META_ACCESS_TOKEN or WHATSAPP_API_TOKEN');
+    }
+    if (!phoneId) {
+        throw new Error('Missing required environment variable: PHONE_NUMBER_ID or WHATSAPP_PHONE_ID');
     }
 
     const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {

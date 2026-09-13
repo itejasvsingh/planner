@@ -1,152 +1,40 @@
-import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
-import { Target, ArrowUpRight, Plus } from 'lucide-react-native';
-
+import { useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { Target, Plus, Check, Menu, ArrowUpRight } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems } from '@/lib/use-planner-items';
+import { type PlannerItem } from '@/lib/planner-item';
 import ItemModal from '@/components/ItemModal';
+import DrawerMenuModal from '@/components/DrawerMenuModal';
 
 export default function GoalsScreen() {
   const theme = useTheme();
   const { phone } = usePhone();
-  const { items, updateGoalProgress } = usePlannerItems(phone);
-  const [isItemModalOpen, setIsItemModalOpen] = useState(false);
-
-  const goals = useMemo(() => items.filter(i => i.type === 'goal'), [items]);
-
-  return (
-    <View style={[styles.safe, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text }]}>Goals</Text>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.list}>
-        {goals.length === 0 ? (
-          <Text style={[styles.empty, { color: theme.textSecondary }]}>No goals yet. Use the bar below to add one.</Text>
-        ) : (
-          goals.map(goal => {
-            const target = goal.target || 1;
-            const current = goal.current || 0;
-            const percent = Math.min((current / target) * 100, 100);
-            
-            return (
-              <View key={goal.id} style={[styles.itemCard, { backgroundColor: theme.backgroundElement, flexDirection: 'column', alignItems: 'stretch' }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                  <View style={[styles.iconBox, { backgroundColor: 'rgba(52,199,89,0.1)' }]}>
-                    <Target color="#34C759" size={20} />
-                  </View>
-                  <View style={{ flex: 1, paddingLeft: 12 }}>
-                    <Text style={[styles.itemTitle, { color: theme.text }]}>{goal.title}</Text>
-                    <Text style={[styles.itemSub, { color: theme.textSecondary }]}>{current} / {target} {goal.unit}</Text>
-                  </View>
-                  <Pressable 
-                    style={[styles.plusBtn, { backgroundColor: theme.blue }]} 
-                    onPress={() => updateGoalProgress(goal.id, current, target)}
-                  >
-                    <ArrowUpRight color="#FFF" size={18} />
-                  </Pressable>
-                </View>
-                
-                <View style={[styles.progressTrack, { backgroundColor: 'rgba(120,120,128,0.2)' }]}>
-                  <View style={[styles.progressFill, { backgroundColor: '#34C759', width: `${percent}%` }]} />
-                </View>
-              </View>
-            );
-          })
-        )}
-      </ScrollView>
-
-      <Pressable 
-        style={[styles.fab, { backgroundColor: theme.blue }]}
-        onPress={() => setIsItemModalOpen(true)}
-      >
-        <Plus color="#FFF" size={28} />
-      </Pressable>
-
-      <ItemModal
-        visible={isItemModalOpen}
-        onClose={() => setIsItemModalOpen(false)}
-        initialItem={{ type: 'goal' } as any}
-      />
-    </View>
-  );
+  const { items, loading, error, updateGoalProgress } = usePlannerItems(phone);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<PlannerItem | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showCompleted, setShowCompleted] = useState(false);
+  const goals = items.filter(item => item.type === 'goal');
+  const done = goals.filter(goal => (goal.current || 0) >= (goal.target || 1));
+  const visible = goals.filter(goal => ((goal.current || 0) >= (goal.target || 1)) === showCompleted);
+  function addGoal() { setEditing(null); setModalOpen(true); }
+  return <View style={{ flex: 1, backgroundColor: theme.background }}>
+    <ScrollView contentContainerStyle={styles.content}>
+      <View style={styles.header}><View style={{ flex: 1 }}><Text style={[styles.eyebrow, { color: theme.blue }]}>THE BIGGER PICTURE</Text><Text style={[styles.title, { color: theme.text }]}>Small steps. Real progress.</Text><Text style={[styles.subtitle, { color: theme.textSecondary }]}>Give what matters a little momentum.</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Open menu" onPress={() => setDrawerOpen(true)} style={styles.iconButton}><Menu color={theme.text} size={22} /></Pressable></View>
+      <View style={[styles.summary, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>{[{ label: 'Active goals', value: goals.length - done.length }, { label: 'Milestones reached', value: done.length }].map(stat => <View key={stat.label} style={{ flex: 1 }}><Text style={{ color: theme.blue, fontSize: 30, fontWeight: '700' }}>{stat.value}</Text><Text style={[styles.subtitle, { color: theme.textSecondary }]}>{stat.label}</Text></View>)}</View>
+      <View style={styles.toolbar}><View style={{ flexDirection: 'row', gap: 6 }}>{[false, true].map(value => <Pressable key={String(value)} accessibilityRole="button" accessibilityState={{ selected: showCompleted === value }} onPress={() => setShowCompleted(value)} style={[styles.filter, { backgroundColor: showCompleted === value ? theme.backgroundSelected : 'transparent' }]}><Text style={{ color: showCompleted === value ? theme.blue : theme.textSecondary, fontSize: 13, fontWeight: '600' }}>{value ? 'Completed' : 'In progress'}</Text></Pressable>)}</View><Pressable accessibilityRole="button" accessibilityLabel="Create goal" onPress={addGoal} style={[styles.add, { backgroundColor: theme.blue }]}><Plus size={16} color="#fff" /><Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>New goal</Text></Pressable></View>
+      {!!error && <Text accessibilityRole="alert" style={{ color: theme.red }}>{error}</Text>}
+      {loading && !items.length ? <ActivityIndicator color={theme.blue} /> : visible.length === 0 ? <View style={[styles.empty, { borderColor: theme.border }]}><Target size={32} color={theme.blue} /><Text style={{ color: theme.text, fontSize: 19, fontWeight: '600' }}>{showCompleted ? 'Your milestones belong here' : 'What would you like to work toward?'}</Text><Text style={[styles.subtitle, { color: theme.textSecondary, textAlign: 'center' }]}>{showCompleted ? 'Keep going. Every small step adds up.' : 'Read 12 books, run 50 km, or build a new habit. Start with one goal.'}</Text>{!showCompleted && <Pressable accessibilityRole="button" onPress={addGoal}><Text style={{ color: theme.blue, fontWeight: '700' }}>Create your first goal →</Text></Pressable>}</View> : visible.map(goal => {
+        const target = goal.target || 1; const current = goal.current || 0; const percent = Math.min(100, Math.max(0, current / target * 100)); const complete = current >= target;
+        return <View key={goal.id} style={[styles.card, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}><View style={styles.cardHeader}><View style={[styles.goalIcon, { backgroundColor: theme.backgroundSelected }]}>{complete ? <Check size={22} color={theme.blue} /> : <Target size={22} color={theme.blue} />}</View><Pressable accessibilityRole="button" accessibilityLabel={`Edit ${goal.title}`} style={{ flex: 1 }} onPress={() => { setEditing(goal); setModalOpen(true); }}><Text style={{ color: theme.text, fontSize: 17, fontWeight: '600' }}>{goal.title}</Text><Text style={[styles.subtitle, { color: theme.textSecondary }]}>{current} of {target} {goal.unit || 'steps'}</Text></Pressable>{!complete && <Pressable accessibilityRole="button" accessibilityLabel={`Add one ${goal.unit || 'step'} to ${goal.title}`} onPress={() => void updateGoalProgress(goal.id, current, target)} style={[styles.goalIcon, { backgroundColor: theme.blue }]}><ArrowUpRight size={20} color="#fff" /></Pressable>}</View><View accessibilityRole="progressbar" accessibilityLabel={goal.title} accessibilityValue={{ min: 0, max: target, now: Math.min(current, target) }} style={[styles.track, { backgroundColor: theme.background }]}><View style={{ height: '100%', width: `${percent}%`, backgroundColor: theme.blue, borderRadius: 4 }} /></View><View style={styles.cardFooter}><Text style={{ color: theme.textSecondary, fontSize: 12 }}>{complete ? 'Milestone reached' : goal.date ? `Target · ${goal.date}` : 'Keep moving forward'}</Text><Text style={{ color: theme.blue, fontSize: 12, fontWeight: '700' }}>{Math.round(percent)}%</Text></View></View>;
+      })}
+    </ScrollView>
+    <ItemModal visible={modalOpen} onClose={() => setModalOpen(false)} initialItem={editing} defaultType="goal" />
+    <DrawerMenuModal visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
+  </View>;
 }
-
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 16,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
-  list: {
-    paddingHorizontal: 20,
-    paddingBottom: 160,
-    gap: 12,
-  },
-  itemCard: {
-    padding: 16,
-    borderRadius: 16,
-  },
-  iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  itemTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    letterSpacing: -0.3,
-  },
-  itemSub: {
-    fontSize: 13,
-    marginTop: 2,
-  },
-  empty: {
-    textAlign: 'center',
-    marginTop: 40,
-    fontSize: 16,
-  },
-  plusBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  progressTrack: {
-    height: 6,
-    borderRadius: 3,
-    marginTop: 16,
-    overflow: 'hidden',
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 90,
-    right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 3,
-  }
+  content: { width: '100%', maxWidth: 880, alignSelf: 'center', padding: 22, paddingBottom: 150 }, header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 26 }, eyebrow: { fontSize: 10, fontWeight: '700', letterSpacing: 1.4, marginTop: 12 }, title: { fontSize: 29, fontWeight: '700', lineHeight: 37, letterSpacing: -0.8, marginTop: 10 }, subtitle: { fontSize: 13, lineHeight: 20, marginTop: 5 }, iconButton: { padding: 10 }, summary: { flexDirection: 'row', borderWidth: 1, borderRadius: 18, padding: 20, marginBottom: 24, gap: 16 }, toolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 20 }, filter: { padding: 10, borderRadius: 9 }, add: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 11, borderRadius: 11 }, empty: { padding: 28, borderWidth: 1, borderStyle: 'dashed', borderRadius: 18, alignItems: 'center', gap: 15 }, card: { padding: 18, borderRadius: 18, borderWidth: 1, marginBottom: 14 }, cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 }, goalIcon: { height: 42, width: 42, borderRadius: 13, justifyContent: 'center', alignItems: 'center' }, track: { height: 6, borderRadius: 4, marginTop: 20, overflow: 'hidden' }, cardFooter: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 },
 });
-
-

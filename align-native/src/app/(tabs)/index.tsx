@@ -1,281 +1,91 @@
 import { useMemo, useState } from 'react';
-import {
-  Alert,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
-import { Link } from 'expo-router';
-
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Check, ChevronLeft, ChevronRight, Menu, Plus, Search, Sunrise, X } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { addDays, formatDateKey, startOfWeek, timeToMinutes, todayKey } from '@/lib/dates';
-import { formatPhone } from '@/lib/phone';
 import { usePhone } from '@/lib/phone-context';
 import { isTaskForDate, itemTime, type PlannerItem } from '@/lib/planner-item';
 import { usePlannerItems } from '@/lib/use-planner-items';
-
-const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
-
-function prioLabel(priority?: string) {
-  if (priority === 'high') return 'High';
-  if (priority === 'medium') return 'Med';
-  if (priority === 'low') return 'Low';
-  return null;
-}
-
-import SwipeAction from '@/components/SwipeAction';
-
 import DrawerMenuModal from '@/components/DrawerMenuModal';
 import ItemModal from '@/components/ItemModal';
 import TaskCard from '@/components/TaskCard';
-import { Menu } from 'lucide-react-native';
+
+const FILTERS = ['All', 'Open', 'High priority', 'Completed'] as const;
+type Filter = typeof FILTERS[number];
 
 export default function DailyScreen() {
   const theme = useTheme();
-  const { phone, logout } = usePhone();
-  const { items, toggleDone, deleteItem, addTask } = usePlannerItems(phone);
+  const { phone } = usePhone();
+  const { items, loading, error, toggleDone } = usePlannerItems(phone);
   const [dailyDate, setDailyDate] = useState(() => new Date());
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [showCompleted, setShowCompleted] = useState(false);
+  const [filter, setFilter] = useState<Filter>('Open');
+  const [search, setSearch] = useState('');
   const [editingItem, setEditingItem] = useState<PlannerItem | null>(null);
-
+  const [modalOpen, setModalOpen] = useState(false);
+  const [actionError, setActionError] = useState('');
   const dateKey = formatDateKey(dailyDate);
   const today = todayKey();
-  const weekStart = startOfWeek(dailyDate);
-  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
-
-  const dayTasks = items.filter((item) => isTaskForDate(item, dateKey) && (showCompleted || !item.done));
-  const anytimeTasks = dayTasks.filter((item) => !itemTime(item));
-  const timedTasks = dayTasks
-    .filter((item) => itemTime(item))
-    .map((item) => ({ ...item, sortTime: itemTime(item) }))
-    .sort((a, b) => (timeToMinutes(a.sortTime) ?? 0) - (timeToMinutes(b.sortTime) ?? 0));
-
-  function confirmLogout() {
-    Alert.alert('Log out', `Signed in as ${formatPhone(phone)}. Switch number?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Log out', style: 'destructive', onPress: () => void logout() },
-    ]);
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(dailyDate), i)), [dailyDate]);
+  const allDayTasks = items.filter(item => isTaskForDate(item, dateKey));
+  const completed = allDayTasks.filter(item => item.done).length;
+  const open = allDayTasks.length - completed;
+  const overdue = items.filter(item => item.type === 'task' && !item.done && item.dueDate && item.dueDate < today);
+  const query = search.trim().toLowerCase();
+  const filtered = allDayTasks.filter(item => {
+    if (filter === 'Open' && item.done) return false;
+    if (filter === 'Completed' && !item.done) return false;
+    if (filter === 'High priority' && (item.done || item.priority !== 'high')) return false;
+    return !query || `${item.title} ${(item.subtasks || []).map(s => s.title).join(' ')}`.toLowerCase().includes(query);
+  });
+  const anytime = filtered.filter(item => !itemTime(item)).sort((a, b) => Number(b.priority === 'high') - Number(a.priority === 'high'));
+  const scheduled = filtered.filter(item => itemTime(item)).sort((a, b) => (timeToMinutes(itemTime(a)) ?? 0) - (timeToMinutes(itemTime(b)) ?? 0));
+  const progress = allDayTasks.length ? completed / allDayTasks.length : 0;
+  function openEditor(item: PlannerItem | null = null) { setEditingItem(item); setModalOpen(true); }
+  async function complete(item: PlannerItem) {
+    setActionError('');
+    try { await toggleDone(item.id, !!item.done); } catch { setActionError('Could not update this task. Please try again.'); }
   }
-
-  function onTaskPress(item: PlannerItem) {
-    setEditingItem(item);
+  function renderTask(item: PlannerItem) {
+    return <TaskCard key={item.id} item={item} theme={theme} today={today} onToggle={() => void complete(item)} onPress={() => openEditor(item)} />;
   }
-
   return (
     <View style={[styles.safe, { backgroundColor: theme.background }]}>
-      <View style={styles.header}>
-        <View style={{ width: 40, alignItems: 'flex-start', justifyContent: 'center' }}>
-          <Pressable onPress={() => setIsDrawerOpen(true)} style={({ pressed }) => [{ padding: 4, opacity: pressed ? 0.7 : 1 }]}>
-            <Menu color={theme.text} size={28} />
-          </Pressable>
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <View style={styles.topBar}>
+          <View style={styles.brand}><View style={[styles.brandMark, { backgroundColor: theme.blue }]}><Check size={19} color="#fff" strokeWidth={3} /></View><Text style={[styles.brandText, { color: theme.text }]}>align<Text style={{ color: theme.blue }}>.</Text></Text></View>
+          <Pressable accessibilityRole="button" accessibilityLabel="Open menu" onPress={() => setIsDrawerOpen(true)} style={[styles.iconButton, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}><Menu color={theme.text} size={21} /></Pressable>
         </View>
-        
-        <View style={styles.navCenter}>
-          <Pressable style={[styles.navArrow, { backgroundColor: theme.backgroundElement }]} onPress={() => setDailyDate((d) => addDays(d, -1))}>
-            <Text style={[styles.navArrowText, { color: theme.blue }]}>‹</Text>
-          </Pressable>
-          <Pressable onLongPress={confirmLogout} style={{ alignItems: 'center', minWidth: 120 }}>
-            <Text style={[styles.title, { color: theme.text }]}>Agenda</Text>
-            <Text style={[styles.dateSub, { color: theme.textSecondary }]}>
-              {dateKey === today
-                ? 'TODAY'
-                : dailyDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-            </Text>
-          </Pressable>
-          <Pressable style={[styles.navArrow, { backgroundColor: theme.backgroundElement }]} onPress={() => setDailyDate((d) => addDays(d, 1))}>
-            <Text style={[styles.navArrowText, { color: theme.blue }]}>›</Text>
-          </Pressable>
+        <View style={styles.headingRow}>
+          <View style={{ flex: 1 }}><Text style={[styles.eyebrow, { color: theme.textSecondary }]}>{dailyDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase()}</Text><Text style={[styles.title, { color: theme.text }]}>{dateKey === today ? 'Make room for today.' : 'A little planning goes far.'}</Text><Text style={[styles.subtitle, { color: theme.textSecondary }]}>Your day, one meaningful step at a time.</Text></View>
         </View>
-        
-        <View style={{ width: 40 }} />
-      </View>
-
-      <View style={styles.weekRow}>
-        {weekDays.map((day, i) => {
-          const key = formatDateKey(day);
-          const selected = key === dateKey;
-          return (
-            <Pressable
-              key={key}
-              onPress={() => setDailyDate(day)}
-              style={[
-                styles.weekDay,
-                selected && { backgroundColor: theme.blue },
-              ]}>
-              <Text style={[styles.weekLabel, { color: selected ? '#fff' : theme.textSecondary }]}>{DAY_LABELS[i]}</Text>
-              <Text style={[styles.weekNum, { color: selected ? '#fff' : theme.text }]}>{day.getDate()}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <View style={styles.toggleRow}>
-        <Text style={[styles.toggleText, { color: theme.text }]}>Show Completed</Text>
-        <Switch value={showCompleted} onValueChange={setShowCompleted} />
-      </View>
-
-      <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
-        {anytimeTasks.length === 0 && timedTasks.length === 0 && (
-          <View style={styles.empty}>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>Schedule is clear</Text>
-            <Text style={{ color: theme.textSecondary, fontSize: 15 }}>Add a task or event to get started.</Text>
-            <Pressable style={[styles.addPill, { backgroundColor: theme.blue }]} onPress={() => setEditingItem(null)}>
-              <Text style={styles.addPillText}>+ Add Task</Text>
-            </Pressable>
-          </View>
-        )}
-
-        {anytimeTasks.map((item) => (
-          <SwipeAction 
-            key={item.id}
-            onComplete={() => void toggleDone(item.id, !!item.done)}
-            onDelete={() => void deleteItem(item.id)}
-          >
-            <TaskCard
-              item={item}
-              theme={theme}
-              today={today}
-              onToggle={() => void toggleDone(item.id, !!item.done)}
-              onPress={() => onTaskPress(item)}
-              isSwipable
-            />
-          </SwipeAction>
-        ))}
-
-        {timedTasks.length > 0 && (
-          <View style={styles.timeline}>
-            <Text style={[styles.timelineHeader, { color: theme.textSecondary }]}>Live Timeline</Text>
-            {timedTasks.map((item) => (
-              <View key={item.id} style={styles.timelineRow}>
-                <Text style={[styles.timeLabel, { color: theme.blue }]}>{itemTime(item)}</Text>
-                <View style={{ flex: 1 }}>
-                  <SwipeAction 
-                    onComplete={() => void toggleDone(item.id, !!item.done)}
-                    onDelete={() => void deleteItem(item.id)}
-                  >
-                    <TaskCard
-                      item={item}
-                      theme={theme}
-                      today={today}
-                      compact
-                      onToggle={() => void toggleDone(item.id, !!item.done)}
-                      onPress={() => onTaskPress(item)}
-                      isSwipable
-                    />
-                  </SwipeAction>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
+        <View style={[styles.overview, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+          <View style={styles.summaryTop}><View style={{ flex: 1 }}><Text style={[styles.eyebrow, { color: theme.blue }]}>DAILY FOCUS</Text><Text style={[styles.focusTitle, { color: theme.text }]}>{loading && !items.length ? 'Getting your day ready…' : open ? `${open} ${open === 1 ? 'task' : 'tasks'} left to make it count` : completed ? 'Everything checked off. Well done.' : 'A fresh start, at your pace.'}</Text></View><View style={[styles.sun, { backgroundColor: theme.backgroundSelected }]}><Sunrise color={theme.blue} size={26} /></View></View>
+          <View accessibilityRole="progressbar" accessibilityLabel="Daily completion" accessibilityValue={{ min: 0, max: allDayTasks.length || 1, now: completed }} style={[styles.progressTrack, { backgroundColor: theme.background }]}><View style={{ height: '100%', width: `${progress * 100}%`, backgroundColor: theme.blue, borderRadius: 4 }} /></View>
+          <View style={styles.summaryBottom}><Text style={[styles.caption, { color: theme.textSecondary }]}>{completed} of {allDayTasks.length} completed</Text><Text style={[styles.caption, { color: theme.blue }]}>{Math.round(progress * 100)}%</Text></View>
+        </View>
+        <View style={styles.dateNav}><Text style={[styles.sectionTitle, { color: theme.text }]}>{dailyDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</Text><View style={styles.dateActions}><Pressable accessibilityRole="button" accessibilityLabel="Previous week" onPress={() => setDailyDate(d => addDays(d, -7))} style={styles.smallButton}><ChevronLeft size={19} color={theme.textSecondary} /></Pressable><Pressable accessibilityRole="button" onPress={() => setDailyDate(new Date())} style={[styles.todayButton, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}><Text style={{ color: theme.blue, fontSize: 12, fontWeight: '700' }}>Today</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Next week" onPress={() => setDailyDate(d => addDays(d, 7))} style={styles.smallButton}><ChevronRight size={19} color={theme.textSecondary} /></Pressable></View></View>
+        <View style={styles.weekRow}>{weekDays.map(day => {
+          const key = formatDateKey(day); const selected = key === dateKey; const hasTasks = items.some(item => isTaskForDate(item, key) && !item.done);
+          return <Pressable key={key} accessibilityRole="button" accessibilityLabel={day.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} accessibilityState={{ selected }} onPress={() => setDailyDate(day)} style={[styles.weekDay, { backgroundColor: selected ? theme.blue : theme.backgroundElement, borderColor: selected ? theme.blue : theme.border }]}><Text style={[styles.weekLabel, { color: selected ? '#fff' : theme.textSecondary }]}>{day.toLocaleDateString('en-US', { weekday: 'short' })}</Text><Text style={[styles.weekNum, { color: selected ? '#fff' : theme.text }]}>{day.getDate()}</Text><View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: hasTasks ? selected ? '#fff' : theme.blue : 'transparent' }} /></Pressable>;
+        })}</View>
+        {dateKey === today && overdue.length > 0 && <Pressable accessibilityRole="button" onPress={() => setDailyDate(new Date(`${overdue.map(i => i.dueDate!).sort()[0]}T12:00:00`))} style={[styles.notice, { backgroundColor: theme.backgroundSelected }]}><Text style={{ color: theme.text, flex: 1, fontSize: 13 }}>{overdue.length} overdue {overdue.length === 1 ? 'task needs' : 'tasks need'} a new plan</Text><Text style={{ color: theme.blue, fontWeight: '700', fontSize: 13 }}>Review →</Text></Pressable>}
+        <View style={styles.dateNav}><Text style={[styles.sectionTitle, { color: theme.text }]}>Your agenda</Text><Pressable accessibilityRole="button" onPress={() => openEditor()} style={[styles.addButton, { backgroundColor: theme.blue }]}><Plus size={16} color="#fff" /><Text style={styles.addText}>Add task</Text></Pressable></View>
+        <View style={[styles.search, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}><Search size={18} color={theme.textSecondary} /><TextInput accessibilityLabel="Search tasks for selected day" placeholder="Find a task in this day…" placeholderTextColor={theme.textSecondary} value={search} onChangeText={setSearch} style={[styles.searchInput, { color: theme.text }]} />{!!search && <Pressable accessibilityRole="button" accessibilityLabel="Clear search" onPress={() => setSearch('')}><X size={18} color={theme.textSecondary} /></Pressable>}</View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>{FILTERS.map(f => <Pressable key={f} accessibilityRole="button" accessibilityState={{ selected: filter === f }} onPress={() => setFilter(f)} style={[styles.filter, { backgroundColor: filter === f ? theme.backgroundSelected : 'transparent' }]}><Text style={{ color: filter === f ? theme.blue : theme.textSecondary, fontSize: 13, fontWeight: '600' }}>{f}</Text></Pressable>)}</ScrollView>
+        {!!(error || actionError) && <Text accessibilityRole="alert" style={{ color: theme.red, marginBottom: 16 }}>{actionError || error}</Text>}
+        {loading && !items.length ? <ActivityIndicator color={theme.blue} style={{ margin: 32 }} /> : filtered.length === 0 ? <View style={[styles.empty, { borderColor: theme.border }]}><View style={[styles.sun, { backgroundColor: theme.backgroundSelected }]}><Check size={26} color={theme.blue} /></View><Text style={[styles.emptyTitle, { color: theme.text }]}>{query ? 'No matching tasks' : filter === 'Completed' ? 'Your wins will appear here' : allDayTasks.length ? 'Nothing in this filter' : 'A little space for what matters'}</Text><Text style={[styles.emptyText, { color: theme.textSecondary }]}>{query ? 'Try another word or clear your search.' : allDayTasks.length ? 'Choose All to see everything planned for this day.' : 'Add your first task. Keep it small, make it yours.'}</Text><Pressable accessibilityRole="button" onPress={() => { if (query) setSearch(''); else if (allDayTasks.length) setFilter('All'); else openEditor(); }}><Text style={{ color: theme.blue, fontWeight: '700', marginTop: 6 }}>{query ? 'Clear search' : allDayTasks.length ? 'Show all tasks' : '+ Plan something'}</Text></Pressable></View> : <>{anytime.length > 0 && <Text style={[styles.groupLabel, { color: theme.textSecondary }]}>ANYTIME · {anytime.length}</Text>}{anytime.map(renderTask)}{scheduled.length > 0 && <Text style={[styles.groupLabel, { color: theme.textSecondary }]}>SCHEDULED · {scheduled.length}</Text>}{scheduled.map(item => <View key={item.id}><Text style={[styles.time, { color: theme.blue }]}>{itemTime(item)}</Text>{renderTask(item)}</View>)}</>}
       </ScrollView>
-      
       <DrawerMenuModal visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
-      
-      <ItemModal
-        visible={!!editingItem}
-        onClose={() => setEditingItem(null)}
-        initialItem={editingItem}
-      />
+      <ItemModal visible={modalOpen} onClose={() => setModalOpen(false)} initialItem={editingItem} defaultDate={dateKey} />
     </View>
   );
 }
-
-
-
 const styles = StyleSheet.create({
-  safe: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    gap: 12,
-  },
-  navArrow: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  navArrowText: { fontSize: 22, fontWeight: '700' },
-  navCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
-  title: { fontSize: 34, fontWeight: '800', letterSpacing: -0.5 },
-  dateSub: { fontSize: 14, fontWeight: '600', letterSpacing: 0.5, marginTop: 4 },
-  weekRow: {
-    flexDirection: 'row',
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    gap: 6,
-  },
-  weekDay: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderRadius: 12,
-  },
-  weekLabel: { fontSize: 11, fontWeight: '700' },
-  weekNum: { fontSize: 16, fontWeight: '800', marginTop: 2 },
-  toggleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12 },
-  toggleText: { fontSize: 16, fontWeight: '600' },
-  list: { paddingHorizontal: 16, paddingBottom: 120 },
-  empty: { alignItems: 'center', paddingTop: 60, gap: 12 },
-  emptyTitle: { fontWeight: '700', fontSize: 18 },
-  addPill: { marginTop: 12, paddingHorizontal: 24, paddingVertical: 12, borderRadius: 100 },
-  addPillText: { color: '#fff', fontWeight: '600' },
-  card: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 10,
-  },
-  check: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, marginTop: 2 },
-  taskTitle: { fontSize: 17, fontWeight: '600' },
-  metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  pill: { fontSize: 12, fontWeight: '600', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, overflow: 'hidden' },
-  timeline: { marginTop: 8 },
-  timelineHeader: { fontSize: 12, fontWeight: '800', letterSpacing: 0.6, marginBottom: 10 },
-  timelineRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  timeLabel: { width: 56, fontSize: 12, fontWeight: '700', marginTop: 18 },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 28,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  fabText: { color: '#fff', fontSize: 28, fontWeight: '400', marginTop: -2 },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    padding: 20,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    gap: 12,
-    paddingBottom: 36,
-  },
-  modalTitle: { fontSize: 20, fontWeight: '800' },
-  modalInput: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 16,
-  },
-  timeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  modalActions: { flexDirection: 'row', justifyContent: 'space-between', paddingTop: 8 },
+  safe: { flex: 1 }, content: { padding: 22, paddingBottom: 150, width: '100%', maxWidth: 880, alignSelf: 'center' },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 30 }, brand: { flexDirection: 'row', alignItems: 'center', gap: 9 }, brandMark: { width: 30, height: 30, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }, brandText: { fontSize: 25, fontWeight: '800', letterSpacing: -1 },
+  iconButton: { width: 42, height: 42, borderWidth: 1, borderRadius: 14, justifyContent: 'center', alignItems: 'center' }, headingRow: { marginBottom: 24 }, eyebrow: { fontSize: 10, fontWeight: '700', letterSpacing: 1.5 }, title: { fontSize: 31, lineHeight: 39, fontWeight: '700', letterSpacing: -1.1, marginTop: 10 }, subtitle: { fontSize: 14, lineHeight: 22, marginTop: 6 },
+  overview: { borderWidth: 1, borderRadius: 20, padding: 20, marginBottom: 26 }, summaryTop: { flexDirection: 'row', alignItems: 'center', gap: 12 }, focusTitle: { fontSize: 17, lineHeight: 24, fontWeight: '600', marginTop: 7 }, sun: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' }, progressTrack: { height: 6, borderRadius: 4, marginTop: 20, overflow: 'hidden' }, summaryBottom: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10 }, caption: { fontSize: 12, fontWeight: '500' },
+  dateNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 14 }, sectionTitle: { fontSize: 17, fontWeight: '700', letterSpacing: -0.3 }, dateActions: { flexDirection: 'row', alignItems: 'center', gap: 4 }, smallButton: { padding: 9 }, todayButton: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1 }, weekRow: { flexDirection: 'row', gap: 6, marginBottom: 26 }, weekDay: { flex: 1, alignItems: 'center', borderWidth: 1, paddingVertical: 12, borderRadius: 14, gap: 6 }, weekLabel: { fontSize: 10, fontWeight: '500' }, weekNum: { fontSize: 18, fontWeight: '700' }, notice: { padding: 14, borderRadius: 12, marginBottom: 24, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  addButton: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingVertical: 10, paddingHorizontal: 13, borderRadius: 11 }, addText: { color: '#fff', fontSize: 12, fontWeight: '700' }, search: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: 12, paddingHorizontal: 13, gap: 10 }, searchInput: { flex: 1, fontSize: 14, minHeight: 46 }, filters: { gap: 5, paddingVertical: 14 }, filter: { paddingHorizontal: 13, paddingVertical: 9, borderRadius: 9 }, empty: { alignItems: 'center', padding: 28, gap: 12, borderWidth: 1, borderStyle: 'dashed', borderRadius: 18 }, emptyTitle: { fontSize: 17, fontWeight: '600', textAlign: 'center' }, emptyText: { fontSize: 13, lineHeight: 20, textAlign: 'center', maxWidth: 300 }, groupLabel: { fontSize: 10, letterSpacing: 1.2, fontWeight: '700', marginTop: 6, marginBottom: 12 }, time: { fontSize: 12, fontWeight: '600', marginBottom: 6, marginTop: 4 },
 });

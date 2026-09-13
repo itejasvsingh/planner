@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { ChevronLeft, ChevronRight, Plus, Menu } from 'lucide-react-native';
 
@@ -48,6 +48,7 @@ export default function CalendarScreen() {
   const changeMonth = (delta: number) => {
     setCurrentMonth(prev => {
       const d = new Date(prev);
+      d.setDate(1);
       d.setMonth(d.getMonth() + delta);
       return d;
     });
@@ -61,18 +62,21 @@ export default function CalendarScreen() {
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={[styles.title, { color: theme.text }]}>Calendar</Text>
+          <Text style={{ color: theme.textSecondary, marginTop: 5 }}>See the space ahead.</Text>
         </View>
+        <Pressable accessibilityRole="button" onPress={() => { setCurrentMonth(new Date()); setSelectedDate(new Date()); }} style={{ padding: 12 }}><Text style={{ color: theme.blue, fontWeight: '700' }}>Today</Text></Pressable>
+        <Pressable accessibilityRole="button" accessibilityLabel="Add task for selected date" onPress={() => setIsAddingItem(true)} style={{ padding: 10 }}><Plus size={23} color={theme.blue} /></Pressable>
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 150, width: '100%', maxWidth: 880, alignSelf: 'center' }}>
         <View style={styles.monthSelector}>
-          <Pressable onPress={() => changeMonth(-1)} style={styles.monthArrow}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => changeMonth(-1)} style={styles.monthArrow}>
             <ChevronLeft color={theme.blue} size={24} />
           </Pressable>
           <Text style={[styles.monthLabel, { color: theme.text }]}>
             {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
           </Text>
-          <Pressable onPress={() => changeMonth(1)} style={styles.monthArrow}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Next month" onPress={() => changeMonth(1)} style={styles.monthArrow}>
             <ChevronRight color={theme.blue} size={24} />
           </Pressable>
         </View>
@@ -99,6 +103,9 @@ export default function CalendarScreen() {
               return (
                 <Pressable
                   key={key}
+                  accessibilityRole="button"
+                  accessibilityLabel={dateObj.toLocaleDateString()}
+                  accessibilityState={{ selected: isSelected }}
                   onPress={() => setSelectedDate(dateObj)}
                   style={[
                     styles.dayCell,
@@ -155,11 +162,6 @@ export default function CalendarScreen() {
         </View>
       </ScrollView>
 
-      <Pressable
-        style={[styles.fab, { backgroundColor: theme.blue, shadowColor: theme.blue }]}
-        onPress={() => setIsAddingItem(true)}>
-        <Plus color="#fff" size={32} />
-      </Pressable>
 
       <ItemModal
         visible={!!editingItem || isAddingItem}
@@ -172,12 +174,11 @@ export default function CalendarScreen() {
   );
 }
 
-const { width } = Dimensions.get('window');
-const CELL_SIZE = (width - 32) / 7;
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   header: {
+    flexDirection: 'row', alignItems: 'center', width: '100%', maxWidth: 880, alignSelf: 'center',
     paddingHorizontal: 16,
     paddingTop: 8,
     paddingBottom: 8,
@@ -209,7 +210,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   weekDayLabel: {
-    width: CELL_SIZE,
+    width: '14.285714%',
     textAlign: 'center',
     fontSize: 13,
     fontWeight: '600',
@@ -219,11 +220,11 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   dayCell: {
-    width: CELL_SIZE,
-    height: CELL_SIZE,
+    width: '14.285714%',
+    height: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: CELL_SIZE / 2,
+    borderRadius: 14,
     marginBottom: 4,
   },
   dayNumber: {

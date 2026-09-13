@@ -1,6 +1,6 @@
-import { useRef, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, Animated, Dimensions, Switch, Alert, ScrollView } from 'react-native';
-import { LogOut, Shield, MessageCircle, Moon, Sun, Bell, Smartphone, Download, Repeat, ChevronRight, Star, Calendar, Wallet, Target } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Modal, Pressable, Animated, Dimensions, Switch, Alert, ScrollView, Platform } from 'react-native';
+import { LogOut, Shield, MessageCircle, Moon, Sun, Bell, Smartphone, Download, Repeat, ChevronRight, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import * as FileSystem from 'expo-file-system';
@@ -8,11 +8,11 @@ import * as Sharing from 'expo-sharing';
 import { doc, onSnapshot } from 'firebase/firestore';
 
 import { useTheme } from '@/hooks/use-theme';
-import { Appearance } from 'react-native';
+import { useThemeMode } from '@/lib/theme-context';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems } from '@/lib/use-planner-items';
 import { triggerHaptic } from '@/lib/haptics';
-import { db, auth } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
 import { isSecurityEnabled } from '@/lib/auth';
 
 interface DrawerMenuModalProps {
@@ -27,7 +27,6 @@ export function format12Hour(timeStr: string) {
   if (!timeStr) return '';
   const [hStr, mStr] = timeStr.split(':');
   const h = parseInt(hStr, 10);
-  const m = parseInt(mStr, 10);
   const ampm = h >= 12 ? 'PM' : 'AM';
   const h12 = h % 12 || 12;
   return `${h12}:${mStr.padStart(2, '0')} ${ampm}`;
@@ -39,13 +38,13 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
   const { items } = usePlannerItems(phone);
   const router = useRouter();
 
-  const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [slideAnim] = useState(() => new Animated.Value(-DRAWER_WIDTH));
+  const [fadeAnim] = useState(() => new Animated.Value(0));
 
   // State
   const [pushEnabled, setPushEnabled] = useState(false);
   const [autoPushEnabled, setAutoPushEnabled] = useState(false);
-  const [themeMode, setThemeMode] = useState(Appearance.getColorScheme() || 'system');
+  const { mode: themeMode, scheme, setMode } = useThemeMode();
   const [exportMsg, setExportMsg] = useState('JSON');
   
   const [securityActive, setSecurityActive] = useState(false);
@@ -76,9 +75,10 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
   }, [phone]);
 
   useEffect(() => {
+    if (Platform.OS === 'web') return;
     Notifications.getPermissionsAsync().then(({ status }) => {
       setPushEnabled(status === 'granted');
-    });
+    }).catch(() => setPushEnabled(false));
   }, [visible]);
 
   useEffect(() => {
@@ -113,10 +113,7 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
 
   const cycleTheme = () => {
     triggerHaptic('light');
-    const current = Appearance.getColorScheme();
-    const next = current === 'dark' ? 'light' : 'dark';
-    Appearance.setColorScheme(next);
-    setThemeMode(next);
+    setMode(themeMode === 'system' ? 'light' : themeMode === 'light' ? 'dark' : 'system');
   };
 
   const handleExportData = async () => {
@@ -125,6 +122,17 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
     try {
       const jsonString = JSON.stringify(items, null, 2);
       const filename = `align_export_${new Date().toISOString().split('T')[0]}.json`;
+      if (Platform.OS === 'web') {
+        const url = URL.createObjectURL(new Blob([jsonString], { type: 'application/json' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setExportMsg('Downloaded');
+        setTimeout(() => setExportMsg('JSON'), 3000);
+        return;
+      }
       const file = new FileSystem.File(FileSystem.Paths.document, filename);
       file.write(jsonString);
       const isAvailable = await Sharing.isAvailableAsync();
@@ -135,7 +143,7 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
         setExportMsg('Failed');
         Alert.alert('Export', 'Sharing not available on this device');
       }
-    } catch (e) {
+    } catch {
       setExportMsg('Failed');
       Alert.alert('Export Error', 'Failed to export data');
     }
@@ -160,65 +168,18 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
               <Text style={[styles.phoneText, { color: theme.text }]}>{formattedPhone}</Text>
               <View style={styles.statusRow}>
                 <View style={styles.statusDot} />
-                <Text style={{ color: theme.textSecondary, fontSize: 13 }}>Cloud Synced</Text>
+                <Text style={{ color: theme.textSecondary, fontSize: 13 }}>Your personal workspace</Text>
               </View>
             </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close menu" onPress={onClose} style={{ padding: 10 }}><X size={22} color={theme.textSecondary} /></Pressable>
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Views / Navigation */}
-            <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Views</Text>
-
-              <Pressable
-                style={[styles.menuItem, { borderBottomColor: theme.border }]}
-                onPress={() => navigateTo('/')}>
-                <Star color={theme.blue} size={22} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.menuText, { color: theme.text }]}>Daily Agenda</Text>
-                  <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Today's tasks & schedule</Text>
-                </View>
-                <ChevronRight color={theme.textSecondary} size={20} />
-              </Pressable>
-
-              <Pressable
-                style={[styles.menuItem, { borderBottomColor: theme.border }]}
-                onPress={() => navigateTo('/calendar')}>
-                <Calendar color={theme.blue} size={22} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.menuText, { color: theme.text }]}>Calendar</Text>
-                  <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Monthly view & schedule</Text>
-                </View>
-                <ChevronRight color={theme.textSecondary} size={20} />
-              </Pressable>
-
-              <Pressable
-                style={[styles.menuItem, { borderBottomColor: theme.border }]}
-                onPress={() => navigateTo('/finance')}>
-                <Wallet color={theme.blue} size={22} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.menuText, { color: theme.text }]}>Expense Tracker & Finance</Text>
-                  <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Track spending, budgets & splits</Text>
-                </View>
-                <ChevronRight color={theme.textSecondary} size={20} />
-              </Pressable>
-
-              <Pressable
-                style={[styles.menuItem, { borderBottomColor: theme.border }]}
-                onPress={() => navigateTo('/goals')}>
-                <Target color={theme.blue} size={22} />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.menuText, { color: theme.text }]}>Goals</Text>
-                  <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Milestones & targets</Text>
-                </View>
-                <ChevronRight color={theme.textSecondary} size={20} />
-              </Pressable>
-            </View>
-
             {/* Preferences */}
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Preferences</Text>
               
+              {Platform.OS !== 'web' && (
               <View style={[styles.menuItem, { borderBottomColor: theme.border }]}>
                 <Bell color={theme.text} size={22} />
                 <View style={{ flex: 1 }}>
@@ -227,6 +188,7 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
                 </View>
                 <Switch value={pushEnabled} onValueChange={handleTogglePush} />
               </View>
+              )}
 
               <Pressable
                 style={[styles.menuItem, { borderBottomColor: theme.border }]}
@@ -253,7 +215,7 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
               </View>
               
               <Pressable style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={cycleTheme}>
-                {themeMode === 'dark' ? <Moon color={theme.text} size={22} /> : <Sun color={theme.text} size={22} />}
+                {scheme === 'dark' ? <Moon color={theme.text} size={22} /> : <Sun color={theme.text} size={22} />}
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.menuText, { color: theme.text }]}>Appearance</Text>
                 </View>
@@ -272,7 +234,7 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
                 <Smartphone color={theme.blue} size={22} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.menuText, { color: theme.text }]}>Add to Home Screen</Text>
-                  <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Dynamic Island & full screen setup</Text>
+                  <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Install your planner for quick access</Text>
                 </View>
                 <ChevronRight color={theme.textSecondary} size={20} />
               </Pressable>
@@ -345,14 +307,14 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
 const styles = StyleSheet.create({
   container: { flex: 1, flexDirection: 'row' },
   overlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.5)' },
-  drawer: { width: DRAWER_WIDTH, height: '100%', paddingTop: 60, paddingHorizontal: 20, paddingBottom: 40, shadowColor: '#000', shadowOffset: { width: 4, height: 0 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 10 },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 40 },
+  drawer: { width: DRAWER_WIDTH, height: '100%', paddingTop: 32, paddingHorizontal: 20, paddingBottom: 40, shadowColor: '#000', shadowOffset: { width: 4, height: 0 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 10 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
   avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
   accountInfo: { flex: 1 },
   phoneText: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#34C759' },
-  section: { marginBottom: 32 },
+  section: { marginBottom: 24 },
   sectionTitle: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth, gap: 16 },
   menuText: { fontSize: 16, fontWeight: '600' },
