@@ -1,1 +1,0 @@
-html,body{width:100%;height:100%;margin:0;padding:0}body{color:#f5f5f7;background-color:#0f172a;margin:0}@media (prefers-color-scheme:light){body{color:#182b32;background-color:#f4f7f6}}:root{--tab-bar-bg:#0f172a}@media (prefers-color-scheme:light){:root{--tab-bar-bg:#f4f7f6}}body{padding-bottom:env(safe-area-inset-bottom,0px);background-color:var(--tab-bar-bg)}

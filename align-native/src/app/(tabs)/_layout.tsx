@@ -18,11 +18,7 @@ export default function TabsLayout() {
           headerShown: false,
           tabBarShowLabel: true,
           tabBarLabelPosition: 'below-icon',
-          tabBarItemStyle: {
-            paddingTop: 5,
-            paddingBottom: 3,
-            height: 50,
-          },
+
           tabBarIconStyle: {
             width: 24,
             height: 22,
