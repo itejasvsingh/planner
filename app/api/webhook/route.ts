@@ -1,4 +1,4 @@
-import { NextResponse, after } from 'next/server';
+import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db } from '../../../lib/firebase';
 import { runDailySummaryForUser } from '../../../lib/dailySummary';
@@ -66,10 +66,8 @@ export async function POST(req: Request) {
         if (message) {
             const senderPhone = message.from; // e.g., "918130595547"
 
-            // Dispatch in background via Next.js after() to immediately return 200 OK to Meta
-            after(async () => {
-                try {
-                    // ROUTE A: Handle Images (Receipts)
+            try {
+                // ROUTE A: Handle Images (Receipts)
                     if (message.type === 'image') {
                         const imageId = message.image.id;
                         console.log(`📸 Image received from ${senderPhone}. ID: ${imageId}`);
@@ -94,10 +92,9 @@ export async function POST(req: Request) {
                         console.log(`🔘 Interactive button tapped from ${senderPhone}`);
                         await processInteractiveMessage(interactive, senderPhone);
                     }
-                } catch (procErr) {
-                    console.error("❌ Background processing error:", procErr);
-                }
-            });
+            } catch (procErr) {
+                console.error("❌ Background processing error:", procErr);
+            }
         }
 
         // Meta REQUIRES a 200 OK within 3 seconds, or they will retry and eventually block you
@@ -971,12 +968,15 @@ function parseHeuristically(text: string, today: string, now: Date) {
 async function processTextQuery(text: string, senderPhone: string) {
     try {
         const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
-        const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
+        console.log('Gemini Key length:', GEMINI_API_KEY ? GEMINI_API_KEY.length : 0);
+const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
         const { now, today, currentTime, currentDayName } = getKolkataDate();
 
         // 1. Fetch short-term session memory for this user
-        const sessionRef = db.collection('user_sessions').doc(senderPhone);
-        const sessionSnap = await sessionRef.get().catch(() => null);
+        console.log('Fetching session for', senderPhone);
+const sessionRef = db.collection('user_sessions').doc(senderPhone);
+        const sessionSnap = await sessionRef.get().catch((err) => { console.error('DB Error:', err); return null; });
+console.log('Session fetched:', !!sessionSnap);
         const session = sessionSnap?.exists ? sessionSnap.data() : null;
 
         const trimmedText = text.trim().toLowerCase();

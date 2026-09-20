@@ -1,0 +1,13 @@
+
+> align-app@0.1.0 dev
+> next dev --webpack
+
+▲ Next.js 16.3.4 (webpack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.0.146:3000
+- Environments: .env.local
+✓ Ready in 282ms
+✓ Running next.config.ts took 95ms
+
+ POST /api/webhook 200 in 1355ms (next.js: 1267ms, application-code: 88ms)
+💬 Text from 918130595547: Buy milk
