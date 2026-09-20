@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, Pressable, ScrollView, Alert, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, Switch, Pressable, ScrollView, Alert, Linking, Platform, LayoutAnimation, UIManager } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { MessageCircle, Sparkles, Clock, Zap, ChevronRight, Bell, Check, Copy, Repeat } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -20,6 +20,10 @@ function format12Hour(time24: string) {
   const ampm = h >= 12 ? 'PM' : 'AM';
   h = h % 12 || 12;
   return `${h}:${m} ${ampm}`;
+}
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
 export default function WhatsAppSettingsScreen() {
@@ -217,7 +221,7 @@ export default function WhatsAppSettingsScreen() {
           {dailySummaryEnabled && (
             <>
               <View style={[styles.divider, { backgroundColor: theme.border }]} />
-              <Pressable style={styles.row} onPress={() => setIsTimePickerOpen(!isTimePickerOpen)}>
+              <Pressable style={styles.row} onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setIsTimePickerOpen(!isTimePickerOpen); }}>
                 <View style={[styles.iconBox, { backgroundColor: '#007AFF' }]}>
                   <Clock color="#FFF" size={18} />
                 </View>
@@ -280,7 +284,7 @@ export default function WhatsAppSettingsScreen() {
       <View style={styles.group}>
         <Text style={[styles.groupHeader, { color: theme.textSecondary }]}>TASK REMINDER ALERTS</Text>
         <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
-          <Pressable style={styles.row} onPress={() => setIsReminderPickerOpen(!isReminderPickerOpen)}>
+          <Pressable style={styles.row} onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setIsReminderPickerOpen(!isReminderPickerOpen); }}>
             <View style={[styles.iconBox, { backgroundColor: '#FF9500' }]}>
               <Bell color="#FFF" size={18} />
             </View>
@@ -306,8 +310,7 @@ export default function WhatsAppSettingsScreen() {
                     <Pressable
                       style={[styles.row, { paddingLeft: 24 }]}
                       onPress={() => {
-                        handleChangeReminderTiming(opt.id);
-                        setIsReminderPickerOpen(false);
+                        handleChangeReminderTiming(opt.id); LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setIsReminderPickerOpen(false);
                       }}>
                       <View style={styles.rowContent}>
                         <Text style={[styles.rowTitle, { color: isSelected ? theme.blue : theme.text, fontWeight: isSelected ? '600' : '400' }]}>
