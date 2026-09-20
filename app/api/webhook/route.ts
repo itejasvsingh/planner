@@ -404,7 +404,7 @@ async function generateWithGemini(
 // ==========================================
 async function processReceiptImage(imageId: string, senderPhone: string) {
     if (!API_TOKEN) throw new Error("Missing Meta API Token");
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "AIzaSyCqxW9eSmX0-IX4l6l3hUT3ncZvV6Z99jw";
     if (!GEMINI_API_KEY) throw new Error("Missing Gemini API Token (GEMINI_API_KEY or GOOGLE_API_KEY)");
 
     try {
@@ -967,7 +967,7 @@ function parseHeuristically(text: string, today: string, now: Date) {
 // ==========================================
 async function processTextQuery(text: string, senderPhone: string) {
     try {
-        const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "AIzaSyCqxW9eSmX0-IX4l6l3hUT3ncZvV6Z99jw";
         console.log('Gemini Key length:', GEMINI_API_KEY ? GEMINI_API_KEY.length : 0);
 const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
         const { now, today, currentTime, currentDayName } = getKolkataDate();
@@ -1388,7 +1388,7 @@ Format:
 // ==========================================
 async function processAudioMessage(audioId: string, senderPhone: string, mimeType?: string) {
     if (!API_TOKEN) throw new Error("Missing Meta API Token");
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "AIzaSyCqxW9eSmX0-IX4l6l3hUT3ncZvV6Z99jw";
     if (!GEMINI_API_KEY) throw new Error("Missing Gemini API Token (GEMINI_API_KEY or GOOGLE_API_KEY)");
 
     try {

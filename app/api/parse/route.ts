@@ -103,7 +103,7 @@ export async function POST(req: Request) {
         let parsedItems: any[] = [];
 
         // 1. Try Gemini AI if API key is provided
-        const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
+        const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "AIzaSyCqxW9eSmX0-IX4l6l3hUT3ncZvV6Z99jw";
         if (apiKey) {
             try {
                 const genAI = new GoogleGenerativeAI(apiKey);
