@@ -1,4 +1,4 @@
-const API_TOKEN = "EAAO6WemhAoABSi9ZAYNZCaYs9PaTYBLsPZBS4fU1idyA54Oj7EFhrfUZCZBnZAP6zsBIpYObOK5EMIrstcZCuAT6MekoWsspZCqtRJ39PyRftl36MZAy0ivgnK0IHyDOuQcTXXOAxFSHnoIJUfFZCKyBXbe93sYru6GqRm2NWZBnNoOgTZBEMG9N7EZANWEJ03jtBETFsdYdv3fZBX3hzbjkiZBEyMui9tn3nL5GZCXhEBEhTwLvuZBLF5lkAyAIHX7W9DsGU5X6ZCIC0DMVEIVmU28SdDXSziYKoZA7FPOoSW6UwZDZD";
+const API_TOKEN = "EAAO6WemhAoABStNb50OD4BgsIdSKjisaiskPHjSVdZACMAdbZAG6PnjUtzFnBDqkZCtRf4VYhzOZA2ZBs0xCSEKJE6gG5vVXpYTxGpvaDv3TkyZBwtZAg6UP0AT5vfwdkbAXuf7J5mi1ATKPyQT4ZCjNqQZBjqYIPVUx4OsIJ8O3qPzIT5yFzlEHlMRft4YS1rzIbGkWIn3ZBZAgmAzCtXpZAOPp9yO0wWZCnoWZAkBN3o";
 const PHONE_ID = "1304237036105269";
 
 async function sendWhatsAppTextMessage(to, text) {
@@ -25,4 +25,4 @@ async function sendWhatsAppTextMessage(to, text) {
     }
 }
 
-sendWhatsAppTextMessage("918130595547", "Test message directly from agent!");
+sendWhatsAppTextMessage("918130595547", "✅ Connection restored! Your Align assistant is fully online with the new token.");
