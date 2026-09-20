@@ -17,6 +17,7 @@ import { db } from '@/lib/firebase';
 import { type PlannerItem, type PlannerSplit } from '@/lib/planner-item';
 import { getItem, itemsCacheKey, setItem } from '@/lib/storage';
 import { triggerHaptic } from '@/lib/haptics';
+import { LayoutAnimation } from 'react-native';
 import { getPhoneVariants } from '@/lib/phone';
 
 export function parseCachedItems(raw: string | null): PlannerItem[] {
@@ -147,6 +148,7 @@ export function usePlannerItems(phone: string | null) {
 
   const toggleDone = useCallback(
     async (id: string, currentDone: boolean) => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       triggerHaptic(currentDone ? 'light' : 'success');
       setItems((prev) => {
         const updated = prev.map((item) => (item.id === id ? { ...item, done: !currentDone } : item));
@@ -165,6 +167,7 @@ export function usePlannerItems(phone: string | null) {
 
   const deleteItem = useCallback(
     async (id: string) => {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       triggerHaptic('medium');
       setItems((prev) => {
         const updated = prev.filter((item) => item.id !== id);
@@ -274,6 +277,7 @@ export function usePlannerItems(phone: string | null) {
       }
       
       const tempId = 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       const localItem: PlannerItem = {
         id: tempId,
         ownerId: effectiveOwner,
