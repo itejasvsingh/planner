@@ -1,8 +1,10 @@
 import { db } from './firebase';
 
-const DEFAULT_TOKEN = "EAAO6WemhAoABStNb50OD4BgsIdSKjisaiskPHjSVdZACMAdbZAG6PnjUtzFnBDqkZCtRf4VYhzOZA2ZBs0xCSEKJE6gG5vVXpYTxGpvaDv3TkyZBwtZAg6UP0AT5vfwdkbAXuf7J5mi1ATKPyQT4ZCjNqQZBjqYIPVUx4OsIJ8O3qPzIT5yFzlEHlMRft4YS1rzIbGkWIn3ZBZAgmAzCtXpZAOPp9yO0wWZCnoWZAkBN3o";
-const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN || DEFAULT_TOKEN;
-const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID || "1304237036105269";
+const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
+const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
+
+if (!API_TOKEN) console.error("FATAL: WHATSAPP_API_TOKEN or META_ACCESS_TOKEN is missing in dailySummary");
+if (!PHONE_ID) console.error("FATAL: WHATSAPP_PHONE_ID or PHONE_NUMBER_ID is missing in dailySummary");
 
 function getPhoneVariants(phone: string | null): string[] {
     if (!phone) return [];

@@ -5,20 +5,17 @@ import { runDailySummaryForUser } from '../../../lib/dailySummary';
 
 export const dynamic = 'force-dynamic';
 
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.META_VERIFY_TOKEN || "my_align_secure_token_123";
-const DEFAULT_TOKEN = "EAAO6WemhAoABStNb50OD4BgsIdSKjisaiskPHjSVdZACMAdbZAG6PnjUtzFnBDqkZCtRf4VYhzOZA2ZBs0xCSEKJE6gG5vVXpYTxGpvaDv3TkyZBwtZAg6UP0AT5vfwdkbAXuf7J5mi1ATKPyQT4ZCjNqQZBjqYIPVUx4OsIJ8O3qPzIT5yFzlEHlMRft4YS1rzIbGkWIn3ZBZAgmAzCtXpZAOPp9yO0wWZCnoWZAkBN3o";
-const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN || process.env.ALIGN_WEBHOOK_SECRET || DEFAULT_TOKEN;
-const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID || "1304237036105269";
-
-// Validate essential webhook credentials at startup
-if (!VERIFY_TOKEN) {
-    console.error('❌ CRITICAL: Missing required environment variable WHATSAPP_VERIFY_TOKEN or META_VERIFY_TOKEN');
-}
+const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
 if (!API_TOKEN) {
-    console.error('❌ CRITICAL: Missing required environment variable WHATSAPP_API_TOKEN or META_ACCESS_TOKEN');
+  console.error("FATAL: WHATSAPP_API_TOKEN or META_ACCESS_TOKEN env var is not set");
 }
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.META_VERIFY_TOKEN;
+if (!VERIFY_TOKEN) {
+  console.error("FATAL: WHATSAPP_VERIFY_TOKEN env var is not set");
+}
+const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
 if (!PHONE_ID) {
-    console.error('❌ CRITICAL: Missing required environment variable WHATSAPP_PHONE_ID or PHONE_NUMBER_ID');
+  console.error("FATAL: WHATSAPP_PHONE_ID or PHONE_NUMBER_ID env var is not set");
 }
 
 // ==========================================
@@ -406,7 +403,7 @@ async function generateWithGemini(
 // ==========================================
 async function processReceiptImage(imageId: string, senderPhone: string) {
     if (!API_TOKEN) throw new Error("Missing Meta API Token");
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "AIzaSyCqxW9eSmX0-IX4l6l3hUT3ncZvV6Z99jw";
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
     if (!GEMINI_API_KEY) throw new Error("Missing Gemini API Token (GEMINI_API_KEY or GOOGLE_API_KEY)");
 
     try {
@@ -969,7 +966,7 @@ function parseHeuristically(text: string, today: string, now: Date) {
 // ==========================================
 async function processTextQuery(text: string, senderPhone: string) {
     try {
-        const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "AIzaSyCqxW9eSmX0-IX4l6l3hUT3ncZvV6Z99jw";
+        const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
         console.log('Gemini Key length:', GEMINI_API_KEY ? GEMINI_API_KEY.length : 0);
 const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
         const { now, today, currentTime, currentDayName } = getKolkataDate();
@@ -1390,7 +1387,7 @@ Format:
 // ==========================================
 async function processAudioMessage(audioId: string, senderPhone: string, mimeType?: string) {
     if (!API_TOKEN) throw new Error("Missing Meta API Token");
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY || "AIzaSyCqxW9eSmX0-IX4l6l3hUT3ncZvV6Z99jw";
+    const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
     if (!GEMINI_API_KEY) throw new Error("Missing Gemini API Token (GEMINI_API_KEY or GOOGLE_API_KEY)");
 
     try {
