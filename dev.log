@@ -6,8 +6,42 @@
 - Local:         http://localhost:3000
 - Network:       http://192.168.0.146:3000
 - Environments: .env.local
-✓ Ready in 282ms
-✓ Running next.config.ts took 95ms
+✓ Ready in 272ms
+✓ Running next.config.ts took 98ms
 
- POST /api/webhook 200 in 1355ms (next.js: 1267ms, application-code: 88ms)
 💬 Text from 918130595547: Buy milk
+Gemini Key length: 39
+Fetching session for 918130595547
+Session fetched: true
+⚠️ Cached model gemini-2.5-flash failed (400), clearing cache to find working model...
+⚠️ Invalid Gemini API key, skipping multi-model retry to use heuristics immediately
+⚠️ Gemini AI parse failed in webhook, using fallback heuristics: Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [400 Bad Request] API key not valid. Please pass a valid API key. [{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"API_KEY_INVALID","domain":"googleapis.com","metadata":{"service":"generativelanguage.googleapis.com"}},{"@type":"type.googleapis.com/google.rpc.LocalizedMessage","locale":"en-US","message":"API key not valid. Please pass a valid API key."}]
+    at async generateWithGemini (app/api/webhook/route.ts:372:28)
+    at async processTextQuery (app/api/webhook/route.ts:1293:32)
+    at async POST (app/api/webhook/route.ts:80:25)
+  370 |                 requestOptions
+  371 |             );
+> 372 |             const result = await model.generateContent(contents);
+      |                            ^
+  373 |             // Cache successful model so all subsequent turns execute with 0 fallback latency!
+  374 |             cachedWorkingConfig = item;
+  375 |             console.log(`⚡ Cached working Gemini model: ${item.model}`); {
+  status: 400,
+  statusText: 'Bad Request',
+  errorDetails: [
+    {
+      '@type': 'type.googleapis.com/google.rpc.ErrorInfo',
+      reason: 'API_KEY_INVALID',
+      domain: 'googleapis.com',
+      metadata: [Object]
+    },
+    {
+      '@type': 'type.googleapis.com/google.rpc.LocalizedMessage',
+      locale: 'en-US',
+      message: 'API key not valid. Please pass a valid API key.'
+    }
+  ]
+}
+✅ Saved reminder to Firebase: "Buy milk" on 2026-09-20 
+✅ WhatsApp interactive buttons delivered to 918130595547
+ POST /api/webhook 200 in 3.2s (next.js: 1219ms, application-code: 2.0s)

@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, after } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db } from '../../../lib/firebase';
 import { runDailySummaryForUser } from '../../../lib/dailySummary';
@@ -66,8 +66,9 @@ export async function POST(req: Request) {
         if (message) {
             const senderPhone = message.from; // e.g., "918130595547"
 
-            try {
-                // ROUTE A: Handle Images (Receipts)
+            after(async () => {
+                try {
+                    // ROUTE A: Handle Images (Receipts)
                     if (message.type === 'image') {
                         const imageId = message.image.id;
                         console.log(`📸 Image received from ${senderPhone}. ID: ${imageId}`);
@@ -92,9 +93,10 @@ export async function POST(req: Request) {
                         console.log(`🔘 Interactive button tapped from ${senderPhone}`);
                         await processInteractiveMessage(interactive, senderPhone);
                     }
-            } catch (procErr) {
-                console.error("❌ Background processing error:", procErr);
-            }
+                } catch (procErr) {
+                    console.error("❌ Background processing error:", procErr);
+                }
+            });
         }
 
         // Meta REQUIRES a 200 OK within 3 seconds, or they will retry and eventually block you
