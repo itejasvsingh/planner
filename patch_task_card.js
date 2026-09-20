@@ -1,4 +1,6 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+const fs = require('fs');
+
+const code = `import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Check, Clock, AlertCircle } from 'lucide-react-native';
 import { type PlannerItem } from '@/lib/planner-item';
 
@@ -34,7 +36,7 @@ export default function TaskCard({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`Edit ${item.title}`}
+      accessibilityLabel={\`Edit \${item.title}\`}
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
@@ -148,3 +150,5 @@ const styles = StyleSheet.create({
     fontWeight: '600' 
   },
 });
+`;
+fs.writeFileSync('align-native/src/components/TaskCard.tsx', code);
