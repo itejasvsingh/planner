@@ -2,6 +2,7 @@ import { Tabs } from 'expo-router';
 import { Platform } from 'react-native';
 import { SafeAreaInsetsContext, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ListTodo, Calendar, Wallet, Target } from 'lucide-react-native';
+import { BlurView } from 'expo-blur';
 import { useTheme } from '@/hooks/use-theme';
 import QuickAddBar from '@/components/QuickAddBar';
 import NotificationsManager from '@/components/NotificationsManager';
@@ -29,8 +30,11 @@ export default function TabsLayout() {
             marginTop: 2,
             lineHeight: 12,
           },
+          tabBarBackground: () => (
+            <BlurView tint={colors.isDark ? 'dark' : 'light'} intensity={80} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+          ),
           tabBarStyle: {
-            backgroundColor: colors.backgroundElement,
+            backgroundColor: 'transparent',
             borderTopWidth: 0.5,
             borderTopColor: colors.border,
             elevation: 0,
