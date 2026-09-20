@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "export:web": "node scripts/prepare-expo-web.js",
-    "build": "npm install --prefix align-native && node scripts/prepare-expo-web.js && next build --webpack",
+    "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint"
   },

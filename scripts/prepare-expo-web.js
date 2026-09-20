@@ -10,7 +10,7 @@ const webTargetDir = path.join(publicDir, '_web');
 
 console.log('--- Step 1: Exporting align-native for web ---');
 const hasAlignNodeModules = fs.existsSync(path.join(alignNativeDir, 'node_modules'));
-if (hasAlignNodeModules || process.env.VERCEL) {
+if (!process.env.VERCEL && hasAlignNodeModules) {
   try {
     execSync('EXPO_NO_TELEMETRY=1 npx expo export -p web', {
       cwd: alignNativeDir,
