@@ -1,0 +1,67 @@
+--- align-native/src/global.css
++++ align-native/src/global.css
+@@ -2,6 +2,8 @@
+   margin: 0;
+   padding: 0;
+   height: 100%;
++  height: 100dvh;
++  height: var(--app-height, 100dvh);
+   width: 100%;
+   background-color: #0A0B0F !important;
+   color: #F5F5F7 !important;
+--- scripts/prepare-expo-web.js
++++ scripts/prepare-expo-web.js
+@@ -80,11 +80,15 @@
+       --sab: env(safe-area-inset-bottom, 0px);
+       --sal: env(safe-area-inset-left, 0px);
+       --sar: env(safe-area-inset-right, 0px);
++      /* Fallback before the early script below runs; overwritten in real pixels immediately after. */
++      --app-height: 100vh;
+     }
+     html, body {
+       margin: 0;
+       padding: 0;
+       height: 100%;
++      height: 100dvh;
++      height: var(--app-height);
+       
+       width: 100%;
+       
+@@ -96,6 +100,11 @@
+       -webkit-user-select: none;
+       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+     }
++    #root {
++      height: 100%;
++      height: 100dvh;
++      height: var(--app-height);
++    }
+     input, textarea {
+       user-select: auto;
+       -webkit-user-select: auto;
+@@ -132,6 +141,25 @@
+   </style>
+ 
+   <script>
++    // Real viewport height, not CSS's guess. iOS standalone PWAs can end up with
++    // 100%/100vh/100dvh resolving a bit taller than the actual visible area (the
++    // gap between the two shows up as dead space wherever content is bottom-pinned,
++    // e.g. the tab bar) — window.visualViewport.height is the one number that
++    // reliably matches what's really on screen. Runs before any React content
++    // paints and again on every resize/orientation change/keyboard show-hide.
++    (function() {
++      function setAppHeight() {
++        var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
++        document.documentElement.style.setProperty('--app-height', h + 'px');
++      }
++      setAppHeight();
++      window.addEventListener('resize', setAppHeight);
++      window.addEventListener('orientationchange', setAppHeight);
++      if (window.visualViewport) {
++        window.visualViewport.addEventListener('resize', setAppHeight);
++      }
++    })();
++
+     // URL phone login helper
+     try {
+       var params = new URLSearchParams(window.location.search);
