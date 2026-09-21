@@ -1,0 +1,113 @@
+
+> align-native@1.0.0 ios
+> expo run:ios
+
+env: load .env
+env: export ALIGN_WEBHOOK_SECRET CRON_SECRET EXPO_PUBLIC_API_URL EXPO_PUBLIC_FIREBASE_API_KEY EXPO_PUBLIC_FIREBASE_APP_ID EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID EXPO_PUBLIC_FIREBASE_PROJECT_ID EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID TEST_SUMMARY_SECRET
+- Installing CocoaPods...
+✔ Installed CocoaPods
+› Planning build
+› Executing react-native Pods/hermes-engine » [CP-User] [Hermes] Replace Hermes for the right configuration, if needed
+› Executing react-native Pods/ReactNativeDependencies » [CP-User] [RNDeps] Replace React Native Dependencies for the right configuration, if needed
+› Preparing Pods/EXConstants-ExpoConstants_privacy » ResourceBundle-ExpoConstants_privacy-EXConstants-Info.plist
+› Preparing expo-constants Pods/EXConstants-EXConstants » ResourceBundle-EXConstants-EXConstants-Info.plist
+› Preparing Pods/React-timing-React-timing_privacy » ResourceBundle-React-timing_privacy-React-timing-Info.plist
+› Preparing Pods/React-Core-React-Core_privacy » ResourceBundle-React-Core_privacy-React-Core-Info.plist
+› Preparing Pods/React-cxxreact-React-cxxreact_privacy » ResourceBundle-React-cxxreact_privacy-React-cxxreact-Info.plist
+› Preparing Pods/RNSVG-RNSVGFilters » ResourceBundle-RNSVGFilters-RNSVG-Info.plist
+› Preparing Pods/RNCAsyncStorage-RNCAsyncStorage_resources » ResourceBundle-RNCAsyncStorage_resources-RNCAsyncStorage-Info.plist
+› Preparing Pods/PromisesSwift-Promises_Privacy » ResourceBundle-Promises_Privacy-PromisesSwift-Info.plist
+› Preparing Pods/PromisesObjC-FBLPromises_Privacy » ResourceBundle-FBLPromises_Privacy-PromisesObjC-Info.plist
+› Preparing Pods/GoogleUtilities-GoogleUtilities_Privacy » ResourceBundle-GoogleUtilities_Privacy-GoogleUtilities-Info.plist
+› Preparing @react-native-google-signin/google-signin Pods/GoogleSignIn-GoogleSignIn » ResourceBundle-GoogleSignIn-GoogleSignIn-Info.plist
+› Preparing Pods/GTMSessionFetcher-GTMSessionFetcher_Core_Privacy » ResourceBundle-GTMSessionFetcher_Core_Privacy-GTMSessionFetcher-Info.plist
+› Preparing Pods/GTMAppAuth-GTMAppAuth_Privacy » ResourceBundle-GTMAppAuth_Privacy-GTMAppAuth-Info.plist
+› Preparing Pods/ExpoSystemUI-ExpoSystemUI_privacy » ResourceBundle-ExpoSystemUI_privacy-ExpoSystemUI-Info.plist
+› Preparing Pods/ExpoNotifications-ExpoNotifications_privacy » ResourceBundle-ExpoNotifications_privacy-ExpoNotifications-Info.plist
+› Preparing Pods/ExpoFileSystem-ExpoFileSystem_privacy » ResourceBundle-ExpoFileSystem_privacy-ExpoFileSystem-Info.plist
+› Preparing Pods/ExpoDevice-ExpoDevice_privacy » ResourceBundle-ExpoDevice_privacy-ExpoDevice-Info.plist
+› Preparing Pods/EXApplication-ExpoApplication_privacy » ResourceBundle-ExpoApplication_privacy-EXApplication-Info.plist
+› Preparing Pods/AppAuth-AppAuthCore_Privacy » ResourceBundle-AppAuthCore_Privacy-AppAuth-Info.plist
+› Preparing expo-updates Pods/ReachabilitySwift-ReachabilitySwift » ResourceBundle-ReachabilitySwift-ReachabilitySwift-Info.plist
+› Copying   expo-updates ReachabilitySwift/ReachabilitySwift.bundle/PrivacyInfo.xcprivacy ➜ align-native/ios/Pods/ReachabilitySwift/Sources/PrivacyInfo.xcprivacy
+› Preparing expo-updates Pods/EXUpdates-EXUpdates » ResourceBundle-EXUpdates-EXUpdates-Info.plist
+› Creating  expo-updates Pods/ReachabilitySwift-ReachabilitySwift » ReachabilitySwift.bundle
+› Executing @react-native-google-signin/google-signin Pods/GTMAppAuth » Copy generated compatibility header
+› Creating  expo-updates Pods/EXUpdates-EXUpdates » EXUpdates.bundle
+› Executing @react-native-google-signin/google-signin Pods/PromisesSwift » Copy generated compatibility header
+› Compiling expo-json-utils Pods/EXJSONUtils » NSDictionary+EXJSONUtils.m
+› Compiling expo-structured-headers Pods/EXStructuredHeaders » EXStructuredHeaders-dummy.m
+› Compiling expo-structured-headers Pods/EXStructuredHeaders » EXStructuredHeadersParser.m
+› Compiling expo-json-utils Pods/EXJSONUtils » EXJSONUtils-dummy.m
+› Executing react-native Pods/hermes-engine » [CP] Copy XCFrameworks
+› Compiling expo-updates Pods/ReachabilitySwift » ReachabilitySwift-dummy.m
+› Packaging expo-json-utils Pods/EXJSONUtils » libEXJSONUtils.a
+› Packaging expo-structured-headers Pods/EXStructuredHeaders » libEXStructuredHeaders.a
+› Packaging expo-updates Pods/ReachabilitySwift » libReachabilitySwift.a
+› Executing expo-updates Pods/ReachabilitySwift » Copy generated compatibility header
+› Executing react-native Pods/ReactNativeDependencies » [CP] Copy XCFrameworks
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » NSURLSession+GACPromises.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACDeviceCheckAPIService.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GULKeychainStorage+GACKeychainStorageProtocol.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACURLSessionDataResponse.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACDeviceCheckProvider.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckTokenResult.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckTokenRefresher.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckTokenRefreshResult.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckToken.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckToken+APIResponse.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckTimer.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckStoredToken.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckStoredToken+GACAppCheckToken.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckStorage.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckSettings.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckLogger.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckHTTPError.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckErrors.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckErrorUtil.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckDebugProviderAPIService.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckDebugProvider.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckCryptoUtils.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckBackoffWrapper.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheckAPIService.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppCheck.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppAttestStoredArtifact.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppAttestRejectionError.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppAttestProviderState.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppAttestProvider.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppAttestKeyIDStorage.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppAttestAttestationResponse.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppAttestArtifactStorage.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » GACAppAttestAPIService.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » DCDevice+GACDeviceCheckTokenGenerator.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » DCAppAttestService+GACAppAttestService.m
+› Compiling @react-native-google-signin/google-signin Pods/AppCheckCore » AppCheckCore-dummy.m
+› Packaging @react-native-google-signin/google-signin Pods/AppCheckCore » libAppCheckCore.a
+› Executing @react-native-google-signin/google-signin Pods/AppCheckCore » Copy generated compatibility header
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDActivityIndicatorViewController.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » NSBundle+GID3PAdditions.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GoogleSignIn-dummy.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDToken.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDSignInStrings.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDSignInResult.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDTimedLoader.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDSignInPreferences.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDSignInInternalOptions.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDSignInCallbackSchemes.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDSignInButton.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDScopes.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDProfileData.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDMDMPasscodeState.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDJSONSerializerImpl.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDMDMPasscodeCache.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDFakeJSONSerializerImpl.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDFakeAuthStateMigration.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDEMMErrorHandler.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDConfiguration.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDClaimsInternalOptions.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDClaim.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDCallbackQueue.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDAuthentication.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDAppCheckProviderFake.m
+› Compiling @react-native-google-signin/google-signin Pods/GoogleSignIn » GIDAppCheck.m
+› Executing react-native Pods/React-Core-prebuilt » [CP-User] [RNCore] Replace React Native Core for the right configuration, if needed

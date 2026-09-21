@@ -27,6 +27,9 @@
       "permissions": [
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
         "android.permission.RECORD_AUDIO"
       ],
       "package": "com.tejasvsingh.align",
@@ -83,6 +86,12 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "owner": "itejasv"
+    "owner": "itejasv",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/3bbcf086-82d6-41f6-a682-d439a890514d"
+    }
   }
 }

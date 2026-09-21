@@ -1,26 +1,21 @@
-html, body {
+html, body, #root {
   margin: 0;
   padding: 0;
   height: 100%;
-  
   width: 100%;
-}
-
-body {
-  margin: 0;
-  background-color: #0F172A;
-  color: #F5F5F7;
+  background-color: #0A0B0F !important;
+  color: #F5F5F7 !important;
 }
 
 @media (prefers-color-scheme: light) {
-  body {
-    background-color: #F4F7F6;
-    color: #182B32;
+  html, body, #root {
+    background-color: #F4F7F6 !important;
+    color: #182B32 !important;
   }
 }
 
 :root {
-  --tab-bar-bg: #0F172A;
+  --tab-bar-bg: #0A0B0F;
 }
 
 @media (prefers-color-scheme: light) {
@@ -28,5 +23,3 @@ body {
     --tab-bar-bg: #F4F7F6;
   }
 }
-
-
