@@ -1,4 +1,6 @@
-html, body {
+const fs = require('fs');
+
+const globalCss = `html, body {
   margin: 0;
   padding: 0;
   position: fixed;
@@ -62,3 +64,27 @@ html[data-theme="dark"] {
 html[data-theme="light"] {
   --tab-bar-bg: #F4F7F6;
 }
+`;
+fs.writeFileSync('align-native/src/global.css', globalCss);
+
+let prep = fs.readFileSync('scripts/prepare-expo-web.js', 'utf8');
+prep = prep.replace(/html, body \{[\s\S]*?\}/, `html, body {
+      margin: 0;
+      padding: 0;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      height: 100%;
+      overscroll-behavior-y: none;
+      -webkit-tap-highlight-color: transparent;
+      -webkit-font-smoothing: antialiased;
+      -webkit-touch-callout: none;
+      user-select: none;
+      -webkit-user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+      overflow: hidden;
+    }`);
+fs.writeFileSync('scripts/prepare-expo-web.js', prep);
