@@ -29,7 +29,7 @@ export default function FinanceScreen() {
   const insets = useSafeAreaInsets();
   
   const { items } = usePlannerItems(phone);
-  const { limits } = useBudgetLimits(phone);
+  const { budgetLimits: limits } = useBudgetLimits(phone);
 
   const budget = limits?.monthlyBudget || 50000;
   
