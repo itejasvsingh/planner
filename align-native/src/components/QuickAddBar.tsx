@@ -141,7 +141,8 @@ export default function QuickAddBar() {
   };
 
   // Position cleanly 2px above the 60px bottom tab bar (taking into account safe area on iOS/web)
-  const quickAddBottom = 58 + insets.bottom;
+  const bottomInset = Platform.OS === 'web' ? Math.max(insets.bottom, 34) : insets.bottom;
+  const quickAddBottom = 58 + bottomInset;
 
   return (
     <KeyboardAvoidingView 

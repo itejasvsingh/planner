@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { View } from 'react-native';
+import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ListTodo, Calendar, Wallet, Target } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
@@ -12,6 +12,9 @@ export default function TabsLayout() {
   const { isDark } = useTheme();
   const c = isDark ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
+  // On web, react-native-safe-area-context often returns bottom=0;
+  // use 34px (standard iPhone home indicator) as fallback
+  const bottomInset = Platform.OS === 'web' ? Math.max(insets.bottom, 34) : insets.bottom;
   
   const TabIcon = ({ Icon, focused }: any) => (
     <View style={{ alignItems: 'center', justifyContent: 'center', height: 32 }}>
@@ -45,8 +48,8 @@ export default function TabsLayout() {
             bottom: 0,
             left: 0,
             right: 0,
-            height: 60 + insets.bottom,
-            paddingBottom: insets.bottom,
+            height: 60 + bottomInset,
+            paddingBottom: bottomInset,
             paddingTop: 0,
             marginBottom: 0,
           },
