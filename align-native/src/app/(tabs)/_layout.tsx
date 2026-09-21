@@ -30,7 +30,7 @@ export default function TabsLayout() {
           tabBarLabelStyle: {
             fontSize: 10,
             marginTop: 2,
-            lineHeight: 12,
+            lineHeight: 13,
           },
           tabBarBackground: () => (
             <BlurView tint={isDark ? 'dark' : 'light'} intensity={90} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
@@ -45,15 +45,15 @@ export default function TabsLayout() {
             bottom: 0,
             left: 0,
             right: 0,
-            height: Platform.OS === 'web' ? 54 + 20 : 54 + insets.bottom,
+            height: Platform.OS === 'web' ? 60 + 20 : 60 + insets.bottom,
             paddingBottom: Platform.OS === 'web' ? 20 : insets.bottom,
             paddingTop: 0,
             marginBottom: 0,
           },
           tabBarItemStyle: {
-            height: 54,
+            height: 60,
             paddingTop: 4,
-            paddingBottom: 4,
+            paddingBottom: 2,
             justifyContent: 'center' as const,
             alignItems: 'center' as const,
           },
