@@ -9,6 +9,11 @@ html, body, #root {
   color: #F5F5F7 !important;
 }
 
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
 @media (prefers-color-scheme: light) {
   html, body, #root {
     background-color: #F4F7F6 !important;

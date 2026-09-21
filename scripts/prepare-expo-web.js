@@ -104,6 +104,8 @@ const pwaHeadSnippet = `
       height: 100%;
       height: 100dvh;
       height: var(--app-height);
+      display: flex;
+      flex-direction: column;
     }
     input, textarea {
       user-select: auto;
