@@ -9,18 +9,18 @@ import { useTheme } from '@/hooks/use-theme';
 import TransactionSheet from '@/components/TransactionSheet';
 
 function formatMoney(amount: number) {
-    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
 }
 
 function getCategoryIcon(category: string) {
     switch (category) {
-        case 'Food': return Coffee;
-        case 'Shopping': return ShoppingBag;
-        case 'Transport': return Car;
-        case 'Bills': return Zap;
-        case 'Entertainment': return Ticket;
-        case 'Health': return Heart;
+        case 'Food Delivery': return Coffee;
+        case 'Festival Shopping': return ShoppingBag;
+        case 'Cabs': return Car;
+        case 'Mobile Recharge': return Zap;
+        case 'Maid/Help': return Heart;
         case 'Salary': return Briefcase;
+        case 'UPI Transfer': return ArrowUpRight;
         default: return Wallet;
     }
 }
@@ -47,13 +47,26 @@ export default function FinanceScreen() {
     const { items, updateItem, deleteItem, addItem } = usePlannerItems(phone);
 
     // Filter only finance items
-    const financeItems = items.filter(i => i.type === 'expense' || i.type === 'income' || i.type === 'deposit');
+    const financeItems = items.filter(i => i.type === 'expense' || i.type === 'income' || i.type === 'deposit' || i.type === 'transfer');
 
     const expenses = financeItems.filter(i => i.type === 'expense');
-    const incomes = financeItems.filter(i => i.type !== 'expense');
+    const incomes = financeItems.filter(i => i.type !== 'expense' && i.type !== 'transfer');
 
     const totalSpent = expenses.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
     const totalEarned = incomes.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+
+    const categoryTotals = useMemo(() => {
+        const totals: Record<string, number> = {};
+        expenses.forEach(e => {
+            const cat = e.category || 'Other';
+            totals[cat] = (totals[cat] || 0) + (Number(e.amount) || 0);
+        });
+        return Object.entries(totals)
+            .map(([name, amount]) => ({ name, amount, icon: getCategoryIcon(name) }))
+            .sort((a, b) => b.amount - a.amount)
+            .slice(0, 4); // Top 4
+    }, [expenses]);
+
     const balance = totalEarned - totalSpent;
 
     // Group transactions by date
@@ -129,6 +142,32 @@ export default function FinanceScreen() {
                     </View>
                 </View>
 
+                
+                {/* Visual Analytics */}
+                {categoryTotals.length > 0 && (
+                    <View style={{ marginBottom: 24, paddingHorizontal: 4 }}>
+                        <Text style={[Type.title, { color: c.text, marginBottom: 16 }]}>Spending Analytics</Text>
+                        <View style={{ gap: 12 }}>
+                            {categoryTotals.map(cat => (
+                                <View key={cat.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                    <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: c.backgroundElement, alignItems: 'center', justifyContent: 'center' }}>
+                                        {(() => { const Icon = cat.icon; return <Icon color={c.textSecondary} size={16} />; })()}
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                                            <Text style={[Type.caption, { color: c.text, fontWeight: '600' }]}>{cat.name}</Text>
+                                            <Text style={[Type.caption, { color: c.textSecondary }]}>{formatMoney(cat.amount)}</Text>
+                                        </View>
+                                        <View style={{ width: '100%', height: 6, backgroundColor: c.backgroundElement, borderRadius: 3, overflow: 'hidden' }}>
+                                            <View style={{ width: `${Math.min(100, (cat.amount / Math.max(totalSpent, 1)) * 100)}%`, height: '100%', backgroundColor: c.expenseSoft, borderRadius: 3 }} />
+                                        </View>
+                                    </View>
+                                </View>
+                            ))}
+                        </View>
+                    </View>
+                )}
+
                 {/* Transactions List */}
                 <Text style={[Type.title, { color: c.text, marginBottom: 16, marginTop: 8 }]}>Recent Transactions</Text>
                 
@@ -143,7 +182,8 @@ export default function FinanceScreen() {
                             <Text style={[Type.label, { color: c.textSecondary, marginBottom: 12, marginLeft: 4 }]}>{formatDateHeader(date)}</Text>
                             <View style={{ backgroundColor: c.backgroundElement, borderRadius: 24, overflow: 'hidden' }}>
                                 {items.map((item, index) => {
-                                    const isIncome = item.type !== 'expense';
+                                    const isIncome = item.type === 'income' || item.type === 'deposit';
+                                    const isTransfer = item.type === 'transfer';
                                     const Icon = getCategoryIcon(item.category || 'Other');
                                     return (
                                         <Pressable 
@@ -155,15 +195,15 @@ export default function FinanceScreen() {
                                                 index !== items.length - 1 && { borderBottomWidth: 1, borderBottomColor: theme.isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' }
                                             ]}
                                         >
-                                            <View style={[styles.iconBox, { backgroundColor: isIncome ? c.incomeSoft : c.border }]}>
-                                                <Icon color={isIncome ? c.income : c.textSecondary} size={20} />
+                                            <View style={[styles.iconBox, { backgroundColor: isIncome ? c.incomeSoft : (isTransfer ? c.backgroundElement : c.border) }]}>
+                                                <Icon color={isIncome ? c.income : (isTransfer ? c.textTertiary : c.textSecondary)} size={20} />
                                             </View>
                                             <View style={{ flex: 1 }}>
                                                 <Text style={[Type.body, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>{item.title}</Text>
                                                 <Text style={[Type.caption, { color: c.textTertiary, marginTop: 2 }]}>{item.category || 'Other'}</Text>
                                             </View>
-                                            <Text style={[Type.body, { color: isIncome ? c.income : c.text, fontWeight: '700' }]}>
-                                                {isIncome ? '+' : '-'}{formatMoney(Number(item.amount) || 0)}
+                                            <Text style={[Type.body, { color: isIncome ? c.income : (isTransfer ? c.textSecondary : c.text), fontWeight: '700' }]}>
+                                                {isTransfer ? '' : (isIncome ? '+' : '-')}{formatMoney(Number(item.amount) || 0)}
                                             </Text>
                                         </Pressable>
                                     );

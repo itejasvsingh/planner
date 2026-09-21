@@ -14,19 +14,23 @@ interface TransactionSheetProps {
 }
 
 const EXPENSE_CATEGORIES = [
-    { name: 'Food', icon: Coffee },
-    { name: 'Shopping', icon: ShoppingBag },
-    { name: 'Transport', icon: Car },
-    { name: 'Bills', icon: Zap },
-    { name: 'Entertainment', icon: Ticket },
-    { name: 'Health', icon: Heart },
+    { name: 'Food Delivery', icon: Coffee },
+    { name: 'Cabs', icon: Car },
+    { name: 'Festival Shopping', icon: ShoppingBag },
+    { name: 'Mobile Recharge', icon: Zap },
+    { name: 'Maid/Help', icon: Heart },
     { name: 'Other', icon: Wallet },
 ];
 
 const INCOME_CATEGORIES = [
     { name: 'Salary', icon: Briefcase },
-    { name: 'Deposit', icon: Wallet },
+    { name: 'UPI Transfer', icon: Wallet },
     { name: 'Other', icon: Plus },
+];
+
+const TRANSFER_CATEGORIES = [
+    { name: 'Self Transfer', icon: Wallet },
+    { name: 'Wallet Load', icon: Plus },
 ];
 
 export default function TransactionSheet({ visible, onClose, item, onSave, onDelete }: TransactionSheetProps) {
@@ -36,7 +40,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [type, setType] = useState('expense');
     const [title, setTitle] = useState('');
     const [amount, setAmount] = useState('');
-    const [category, setCategory] = useState('Food');
+    const [category, setCategory] = useState('Food Delivery');
     const [date, setDate] = useState('');
 
     useEffect(() => {
@@ -45,13 +49,13 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                 setType(item.type === 'income' || item.type === 'deposit' ? 'income' : 'expense');
                 setTitle(item.title || '');
                 setAmount(item.amount ? String(item.amount) : '');
-                setCategory(item.category || (item.type === 'income' ? 'Salary' : 'Food'));
+                setCategory(item.category || (item.type === 'income' ? 'Salary' : 'Food Delivery'));
                 setDate(item.date || new Date().toISOString().split('T')[0]);
             } else {
                 setType('expense');
                 setTitle('');
                 setAmount('');
-                setCategory('Food');
+                setCategory('Food Delivery');
                 setDate(new Date().toISOString().split('T')[0]);
             }
         }
@@ -60,7 +64,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     // Update default category when type changes
     useEffect(() => {
         if (!item) {
-            setCategory(type === 'income' ? 'Salary' : 'Food');
+            setCategory(type === 'income' ? 'Salary' : 'Food Delivery');
         }
     }, [type, item]);
 
@@ -83,7 +87,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
         onClose();
     };
 
-    const categories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+    const categories = type === 'expense' ? EXPENSE_CATEGORIES : (type === 'transfer' ? TRANSFER_CATEGORIES : INCOME_CATEGORIES);
 
     return (
         <Modal visible={visible} animationType="slide" transparent>
@@ -102,8 +106,8 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
 
                     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 20 }}>
                         <SegmentedControl 
-                            tabs={['Expense', 'Income']} 
-                            activeTab={type === 'expense' ? 'Expense' : 'Income'} 
+                            tabs={['Expense', 'Income', 'Transfer']} 
+                            activeTab={type === 'expense' ? 'Expense' : (type === 'transfer' ? 'Transfer' : 'Income')} 
                             onTabChange={(t) => setType(t.toLowerCase())} 
                         />
 
@@ -111,14 +115,14 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                         <View style={{ alignItems: 'center', paddingVertical: 10 }}>
                             <Text style={[Type.caption, { color: c.textTertiary, marginBottom: 8 }]}>Amount</Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Text style={[Type.displayLg, { color: type === 'income' ? c.income : c.text, marginRight: 4 }]}>$</Text>
+                                <Text style={[Type.displayLg, { color: type === 'income' ? c.income : (type === 'transfer' ? c.textSecondary : c.text), marginRight: 4 }]}>$</Text>
                                 <TextInput 
                                     value={amount}
                                     onChangeText={setAmount}
                                     keyboardType="decimal-pad"
                                     placeholder="0.00"
                                     placeholderTextColor={c.textTertiary}
-                                    style={[Type.displayLg, { color: type === 'income' ? c.income : c.text, minWidth: 100, textAlign: 'center' }]}
+                                    style={[Type.displayLg, { color: type === 'income' ? c.income : (type === 'transfer' ? c.textSecondary : c.text), minWidth: 100, textAlign: 'center' }]}
                                     autoFocus={!item}
                                 />
                             </View>
