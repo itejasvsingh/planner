@@ -193,34 +193,32 @@ export default function QuickAddBar() {
   );
 }
 
+import { Radius, Shadow, Type, Colors } from '@/constants/theme';
 const styles = StyleSheet.create({
-  feedback: { padding: 12, borderRadius: 12, borderWidth: 1, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  feedback: { padding: 12, borderRadius: Radius.md, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10 },
   keyboardView: {
     position: 'absolute',
-    bottom: 58, // Sits directly 8px above the 50px bottom tab bar
+    bottom: 60,
     width: '92%',
     maxWidth: 820,
     alignSelf: 'center',
     zIndex: 1000,
+    alignItems: 'flex-end',
   },
   container: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 9,
-    borderRadius: 22,
-    borderWidth: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 4,
+    paddingVertical: 10,
+    borderRadius: Radius.pill,
+    ...Shadow.card,
+    width: '100%',
   },
   input: {
     flex: 1,
     fontSize: 16,
     paddingHorizontal: 8,
-    minHeight: 32,
+    minHeight: 36,
   },
   iconBtn: {
     padding: 6,
@@ -231,11 +229,19 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   submitBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  fab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.raised,
   }
 });
 

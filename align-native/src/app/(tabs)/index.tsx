@@ -3,6 +3,7 @@ import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, V
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, Menu, Plus } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
+import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 import { addDays, formatDateKey, startOfWeek, timeToMinutes, todayKey } from '@/lib/dates';
 import { usePhone } from '@/lib/phone-context';
 import { isTaskForDate, itemTime, type PlannerItem } from '@/lib/planner-item';
@@ -17,6 +18,7 @@ type Filter = typeof FILTERS[number];
 
 export default function DailyScreen() {
   const theme = useTheme();
+  const c = theme.isDark ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
   const { phone } = usePhone();
   const { items, loading, error, toggleDone } = usePlannerItems(phone);
@@ -78,7 +80,7 @@ export default function DailyScreen() {
     : Math.max(insets.top, 52);
 
   return (
-    <View style={[styles.safe, { backgroundColor: theme.background }]}>
+    <View style={[styles.safe, { backgroundColor: c.background }]}>
       {/* 1. iOS Top Navigation Bar: Menu on Left, Brand in Center, Add on Right */}
       <View style={[styles.topBar, { paddingTop: topPadding }]}>
         <Pressable
@@ -89,17 +91,17 @@ export default function DailyScreen() {
             setIsDrawerOpen(true);
           }}
           hitSlop={15}
-          style={[styles.iconButton, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
+          style={[styles.iconButton, { backgroundColor: c.backgroundElement, borderColor: c.border }]}
         >
-          <Menu color={theme.text} size={20} />
+          <Menu color={c.text} size={20} />
         </Pressable>
 
         <View style={styles.brand}>
-          <View style={[styles.brandMark, { backgroundColor: theme.blue }]}>
+          <View style={[styles.brandMark, { backgroundColor: c.accent }]}>
             <Check size={14} color="#fff" strokeWidth={3} />
           </View>
-          <Text style={[styles.brandText, { color: theme.text }]}>
-            align<Text style={{ color: theme.blue }}>.</Text>
+          <Text style={[styles.brandText, { color: c.text }]}>
+            align<Text style={{ color: c.accent }}>.</Text>
           </Text>
         </View>
 
@@ -111,9 +113,9 @@ export default function DailyScreen() {
             openEditor();
           }}
           hitSlop={15}
-          style={[styles.iconButton, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
+          style={[styles.iconButton, { backgroundColor: c.backgroundElement, borderColor: c.border }]}
         >
-          <Plus color={theme.blue} size={20} />
+          <Plus color={c.accent} size={20} />
         </Pressable>
       </View>
 
@@ -125,15 +127,15 @@ export default function DailyScreen() {
         {/* 2. Apple iOS Large Title Row */}
         <View style={styles.dateHeaderRow}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.dateTitle, { color: theme.text }]}>
+            <Text style={[styles.dateTitle, { color: c.text }]}>
               {dateKey === today ? 'Today' : dailyDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
             </Text>
-            <Text style={[styles.dateSubtitle, { color: theme.textSecondary }]}>
+            <Text style={[styles.dateSubtitle, { color: c.textSecondary }]}>
               {dailyDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
             </Text>
           </View>
-          <View style={[styles.countBadge, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
-            <Text style={[styles.countBadgeText, { color: theme.blue }]}>
+          <View style={[styles.countBadge, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+            <Text style={[styles.countBadgeText, { color: c.accent }]}>
               {loading ? '…' : open === 0 && completed > 0 ? 'All done ✓' : `${open} remaining`}
             </Text>
           </View>
@@ -159,15 +161,15 @@ export default function DailyScreen() {
                 style={[
                   styles.weekDay,
                   {
-                    backgroundColor: selected ? theme.blue : theme.backgroundElement,
-                    borderColor: selected ? theme.blue : theme.border,
+                    backgroundColor: selected ? c.accent : c.backgroundElement,
+                    borderColor: selected ? c.accent : c.border,
                   }
                 ]}
               >
-                <Text style={[styles.weekLabel, { color: selected ? '#fff' : isDayToday ? theme.blue : theme.textSecondary }]}>
+                <Text style={[styles.weekLabel, { color: selected ? '#fff' : isDayToday ? c.accent : c.textSecondary }]}>
                   {day.toLocaleDateString('en-US', { weekday: 'narrow' })}
                 </Text>
-                <Text style={[styles.weekNum, { color: selected ? '#fff' : isDayToday ? theme.blue : theme.text }]}>
+                <Text style={[styles.weekNum, { color: selected ? '#fff' : isDayToday ? c.accent : c.text }]}>
                   {day.getDate()}
                 </Text>
                 <View
@@ -175,7 +177,7 @@ export default function DailyScreen() {
                     width: 4,
                     height: 4,
                     borderRadius: 2,
-                    backgroundColor: hasTasks ? (selected ? '#fff' : theme.blue) : 'transparent',
+                    backgroundColor: hasTasks ? (selected ? '#fff' : c.accent) : 'transparent',
                     marginTop: 3,
                   }}
                 />
@@ -192,17 +194,17 @@ export default function DailyScreen() {
               triggerHaptic('light');
               setDailyDate(new Date(`${overdue.map(i => i.dueDate!).sort()[0]}T12:00:00`));
             }}
-            style={[styles.notice, { backgroundColor: theme.backgroundSelected, borderColor: theme.border }]}
+            style={[styles.notice, { backgroundColor: c.backgroundSelected, borderColor: c.border }]}
           >
-            <Text style={{ color: theme.text, flex: 1, fontSize: 13, fontWeight: '500' }}>
+            <Text style={{ color: c.text, flex: 1, fontSize: 13, fontWeight: '500' }}>
               {overdue.length} overdue {overdue.length === 1 ? 'task' : 'tasks'}
             </Text>
-            <Text style={{ color: theme.blue, fontWeight: '700', fontSize: 13 }}>Review →</Text>
+            <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>Review →</Text>
           </Pressable>
         )}
 
         {/* 5. iOS Native Segmented Control */}
-        <View style={[styles.segmentedControl, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+        <View style={[styles.segmentedControl, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
           {FILTERS.map(f => {
             const active = filter === f;
             return (
@@ -216,14 +218,14 @@ export default function DailyScreen() {
                 }}
                 style={[
                   styles.segment,
-                  active && [styles.segmentActive, { backgroundColor: theme.backgroundSelected, borderColor: theme.border }]
+                  active && [styles.segmentActive, { backgroundColor: c.backgroundSelected, borderColor: c.border }]
                 ]}
               >
                 <Text
                   style={[
                     styles.segmentText,
                     {
-                      color: active ? theme.blue : theme.textSecondary,
+                      color: active ? c.accent : c.textSecondary,
                       fontWeight: active ? '700' : '500',
                     }
                   ]}
@@ -236,23 +238,23 @@ export default function DailyScreen() {
         </View>
 
         {!!(error || actionError) && (
-          <Text accessibilityRole="alert" style={{ color: theme.red, marginBottom: 12, fontSize: 13 }}>
+          <Text accessibilityRole="alert" style={{ color: c.expense, marginBottom: 12, fontSize: 13 }}>
             {actionError || error}
           </Text>
         )}
 
         {/* 6. Tasks List (Clean & Direct) */}
         {loading && !items.length ? (
-          <ActivityIndicator color={theme.blue} style={{ margin: 32 }} />
+          <ActivityIndicator color={c.accent} style={{ margin: 32 }} />
         ) : filtered.length === 0 ? (
-          <View style={[styles.empty, { borderColor: theme.border }]}>
-            <View style={[styles.emptyIconBox, { backgroundColor: theme.backgroundSelected }]}>
-              <Check size={22} color={theme.blue} />
+          <View style={[styles.empty, { borderColor: c.border }]}>
+            <View style={[styles.emptyIconBox, { backgroundColor: c.backgroundSelected }]}>
+              <Check size={22} color={c.accent} />
             </View>
-            <Text style={[styles.emptyTitle, { color: theme.text }]}>
+            <Text style={[styles.emptyTitle, { color: c.text }]}>
               {filter === 'Completed' ? 'No completed tasks' : allDayTasks.length ? 'No tasks in this filter' : 'All clear for today'}
             </Text>
-            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+            <Text style={[styles.emptyText, { color: c.textSecondary }]}>
               {allDayTasks.length ? 'Switch to All to see everything planned.' : 'Tap + to plan your first task.'}
             </Text>
           </View>
@@ -260,10 +262,10 @@ export default function DailyScreen() {
           <View style={styles.tasksContainer}>
             {scheduled.length > 0 && (
               <>
-                <Text style={[styles.sectionHeader, { color: theme.textSecondary }]}>SCHEDULED</Text>
+                <Text style={[styles.sectionHeader, { color: c.textSecondary }]}>SCHEDULED</Text>
                 {scheduled.map(item => (
                   <View key={item.id} style={styles.taskItem}>
-                    <Text style={[styles.timeLabel, { color: theme.blue }]}>{itemTime(item)}</Text>
+                    <Text style={[styles.timeLabel, { color: c.accent }]}>{itemTime(item)}</Text>
                     {renderTask(item)}
                   </View>
                 ))}
@@ -272,7 +274,7 @@ export default function DailyScreen() {
 
             {anytime.length > 0 && (
               <>
-                {scheduled.length > 0 && <Text style={[styles.sectionHeader, { color: theme.textSecondary }]}>ANYTIME</Text>}
+                {scheduled.length > 0 && <Text style={[styles.sectionHeader, { color: c.textSecondary }]}>ANYTIME</Text>}
                 {anytime.map(renderTask)}
               </>
             )}

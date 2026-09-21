@@ -1,18 +1,20 @@
-
+const fs = require('fs');
+const file = 'align-native/src/app/(tabs)/finance.tsx';
+let code = `
 import { useMemo, useState } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Dimensions, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CreditCard, ShoppingBag, Coffee, Car, Home, TrendingUp, AlertCircle, Calendar, Plus } from 'lucide-react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { usePhone } from '@/lib/phone-context';
-import { usePlannerItems, useBudgetLimits } from '@/lib/use-planner-items';
-
+import { usePlannerItems } from '@/lib/use-planner-items';
+import { useBudgetLimits } from '@/lib/use-budget-limits';
 import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 // Helper for tabular numbers
 const formatMoney = (amount: number) => {
-  return `₹${Math.round(amount).toLocaleString('en-IN')}`;
+  return \`₹\${Math.round(amount).toLocaleString('en-IN')}\`;
 };
 
 // SVG Circular Progress
@@ -32,7 +34,7 @@ function CircularProgress({ percent, color, size = 120, strokeWidth = 10 }: any)
           r={radius}
           strokeWidth={strokeWidth}
           fill="none"
-          strokeDasharray={`${circumference} ${circumference}`}
+          strokeDasharray={\`\${circumference} \${circumference}\`}
           strokeDashoffset={strokeDashoffset}
           strokeLinecap="round"
           rotation="-90"
@@ -52,7 +54,7 @@ function SpendChart({ data, c }: any) {
       {data.map((d: any, i: number) => (
         <View key={i} style={styles.barCol}>
           <View style={[styles.barTrack, { backgroundColor: c.background }]}>
-             <View style={[styles.barFill, { height: `${(d.val / max) * 100}%`, backgroundColor: c.expense }]} />
+             <View style={[styles.barFill, { height: \`\${(d.val / max) * 100}%\`, backgroundColor: c.expense }]} />
           </View>
           <Text style={[Type.caption, { color: c.textTertiary, marginTop: 4 }]}>{d.label}</Text>
         </View>
@@ -213,3 +215,5 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: Radius.pill },
   avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
 });
+`;
+fs.writeFileSync(file, code);

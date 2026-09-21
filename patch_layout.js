@@ -1,4 +1,6 @@
-
+const fs = require('fs');
+const file = 'align-native/src/app/(tabs)/_layout.tsx';
+let code = `
 import { Tabs } from 'expo-router';
 import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -95,3 +97,5 @@ export default function TabsLayout() {
     </>
   );
 }
+`;
+fs.writeFileSync(file, code);

@@ -1,46 +1,88 @@
-/**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
- */
-
 import '@/global.css';
-
 import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#182B32',
-    background: '#F4F7F6',
+    text: '#14181F',
+    textSecondary: '#6B7280',
+    textTertiary: '#9CA3AF',
+    background: '#F7F7F8',
     backgroundElement: '#FFFFFF',
-    backgroundSelected: '#E1F2ED',
-    textSecondary: '#657A80',
-    border: '#DEE7E4',
+    backgroundSelected: '#EEF2FF',
+    border: '#E5E7EB',
+    accent: '#6366F1',
+    accentSoft: '#EEF2FF',
+    income: '#10B981',
+    incomeSoft: '#ECFDF5',
+    expense: '#F43F5E',
+    expenseSoft: '#FEF2F2',
+    warning: '#F59E0B',
+    warningSoft: '#FFFBEB',
     blue: '#137C66',
-    red: '#FF3B30',
+    red: '#F43F5E',
   },
   dark: {
     text: '#F5F5F7',
-    background: '#0F172A',
-    backgroundElement: '#1E293B',
-    backgroundSelected: '#1E3A5F',
-    textSecondary: '#94A3B8',
-    border: '#334155',
+    textSecondary: '#9CA3AF',
+    textTertiary: '#6B7280',
+    background: '#0A0B0F',
+    backgroundElement: '#16181D',
+    backgroundSelected: '#1E1B3A',
+    border: '#26282E',
+    accent: '#818CF8',
+    accentSoft: '#1E1B3A',
+    income: '#34D399',
+    incomeSoft: '#0F2A20',
+    expense: '#FB7185',
+    expenseSoft: '#2D1518',
+    warning: '#FBBF24',
+    warningSoft: '#2D2410',
     blue: '#5DD4B5',
-    red: '#FF453A',
+    red: '#FB7185',
   },
 } as const;
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
+export const Radius = {
+  sm: 10,
+  md: 16,
+  lg: 20,
+  xl: 28,
+  pill: 999,
+} as const;
+
+export const Shadow = {
+  card: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  raised: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 6,
+  },
+} as const;
+
+export const Type = {
+  displayLg: { fontSize: 34, fontWeight: '700' as const, letterSpacing: -0.5 },
+  display: { fontSize: 26, fontWeight: '700' as const, letterSpacing: -0.3 },
+  title: { fontSize: 20, fontWeight: '600' as const },
+  body: { fontSize: 15, fontWeight: '400' as const },
+  label: { fontSize: 13, fontWeight: '500' as const },
+  caption: { fontSize: 12, fontWeight: '400' as const },
+} as const;
+
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
     sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
     serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
     rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
     mono: 'ui-monospace',
   },
   default: {
