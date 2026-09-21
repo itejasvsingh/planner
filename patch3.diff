@@ -1,0 +1,24 @@
+--- align-native/src/app/(tabs)/_layout.tsx
++++ align-native/src/app/(tabs)/_layout.tsx
+@@ -45,8 +45,8 @@
+             bottom: 0,
+             left: 0,
+             right: 0,
+-            height: Platform.OS === 'web' ? 60 + 20 : 60 + insets.bottom,
+-            paddingBottom: Platform.OS === 'web' ? 20 : insets.bottom,
++            height: Platform.OS === 'web' ? ('calc(60px + env(safe-area-inset-bottom, 0px))' as any) : 60 + insets.bottom,
++            paddingBottom: Platform.OS === 'web' ? ('env(safe-area-inset-bottom, 0px)' as any) : insets.bottom,
+             paddingTop: 0,
+             marginBottom: 0,
+           },
+--- align-native/src/components/QuickAddBar.tsx
++++ align-native/src/components/QuickAddBar.tsx
+@@ -140,7 +140,7 @@
+     }
+   };
+ 
+-  // Position cleanly 8px above the 50px bottom tab bar (taking into account safe area on iOS/web)
++  // Position cleanly 2px above the 60px bottom tab bar (taking into account safe area on iOS/web)
+   const quickAddBottom = Platform.OS === 'web'
+     ? ('calc(58px + env(safe-area-inset-bottom, 34px))' as any)
+     : (58 + insets.bottom);
