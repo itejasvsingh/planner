@@ -63,6 +63,19 @@ export async function POST(req: Request) {
         if (message) {
             const senderPhone = message.from; // e.g., "918130595547"
 
+        const messageId = message.id;
+        if (messageId) {
+            const dedupRef = db.collection('webhook_processed').doc(messageId);
+            const dedupSnap = await dedupRef.get();
+            if (dedupSnap.exists) {
+                console.log('🔄 Ignored duplicate webhook message ID:', messageId);
+                return NextResponse.json({ status: 'duplicate' }, { status: 200 });
+            }
+            // Mark as processing immediately to prevent race conditions from aggressive retries
+            await dedupRef.set({ processedAt: new Date().toISOString() });
+        }
+
+
             after(async () => {
                 try {
                     // ROUTE A: Handle Images (Receipts)
