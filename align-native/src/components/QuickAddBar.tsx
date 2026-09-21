@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
-import { Mic, Sparkles, Plus, X } from 'lucide-react-native';
-import { useTheme } from '@/hooks/use-theme';
 import ItemModal from '@/components/ItemModal';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTheme } from '@/hooks/use-theme';
 import { auth } from '@/lib/firebase';
+import { Mic, Plus, Sparkles, X } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { usePhone } from '@/lib/phone-context';
 import { injectParsedItemsLocally } from '@/lib/use-planner-items';
@@ -141,7 +141,16 @@ export default function QuickAddBar() {
   };
 
   // Position cleanly 2px above the 60px bottom tab bar (taking into account safe area on iOS/web)
-  const bottomInset = Platform.OS === 'web' ? Math.max(insets.bottom, 34) : insets.bottom;
+  const [webSab, setWebSab] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;bottom:0;height:env(safe-area-inset-bottom,0px);pointer-events:none;visibility:hidden;';
+    document.body.appendChild(el);
+    setWebSab(el.getBoundingClientRect().height);
+    document.body.removeChild(el);
+  }, []);
+  const bottomInset = Platform.OS === 'web' ? Math.max(insets.bottom, webSab) : insets.bottom;
   const quickAddBottom = 58 + bottomInset;
 
   return (
@@ -192,7 +201,7 @@ export default function QuickAddBar() {
   );
 }
 
-import { Radius, Shadow, Type, Colors } from '@/constants/theme';
+import { Radius, Shadow } from '@/constants/theme';
 const styles = StyleSheet.create({
   feedback: { padding: 12, borderRadius: Radius.md, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10 },
   keyboardView: {

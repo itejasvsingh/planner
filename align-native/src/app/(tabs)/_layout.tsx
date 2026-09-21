@@ -1,20 +1,36 @@
+import NotificationsManager from '@/components/NotificationsManager';
+import QuickAddBar from '@/components/QuickAddBar';
+import { Colors, Shadow } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
+import { Calendar, ListTodo, Target, Wallet } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ListTodo, Calendar, Wallet, Target } from 'lucide-react-native';
-import { BlurView } from 'expo-blur';
-import { useTheme } from '@/hooks/use-theme';
-import QuickAddBar from '@/components/QuickAddBar';
-import NotificationsManager from '@/components/NotificationsManager';
-import { Colors, Shadow } from '@/constants/theme';
+
+function useWebSafeAreaBottom(): number {
+  const [sab, setSab] = useState(0);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof document === 'undefined') return;
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;bottom:0;height:env(safe-area-inset-bottom,0px);pointer-events:none;visibility:hidden;';
+    document.body.appendChild(el);
+    const h = el.getBoundingClientRect().height;
+    document.body.removeChild(el);
+    setSab(h);
+  }, []);
+  return sab;
+}
 
 export default function TabsLayout() {
   const { isDark } = useTheme();
   const c = isDark ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
+  const webSab = useWebSafeAreaBottom();
   // On web, react-native-safe-area-context often returns bottom=0;
-  // use 34px (standard iPhone home indicator) as fallback
-  const bottomInset = Platform.OS === 'web' ? Math.max(insets.bottom, 34) : insets.bottom;
+  // measure the real CSS env(safe-area-inset-bottom) instead
+  const bottomInset = Platform.OS === 'web' ? Math.max(insets.bottom, webSab) : insets.bottom;
   
   const TabIcon = ({ Icon, focused }: any) => (
     <View style={{ alignItems: 'center', justifyContent: 'center', height: 32 }}>
