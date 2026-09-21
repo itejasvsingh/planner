@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, Modal, Pressable, Animated, Dimensions, Switch,
 import { LogOut, Shield, MessageCircle, Moon, Sun, Bell, Smartphone, Repeat, ChevronRight, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 
 import { useTheme } from '@/hooks/use-theme';
 import { useThemeMode } from '@/lib/theme-context';

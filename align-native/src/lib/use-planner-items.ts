@@ -39,7 +39,7 @@ export async function injectParsedItemsLocally(targetPhone: string | null, newIt
     const toAdd = newItems.filter(i => !existingIds.has(i.id));
     const combined = [...toAdd, ...current];
     await setItem(itemsCacheKey(effectivePhone), JSON.stringify(combined));
-    if (typeof window !== 'undefined' && window.addEventListener) {
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
       if (typeof window !== 'undefined' && window.dispatchEvent) window.dispatchEvent(new CustomEvent('align_items_updated', { detail: { phone: effectivePhone } }));
     }
   } catch (e) {
@@ -72,8 +72,8 @@ export function usePlannerItems(phone: string | null) {
       });
     };
 
-    if (typeof window !== 'undefined' && window.addEventListener) {
-      window.addEventListener('align_items_updated', handleUpdate);
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      if (typeof window.addEventListener === 'function') window.addEventListener('align_items_updated', handleUpdate);
     }
 
     (async () => {
@@ -130,7 +130,7 @@ export function usePlannerItems(phone: string | null) {
 
     return () => {
       cancelled = true;
-      if (typeof window !== 'undefined' && window.addEventListener) {
+      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
         if (typeof window !== 'undefined' && window.removeEventListener) window.removeEventListener('align_items_updated', handleUpdate);
       }
       if (retryTimer) clearTimeout(retryTimer);

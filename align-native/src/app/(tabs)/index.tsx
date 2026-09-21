@@ -11,6 +11,7 @@ import { usePlannerItems } from '@/lib/use-planner-items';
 import DrawerMenuModal from '@/components/DrawerMenuModal';
 import ItemModal from '@/components/ItemModal';
 import TaskCard from '@/components/TaskCard';
+import SegmentedControl from '@/components/SegmentedControl';
 import { triggerHaptic } from '@/lib/haptics';
 
 const FILTERS = ['All', 'Open', 'Completed'] as const;
@@ -155,7 +156,7 @@ export default function DailyScreen() {
                 accessibilityLabel={day.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 accessibilityState={{ selected }}
                 onPress={() => {
-                  triggerHaptic('selection');
+                  triggerHaptic('light');
                   setDailyDate(day);
                 }}
                 style={[
@@ -213,7 +214,7 @@ export default function DailyScreen() {
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
                 onPress={() => {
-                  triggerHaptic('selection');
+                  triggerHaptic('light');
                   setFilter(f);
                 }}
                 style={[

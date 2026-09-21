@@ -39,8 +39,8 @@ export default function TaskCard({
   const isExpense = item.type === 'expense';
   
   let IconComponent = CheckSquare;
-  let iconColor = c.textTertiary;
-  let iconBg = c.background;
+  let iconColor: string = c.textTertiary;
+  let iconBg: any = c.background;
 
   if (isExpense) {
     IconComponent = CreditCard;
@@ -94,7 +94,7 @@ export default function TaskCard({
           {item.title}
         </Text>
         
-        {(item.time || prio || overdue || subsTotal > 0 || item.amount) && (
+        {(item.dueTime || prio || overdue || subsTotal > 0 || item.amount) && (
           <View style={styles.metaRow}>
             {!!item.amount && (
                <Text style={[
@@ -108,10 +108,10 @@ export default function TaskCard({
                  {isExpense ? '-' : '+'}₹{item.amount}
                </Text>
             )}
-            {item.time && (
+            {item.dueTime && (
               <View style={[styles.pillLayout, { backgroundColor: c.background }]}>
                 <Clock color={c.textSecondary} size={12} />
-                <Text style={[Type.caption, { color: c.textSecondary }]}>{item.time}</Text>
+                <Text style={[Type.caption, { color: c.textSecondary }]}>{item.dueTime}</Text>
               </View>
             )}
             {prio && (
