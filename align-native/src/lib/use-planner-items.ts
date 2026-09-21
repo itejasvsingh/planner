@@ -331,6 +331,13 @@ export function usePlannerItems(phone: string | null) {
     [_saveNewItem],
   );
 
+  const addItem = useCallback(
+    async (item: Omit<PlannerItem, 'id' | 'createdAt' | 'ownerId'>) => {
+      return _saveNewItem(item);
+    },
+    [_saveNewItem]
+  );
+  
   const addExpense = useCallback(
     async (input: { 
       title: string; 
@@ -501,8 +508,7 @@ export function usePlannerItems(phone: string | null) {
     toggleSubtask,
     deleteSubtask,
     addTask, 
-    addExpense, 
-    addGoal, 
+    addItem, addExpense, addGoal, 
     updateGoalProgress,
     saveSplit,
     toggleSplit

@@ -1,0 +1,200 @@
+import { Modal, View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
+import { Colors, Radius, Shadow, Type } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
+import { X, Trash2, Coffee, ShoppingBag, Car, Zap, Heart, Ticket, Wallet, Briefcase, Plus } from 'lucide-react-native';
+import { useState, useEffect } from 'react';
+import SegmentedControl from './SegmentedControl';
+
+interface TransactionSheetProps {
+    visible: boolean;
+    onClose: () => void;
+    item: any | null; // null means adding a new item
+    onSave: (updates: any) => Promise<void>;
+    onDelete?: (id: string) => Promise<void>;
+}
+
+const EXPENSE_CATEGORIES = [
+    { name: 'Food', icon: Coffee },
+    { name: 'Shopping', icon: ShoppingBag },
+    { name: 'Transport', icon: Car },
+    { name: 'Bills', icon: Zap },
+    { name: 'Entertainment', icon: Ticket },
+    { name: 'Health', icon: Heart },
+    { name: 'Other', icon: Wallet },
+];
+
+const INCOME_CATEGORIES = [
+    { name: 'Salary', icon: Briefcase },
+    { name: 'Deposit', icon: Wallet },
+    { name: 'Other', icon: Plus },
+];
+
+export default function TransactionSheet({ visible, onClose, item, onSave, onDelete }: TransactionSheetProps) {
+    const { isDark } = useTheme();
+    const c = isDark ? Colors.dark : Colors.light;
+
+    const [type, setType] = useState('expense');
+    const [title, setTitle] = useState('');
+    const [amount, setAmount] = useState('');
+    const [category, setCategory] = useState('Food');
+    const [date, setDate] = useState('');
+
+    useEffect(() => {
+        if (visible) {
+            if (item) {
+                setType(item.type === 'income' || item.type === 'deposit' ? 'income' : 'expense');
+                setTitle(item.title || '');
+                setAmount(item.amount ? String(item.amount) : '');
+                setCategory(item.category || (item.type === 'income' ? 'Salary' : 'Food'));
+                setDate(item.date || new Date().toISOString().split('T')[0]);
+            } else {
+                setType('expense');
+                setTitle('');
+                setAmount('');
+                setCategory('Food');
+                setDate(new Date().toISOString().split('T')[0]);
+            }
+        }
+    }, [visible, item]);
+
+    // Update default category when type changes
+    useEffect(() => {
+        if (!item) {
+            setCategory(type === 'income' ? 'Salary' : 'Food');
+        }
+    }, [type, item]);
+
+    const handleSave = async () => {
+        if (!amount || !title) return; // Basic validation
+        await onSave({
+            type,
+            title,
+            amount: parseFloat(amount) || 0,
+            category,
+            date
+        });
+        onClose();
+    };
+
+    const handleDelete = async () => {
+        if (item && item.id && onDelete) {
+            await onDelete(item.id);
+        }
+        onClose();
+    };
+
+    const categories = type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+
+    return (
+        <Modal visible={visible} animationType="slide" transparent>
+            <KeyboardAvoidingView 
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}
+            >
+                <View style={{ backgroundColor: c.background, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 50, maxHeight: '90%' }}>
+                    
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+                        <Text style={[Type.title, { color: c.text }]}>{item ? 'Edit Transaction' : 'New Transaction'}</Text>
+                        <Pressable onPress={onClose} style={{ padding: 8, backgroundColor: c.backgroundElement, borderRadius: Radius.pill }}>
+                            <X color={c.text} size={20} />
+                        </Pressable>
+                    </View>
+
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 20 }}>
+                        <SegmentedControl 
+                            tabs={['Expense', 'Income']} 
+                            activeTab={type === 'expense' ? 'Expense' : 'Income'} 
+                            onTabChange={(t) => setType(t.toLowerCase())} 
+                        />
+
+                        {/* Huge Amount Input */}
+                        <View style={{ alignItems: 'center', paddingVertical: 10 }}>
+                            <Text style={[Type.caption, { color: c.textTertiary, marginBottom: 8 }]}>Amount</Text>
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                <Text style={[Type.displayLg, { color: type === 'income' ? c.income : c.text, marginRight: 4 }]}>$</Text>
+                                <TextInput 
+                                    value={amount}
+                                    onChangeText={setAmount}
+                                    keyboardType="decimal-pad"
+                                    placeholder="0.00"
+                                    placeholderTextColor={c.textTertiary}
+                                    style={[Type.displayLg, { color: type === 'income' ? c.income : c.text, minWidth: 100, textAlign: 'center' }]}
+                                    autoFocus={!item}
+                                />
+                            </View>
+                        </View>
+
+                        {/* Title & Date Row */}
+                        <View style={{ flexDirection: 'row', gap: 12 }}>
+                            <View style={{ flex: 2 }}>
+                                <Text style={[Type.label, { color: c.textSecondary, marginBottom: 8 }]}>Title</Text>
+                                <TextInput 
+                                    value={title}
+                                    onChangeText={setTitle}
+                                    placeholder="What was this for?"
+                                    placeholderTextColor={c.textTertiary}
+                                    style={{ backgroundColor: c.backgroundElement, color: c.text, padding: 16, borderRadius: Radius.md, fontSize: 16 }}
+                                />
+                            </View>
+                            <View style={{ flex: 1.5 }}>
+                                <Text style={[Type.label, { color: c.textSecondary, marginBottom: 8 }]}>Date</Text>
+                                <TextInput 
+                                    value={date}
+                                    onChangeText={setDate}
+                                    style={{ backgroundColor: c.backgroundElement, color: c.text, padding: 16, borderRadius: Radius.md, fontSize: 16 }}
+                                />
+                            </View>
+                        </View>
+
+                        {/* Category Selector */}
+                        <View>
+                            <Text style={[Type.label, { color: c.textSecondary, marginBottom: 8 }]}>Category</Text>
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingVertical: 4 }}>
+                                {categories.map(cat => {
+                                    const isSelected = category === cat.name;
+                                    const Icon = cat.icon;
+                                    return (
+                                        <Pressable 
+                                            key={cat.name} 
+                                            onPress={() => setCategory(cat.name)}
+                                            style={[{ 
+                                                flexDirection: 'row', alignItems: 'center', gap: 8, 
+                                                paddingHorizontal: 16, paddingVertical: 12, 
+                                                borderRadius: Radius.pill, 
+                                                backgroundColor: c.backgroundElement 
+                                            }, isSelected && { backgroundColor: type === 'income' ? c.incomeSoft : c.expenseSoft }]}
+                                        >
+                                            <Icon color={isSelected ? (type === 'income' ? c.income : c.expense) : c.textSecondary} size={18} />
+                                            <Text style={[Type.body, { fontWeight: isSelected ? '600' : '500', color: isSelected ? (type === 'income' ? c.income : c.expense) : c.text }]}>
+                                                {cat.name}
+                                            </Text>
+                                        </Pressable>
+                                    );
+                                })}
+                            </ScrollView>
+                        </View>
+
+                        {/* Actions */}
+                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 10 }}>
+                            {item && (
+                                <Pressable onPress={handleDelete} style={{ flex: 1, backgroundColor: c.expenseSoft, padding: 16, borderRadius: Radius.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+                                    <Trash2 color={c.expense} size={18} />
+                                </Pressable>
+                            )}
+                            <Pressable 
+                                onPress={handleSave} 
+                                style={{ flex: item ? 3 : 1, backgroundColor: (amount && title) ? c.accent : c.border, padding: 16, borderRadius: Radius.md, alignItems: 'center', ...Shadow.raised }}
+                                disabled={!amount || !title}
+                            >
+                                <Text style={[Type.label, { color: (amount && title) ? '#FFF' : c.textTertiary, fontWeight: '700' }]}>
+                                    {item ? 'Save Changes' : 'Add Transaction'}
+                                </Text>
+                            </Pressable>
+                        </View>
+
+                    </ScrollView>
+                </View>
+            </KeyboardAvoidingView>
+        </Modal>
+    );
+}
