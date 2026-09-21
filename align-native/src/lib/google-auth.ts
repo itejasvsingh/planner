@@ -1,19 +1,8 @@
-import { GoogleSignin, statusCodes } from '@react-native-google-signin/google-signin';
-import { GoogleAuthProvider, signInWithCredential, signInWithPopup, signOut as fbSignOut } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, signOut as fbSignOut } from 'firebase/auth';
 import { Platform } from 'react-native';
 import { auth } from './firebase';
 
 export const WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
-
-if (Platform.OS !== 'web' && WEB_CLIENT_ID) {
-  try {
-    GoogleSignin.configure({
-      webClientId: WEB_CLIENT_ID,
-    });
-  } catch (e) {
-    console.warn('GoogleSignin.configure notice:', e);
-  }
-}
 
 export async function signInWithGoogle() {
   if (Platform.OS === 'web') {
@@ -23,35 +12,10 @@ export async function signInWithGoogle() {
     return userCredential.user;
   }
 
-  if (!WEB_CLIENT_ID) {
-    throw new Error('Google Sign-In is misconfigured: EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID is missing.');
-  }
-  await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
-  const response = await GoogleSignin.signIn();
-
-  // In v16, response is { type: 'success', data: User } or { type: 'cancelled' }
-  if ((response as any).type === 'cancelled') {
-    return null;
-  }
-
-  const idToken = (response as any).data?.idToken ?? (response as any).idToken;
-  if (!idToken) {
-    throw new Error('Google Sign-In succeeded but no ID token was returned.');
-  }
-
-  const credential = GoogleAuthProvider.credential(idToken);
-  const userCredential = await signInWithCredential(auth, credential);
-  return userCredential.user;
+  throw new Error('Google Sign-In is currently disabled on native apps to support Expo Go.');
 }
 
 export async function signOutGoogle() {
-  if (Platform.OS !== 'web') {
-    try {
-      await GoogleSignin.signOut();
-    } catch (e) {
-      console.warn('GoogleSignin.signOut notice:', e);
-    }
-  }
   try {
     await fbSignOut(auth);
   } catch (e) {
@@ -59,5 +23,9 @@ export async function signOutGoogle() {
   }
 }
 
-export { statusCodes };
-
+export const statusCodes = {
+  SIGN_IN_CANCELLED: 'SIGN_IN_CANCELLED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  PLAY_SERVICES_NOT_AVAILABLE: 'PLAY_SERVICES_NOT_AVAILABLE',
+  SIGN_IN_REQUIRED: 'SIGN_IN_REQUIRED'
+};

@@ -73,8 +73,7 @@
           "speechRecognitionPermission": "Allow Align to securely recognize your speech."
         }
       ],
-      "@react-native-community/datetimepicker",
-      "@react-native-google-signin/google-signin"
+      "@react-native-community/datetimepicker"
     ],
     "extra": {
       "router": {},
