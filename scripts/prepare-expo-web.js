@@ -80,16 +80,12 @@ const pwaHeadSnippet = `
       --sab: env(safe-area-inset-bottom, 0px);
       --sal: env(safe-area-inset-left, 0px);
       --sar: env(safe-area-inset-right, 0px);
-      /* Fallback before the early script below runs; overwritten in real pixels immediately after. */
-      --app-height: 100vh;
     }
     html, body {
       margin: 0;
       padding: 0;
       height: 100%;
       height: 100dvh;
-      height: var(--app-height);
-      
       width: 100%;
       
       overscroll-behavior-y: none;
@@ -99,13 +95,17 @@ const pwaHeadSnippet = `
       user-select: none;
       -webkit-user-select: none;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+      overflow: hidden;
     }
     #root {
-      height: 100%;
-      height: 100dvh;
-      height: var(--app-height);
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
       display: flex;
       flex-direction: column;
+      overflow: hidden;
     }
     input, textarea {
       user-select: auto;
@@ -143,25 +143,6 @@ const pwaHeadSnippet = `
   </style>
 
   <script>
-    // Real viewport height, not CSS's guess. iOS standalone PWAs can end up with
-    // 100%/100vh/100dvh resolving a bit taller than the actual visible area (the
-    // gap between the two shows up as dead space wherever content is bottom-pinned,
-    // e.g. the tab bar) — window.visualViewport.height is the one number that
-    // reliably matches what's really on screen. Runs before any React content
-    // paints and again on every resize/orientation change/keyboard show-hide.
-    (function() {
-      function setAppHeight() {
-        var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-        document.documentElement.style.setProperty('--app-height', h + 'px');
-      }
-      setAppHeight();
-      window.addEventListener('resize', setAppHeight);
-      window.addEventListener('orientationchange', setAppHeight);
-      if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', setAppHeight);
-      }
-    })();
-
     // URL phone login helper
     try {
       var params = new URLSearchParams(window.location.search);

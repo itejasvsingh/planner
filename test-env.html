@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<style>
+  body { margin: 0; padding: 0; height: 100vh; background: red; }
+  .safe { position: absolute; bottom: 0; left: 0; right: 0; height: env(safe-area-inset-bottom); background: blue; }
+  .text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 20px; color: white; }
+</style>
+</head>
+<body>
+  <div class="safe" id="safe"></div>
+  <div class="text" id="out">Measuring...</div>
+  <script>
+    setTimeout(() => {
+      const el = document.getElementById('safe');
+      const h = el.getBoundingClientRect().height;
+      document.getElementById('out').innerText = "Safe area: " + h + "px";
+    }, 1000);
+  </script>
+</body>
+</html>
