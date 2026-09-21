@@ -1,4 +1,3 @@
-
 import { Tabs } from 'expo-router';
 import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -46,12 +45,8 @@ export default function TabsLayout() {
             bottom: 0,
             left: 0,
             right: 0,
-            height: Platform.OS === 'web'
-              ? ('calc(54px + env(safe-area-inset-bottom, 0px))' as any)
-              : (54 + insets.bottom),
-            paddingBottom: Platform.OS === 'web'
-              ? ('env(safe-area-inset-bottom, 0px)' as any)
-              : insets.bottom,
+            height: 54 + insets.bottom,
+            paddingBottom: insets.bottom,
             paddingTop: 0,
             marginBottom: 0,
           },

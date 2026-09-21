@@ -6,9 +6,10 @@
 - Local:         http://localhost:3000
 - Network:       http://192.168.0.146:3000
 - Environments: .env.local
-✓ Ready in 272ms
-✓ Running next.config.ts took 98ms
+✓ Ready in 132ms
+✓ Running next.config.ts took 11ms
 
+ POST /api/webhook 200 in 552ms (next.js: 477ms, application-code: 76ms)
 💬 Text from 918130595547: Buy milk
 Gemini Key length: 39
 Fetching session for 918130595547
@@ -16,16 +17,16 @@ Session fetched: true
 ⚠️ Cached model gemini-2.5-flash failed (400), clearing cache to find working model...
 ⚠️ Invalid Gemini API key, skipping multi-model retry to use heuristics immediately
 ⚠️ Gemini AI parse failed in webhook, using fallback heuristics: Error: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: [400 Bad Request] API key not valid. Please pass a valid API key. [{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"API_KEY_INVALID","domain":"googleapis.com","metadata":{"service":"generativelanguage.googleapis.com"}},{"@type":"type.googleapis.com/google.rpc.LocalizedMessage","locale":"en-US","message":"API key not valid. Please pass a valid API key."}]
-    at async generateWithGemini (app/api/webhook/route.ts:372:28)
-    at async processTextQuery (app/api/webhook/route.ts:1293:32)
-    at async POST (app/api/webhook/route.ts:80:25)
-  370 |                 requestOptions
-  371 |             );
-> 372 |             const result = await model.generateContent(contents);
+    at async generateWithGemini (app/api/webhook/route.ts:371:28)
+    at async processTextQuery (app/api/webhook/route.ts:1292:32)
+    at async eval (app/api/webhook/route.ts:78:25)
+  369 |                 requestOptions
+  370 |             );
+> 371 |             const result = await model.generateContent(contents);
       |                            ^
-  373 |             // Cache successful model so all subsequent turns execute with 0 fallback latency!
-  374 |             cachedWorkingConfig = item;
-  375 |             console.log(`⚡ Cached working Gemini model: ${item.model}`); {
+  372 |             // Cache successful model so all subsequent turns execute with 0 fallback latency!
+  373 |             cachedWorkingConfig = item;
+  374 |             console.log(`⚡ Cached working Gemini model: ${item.model}`); {
   status: 400,
   statusText: 'Bad Request',
   errorDetails: [
@@ -42,6 +43,5 @@ Session fetched: true
     }
   ]
 }
-✅ Saved reminder to Firebase: "Buy milk" on 2026-09-20 
+✅ Saved reminder to Firebase: "Buy milk" on 2026-09-21 
 ✅ WhatsApp interactive buttons delivered to 918130595547
- POST /api/webhook 200 in 3.2s (next.js: 1219ms, application-code: 2.0s)
