@@ -87,7 +87,7 @@ const pwaHeadSnippet = `
       height: 100%;
       
       width: 100%;
-      background-color: #0F172A;
+      
       overscroll-behavior-y: none;
       -webkit-tap-highlight-color: transparent;
       -webkit-font-smoothing: antialiased;
@@ -99,18 +99,6 @@ const pwaHeadSnippet = `
     input, textarea {
       user-select: auto;
       -webkit-user-select: auto;
-    }
-    #root {
-      height: 100%;
-      width: 100%;
-      display: flex;
-      flex-direction: column;
-      background-color: #0F172A;
-    }
-    @media (prefers-color-scheme: light) {
-      html, body, #root {
-        background-color: #F4F7F6;
-      }
     }
     input, textarea, select { font-size: 16px; }
     :focus-visible { outline: 2px solid #137C66; outline-offset: 3px; }
