@@ -12,13 +12,7 @@ import { injectParsedItemsLocally } from '@/lib/use-planner-items';
 let ExpoSpeechRecognitionModule: any = null;
 let useSpeechRecognitionEvent: any = () => {};
 
-try {
-  const SpeechModule = require('expo-speech-recognition');
-  ExpoSpeechRecognitionModule = SpeechModule.ExpoSpeechRecognitionModule;
-  useSpeechRecognitionEvent = SpeechModule.useSpeechRecognitionEvent;
-} catch {
-  console.warn('Speech recognition native module not found - running in Expo Go mode.');
-}
+console.warn('Speech recognition explicitly disabled in this build to support Expo Go.');
 
 // Always use the explicitly configured API URL (fails fast if missing)
 const API_BASE = Platform.OS === 'web' ? '' : process.env.EXPO_PUBLIC_API_URL;

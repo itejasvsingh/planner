@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CreditCard, ShoppingBag, Coffee, Car, Home, Wallet, TrendingDown, TrendingUp } from 'lucide-react-native';
+import { CreditCard, ShoppingBag, Coffee, Car, Home, Wallet, TrendingDown, TrendingUp, Plus } from 'lucide-react-native';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems, useBudgetLimits } from '@/lib/use-planner-items';
 import { Colors, Radius, Shadow, Type } from '@/constants/theme';
@@ -29,7 +29,7 @@ export default function FinanceScreen() {
   const c = theme.isDark ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
   
-  const { items, updateItem, deleteItem } = usePlannerItems(phone);
+  const { items, updateItem, deleteItem, addExpense } = usePlannerItems(phone);
   const { budgetLimits: limits } = useBudgetLimits(phone);
 
   const budget = limits?.monthlyBudget || 50000;
@@ -167,14 +167,35 @@ export default function FinanceScreen() {
 
             {activeTab === 'Insights' ? renderInsights() : renderTransactions()}
 
+        
+            <Pressable 
+                onPress={() => setEditingItem({ id: 'new', type: 'expense', amount: 0, title: '', category: '', date: new Date().toISOString().split('T')[0] })}
+                style={{
+                    backgroundColor: c.accent,
+                    width: 56, height: 56,
+                    borderRadius: 28,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'absolute',
+                    bottom: 24, right: 24,
+                    ...Shadow.raised
+                }}>
+                <Plus color="#FFF" size={24} />
+            </Pressable>
         </ScrollView>
 
         <EditTransactionSheet 
             visible={!!editingItem} 
             item={editingItem} 
             onClose={() => setEditingItem(null)} 
-            onSave={async (updates) => {
-                if (editingItem) await updateItem(editingItem.id, updates);
+                        onSave={async (updates) => {
+                if (editingItem) {
+                    if (editingItem.id === 'new') {
+                        await addExpense({ ...updates, date: updates.date || new Date().toISOString().split('T')[0] });
+                    } else {
+                        await updateItem(editingItem.id, updates);
+                    }
+                }
             }}
             onDelete={async (id) => {
                 await deleteItem(id);

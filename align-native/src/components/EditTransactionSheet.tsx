@@ -41,11 +41,13 @@ export default function EditTransactionSheet({ visible, onClose, item, onSave, o
     };
 
     const handleDelete = async () => {
+        if (!item || item.id === 'new') { onClose(); return; }
+
         await onDelete(item.id);
         onClose();
     };
 
-    if (!item) return null;
+    
 
     return (
         <Modal visible={visible} animationType="slide" transparent>
