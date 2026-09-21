@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { Platform, View } from 'react-native';
+import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ListTodo, Calendar, Wallet, Target } from 'lucide-react-native';
 import { BlurView } from 'expo-blur';
@@ -45,8 +45,8 @@ export default function TabsLayout() {
             bottom: 0,
             left: 0,
             right: 0,
-            height: Platform.OS === 'web' ? ('calc(60px + env(safe-area-inset-bottom, 0px))' as any) : 60 + insets.bottom,
-            paddingBottom: Platform.OS === 'web' ? ('env(safe-area-inset-bottom, 0px)' as any) : insets.bottom,
+            height: 60 + insets.bottom,
+            paddingBottom: insets.bottom,
             paddingTop: 0,
             marginBottom: 0,
           },
