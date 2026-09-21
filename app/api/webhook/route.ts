@@ -9,7 +9,7 @@ const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKE
 if (!API_TOKEN) {
   console.error("FATAL: WHATSAPP_API_TOKEN or META_ACCESS_TOKEN env var is not set");
 }
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.META_VERIFY_TOKEN;
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.META_VERIFY_TOKEN || "my_align_secure_token_123";
 if (!VERIFY_TOKEN) {
   console.error("FATAL: WHATSAPP_VERIFY_TOKEN env var is not set");
 }
