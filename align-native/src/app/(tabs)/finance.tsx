@@ -87,7 +87,7 @@ export default function FinanceScreen() {
                   {categoryTotals.map(cat => (
                       <View key={cat.name} style={[styles.rowItem, { backgroundColor: c.backgroundElement }]}>
                           <View style={[styles.iconBox, { backgroundColor: c.accentSoft }]}>
-                              <cat.icon color={c.accent} size={20} />
+                              {(() => { const Icon = cat.icon; return <Icon color={c.accent} size={20} />; })()}
                           </View>
                           <View style={{ flex: 1 }}>
                               <Text style={[Type.body, { color: c.text, fontWeight: '600' }]}>{cat.name}</Text>
