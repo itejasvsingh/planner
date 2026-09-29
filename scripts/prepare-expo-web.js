@@ -63,7 +63,7 @@ const pwaHeadSnippet = `
   <!-- iOS Native & Dynamic Island Optimization -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Align">
   <meta name="theme-color" content="#0A0B0F">
   <meta name="format-detection" content="telephone=no">
@@ -119,6 +119,19 @@ const pwaHeadSnippet = `
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
     }
+    /* iOS standalone bug: the window is laid out safe-area-top shorter than the screen but drawn from y=0,
+       so the bottom strip stays unpainted. Fixed-position boxes don't extend the document, so give it real
+       (in-flow) height to the full screen. Toggled by the script below only when the bug is detected. */
+    html.ios-gap-fix, html.ios-gap-fix body {
+      position: relative;
+      top: auto;
+      bottom: auto;
+      height: var(--ios-fill-h);
+    }
+    html.ios-gap-fix #root {
+      bottom: auto;
+      height: var(--ios-fill-h);
+    }
     /* iOS Install banner styling */
     #ios-install-banner {
       position: fixed;
@@ -146,6 +159,45 @@ const pwaHeadSnippet = `
   </style>
 
   <script>
+    // iOS standalone bottom-gap workaround (see .ios-gap-fix above)
+    (function() {
+      var mq = window.matchMedia && window.matchMedia('(display-mode: standalone)');
+      if (!(window.navigator.standalone === true || (mq && mq.matches))) return;
+      if (!/iPhone|iPad|iPod/.test(navigator.userAgent)) return;
+      var probe;
+      function safeTop() {
+        if (!probe) {
+          probe = document.createElement('div');
+          probe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px);';
+          document.documentElement.appendChild(probe);
+        }
+        return parseFloat(getComputedStyle(probe).paddingTop) || 0;
+      }
+      function fit() {
+        var de = document.documentElement;
+        var full = window.screen.height;
+        var top = safeTop();
+        var bug = window.innerWidth < window.innerHeight && top > 0 && window.innerHeight <= full - top + 2;
+        if (bug) {
+          de.style.setProperty('--ios-fill-h', full + 'px');
+          de.classList.add('ios-gap-fix');
+        } else {
+          de.classList.remove('ios-gap-fix');
+        }
+      }
+      // The taller document can scroll by the gap height; keep it pinned unless an input is being edited
+      function unscroll() {
+        var a = document.activeElement;
+        if ((window.scrollY || window.scrollX) && !(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) window.scrollTo(0, 0);
+      }
+      fit();
+      window.addEventListener('resize', fit);
+      window.addEventListener('orientationchange', function() { setTimeout(fit, 300); });
+      document.addEventListener('visibilitychange', fit);
+      window.addEventListener('scroll', unscroll, { passive: true });
+      document.addEventListener('focusout', function() { setTimeout(unscroll, 50); });
+    })();
+
     // URL phone login helper
     try {
       var params = new URLSearchParams(window.location.search);
