@@ -79,7 +79,7 @@ export default function LoginScreen() {
   const showPhoneStep = Boolean(firebaseUser && needsPhoneSetup);
   
   const insets = useSafeAreaInsets();
-  const topPadding = Platform.OS === 'web' ? 64 : Math.max(insets.top, 52);
+  const topPadding = Platform.OS === 'web' ? insets.top + 8 : Math.max(insets.top, 52);
 
   return (
     <View style={[styles.safe, { backgroundColor: theme.background, paddingTop: topPadding }]}>

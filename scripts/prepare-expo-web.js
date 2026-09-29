@@ -63,7 +63,7 @@ const pwaHeadSnippet = `
   <!-- iOS Native & Dynamic Island Optimization -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="apple-mobile-web-app-title" content="Align">
   <meta name="theme-color" content="#0A0B0F">
   <meta name="format-detection" content="telephone=no">
@@ -146,44 +146,6 @@ const pwaHeadSnippet = `
   </style>
 
   <script>
-    // TEMP-DEBUG (remove after diagnosing iOS PWA bottom gap): on-screen viewport readout in standalone mode
-    (function() {
-      var mq = window.matchMedia && window.matchMedia('(display-mode: standalone)');
-      var standalone = window.navigator.standalone === true || (mq && mq.matches);
-      if (!standalone && location.search.indexOf('debug') === -1) return;
-      document.addEventListener('DOMContentLoaded', function() {
-        var probe = document.createElement('div');
-        probe.style.cssText = 'position:fixed;top:0;left:0;width:0;visibility:hidden;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);';
-        document.body.appendChild(probe);
-        var box = document.createElement('pre');
-        box.id = 'align-debug-overlay';
-        box.style.cssText = 'position:fixed;top:64px;left:8px;right:8px;margin:0;padding:6px 8px;z-index:2147483647;background:rgba(0,0,0,0.85);color:#7CFC9A;font:10px/1.3 ui-monospace,Menlo,monospace;white-space:pre-wrap;border-radius:8px;pointer-events:none;';
-        document.body.appendChild(box);
-        function r(el) {
-          if (!el) return 'none';
-          var b = el.getBoundingClientRect();
-          return Math.round(b.top) + '..' + Math.round(b.bottom) + ' h' + Math.round(b.height);
-        }
-        function update() {
-          var vv = window.visualViewport;
-          var cs = getComputedStyle(probe);
-          var tab = document.querySelector('[role=tablist]');
-          box.textContent =
-            'inner ' + innerWidth + 'x' + innerHeight + '  outerH ' + outerHeight + '\\n' +
-            'screen ' + screen.width + 'x' + screen.height + '  avail ' + screen.availHeight + '\\n' +
-            'vv ' + (vv ? Math.round(vv.width) + 'x' + Math.round(vv.height) + ' top' + Math.round(vv.offsetTop) + ' scale' + vv.scale : 'n/a') + '\\n' +
-            'safe top ' + cs.paddingTop + ' bottom ' + cs.paddingBottom + '\\n' +
-            'clientH html ' + document.documentElement.clientHeight + ' body ' + document.body.clientHeight + '\\n' +
-            'html ' + r(document.documentElement) + '\\nbody ' + r(document.body) + '\\n#root ' + r(document.getElementById('root')) + '\\ntabbar ' + r(tab) + '\\n' +
-            'scrollY ' + Math.round(window.scrollY) + '  nav.standalone ' + window.navigator.standalone + '  dm-standalone ' + !!(mq && mq.matches) + '\\n' +
-            'vh probe ' + (function(){ var d=document.createElement('div'); d.style.cssText='position:fixed;height:100vh;width:0;visibility:hidden'; document.body.appendChild(d); var h=d.getBoundingClientRect().height; d.remove(); var e=document.createElement('div'); e.style.cssText='position:fixed;height:100dvh;width:0;visibility:hidden'; document.body.appendChild(e); var h2=e.getBoundingClientRect().height; e.remove(); var f=document.createElement('div'); f.style.cssText='position:fixed;height:100lvh;width:0;visibility:hidden'; document.body.appendChild(f); var h3=f.getBoundingClientRect().height; f.remove(); return 'vh ' + Math.round(h) + ' dvh ' + Math.round(h2) + ' lvh ' + Math.round(h3); })();
-        }
-        update();
-        setInterval(update, 700);
-        window.addEventListener('resize', update);
-      });
-    })();
-
     // URL phone login helper
     try {
       var params = new URLSearchParams(window.location.search);

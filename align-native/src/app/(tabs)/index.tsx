@@ -77,7 +77,7 @@ export default function DailyScreen() {
 
   // Safe area top padding for Dynamic Island / Chrome iOS Web App
   const topPadding = Platform.OS === 'web'
-    ? 64
+    ? insets.top + 8
     : Math.max(insets.top, 52);
 
   return (
