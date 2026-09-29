@@ -2,6 +2,7 @@ import { NextResponse, after } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db } from '../../../lib/firebase';
 import { runDailySummaryForUser } from '../../../lib/dailySummary';
+import { verifyMetaSignature } from '../../../lib/apiAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,9 +10,13 @@ const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKE
 if (!API_TOKEN) {
   console.error("FATAL: WHATSAPP_API_TOKEN or META_ACCESS_TOKEN env var is not set");
 }
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.META_VERIFY_TOKEN || "my_align_secure_token_123";
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.META_VERIFY_TOKEN;
 if (!VERIFY_TOKEN) {
   console.error("FATAL: WHATSAPP_VERIFY_TOKEN env var is not set");
+}
+const APP_SECRET = process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET;
+if (!APP_SECRET) {
+  console.error("FATAL: WHATSAPP_APP_SECRET or META_APP_SECRET env var is not set; incoming webhooks will be rejected");
 }
 const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
 if (!PHONE_ID) {
@@ -48,7 +53,13 @@ export async function GET(req: Request) {
 // ==========================================
 export async function POST(req: Request) {
     try {
-        const body = await req.json();
+        // Verify Meta's signature over the raw body before trusting anything in it
+        const rawBody = await req.text();
+        if (!verifyMetaSignature(rawBody, req.headers.get('x-hub-signature-256'), APP_SECRET)) {
+            console.warn('⚠️ Rejected webhook POST with missing/invalid signature');
+            return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+        }
+        const body = JSON.parse(rawBody);
 
         // Ensure this is a WhatsApp status update/message
         if (body.object !== 'whatsapp_business_account') {

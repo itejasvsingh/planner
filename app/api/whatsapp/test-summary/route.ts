@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { runDailySummaryForUser } from '../../../../lib/dailySummary';
+import { consumeRateLimit } from '../../../../lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,8 +21,18 @@ export async function GET(req: Request) {
         const { searchParams } = new URL(req.url);
         const phone = searchParams.get('phone');
         
-        if (!phone) {
-            return NextResponse.json({ error: 'Phone is required' }, { status: 400, headers: corsHeaders() });
+        if (!phone || phone.replace(/\D/g, '').length < 10) {
+            return NextResponse.json({ error: 'A valid phone is required' }, { status: 400, headers: corsHeaders() });
+        }
+
+        // Unauthenticated endpoint that sends a real WhatsApp message: cap per-number and per-IP volume (fails closed)
+        const digits = phone.replace(/\D/g, '');
+        const ip = (req.headers.get('x-forwarded-for')?.split(',')[0].trim()) || req.headers.get('x-real-ip') || 'unknown-ip';
+        const HOUR = 60 * 60 * 1000;
+        const allowed = (await consumeRateLimit(`summary_phone_${digits}`, 5, HOUR)) &&
+            (await consumeRateLimit(`summary_ip_${ip}`, 20, HOUR));
+        if (!allowed) {
+            return NextResponse.json({ error: 'Too many summary requests. Try again later.' }, { status: 429, headers: corsHeaders() });
         }
 
         const result = await runDailySummaryForUser(phone, { force: true });
