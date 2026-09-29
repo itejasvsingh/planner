@@ -111,3 +111,7 @@ export const Spacing = {
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
 export const MaxContentWidth = 800;
+
+export const TabBarHeight = 60;
+/** Space under the tab items: the home indicator needs ~20pt, not the full 34pt safe-area inset. */
+export const tabBarBottomPadding = (bottomInset: number) => Math.max(bottomInset - 14, 0);

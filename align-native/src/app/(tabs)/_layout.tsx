@@ -1,6 +1,6 @@
 import NotificationsManager from '@/components/NotificationsManager';
 import QuickAddBar from '@/components/QuickAddBar';
-import { Colors, Shadow } from '@/constants/theme';
+import { Colors, Shadow, TabBarHeight, tabBarBottomPadding } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
@@ -31,6 +31,7 @@ export default function TabsLayout() {
   // On web, react-native-safe-area-context often returns bottom=0;
   // measure the real CSS env(safe-area-inset-bottom) instead
   const bottomInset = Platform.OS === 'web' ? Math.max(insets.bottom, webSab) : insets.bottom;
+  const tabPad = tabBarBottomPadding(bottomInset);
   
   const TabIcon = ({ Icon, focused }: any) => (
     <View style={{ alignItems: 'center', justifyContent: 'center', height: 32 }}>
@@ -64,8 +65,8 @@ export default function TabsLayout() {
             bottom: 0,
             left: 0,
             right: 0,
-            height: 60 + bottomInset,
-            paddingBottom: bottomInset,
+            height: TabBarHeight + tabPad,
+            paddingBottom: tabPad,
             paddingTop: 0,
             marginBottom: 0,
           },

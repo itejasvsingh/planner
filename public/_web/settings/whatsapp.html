@@ -455,6 +455,19 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
     }
+    /* iOS standalone bug: the window is laid out safe-area-top shorter than the screen but drawn from y=0,
+       so the bottom strip stays unpainted. Fixed-position boxes don't extend the document, so give it real
+       (in-flow) height to the full screen. Toggled by the script below only when the bug is detected. */
+    html.ios-gap-fix, html.ios-gap-fix body {
+      position: relative;
+      top: auto;
+      bottom: auto;
+      height: var(--ios-fill-h);
+    }
+    html.ios-gap-fix #root {
+      bottom: auto;
+      height: var(--ios-fill-h);
+    }
     /* iOS Install banner styling */
     #ios-install-banner {
       position: fixed;
@@ -482,6 +495,45 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
   </style>
 
   <script>
+    // iOS standalone bottom-gap workaround (see .ios-gap-fix above)
+    (function() {
+      var mq = window.matchMedia && window.matchMedia('(display-mode: standalone)');
+      if (!(window.navigator.standalone === true || (mq && mq.matches))) return;
+      if (!/iPhone|iPad|iPod/.test(navigator.userAgent)) return;
+      var probe;
+      function safeTop() {
+        if (!probe) {
+          probe = document.createElement('div');
+          probe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top,0px);';
+          document.documentElement.appendChild(probe);
+        }
+        return parseFloat(getComputedStyle(probe).paddingTop) || 0;
+      }
+      function fit() {
+        var de = document.documentElement;
+        var full = window.screen.height;
+        var top = safeTop();
+        var bug = window.innerWidth < window.innerHeight && top > 0 && window.innerHeight <= full - top + 2;
+        if (bug) {
+          de.style.setProperty('--ios-fill-h', full + 'px');
+          de.classList.add('ios-gap-fix');
+        } else {
+          de.classList.remove('ios-gap-fix');
+        }
+      }
+      // The taller document can scroll by the gap height; keep it pinned unless an input is being edited
+      function unscroll() {
+        var a = document.activeElement;
+        if ((window.scrollY || window.scrollX) && !(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) window.scrollTo(0, 0);
+      }
+      fit();
+      window.addEventListener('resize', fit);
+      window.addEventListener('orientationchange', function() { setTimeout(fit, 300); });
+      document.addEventListener('visibilitychange', fit);
+      window.addEventListener('scroll', unscroll, { passive: true });
+      document.addEventListener('focusout', function() { setTimeout(unscroll, 50); });
+    })();
+
     // URL phone login helper
     try {
       var params = new URLSearchParams(window.location.search);
@@ -543,7 +595,7 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
       if (banner) banner.style.display = 'none';
     }
   </script>
-</head><body><div id="root"><div class="css-g5y9jx r-13awgt0"><!--$--><div class="css-g5y9jx r-13awgt0"><div class="css-g5y9jx" style="flex:1"><div class="css-g5y9jx" style="flex:1;align-items:center;justify-content:center;background-color:rgba(244,245,247,1.00)"><div role="progressbar" aria-valuemax="1" aria-valuemin="0" class="css-g5y9jx r-1awozwy r-1777fci"><div class="css-g5y9jx r-z80fyv r-19wmn03 r-17bb2tj r-1muvv40 r-1yef0xd r-1ldzwu0"><svg height="100%" viewBox="0 0 32 32" width="100%"><circle cx="16" cy="16" fill="none" r="14" stroke-width="4" style="stroke:#1976D2;opacity:0.2"></circle><circle cx="16" cy="16" fill="none" r="14" stroke-width="4" style="stroke:#1976D2;stroke-dasharray:80;stroke-dashoffset:60"></circle></svg></div></div></div></div></div><!--/$--></div></div><script src="/_expo/static/js/web/entry-e5bc5d5e089e91be83423a2990f65840.js" defer></script>
+</head><body><div id="root"><div class="css-g5y9jx r-13awgt0"><!--$--><div class="css-g5y9jx r-13awgt0"><div class="css-g5y9jx" style="flex:1"><div class="css-g5y9jx" style="flex:1;align-items:center;justify-content:center;background-color:rgba(244,245,247,1.00)"><div role="progressbar" aria-valuemax="1" aria-valuemin="0" class="css-g5y9jx r-1awozwy r-1777fci"><div class="css-g5y9jx r-z80fyv r-19wmn03 r-17bb2tj r-1muvv40 r-1yef0xd r-1ldzwu0"><svg height="100%" viewBox="0 0 32 32" width="100%"><circle cx="16" cy="16" fill="none" r="14" stroke-width="4" style="stroke:#1976D2;opacity:0.2"></circle><circle cx="16" cy="16" fill="none" r="14" stroke-width="4" style="stroke:#1976D2;stroke-dasharray:80;stroke-dashoffset:60"></circle></svg></div></div></div></div></div><!--/$--></div></div><script src="/_expo/static/js/web/entry-4e4936ed47afa28efe47bab3d4580d19.js" defer></script>
 
 <div id="ios-install-banner">
   <div style="display:flex; align-items:flex-start; gap:14px;">
