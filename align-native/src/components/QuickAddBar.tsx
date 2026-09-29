@@ -145,8 +145,8 @@ export default function QuickAddBar() {
     document.body.removeChild(el);
   }, []);
   const bottomInset = Platform.OS === 'web' ? Math.max(insets.bottom, webSab) : insets.bottom;
-  // Tab bar is 60 + inset tall (see (tabs)/_layout.tsx); keep an 8px gap above it
-  const quickAddBottom = 68 + bottomInset;
+  // Sit 8px above the tab bar (see (tabs)/_layout.tsx)
+  const quickAddBottom = TabBarHeight + tabBarBottomPadding(bottomInset) + 8;
 
   return (
     <KeyboardAvoidingView 
@@ -196,7 +196,7 @@ export default function QuickAddBar() {
   );
 }
 
-import { Radius, Shadow } from '@/constants/theme';
+import { Radius, Shadow, TabBarHeight, tabBarBottomPadding } from '@/constants/theme';
 const styles = StyleSheet.create({
   feedback: { padding: 12, borderRadius: Radius.md, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 10 },
   keyboardView: {
