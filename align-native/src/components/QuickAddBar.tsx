@@ -145,7 +145,8 @@ export default function QuickAddBar() {
     document.body.removeChild(el);
   }, []);
   const bottomInset = Platform.OS === 'web' ? Math.max(insets.bottom, webSab) : insets.bottom;
-  const quickAddBottom = 58 + bottomInset;
+  // Tab bar is 60 + inset tall (see (tabs)/_layout.tsx); keep an 8px gap above it
+  const quickAddBottom = 68 + bottomInset;
 
   return (
     <KeyboardAvoidingView 
