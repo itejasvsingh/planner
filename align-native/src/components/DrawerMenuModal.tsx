@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, Animated, Dimensions, Switch, Alert, ScrollView, Platform } from 'react-native';
-import { LogOut, Shield, MessageCircle, Moon, Sun, Bell, Smartphone, Repeat, ChevronRight, X, Check } from 'lucide-react-native';
+import { View, Text, StyleSheet, Modal, Pressable, Animated, Switch, Alert, ScrollView, Platform, useWindowDimensions } from 'react-native';
+import { LogOut, Shield, MessageCircle, Moon, Sun, Bell, BellRing, Smartphone, Repeat, ChevronRight, X, Check } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
@@ -19,8 +19,7 @@ interface DrawerMenuModalProps {
   onClose: () => void;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const DRAWER_WIDTH = Math.min(SCREEN_WIDTH * 0.85, 400);
+const CLOSE_MS = 220;
 
 export function format12Hour(timeStr: string) {
   if (!timeStr) return '';
@@ -36,12 +35,16 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
   const insets = useSafeAreaInsets();
   const { phone, firebaseUser, logout } = usePhone();
   const router = useRouter();
+  const { width: windowWidth } = useWindowDimensions();
+  const drawerWidth = Math.min(windowWidth * 0.85, 400);
 
   const topPadding = Platform.OS === 'web'
     ? insets.top + 8
     : Math.max(insets.top, 52);
 
-  const [slideAnim] = useState(() => new Animated.Value(-DRAWER_WIDTH));
+  // Stay mounted until the close animation finishes (Modal would otherwise vanish instantly)
+  const [mounted, setMounted] = useState(visible);
+  const [slideAnim] = useState(() => new Animated.Value(-drawerWidth));
   const [fadeAnim] = useState(() => new Animated.Value(0));
 
   // State
@@ -54,11 +57,17 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
   const [dailySummaryTime, setDailySummaryTime] = useState('22:00');
 
   useEffect(() => {
+    if (!visible) return;
     isSecurityEnabled().then(setSecurityActive);
+    if (Platform.OS === 'web') return;
+    Notifications.getPermissionsAsync()
+      .then(({ status }) => setPushEnabled(status === 'granted'))
+      .catch(() => setPushEnabled(false));
   }, [visible]);
 
+  // Listen to preferences only while the menu is open; it is mounted on every tab
   useEffect(() => {
-    if (!phone) return;
+    if (!phone || !visible) return;
     const unsubscribe = onSnapshot(
       doc(db, 'planner_settings', `preferences_${phone}`),
       (d) => {
@@ -74,32 +83,30 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
       }
     );
     return () => unsubscribe();
-  }, [phone]);
+  }, [phone, visible]);
 
   useEffect(() => {
-    if (Platform.OS === 'web') return;
-    Notifications.getPermissionsAsync().then(({ status }) => {
-      setPushEnabled(status === 'granted');
-    }).catch(() => setPushEnabled(false));
-  }, [visible]);
-
-  useEffect(() => {
+    const useNativeDriver = Platform.OS !== 'web';
     if (visible) {
+      setMounted(true);
+      slideAnim.setValue(-drawerWidth);
       Animated.parallel([
-        Animated.timing(slideAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-        Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: 0, duration: 260, useNativeDriver }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 260, useNativeDriver }),
       ]).start();
     } else {
       Animated.parallel([
-        Animated.timing(slideAnim, { toValue: -DRAWER_WIDTH, duration: 250, useNativeDriver: true }),
-        Animated.timing(fadeAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
-      ]).start();
+        Animated.timing(slideAnim, { toValue: -drawerWidth, duration: CLOSE_MS, useNativeDriver }),
+        Animated.timing(fadeAnim, { toValue: 0, duration: CLOSE_MS, useNativeDriver }),
+      ]).start(({ finished }) => { if (finished) setMounted(false); });
     }
+    // drawerWidth is read at animation start only
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, slideAnim, fadeAnim]);
 
   const navigateTo = (route: any) => {
     onClose();
-    setTimeout(() => router.push(route), 300);
+    setTimeout(() => router.push(route), CLOSE_MS);
   };
 
   const handleTogglePush = async () => {
@@ -139,13 +146,13 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
   const formattedPhone = phone ? (phone.length > 10 ? `+${phone.slice(0, phone.length - 10)} ` : '') + `******${phone.slice(-4)}` : '';
 
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+    <Modal visible={mounted} transparent animationType="none" onRequestClose={onClose}>
       <View style={styles.container}>
         <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         </Animated.View>
 
-        <Animated.View style={[styles.drawer, { backgroundColor: theme.background, borderRightColor: theme.border, paddingTop: topPadding, transform: [{ translateX: slideAnim }] }]}>
+        <Animated.View style={[styles.drawer, { backgroundColor: theme.background, borderRightColor: theme.border, width: drawerWidth, paddingTop: topPadding, paddingBottom: insets.bottom + 16, transform: [{ translateX: slideAnim }] }]}>
           <View style={styles.brandRow}>
             <View style={[styles.brandMark, { backgroundColor: theme.accentFill }]}>
               <Check size={14} color={theme.onAccent} strokeWidth={3.5} />
@@ -199,7 +206,7 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
               
               {Platform.OS !== 'web' && (
               <View style={[styles.menuItem, { borderBottomColor: theme.border }]}>
-                <Bell color={theme.textSecondary} size={20} />
+                <BellRing color={theme.textSecondary} size={20} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.menuText, { color: theme.text }]}>Local Reminders</Text>
                   <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Notify me for scheduled tasks</Text>
@@ -210,10 +217,7 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
 
               <Pressable
                 style={[styles.menuItem, { borderBottomColor: theme.border }]}
-                onPress={() => {
-                  onClose();
-                  router.push('/settings/notifications');
-                }}>
+                onPress={() => navigateTo('/settings/notifications')}>
                 <Bell color={theme.textSecondary} size={20} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.menuText, { color: theme.text }]}>Notification Settings</Text>
@@ -248,14 +252,14 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.menuText, { color: theme.text }]}>WhatsApp Settings</Text>
                   <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>
-                    {dailySummaryEnabled ? `Summary at ${format12Hour(dailySummaryTime)} • Active` : 'Daily summary, reminders & bot'}
+                    {dailySummaryEnabled ? `Daily summary at ${format12Hour(dailySummaryTime)}` : 'Daily summary, reminders & bot'}
                   </Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                   <Text style={{ color: dailySummaryEnabled ? theme.accent : theme.textSecondary, fontWeight: '700' }}>
                     {dailySummaryEnabled ? 'Active' : 'Configure'}
                   </Text>
-                  <Text style={{ color: theme.textSecondary, fontSize: 18, marginBottom: 2 }}>›</Text>
+                  <ChevronRight color={theme.textSecondary} size={20} />
                 </View>
               </Pressable>
             </View>
@@ -273,7 +277,7 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
                   <Text style={{ color: securityActive ? theme.accent : theme.textSecondary, fontWeight: '700' }}>
                     {securityActive ? 'On' : 'Off'}
                   </Text>
-                  <Text style={{ color: theme.textSecondary, fontSize: 18, marginBottom: 2 }}>›</Text>
+                  <ChevronRight color={theme.textSecondary} size={20} />
                 </View>
               </Pressable>
             </View>
@@ -305,7 +309,7 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
 const styles = StyleSheet.create({
   container: { flex: 1, flexDirection: 'row' },
   overlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.5)' },
-  drawer: { width: DRAWER_WIDTH, height: '100%', paddingHorizontal: 18, paddingBottom: 40, borderRightWidth: 1, shadowColor: '#000', shadowOffset: { width: 6, height: 0 }, shadowOpacity: 0.2, shadowRadius: 18, elevation: 10 },
+  drawer: { height: '100%', paddingHorizontal: 18, borderRightWidth: 1, shadowColor: '#000', shadowOffset: { width: 6, height: 0 }, shadowOpacity: 0.2, shadowRadius: 18, elevation: 10 },
   brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20 },
   brandMark: { width: 24, height: 24, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
   brandText: { fontSize: 20, fontWeight: '800', letterSpacing: -0.6 },
@@ -340,7 +344,5 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 },
   menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, gap: 14 },
   menuText: { fontSize: 15, fontWeight: '600' },
-  menuSubtext: { fontSize: 12, marginTop: 2, fontWeight: '500' },
-  badge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 16 },
-  badgeText: { fontSize: 12, fontWeight: '800' }
+  menuSubtext: { fontSize: 12, marginTop: 2, fontWeight: '500' }
 });
