@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Pressable } from '@/components/ui/pressable';
-import { Check, Plus } from 'lucide-react-native';
+import { Check } from 'lucide-react-native';
+import { Skeleton } from '@/components/ui/skeleton';
+import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import { useTheme } from '@/hooks/use-theme';
 import { Fonts, Radius, Shadow } from '@/constants/theme';
 import { addDays, formatDateKey, startOfWeek, timeToMinutes, todayKey } from '@/lib/dates';
@@ -10,7 +12,7 @@ import { isTaskForDate, itemTime, type PlannerItem } from '@/lib/planner-item';
 import { usePlannerItems } from '@/lib/use-planner-items';
 import ItemModal from '@/components/ItemModal';
 import TaskCard from '@/components/TaskCard';
-import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
+import ScreenHeader from '@/components/ScreenHeader';
 import { triggerHaptic } from '@/lib/haptics';
 
 const FILTERS = ['All', 'Open', 'Completed'] as const;
@@ -20,7 +22,9 @@ export default function DailyScreen() {
   const theme = useTheme();
   const c = theme;
   const { phone } = usePhone();
-  const { items, loading, error, toggleDone } = usePlannerItems(phone);
+  const { items, loading, error, toggleDone, refresh } = usePlannerItems(phone);
+  const [refreshing, setRefreshing] = useState(false);
+  if (refreshing && !loading) setRefreshing(false);
   const [dailyDate, setDailyDate] = useState(() => new Date());
   const [filter, setFilter] = useState<Filter>('All');
   const [editingItem, setEditingItem] = useState<PlannerItem | null>(null);
@@ -81,20 +85,18 @@ export default function DailyScreen() {
         contentContainerStyle={styles.scroll}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
+        onScroll={collapseQuickAddOnScroll}
+        scrollEventThrottle={16}
+        refreshControl={<RefreshControl refreshing={refreshing} tintColor={c.accent} onRefresh={() => { triggerHaptic('light'); setRefreshing(true); refresh(); }} />}
       >
         <ScreenHeader
           title={dateKey === today ? 'Today' : dailyDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
           subtitle={dailyDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-          actions={
-            <HeaderButton label="Add task" onPress={() => openEditor()} filled>
-              <Plus color={c.onAccent} size={20} strokeWidth={2.5} />
-            </HeaderButton>
-          }
         />
 
         <View style={styles.content}>
-          {/* Day progress */}
-          <View style={[styles.progressCard, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
+          {/* Day progress (hidden on an empty day; the empty state says it) */}
+          {(loading || allDayTasks.length > 0) && <View style={[styles.progressCard, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
             <View style={styles.progressText}>
               <Text style={[styles.progressValue, { color: c.text }]}>
                 {loading ? '…' : open === 0 && completed > 0 ? 'All done' : `${open} to go`}
@@ -106,7 +108,7 @@ export default function DailyScreen() {
             <View style={[styles.progressTrack, { backgroundColor: c.backgroundMuted }]}>
               <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%`, backgroundColor: c.accentFill }]} />
             </View>
-          </View>
+          </View>}
 
           {/* Week strip */}
           <View style={styles.weekRow}>
@@ -193,17 +195,27 @@ export default function DailyScreen() {
 
           {/* Tasks */}
           {loading && !items.length ? (
-            <ActivityIndicator color={c.accent} style={{ margin: 32 }} />
+            <View style={[styles.tasksContainer, { marginTop: 12 }]} accessibilityLabel="Loading tasks">
+              {[0, 1, 2].map(i => (
+                <View key={i} style={[styles.skeletonCard, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+                  <Skeleton width={22} height={22} radius={11} />
+                  <View style={{ flex: 1, gap: 8 }}>
+                    <Skeleton width={i === 1 ? '55%' : '75%'} height={14} />
+                    <Skeleton width="35%" height={10} />
+                  </View>
+                </View>
+              ))}
+            </View>
           ) : filtered.length === 0 ? (
-            <View style={[styles.empty, { borderColor: c.border }]}>
-              <View style={[styles.emptyIconBox, { backgroundColor: c.accentFill }]}>
-                <Check size={22} color={c.onAccent} strokeWidth={2.5} />
+            <View style={styles.empty}>
+              <View style={[styles.emptyIconBox, { backgroundColor: c.accentSoft }]}>
+                <Check size={22} color={c.accent} strokeWidth={2.5} />
               </View>
               <Text style={[styles.emptyTitle, { color: c.text }]}>
                 {filter === 'Completed' ? 'No completed tasks' : allDayTasks.length ? 'No tasks in this filter' : 'All clear for today'}
               </Text>
               <Text style={[styles.emptyText, { color: c.textSecondary }]}>
-                {allDayTasks.length ? 'Switch to All to see everything planned.' : 'Tap + to plan your first task.'}
+                {allDayTasks.length ? 'Switch to All to see everything planned.' : 'Type in the bar below to plan something.'}
               </Text>
             </View>
           ) : (
@@ -372,12 +384,17 @@ const styles = StyleSheet.create({
   empty: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 40,
+    paddingVertical: 48,
     paddingHorizontal: 20,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderRadius: Radius.lg,
     marginTop: 12,
+  },
+  skeletonCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderRadius: Radius.lg,
   },
   emptyIconBox: {
     width: 44,

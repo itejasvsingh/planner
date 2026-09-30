@@ -13,6 +13,7 @@ import { type PlannerItem, isTaskForDate } from '@/lib/planner-item';
 import TaskCard from '@/components/TaskCard';
 import SwipeAction from '@/components/SwipeAction';
 import ItemModal from '@/components/ItemModal';
+import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -57,7 +58,7 @@ export default function CalendarScreen() {
 
   return (
     <View style={[styles.safe, { backgroundColor: theme.background }]}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 150 }} showsVerticalScrollIndicator={false} onScroll={collapseQuickAddOnScroll} scrollEventThrottle={16}>
         <ScreenHeader
           title="Calendar"
           subtitle="See the space ahead."

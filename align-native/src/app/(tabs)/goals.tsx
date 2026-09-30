@@ -8,6 +8,7 @@ import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems } from '@/lib/use-planner-items';
 import { type PlannerItem } from '@/lib/planner-item';
 import ItemModal from '@/components/ItemModal';
+import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 
 function formatAmount(value: number, unit?: string) {
@@ -31,7 +32,7 @@ export default function GoalsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ paddingBottom: 150 }} showsVerticalScrollIndicator={false} onScroll={collapseQuickAddOnScroll} scrollEventThrottle={16}>
         <ScreenHeader
           title="Goals"
           subtitle="Small steps. Real progress."

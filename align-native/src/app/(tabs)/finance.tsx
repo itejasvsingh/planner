@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { Pressable } from '@/components/ui/pressable';
 import { ArrowDownLeft, ArrowUpRight, Plus, Wallet } from 'lucide-react-native';
 import { usePhone } from '@/lib/phone-context';
@@ -7,6 +7,7 @@ import { usePlannerItems, useBudgetLimits } from '@/lib/use-planner-items';
 import { Colors, Fonts, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import TransactionSheet from '@/components/TransactionSheet';
+import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 import { kindForType, resolveCategory } from '@/lib/categories';
 
@@ -32,7 +33,9 @@ export default function FinanceScreen() {
     const theme = useTheme();
     const c = theme.isDark ? Colors.dark : Colors.light;
     
-    const { items, updateItem, deleteItem, addItem } = usePlannerItems(phone);
+    const { items, loading, updateItem, deleteItem, addItem, refresh } = usePlannerItems(phone);
+    const [refreshing, setRefreshing] = useState(false);
+    if (refreshing && !loading) setRefreshing(false);
 
     // Filter only finance items
     
@@ -127,6 +130,9 @@ export default function FinanceScreen() {
                 style={{ flex: 1, backgroundColor: c.background }}
                 contentContainerStyle={{ paddingBottom: 150 }}
                 showsVerticalScrollIndicator={false}
+                onScroll={collapseQuickAddOnScroll}
+                scrollEventThrottle={16}
+                refreshControl={<RefreshControl refreshing={refreshing} tintColor={c.accent} onRefresh={() => { setRefreshing(true); refresh(); }} />}
             >
                 <ScreenHeader
                     title="Money"
