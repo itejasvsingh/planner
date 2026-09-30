@@ -4,6 +4,7 @@ import { Colors, TabBarHeight, tabBarBottomPadding } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
+import { triggerHaptic } from '@/lib/haptics';
 import { Calendar, ListTodo, Target, Wallet } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
@@ -44,6 +45,7 @@ export default function TabsLayout() {
   return (
     <>
       <Tabs
+        screenListeners={{ tabPress: () => triggerHaptic('light') }}
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: true,

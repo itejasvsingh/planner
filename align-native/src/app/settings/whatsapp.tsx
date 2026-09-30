@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, Pressable, ScrollView, Alert, Linking, Platform, LayoutAnimation, UIManager } from 'react-native';
+import { View, Text, StyleSheet, Switch, ScrollView, Alert, Linking, Platform, LayoutAnimation, UIManager } from 'react-native';
+import { Pressable } from '@/components/ui/pressable';
 import * as Clipboard from 'expo-clipboard';
 import { MessageCircle, Sparkles, Clock, Zap, ChevronRight, Bell, Check, Copy, Repeat } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';

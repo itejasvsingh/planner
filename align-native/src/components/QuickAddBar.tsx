@@ -3,7 +3,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { auth } from '@/lib/firebase';
 import { Mic, Plus, Sparkles, X } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable } from '@/components/ui/pressable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { usePhone } from '@/lib/phone-context';

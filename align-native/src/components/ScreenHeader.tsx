@@ -1,7 +1,10 @@
 import type { ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '@/components/ui/pressable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Menu } from 'lucide-react-native';
+import { UserRound } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
+import { usePhone } from '@/lib/phone-context';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Type } from '@/constants/theme';
 import { triggerHaptic } from '@/lib/haptics';
@@ -30,10 +33,11 @@ export function HeaderButton({
       }}
       style={({ pressed }) => [
         styles.iconButton,
+        { transform: [{ scale: pressed ? 0.94 : 1 }] },
         filled
           ? { backgroundColor: c.accentFill, borderColor: c.accentFill }
           : { backgroundColor: c.backgroundElement, borderColor: c.border },
-        { opacity: pressed ? 0.7 : 1 },
+        { opacity: pressed ? 0.85 : 1 },
       ]}
     >
       {children}
@@ -41,18 +45,31 @@ export function HeaderButton({
   );
 }
 
-/** Shared header for the main tabs: menu button + actions row, then a large title and subtitle. */
+/** Avatar button that opens the Settings screen. */
+function ProfileButton() {
+  const c = useTheme();
+  const router = useRouter();
+  const { firebaseUser } = usePhone();
+  const initial = (firebaseUser?.displayName || firebaseUser?.email || '').trim().charAt(0).toUpperCase();
+  return (
+    <HeaderButton label="Open settings" onPress={() => router.push('/settings')}>
+      {initial
+        ? <Text style={{ color: c.text, fontSize: 16, fontWeight: '700' }}>{initial}</Text>
+        : <UserRound color={c.text} size={19} />}
+    </HeaderButton>
+  );
+}
+
+/** Shared header for the main tabs: profile button + actions row, then a large title and subtitle. */
 export default function ScreenHeader({
   title,
   subtitle,
-  onMenu,
   actions,
   aside,
 }: {
   title: string;
   subtitle?: string;
-  onMenu: () => void;
-  /** Buttons shown top-right, next to the menu button row. */
+  /** Buttons shown top-right. */
   actions?: ReactNode;
   /** Small element aligned with the title's baseline (e.g. a count pill). */
   aside?: ReactNode;
@@ -64,9 +81,7 @@ export default function ScreenHeader({
   return (
     <View style={[styles.wrap, { paddingTop: topPadding }]}>
       <View style={styles.bar}>
-        <HeaderButton label="Open menu" onPress={onMenu}>
-          <Menu color={c.text} size={19} />
-        </HeaderButton>
+        <ProfileButton />
         <View style={styles.actions}>{actions}</View>
       </View>
       <View style={styles.titleRow}>

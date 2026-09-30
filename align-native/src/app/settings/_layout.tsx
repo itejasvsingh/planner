@@ -11,7 +11,9 @@ export default function SettingsLayout() {
         headerTintColor: theme.text,
         
         headerShadowVisible: false,
+        headerBackTitle: 'Back',
       }}>
+      <Stack.Screen name="index" options={{ title: 'Settings', headerLargeTitle: true, headerLargeTitleShadowVisible: false }} />
       <Stack.Screen name="security" options={{ title: 'Security' }} />
       <Stack.Screen name="whatsapp" options={{ title: 'WhatsApp' }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />

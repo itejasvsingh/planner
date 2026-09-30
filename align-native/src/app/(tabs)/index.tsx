@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable } from '@/components/ui/pressable';
 import { Check, Plus } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { Fonts, Radius, Shadow } from '@/constants/theme';
@@ -7,7 +8,6 @@ import { addDays, formatDateKey, startOfWeek, timeToMinutes, todayKey } from '@/
 import { usePhone } from '@/lib/phone-context';
 import { isTaskForDate, itemTime, type PlannerItem } from '@/lib/planner-item';
 import { usePlannerItems } from '@/lib/use-planner-items';
-import DrawerMenuModal from '@/components/DrawerMenuModal';
 import ItemModal from '@/components/ItemModal';
 import TaskCard from '@/components/TaskCard';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
@@ -22,7 +22,6 @@ export default function DailyScreen() {
   const { phone } = usePhone();
   const { items, loading, error, toggleDone } = usePlannerItems(phone);
   const [dailyDate, setDailyDate] = useState(() => new Date());
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [filter, setFilter] = useState<Filter>('All');
   const [editingItem, setEditingItem] = useState<PlannerItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -86,7 +85,6 @@ export default function DailyScreen() {
         <ScreenHeader
           title={dateKey === today ? 'Today' : dailyDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
           subtitle={dailyDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-          onMenu={() => setIsDrawerOpen(true)}
           actions={
             <HeaderButton label="Add task" onPress={() => openEditor()} filled>
               <Plus color={c.onAccent} size={20} strokeWidth={2.5} />
@@ -235,7 +233,6 @@ export default function DailyScreen() {
         </View>
       </ScrollView>
 
-      <DrawerMenuModal visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
       <ItemModal
         visible={modalOpen}
         onClose={() => setModalOpen(false)}

@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { Pressable } from '@/components/ui/pressable';
 import { Target, Plus, Check } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { Fonts, Radius, Shadow } from '@/constants/theme';
@@ -7,7 +8,6 @@ import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems } from '@/lib/use-planner-items';
 import { type PlannerItem } from '@/lib/planner-item';
 import ItemModal from '@/components/ItemModal';
-import DrawerMenuModal from '@/components/DrawerMenuModal';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 
 function formatAmount(value: number, unit?: string) {
@@ -22,7 +22,6 @@ export default function GoalsScreen() {
   const { items, loading, error, updateGoalProgress } = usePlannerItems(phone);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<PlannerItem | null>(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
 
   const goals = items.filter(item => item.type === 'goal');
@@ -36,7 +35,6 @@ export default function GoalsScreen() {
         <ScreenHeader
           title="Goals"
           subtitle="Small steps. Real progress."
-          onMenu={() => setDrawerOpen(true)}
           actions={
             <HeaderButton label="Create goal" onPress={addGoal} filled>
               <Plus size={20} color={theme.onAccent} strokeWidth={2.5} />
@@ -156,7 +154,6 @@ export default function GoalsScreen() {
         </View>
       </ScrollView>
       <ItemModal visible={modalOpen} onClose={() => setModalOpen(false)} initialItem={editing} defaultType="goal" />
-      <DrawerMenuModal visible={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </View>
   );
 }

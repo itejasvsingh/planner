@@ -1,5 +1,6 @@
 import { useRef, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, KeyboardAvoidingView, Platform, Animated } from 'react-native';
+import { View, Text, StyleSheet, Modal, KeyboardAvoidingView, Platform, Animated } from 'react-native';
+import { Pressable } from '@/components/ui/pressable';
 import { X } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import SplitEditor, { SplitPerson } from './SplitEditor';

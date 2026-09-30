@@ -1,4 +1,5 @@
-import { Modal, View, Text, TextInput, Pressable, StyleSheet, ScrollView } from 'react-native';
+import { Modal, View, Text, TextInput, StyleSheet, ScrollView } from 'react-native';
+import { Pressable } from '@/components/ui/pressable';
 import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { X, Trash2 } from 'lucide-react-native';
