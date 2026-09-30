@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, ScrollView, Alert, Modal } from 'react-native';
+import { View, Text, StyleSheet, Switch, ScrollView, Alert, Modal, Platform } from 'react-native';
 import { Pressable } from '@/components/ui/pressable';
 import { Shield, Key, Fingerprint, LogOut, ChevronRight } from 'lucide-react-native';
 
@@ -11,6 +11,9 @@ import {
   isSecurityEnabled,
   setSecurityEnabled,
   BiometricAvailability,
+  webBiometricSupported,
+  registerWebBiometric,
+  removeWebBiometric,
 } from '@/lib/auth';
 import LockScreen from '@/components/LockScreen';
 
@@ -20,12 +23,37 @@ export default function SecuritySettingsScreen() {
   const [biometryType, setBiometricType] = useState<BiometricAvailability>('none');
   const [pinSet, setPinSet] = useState(false);
   const [isSettingPin, setIsSettingPin] = useState(false);
+  const [webFaceIdSupported, setWebFaceIdSupported] = useState(false);
 
   useEffect(() => {
     isSecurityEnabled().then(setSecurityActive);
     hasPinSet().then(setPinSet);
     checkBiometricAvailability().then(setBiometricType);
+    webBiometricSupported().then(setWebFaceIdSupported);
   }, []);
+
+  // Web only: Face ID is set up per device from here (the native app uses the OS setting directly)
+  const webFaceIdSetupNeeded = Platform.OS === 'web' && webFaceIdSupported && biometryType === 'none';
+  const handleWebFaceId = async () => {
+    if (Platform.OS !== 'web') return;
+    if (biometryType !== 'none') {
+      await removeWebBiometric();
+      setBiometricType('none');
+      return;
+    }
+    if (!pinSet) {
+      Alert.alert('Set a passcode first', 'Face ID unlocks Align in place of your passcode.');
+      setIsSettingPin(true);
+      return;
+    }
+    if (await registerWebBiometric()) {
+      setBiometricType(await checkBiometricAvailability());
+      if (!securityActive) {
+        await setSecurityEnabled(true);
+        setSecurityActive(true);
+      }
+    }
+  };
 
   const handleToggleSecurity = () => {
     if (!pinSet) {
@@ -128,26 +156,31 @@ export default function SecuritySettingsScreen() {
             <ChevronRight color={theme.textSecondary} size={20} />
           </Pressable>
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
-          <View style={[styles.row, { opacity: securityActive ? 1 : 0.5 }]}>
+          <Pressable
+            disabled={Platform.OS !== 'web' || (!webFaceIdSupported && biometryType === 'none')}
+            onPress={handleWebFaceId}
+            style={[styles.row, { opacity: securityActive || webFaceIdSetupNeeded ? 1 : 0.5 }]}>
             <View style={[styles.iconBox, { backgroundColor: theme.backgroundMuted }]}>
               <Fingerprint color={theme.text} size={18} />
             </View>
             <View style={styles.rowContent}>
-              <Text style={[styles.rowTitle, { color: theme.text }]}>{biometricLabel}</Text>
+              <Text style={[styles.rowTitle, { color: theme.text }]}>{webFaceIdSetupNeeded ? 'Set Up Face ID' : biometricLabel}</Text>
               <Text style={[styles.rowSub, { color: theme.textSecondary }]}>
-                {biometryType !== 'none'
+                {webFaceIdSetupNeeded
+                  ? 'Unlock Align with Face ID or Touch ID'
+                  : biometryType !== 'none'
                   ? securityActive
-                    ? 'Verified automatically on launch'
+                    ? Platform.OS === 'web' ? 'Verified on launch · tap to turn off' : 'Verified automatically on launch'
                     : 'Enable passcode to activate'
                   : 'Not supported on this device'}
               </Text>
             </View>
             <View style={[styles.badge, { backgroundColor: biometryType !== 'none' && securityActive ? theme.accentSoft : theme.backgroundMuted }]}>
               <Text style={[styles.badgeText, { color: biometryType !== 'none' && securityActive ? theme.accent : theme.textSecondary }]}>
-                {biometryType !== 'none' ? (securityActive ? 'Active' : 'Off') : 'N/A'}
+                {biometryType !== 'none' ? (securityActive ? 'Active' : 'Off') : webFaceIdSetupNeeded ? 'Set up' : 'N/A'}
               </Text>
             </View>
-          </View>
+          </Pressable>
         </View>
         <Text style={[styles.groupFooter, { color: theme.textSecondary }]}>
           Your passcode and biometric credentials remain securely encrypted inside your device hardware keychain.

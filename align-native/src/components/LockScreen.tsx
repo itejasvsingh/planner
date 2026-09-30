@@ -285,7 +285,7 @@ export default function LockScreen({
             )}
 
             {stage === 'locked' && biometryType !== 'none' && (
-                <TouchableOpacity onPress={() => promptBiometric('Unlock')} style={styles.biometricButton}>
+                <TouchableOpacity onPress={() => promptBiometric('Unlock Align').then(ok => { if (ok) onUnlock(); })} style={styles.biometricButton}>
                     {biometryType === 'face' ? <ScanFace color={C.textSecondary} size={20} /> : <Fingerprint color={C.textSecondary} size={20} />}
                     <Text style={styles.biometricText}>Use {biometryType === 'face' ? 'Face ID' : 'Fingerprint'}</Text>
                 </TouchableOpacity>
