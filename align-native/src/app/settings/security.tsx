@@ -67,23 +67,23 @@ export default function SecuritySettingsScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]} contentContainerStyle={styles.content}>
       <View style={styles.group}>
-        <View style={[styles.card, { backgroundColor: theme.backgroundElement, alignItems: 'center', paddingVertical: 24 }]}>
+        <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border, alignItems: 'center', paddingVertical: 24 }]}>
           <View
             style={[
               styles.heroIcon,
               {
-                backgroundColor: securityActive ? '#34C759' : '#007AFF',
-                shadowColor: securityActive ? '#34C759' : '#007AFF',
+                backgroundColor: securityActive ? theme.accentFill : theme.backgroundMuted,
+                shadowColor: 'transparent',
               },
             ]}>
-            <Shield color="#FFF" size={32} />
+            <Shield color={securityActive ? theme.onAccent : theme.text} size={32} />
           </View>
           <Text style={[styles.heroTitle, { color: theme.text }]}>Security</Text>
           <Text style={[styles.heroSub, { color: theme.textSecondary }]}>
             {securityActive ? 'App Passcode Protection Active' : 'Passcode Protection Disabled'}
           </Text>
-          <View style={[styles.badge, { backgroundColor: securityActive ? 'rgba(52,199,89,0.12)' : 'rgba(120,120,128,0.12)' }]}>
-            <Text style={[styles.badgeText, { color: securityActive ? '#34C759' : theme.textSecondary }]}>
+          <View style={[styles.badge, { backgroundColor: securityActive ? theme.accentSoft : theme.backgroundMuted }]}>
+            <Text style={[styles.badgeText, { color: securityActive ? theme.accent : theme.textSecondary }]}>
               {securityActive ? 'Protected' : 'Off'}
             </Text>
           </View>
@@ -91,17 +91,17 @@ export default function SecuritySettingsScreen() {
       </View>
 
       <View style={styles.group}>
-        <Text style={[styles.groupHeader, { color: theme.textSecondary }]}>APP LOCK</Text>
-        <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+        <Text style={[styles.groupHeader, { color: theme.textTertiary }]}>APP LOCK</Text>
+        <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
           <Pressable style={styles.row} onPress={handleToggleSecurity}>
-            <View style={[styles.iconBox, { backgroundColor: '#34C759' }]}>
-              <Shield color="#FFF" size={18} />
+            <View style={[styles.iconBox, { backgroundColor: theme.backgroundMuted }]}>
+              <Shield color={theme.text} size={18} />
             </View>
             <View style={styles.rowContent}>
               <Text style={[styles.rowTitle, { color: theme.text }]}>Require Passcode</Text>
               <Text style={[styles.rowSub, { color: theme.textSecondary }]}>Lock app when closing or in background</Text>
             </View>
-            <Switch value={securityActive} onValueChange={handleToggleSecurity} />
+            <Switch value={securityActive} onValueChange={handleToggleSecurity} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
           </Pressable>
         </View>
         <Text style={[styles.groupFooter, { color: theme.textSecondary }]}>
@@ -110,13 +110,13 @@ export default function SecuritySettingsScreen() {
       </View>
 
       <View style={styles.group}>
-        <Text style={[styles.groupHeader, { color: theme.textSecondary }]}>CREDENTIALS & BIOMETRICS</Text>
-        <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+        <Text style={[styles.groupHeader, { color: theme.textTertiary }]}>CREDENTIALS & BIOMETRICS</Text>
+        <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
           <Pressable
             style={styles.row}
             onPress={() => setIsSettingPin(true)}>
-            <View style={[styles.iconBox, { backgroundColor: '#007AFF' }]}>
-              <Key color="#FFF" size={18} />
+            <View style={[styles.iconBox, { backgroundColor: theme.backgroundMuted }]}>
+              <Key color={theme.text} size={18} />
             </View>
             <View style={styles.rowContent}>
               <Text style={[styles.rowTitle, { color: theme.text }]}>{pinSet ? 'Change Passcode' : 'Set Up Passcode'}</Text>
@@ -128,8 +128,8 @@ export default function SecuritySettingsScreen() {
           </Pressable>
           <View style={[styles.divider, { backgroundColor: theme.border }]} />
           <View style={[styles.row, { opacity: securityActive ? 1 : 0.5 }]}>
-            <View style={[styles.iconBox, { backgroundColor: '#AF52DE' }]}>
-              <Fingerprint color="#FFF" size={18} />
+            <View style={[styles.iconBox, { backgroundColor: theme.backgroundMuted }]}>
+              <Fingerprint color={theme.text} size={18} />
             </View>
             <View style={styles.rowContent}>
               <Text style={[styles.rowTitle, { color: theme.text }]}>{biometricLabel}</Text>
@@ -141,8 +141,8 @@ export default function SecuritySettingsScreen() {
                   : 'Not supported on this device'}
               </Text>
             </View>
-            <View style={[styles.badge, { backgroundColor: biometryType !== 'none' && securityActive ? 'rgba(52,199,89,0.12)' : 'rgba(120,120,128,0.12)' }]}>
-              <Text style={[styles.badgeText, { color: biometryType !== 'none' && securityActive ? '#34C759' : theme.textSecondary }]}>
+            <View style={[styles.badge, { backgroundColor: biometryType !== 'none' && securityActive ? theme.accentSoft : theme.backgroundMuted }]}>
+              <Text style={[styles.badgeText, { color: biometryType !== 'none' && securityActive ? theme.accent : theme.textSecondary }]}>
                 {biometryType !== 'none' ? (securityActive ? 'Active' : 'Off') : 'N/A'}
               </Text>
             </View>
@@ -155,10 +155,10 @@ export default function SecuritySettingsScreen() {
 
       {pinSet && (
         <View style={styles.group}>
-          <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+          <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
             <Pressable style={[styles.row, { justifyContent: 'center' }]} onPress={handleRemovePIN}>
-              <LogOut color="#FF3B30" size={20} />
-              <Text style={[styles.rowTitle, { color: '#FF3B30', marginLeft: 8, fontWeight: '600' }]}>Remove Passcode</Text>
+              <LogOut color={theme.red} size={20} />
+              <Text style={[styles.rowTitle, { color: theme.red, marginLeft: 8, fontWeight: '600' }]}>Remove Passcode</Text>
             </Pressable>
           </View>
         </View>
@@ -183,9 +183,9 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 60, gap: 24 },
   group: { gap: 8 },
-  groupHeader: { fontSize: 13, fontWeight: '600', paddingLeft: 16, letterSpacing: 0.5 },
+  groupHeader: { fontSize: 12, fontWeight: '700', paddingLeft: 4, letterSpacing: 0.6 },
   groupFooter: { fontSize: 13, paddingHorizontal: 16, lineHeight: 18 },
-  card: { borderRadius: 12, overflow: 'hidden' },
+  card: { borderRadius: 14, overflow: 'hidden' },
   heroIcon: {
     width: 64,
     height: 64,
@@ -203,7 +203,7 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   badgeText: { fontSize: 13, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', padding: 16 },
-  iconBox: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  iconBox: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   rowContent: { flex: 1, paddingRight: 8 },
   rowTitle: { fontSize: 17, fontWeight: '400', letterSpacing: -0.3 },
   rowSub: { fontSize: 13, marginTop: 2 },

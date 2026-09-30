@@ -181,12 +181,12 @@ export default function QuickAddBar() {
           <Pressable accessibilityRole="button" accessibilityLabel="Add with AI"
             onPress={() => submitToAI(text)}
             disabled={!text.trim() || isProcessing || isListening}
-            style={[styles.submitBtn, { backgroundColor: text.trim() ? theme.blue : 'rgba(120,120,128,0.2)' }]}
+            style={[styles.submitBtn, { backgroundColor: text.trim() || isProcessing ? theme.accentFill : theme.backgroundMuted }]}
           >
             {isProcessing ? (
-              <ActivityIndicator color="#FFF" size="small" />
+              <ActivityIndicator color={theme.onAccent} size="small" />
             ) : (
-              <Sparkles color={text.trim() ? '#FFF' : theme.textSecondary} size={18} />
+              <Sparkles color={text.trim() ? theme.onAccent : theme.textSecondary} size={18} />
             )}
           </Pressable>
         </View>
@@ -212,9 +212,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingVertical: 8,
     borderRadius: Radius.pill,
-    ...Shadow.card,
+    borderWidth: 1,
+    ...Shadow.raised,
     width: '100%',
   },
   input: {

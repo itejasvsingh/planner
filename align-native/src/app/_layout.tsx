@@ -8,6 +8,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 }
 
 import { ThemeModeProvider, useThemeMode } from '@/lib/theme-context';
+import { Colors } from '@/constants/theme';
 import { PhoneProvider, usePhone } from '@/lib/phone-context';
 import LockScreen from '@/components/LockScreen';
 import { isSecurityEnabled } from '@/lib/auth';
@@ -52,8 +53,8 @@ function RootNav() {
 
   if (!ready || !securityReady) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F4F5F7' }}>
-        <ActivityIndicator />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors[colorScheme].background }}>
+        <ActivityIndicator color={Colors[colorScheme].accent} />
       </View>
     );
   }

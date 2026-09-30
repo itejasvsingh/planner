@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
 import { useTheme } from '@/hooks/use-theme';
-import { ChevronLeft, ChevronRight, Plus, Menu } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
+import { Radius, Shadow } from '@/constants/theme';
 
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems } from '@/lib/use-planner-items';
@@ -13,12 +13,12 @@ import TaskCard from '@/components/TaskCard';
 import SwipeAction from '@/components/SwipeAction';
 import ItemModal from '@/components/ItemModal';
 import DrawerMenuModal from '@/components/DrawerMenuModal';
+import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 export default function CalendarScreen() {
   const theme = useTheme();
-  const insets = useSafeAreaInsets();
   const { phone } = usePhone();
   const { items, toggleDone, deleteItem } = usePlannerItems(phone);
 
@@ -27,10 +27,6 @@ export default function CalendarScreen() {
   const [editingItem, setEditingItem] = useState<PlannerItem | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-
-  const topPadding = Platform.OS === 'web'
-    ? insets.top + 8
-    : Math.max(insets.top, 52);
 
   const today = todayKey();
   const selectedKey = formatDateKey(selectedDate);
@@ -62,35 +58,47 @@ export default function CalendarScreen() {
 
   return (
     <View style={[styles.safe, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { paddingTop: topPadding }]}>
-        <Pressable onPress={() => setIsDrawerOpen(true)} hitSlop={15} style={({ pressed }) => [{ padding: 6, opacity: pressed ? 0.7 : 1, marginRight: 10 }]}>
-          <Menu color={theme.text} size={28} />
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: theme.text }]}>Calendar</Text>
-          <Text style={{ color: theme.textSecondary, marginTop: 5 }}>See the space ahead.</Text>
-        </View>
-        <Pressable accessibilityRole="button" onPress={() => { setCurrentMonth(new Date()); setSelectedDate(new Date()); }} style={{ padding: 12 }}><Text style={{ color: theme.blue, fontWeight: '700' }}>Today</Text></Pressable>
-        <Pressable accessibilityRole="button" accessibilityLabel="Add task for selected date" onPress={() => setIsAddingItem(true)} style={{ padding: 10 }}><Plus size={23} color={theme.blue} /></Pressable>
-      </View>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
+        <ScreenHeader
+          title="Calendar"
+          subtitle="See the space ahead."
+          onMenu={() => setIsDrawerOpen(true)}
+          actions={
+            <>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => { setCurrentMonth(new Date()); setSelectedDate(new Date()); }}
+                style={[styles.todayBtn, { borderColor: theme.border, backgroundColor: theme.backgroundElement }]}
+              >
+                <Text style={{ color: theme.text, fontWeight: '700', fontSize: 13 }}>Today</Text>
+              </Pressable>
+              <HeaderButton label="Add task for selected date" onPress={() => setIsAddingItem(true)} filled>
+                <Plus size={20} color={theme.onAccent} strokeWidth={2.5} />
+              </HeaderButton>
+            </>
+          }
+        />
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 150, width: '100%', maxWidth: 880, alignSelf: 'center' }}>
+        <View style={styles.body}>
+        <View style={[styles.monthCard, { backgroundColor: theme.backgroundElement, borderColor: theme.border }, Shadow.card]}>
         <View style={styles.monthSelector}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => changeMonth(-1)} style={styles.monthArrow}>
-            <ChevronLeft color={theme.blue} size={24} />
-          </Pressable>
           <Text style={[styles.monthLabel, { color: theme.text }]}>
             {currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
           </Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Next month" onPress={() => changeMonth(1)} style={styles.monthArrow}>
-            <ChevronRight color={theme.blue} size={24} />
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: 6 }}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Previous month" onPress={() => changeMonth(-1)} style={[styles.monthArrow, { backgroundColor: theme.backgroundMuted }]}>
+              <ChevronLeft color={theme.text} size={18} />
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Next month" onPress={() => changeMonth(1)} style={[styles.monthArrow, { backgroundColor: theme.backgroundMuted }]}>
+              <ChevronRight color={theme.text} size={18} />
+            </Pressable>
+          </View>
         </View>
 
         <View style={styles.calendarGrid}>
           <View style={styles.weekDaysRow}>
             {DAY_LABELS.map((d, i) => (
-              <Text key={i} style={[styles.weekDayLabel, { color: theme.textSecondary }]}>{d}</Text>
+              <Text key={i} style={[styles.weekDayLabel, { color: theme.textTertiary }]}>{d}</Text>
             ))}
           </View>
           
@@ -115,20 +123,21 @@ export default function CalendarScreen() {
                   onPress={() => setSelectedDate(dateObj)}
                   style={[
                     styles.dayCell,
-                    isSelected && { backgroundColor: theme.blue }
+                    isSelected && { backgroundColor: theme.accentFill },
+                    isToday && !isSelected && { borderWidth: 1.5, borderColor: theme.accent },
                   ]}
                 >
                   <Text style={[
                     styles.dayNumber,
-                    { color: isSelected ? '#fff' : (isToday ? theme.blue : theme.text) },
-                    isToday && !isSelected && { fontWeight: '800' }
+                    { color: isSelected ? theme.onAccent : (isToday ? theme.accent : theme.text) },
+                    (isToday || isSelected) && { fontWeight: '800' }
                   ]}>
                     {dateObj.getDate()}
                   </Text>
                   
                   <View style={styles.dotsRow}>
-                    {pendingCount > 0 && <View style={[styles.dot, { backgroundColor: isSelected ? 'rgba(255,255,255,0.7)' : theme.blue }]} />}
-                    {completedCount > 0 && <View style={[styles.dot, { backgroundColor: isSelected ? 'rgba(255,255,255,0.4)' : '#34C759' }]} />}
+                    {pendingCount > 0 && <View style={[styles.dot, { backgroundColor: isSelected ? theme.onAccent : theme.textSecondary }]} />}
+                    {completedCount > 0 && <View style={[styles.dot, { backgroundColor: isSelected ? theme.onAccent : theme.accent, opacity: isSelected ? 0.45 : 1 }]} />}
                   </View>
                 </Pressable>
               );
@@ -136,17 +145,19 @@ export default function CalendarScreen() {
           </View>
         </View>
 
+        </View>
+
         <View style={styles.agendaSection}>
-          <Text style={[styles.agendaHeader, { color: theme.textSecondary }]}>
+          <Text style={[styles.agendaHeader, { color: theme.textTertiary }]}>
             {selectedKey === today ? 'TODAY' : selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase()}
           </Text>
           
           {selectedDayItems.length === 0 ? (
-            <View style={styles.emptyAgenda}>
-              <Text style={{ color: theme.textSecondary }}>No items for this day.</Text>
+            <View style={[styles.emptyAgenda, { borderColor: theme.border }]}>
+              <Text style={{ color: theme.textSecondary }}>Nothing planned for this day.</Text>
             </View>
           ) : (
-            <View style={{ paddingHorizontal: 16 }}>
+            <View style={{ gap: 8 }}>
               {selectedDayItems.map(item => (
                 <SwipeAction 
                   key={item.id}
@@ -166,6 +177,7 @@ export default function CalendarScreen() {
             </View>
           )}
         </View>
+        </View>
       </ScrollView>
 
 
@@ -183,43 +195,38 @@ export default function CalendarScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  header: {
-    flexDirection: 'row', alignItems: 'center', width: '100%', maxWidth: 880, alignSelf: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 8,
-  },
-  title: {
-    fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-  },
+  body: { paddingHorizontal: 16, width: '100%', maxWidth: 720, alignSelf: 'center' },
+  todayBtn: { height: 40, paddingHorizontal: 14, borderRadius: Radius.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  monthCard: { borderWidth: 1, borderRadius: Radius.lg, padding: 12, paddingTop: 14 },
   monthSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingHorizontal: 4,
+    marginBottom: 12,
   },
   monthArrow: {
-    padding: 8,
+    width: 32,
+    height: 32,
+    borderRadius: Radius.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   monthLabel: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '700',
+    letterSpacing: -0.3,
   },
-  calendarGrid: {
-    paddingHorizontal: 16,
-  },
+  calendarGrid: {},
   weekDaysRow: {
     flexDirection: 'row',
-    marginBottom: 8,
+    marginBottom: 4,
   },
   weekDayLabel: {
     width: '14.285714%',
     textAlign: 'center',
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '700',
   },
   daysGrid: {
     flexDirection: 'row',
@@ -227,20 +234,20 @@ const styles = StyleSheet.create({
   },
   dayCell: {
     width: '14.285714%',
-    height: 56,
+    height: 46,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 14,
-    marginBottom: 4,
+    borderRadius: Radius.md,
   },
   dayNumber: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: '500',
+    fontVariant: ['tabular-nums'],
   },
   dotsRow: {
     flexDirection: 'row',
     gap: 2,
-    marginTop: 4,
+    marginTop: 3,
     height: 4,
   },
   dot: {
@@ -249,31 +256,19 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   agendaSection: {
-    marginTop: 24,
+    marginTop: 20,
   },
   agendaHeader: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    letterSpacing: 0.5,
-    marginLeft: 20,
-    marginBottom: 12,
+    letterSpacing: 0.6,
+    marginBottom: 10,
   },
   emptyAgenda: {
     alignItems: 'center',
-    paddingVertical: 40,
+    paddingVertical: 28,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: Radius.lg,
   },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    bottom: 28,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  }
 });

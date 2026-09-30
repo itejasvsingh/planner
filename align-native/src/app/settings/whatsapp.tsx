@@ -186,7 +186,7 @@ export default function WhatsAppSettingsScreen() {
         
         {/* WhatsApp Account Status Hero */}
         <View style={[styles.group, { marginBottom: 8 }]}>
-          <View style={[styles.card, { backgroundColor: theme.backgroundElement, padding: 16, flexDirection: 'row', alignItems: 'center' }]}>
+          <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border, padding: 16, flexDirection: 'row', alignItems: 'center' }]}>
             <View style={[styles.heroIcon, { backgroundColor: '#25D366' }]}>
               <MessageCircle color="#FFF" size={24} />
             </View>
@@ -196,8 +196,8 @@ export default function WhatsAppSettingsScreen() {
                 {dailySummaryEnabled ? `Summary at ${format12Hour(dailySummaryTime)}` : 'Assistant Standby'}
               </Text>
             </View>
-            <View style={[styles.badge, { backgroundColor: dailySummaryEnabled ? 'rgba(52,199,89,0.12)' : 'rgba(120,120,128,0.12)' }]}>
-              <Text style={[styles.badgeText, { color: dailySummaryEnabled ? '#34C759' : theme.textSecondary }]}>
+            <View style={[styles.badge, { backgroundColor: dailySummaryEnabled ? theme.accentSoft : theme.backgroundMuted }]}>
+              <Text style={[styles.badgeText, { color: dailySummaryEnabled ? theme.accent : theme.textSecondary }]}>
                 {dailySummaryEnabled ? 'Connected' : 'Standby'}
               </Text>
             </View>
@@ -205,31 +205,31 @@ export default function WhatsAppSettingsScreen() {
       </View>
 
       <View style={styles.group}>
-        <Text style={[styles.groupHeader, { color: theme.textSecondary }]}>DAILY DIGEST</Text>
-        <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+        <Text style={[styles.groupHeader, { color: theme.textTertiary }]}>DAILY DIGEST</Text>
+        <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
           <Pressable style={styles.row} onPress={() => handleToggleDailySummary(!dailySummaryEnabled)}>
-            <View style={[styles.iconBox, { backgroundColor: '#34C759' }]}>
-              <Sparkles color="#FFF" size={18} />
+            <View style={[styles.iconBox, { backgroundColor: theme.backgroundMuted }]}>
+              <Sparkles color={theme.text} size={18} />
             </View>
             <View style={styles.rowContent}>
               <Text style={[styles.rowTitle, { color: theme.text }]}>Daily Summary</Text>
               <Text style={[styles.rowSub, { color: theme.textSecondary }]}>Recap of unfinished tasks & schedule</Text>
             </View>
-            <Switch value={dailySummaryEnabled} onValueChange={handleToggleDailySummary} />
+            <Switch value={dailySummaryEnabled} onValueChange={handleToggleDailySummary} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
           </Pressable>
 
           {dailySummaryEnabled && (
             <>
               <View style={[styles.divider, { backgroundColor: theme.border }]} />
               <Pressable style={styles.row} onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setIsTimePickerOpen(!isTimePickerOpen); }}>
-                <View style={[styles.iconBox, { backgroundColor: '#007AFF' }]}>
-                  <Clock color="#FFF" size={18} />
+                <View style={[styles.iconBox, { backgroundColor: theme.backgroundMuted }]}>
+                  <Clock color={theme.text} size={18} />
                 </View>
                 <View style={styles.rowContent}>
                   <Text style={[styles.rowTitle, { color: theme.text }]}>Delivery Time</Text>
                   <Text style={[styles.rowSub, { color: theme.textSecondary }]}>Scheduled evening recap</Text>
                 </View>
-                <View style={[styles.badge, { backgroundColor: isTimePickerOpen ? 'rgba(118,118,128,0.22)' : 'transparent' }]}>
+                <View style={[styles.badge, { backgroundColor: isTimePickerOpen ? theme.backgroundMuted : 'transparent' }]}>
                   <Text style={[styles.badgeText, { color: theme.text, fontSize: 15 }]}>{format12Hour(dailySummaryTime)}</Text>
                 </View>
               </Pressable>
@@ -254,12 +254,12 @@ export default function WhatsAppSettingsScreen() {
 
               <View style={[styles.divider, { backgroundColor: theme.border }]} />
               <Pressable style={styles.row} onPress={handleSendTestSummary}>
-                <View style={[styles.iconBox, { backgroundColor: '#AF52DE' }]}>
-                  <Zap color="#FFF" size={18} />
+                <View style={[styles.iconBox, { backgroundColor: theme.backgroundMuted }]}>
+                  <Zap color={theme.text} size={18} />
                 </View>
                 <View style={styles.rowContent}>
                   <Text style={[styles.rowTitle, { color: theme.blue }]}>Send Test Summary Now</Text>
-                  <Text style={[styles.rowSub, { color: testStatus ? '#34C759' : theme.textSecondary }]}>
+                  <Text style={[styles.rowSub, { color: testStatus ? theme.accent : theme.textSecondary }]}>
                     {testStatus || 'Dispatch sample message to verify'}
                   </Text>
                 </View>
@@ -267,7 +267,7 @@ export default function WhatsAppSettingsScreen() {
                   {isSendingTest ? (
                     <Text style={{ color: theme.textSecondary }}>Sending...</Text>
                   ) : testStatus === 'Sent ✓' ? (
-                    <Text style={{ color: '#34C759', fontWeight: '600' }}>Sent ✓</Text>
+                    <Text style={{ color: theme.accent, fontWeight: '600' }}>Sent ✓</Text>
                   ) : (
                     <ChevronRight color={theme.textSecondary} size={20} />
                   )}
@@ -282,17 +282,17 @@ export default function WhatsAppSettingsScreen() {
       </View>
 
       <View style={styles.group}>
-        <Text style={[styles.groupHeader, { color: theme.textSecondary }]}>TASK REMINDER ALERTS</Text>
-        <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+        <Text style={[styles.groupHeader, { color: theme.textTertiary }]}>TASK REMINDER ALERTS</Text>
+        <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
           <Pressable style={styles.row} onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setIsReminderPickerOpen(!isReminderPickerOpen); }}>
-            <View style={[styles.iconBox, { backgroundColor: '#FF9500' }]}>
-              <Bell color="#FFF" size={18} />
+            <View style={[styles.iconBox, { backgroundColor: theme.backgroundMuted }]}>
+              <Bell color={theme.text} size={18} />
             </View>
             <View style={styles.rowContent}>
               <Text style={[styles.rowTitle, { color: theme.text }]}>Alert Timing</Text>
               <Text style={[styles.rowSub, { color: theme.textSecondary }]}>Notification schedule</Text>
             </View>
-            <View style={[styles.badge, { backgroundColor: isReminderPickerOpen ? 'rgba(118,118,128,0.22)' : 'transparent' }]}>
+            <View style={[styles.badge, { backgroundColor: isReminderPickerOpen ? theme.backgroundMuted : 'transparent' }]}>
               <Text style={[styles.badgeText, { color: theme.text, fontSize: 15 }]}>
                 {reminderTiming === 'exact' ? 'At Time' : reminderTiming === '1h_before' ? '1h Before' : 'Both'}
               </Text>
@@ -329,17 +329,17 @@ export default function WhatsAppSettingsScreen() {
       </View>
 
       <View style={styles.group}>
-        <Text style={[styles.groupHeader, { color: theme.textSecondary }]}>AUTO-PUSH TASK ROLLOVER</Text>
-        <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+        <Text style={[styles.groupHeader, { color: theme.textTertiary }]}>AUTO-PUSH TASK ROLLOVER</Text>
+        <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
           <View style={styles.row}>
-            <View style={[styles.iconBox, { backgroundColor: '#34C759' }]}>
-              <Repeat color="#FFF" size={18} />
+            <View style={[styles.iconBox, { backgroundColor: theme.backgroundMuted }]}>
+              <Repeat color={theme.text} size={18} />
             </View>
             <View style={styles.rowContent}>
               <Text style={[styles.rowTitle, { color: theme.text }]}>Auto-Push Tasks</Text>
               <Text style={[styles.rowSub, { color: theme.textSecondary }]}>Move unfinished tasks to tomorrow at 12:00 AM</Text>
             </View>
-            <Switch value={autoPushEnabled} onValueChange={handleToggleAutoPush} />
+            <Switch value={autoPushEnabled} onValueChange={handleToggleAutoPush} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
           </View>
         </View>
         <Text style={[styles.groupFooter, { color: theme.textSecondary }]}>
@@ -348,11 +348,11 @@ export default function WhatsAppSettingsScreen() {
       </View>
 
       <View style={styles.group}>
-        <Text style={[styles.groupHeader, { color: theme.textSecondary }]}>WHATSAPP ASSISTANT</Text>
-        <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+        <Text style={[styles.groupHeader, { color: theme.textTertiary }]}>WHATSAPP ASSISTANT</Text>
+        <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
           <Pressable style={styles.row} onPress={() => Linking.openURL('https://wa.me')}>
-            <View style={[styles.iconBox, { backgroundColor: '#25D366' }]}>
-              <MessageCircle color="#FFF" size={18} />
+            <View style={[styles.iconBox, { backgroundColor: theme.backgroundMuted }]}>
+              <MessageCircle color={theme.text} size={18} />
             </View>
             <View style={styles.rowContent}>
               <Text style={[styles.rowTitle, { color: theme.text }]}>Open Align in WhatsApp</Text>
@@ -366,7 +366,7 @@ export default function WhatsAppSettingsScreen() {
           <View style={{ padding: 16 }}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
               <Text style={{ fontSize: 12, fontWeight: '600', color: theme.textSecondary, letterSpacing: 0.5 }}>TAP-TO-COPY COMMANDS</Text>
-              {copiedCmd && <Text style={{ fontSize: 12, fontWeight: '600', color: '#34C759' }}>Copied ✓</Text>}
+              {copiedCmd && <Text style={{ fontSize: 12, fontWeight: '600', color: theme.accent }}>Copied ✓</Text>}
             </View>
             
             <View style={{ gap: 8 }}>
@@ -386,7 +386,7 @@ export default function WhatsAppSettingsScreen() {
                     justifyContent: 'space-between',
                     padding: 10,
                     borderRadius: 10,
-                    backgroundColor: 'rgba(120,120,128,0.08)',
+                    backgroundColor: theme.backgroundMuted,
                   }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                     <Copy color={theme.textSecondary} size={14} style={{ marginRight: 8 }} />
@@ -407,9 +407,9 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { padding: 16, paddingBottom: 60, gap: 24 },
   group: { gap: 8 },
-  groupHeader: { fontSize: 13, fontWeight: '600', paddingLeft: 16, letterSpacing: 0.5 },
+  groupHeader: { fontSize: 12, fontWeight: '700', paddingLeft: 4, letterSpacing: 0.6 },
   groupFooter: { fontSize: 13, paddingHorizontal: 16, lineHeight: 18 },
-  card: { borderRadius: 12, overflow: 'hidden' },
+  card: { borderRadius: 14, overflow: 'hidden' },
   heroIcon: {
     width: 46,
     height: 46,
@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
   badge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   badgeText: { fontSize: 13, fontWeight: '600' },
   row: { flexDirection: 'row', alignItems: 'center', padding: 16 },
-  iconBox: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  iconBox: { width: 32, height: 32, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   rowContent: { flex: 1, paddingRight: 8 },
   rowTitle: { fontSize: 17, fontWeight: '400', letterSpacing: -0.3 },
   rowSub: { fontSize: 13, marginTop: 2 },

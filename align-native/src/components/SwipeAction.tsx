@@ -1,6 +1,8 @@
 import React, { useRef } from 'react';
 import { Animated, View, StyleSheet, Text } from 'react-native';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
+import { useTheme } from '@/hooks/use-theme';
+import { Radius } from '@/constants/theme';
 
 interface SwipeActionProps {
   children: React.ReactNode;
@@ -10,6 +12,7 @@ interface SwipeActionProps {
 
 export default function SwipeAction({ children, onComplete, onDelete }: SwipeActionProps) {
   const swipeableRef = useRef<Swipeable>(null);
+  const c = useTheme();
 
   const renderLeftActions = (progress: Animated.AnimatedInterpolation<number>, dragX: Animated.AnimatedInterpolation<number>) => {
     if (!onComplete) return null;
@@ -22,8 +25,8 @@ export default function SwipeAction({ children, onComplete, onDelete }: SwipeAct
       outputRange: [0, 1, 1],
     });
     return (
-      <View style={[styles.actionBox, { backgroundColor: '#34C759', justifyContent: 'flex-start', paddingLeft: 24 }]}>
-        <Animated.Text style={[styles.actionText, { transform: [{ translateX: trans }], opacity }]}>
+      <View style={[styles.actionBox, { backgroundColor: c.accentFill, justifyContent: 'flex-start', paddingLeft: 24 }]}>
+        <Animated.Text style={[styles.actionText, { color: c.onAccent, transform: [{ translateX: trans }], opacity }]}>
           Complete
         </Animated.Text>
       </View>
@@ -41,8 +44,8 @@ export default function SwipeAction({ children, onComplete, onDelete }: SwipeAct
       outputRange: [1, 1, 0],
     });
     return (
-      <View style={[styles.actionBox, { backgroundColor: '#FF3B30', justifyContent: 'flex-end', paddingRight: 24 }]}>
-        <Animated.Text style={[styles.actionText, { transform: [{ translateX: trans }], opacity }]}>
+      <View style={[styles.actionBox, { backgroundColor: c.expense, justifyContent: 'flex-end', paddingRight: 24 }]}>
+        <Animated.Text style={[styles.actionText, { color: '#FFFFFF', transform: [{ translateX: trans }], opacity }]}>
           Delete
         </Animated.Text>
       </View>
@@ -77,9 +80,8 @@ export default function SwipeAction({ children, onComplete, onDelete }: SwipeAct
 
 const styles = StyleSheet.create({
   container: {
-    borderRadius: 16,
+    borderRadius: Radius.lg,
     overflow: 'hidden',
-    marginBottom: 10,
   },
   childContainer: {
     backgroundColor: 'transparent',
@@ -90,7 +92,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   actionText: {
-    color: 'white',
     fontWeight: '700',
     fontSize: 15,
   }

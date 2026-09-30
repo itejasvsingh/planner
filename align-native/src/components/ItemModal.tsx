@@ -8,6 +8,7 @@ import { usePlannerItems } from '@/lib/use-planner-items';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { formatDateKey, parseDateKey, timeToMinutes } from '@/lib/dates';
 import { type PlannerItem, type PlannerSubtask } from '@/lib/planner-item';
+import { EXPENSE_CATEGORIES, resolveCategory } from '@/lib/categories';
 
 interface ItemModalProps {
   visible: boolean;
@@ -33,7 +34,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
   // Form State
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState('#General');
+  const [category, setCategory] = useState('Other');
   const [target, setTarget] = useState('');
   const [currentProgress, setCurrentProgress] = useState('0');
   const [unit, setUnit] = useState('');
@@ -66,7 +67,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
         setActiveTab(typeStr as TabType);
         setTitle(initialItem.title || '');
         setAmount(String(initialItem.amount || ''));
-        setCategory(initialItem.category || '#General');
+        setCategory(resolveCategory(initialItem.category).name);
         setTarget(String(initialItem.target || ''));
         setCurrentProgress(String(initialItem.current || 0));
         setUnit(initialItem.unit || 'times');
@@ -97,7 +98,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
       } else {
         // Create Mode
         setActiveTab(defaultType);
-        setCategory('#General');
+        setCategory('Other');
         setTitle('');
         setAmount('');
         setTarget('');
@@ -211,12 +212,12 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
     const isActive = activeTab === type;
     return (
       <Pressable accessibilityRole="button" accessibilityState={{ selected: isActive }}
-        style={[styles.tabButton, isActive && { backgroundColor: theme.backgroundElement }]} 
+        style={[styles.tabButton, isActive && { backgroundColor: theme.backgroundElement, borderColor: theme.border }]} 
         onPress={() => { if (!initialItem) { setActiveTab(type); setFormError(''); } }}
         disabled={!!initialItem} // Cannot change type while editing
       >
-        <Icon color={isActive ? theme.blue : theme.textSecondary} size={18} />
-        <Text style={[styles.tabText, { color: isActive ? theme.blue : theme.textSecondary, fontWeight: isActive ? '600' : '400' }]}>
+        <Icon color={isActive ? theme.text : theme.textSecondary} size={17} />
+        <Text style={[styles.tabText, { color: isActive ? theme.text : theme.textSecondary, fontWeight: isActive ? '700' : '500' }]}>
           {label}
         </Text>
       </Pressable>
@@ -234,13 +235,13 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
         <Animated.View style={[styles.sheet, { backgroundColor: theme.background, transform: [{ translateY: slideAnim }] }]}>
           <View style={styles.header}>
             <Text style={[styles.title, { color: theme.text }]}>{initialItem ? 'Edit Item' : 'Add New'}</Text>
-            <Pressable accessibilityRole="button" accessibilityLabel="Close editor" disabled={saving} onPress={onClose} hitSlop={10} style={styles.closeBtn}>
-              <X color={theme.textSecondary} size={24} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Close editor" disabled={saving} onPress={onClose} hitSlop={10} style={[styles.closeBtn, { backgroundColor: theme.backgroundMuted }]}>
+              <X color={theme.textSecondary} size={20} />
             </Pressable>
           </View>
 
           {!initialItem && (
-            <View style={[styles.tabsWrapper, { backgroundColor: 'rgba(120,120,128,0.12)' }]}>
+            <View style={[styles.tabsWrapper, { backgroundColor: theme.backgroundMuted }]}>
               {renderTabButton({ type: 'task', icon: Calendar, label: 'Task' })}
               {renderTabButton({ type: 'expense', icon: Wallet, label: 'Expense' })}
               {renderTabButton({ type: 'goal', icon: Target, label: 'Goal' })}
@@ -250,7 +251,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
           <ScrollView style={{ maxHeight: '80%' }} contentContainerStyle={styles.form} showsVerticalScrollIndicator={false}>
             <TextInput
               accessibilityLabel="Title"
-              style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement, fontSize: 18 }]}
+              style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement, fontSize: 18 }]}
               placeholder={activeTab === 'expense' ? "What did you pay for?" : "What do you want to do?"}
               placeholderTextColor={theme.textSecondary}
               value={title}
@@ -261,7 +262,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
             {activeTab === 'expense' && (
               <>
                 <TextInput
-                  style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement, fontSize: 18 }]}
+                  style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement, fontSize: 18 }]}
                   placeholder="Amount (₹)"
                   placeholderTextColor={theme.textSecondary}
                   value={amount}
@@ -269,20 +270,37 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
                   keyboardType="decimal-pad"
                 />
                 <Text style={{ color: theme.textSecondary, fontSize: 13 }}>Category</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>{['#General', '#Dining', '#Travel', '#Shopping', '#Bills', '#Health'].map(cat => <Pressable key={cat} accessibilityRole="button" onPress={() => setCategory(cat)} style={[styles.pill, { backgroundColor: category === cat ? theme.backgroundSelected : theme.backgroundElement }]}><Text style={{ color: category === cat ? theme.blue : theme.textSecondary }}>{cat.slice(1)}</Text></Pressable>)}</View>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {EXPENSE_CATEGORIES.map(cat => {
+                    const selected = category === cat.name;
+                    const Icon = cat.icon;
+                    return (
+                      <Pressable
+                        key={cat.name}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        onPress={() => setCategory(cat.name)}
+                        style={[styles.pill, styles.pillRow, selected ? { backgroundColor: theme.accentFill, borderColor: theme.accentFill } : { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
+                      >
+                        <Icon size={15} color={selected ? theme.onAccent : theme.textSecondary} />
+                        <Text style={{ color: selected ? theme.onAccent : theme.text, fontWeight: '600' }}>{cat.name}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
                 <View style={[styles.row, { alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 }]}>
                   <Text style={{ color: theme.text, fontSize: 16 }}>Recurring Bill</Text>
-                  <Switch value={isRecurring} onValueChange={setIsRecurring} />
+                  <Switch value={isRecurring} onValueChange={setIsRecurring} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
                 </View>
                 {isRecurring && (
                   <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
                     {(['weekly', 'monthly', 'yearly'] as const).map(freq => (
                       <Pressable 
                         key={freq} 
-                        style={[styles.pill, recurringFrequency === freq ? { backgroundColor: theme.blue } : { backgroundColor: theme.backgroundElement }]}
+                        style={[styles.pill, recurringFrequency === freq ? { backgroundColor: theme.accentFill, borderColor: theme.accentFill } : { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
                         onPress={() => setRecurringFrequency(freq)}
                       >
-                        <Text style={{ color: recurringFrequency === freq ? '#fff' : theme.text, fontSize: 14 }}>
+                        <Text style={{ color: recurringFrequency === freq ? theme.onAccent : theme.text, fontSize: 14, fontWeight: '600' }}>
                           {freq.charAt(0).toUpperCase() + freq.slice(1)}
                         </Text>
                       </Pressable>
@@ -295,7 +313,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
             {activeTab === 'goal' && (
               <View style={styles.row}>
                 <TextInput
-                  style={[styles.input, { flex: 1, color: theme.text, backgroundColor: theme.backgroundElement }]}
+                  style={[styles.input, { flex: 1, color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement }]}
                   placeholder="Target (e.g. 5)"
                   placeholderTextColor={theme.textSecondary}
                   value={target}
@@ -304,7 +322,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
                 />
                 <View style={{ width: 12 }} />
                 <TextInput
-                  style={[styles.input, { flex: 1, color: theme.text, backgroundColor: theme.backgroundElement }]}
+                  style={[styles.input, { flex: 1, color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement }]}
                   placeholder="Unit (e.g. kg, times)"
                   placeholderTextColor={theme.textSecondary}
                   value={unit}
@@ -313,7 +331,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
               </View>
             )}
 
-            {activeTab === 'goal' && initialItem && <><Text style={{ color: theme.textSecondary, fontSize: 13 }}>Current progress</Text><TextInput accessibilityLabel="Current progress" value={currentProgress} onChangeText={setCurrentProgress} keyboardType="decimal-pad" style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement }]} /></>}
+            {activeTab === 'goal' && initialItem && <><Text style={{ color: theme.textSecondary, fontSize: 13 }}>Current progress</Text><TextInput accessibilityLabel="Current progress" value={currentProgress} onChangeText={setCurrentProgress} keyboardType="decimal-pad" style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement }]} /></>}
             {activeTab === 'task' && (
               <>
                 <View style={{ marginVertical: 8 }}>
@@ -322,10 +340,10 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
                     {(['none', 'low', 'medium', 'high'] as const).map(p => (
                       <Pressable 
                         key={p} 
-                        style={[styles.pill, priority === p ? { backgroundColor: theme.blue } : { backgroundColor: theme.backgroundElement }]}
+                        style={[styles.pill, priority === p ? { backgroundColor: theme.accentFill, borderColor: theme.accentFill } : { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
                         onPress={() => setPriority(p)}
                       >
-                        <Text style={{ color: priority === p ? '#fff' : theme.text, fontSize: 14, textTransform: 'capitalize' }}>
+                        <Text style={{ color: priority === p ? theme.onAccent : theme.text, fontSize: 14, fontWeight: '600', textTransform: 'capitalize' }}>
                           {p}
                         </Text>
                       </Pressable>
@@ -343,7 +361,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
                         newSt[idx].done = !newSt[idx].done;
                         setSubtasks(newSt);
                       }}>
-                        {st.done ? <CheckCircle2 color={theme.blue} size={20} /> : <Circle color={theme.textSecondary} size={20} />}
+                        {st.done ? <CheckCircle2 color={theme.accent} size={20} /> : <Circle color={theme.textSecondary} size={20} />}
                       </Pressable>
                       <TextInput 
                         style={{ flex: 1, color: theme.text, fontSize: 16 }}
@@ -355,7 +373,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
                         }}
                       />
                       <Pressable onPress={() => setSubtasks(subtasks.filter((_, i) => i !== idx))}>
-                        <Trash2 color="#FF3B30" size={18} />
+                        <Trash2 color={theme.red} size={18} />
                       </Pressable>
                     </View>
                   ))}
@@ -379,27 +397,27 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
             {activeTab === 'task' && (
               <View style={[styles.row, { marginTop: 12, alignItems: 'center' }]}>
                 <Text style={{ color: theme.text, fontSize: 16, flex: 1 }}>Remind Me</Text>
-                <Switch value={isTimeEnabled} onValueChange={setIsTimeEnabled} />
+                <Switch value={isTimeEnabled} onValueChange={setIsTimeEnabled} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
               </View>
             )}
             
             <Text style={{ color: theme.textSecondary, fontSize: 13, fontWeight: '600' }}>{activeTab === 'goal' ? 'Target date' : 'Date'}</Text>
             {Platform.OS === 'web' ? (
               <input aria-label="Date" type="date" value={formatDateKey(selectedDate)} onChange={event => { if (event.target.value) setSelectedDate(parseDateKey(event.target.value)); }} style={{ padding: 13, borderRadius: 12, border: `1px solid ${theme.border}`, background: theme.backgroundElement, color: theme.text, font: 'inherit', minHeight: 46, boxSizing: 'border-box', width: '100%' }} />
-            ) : <><Pressable accessibilityRole="button" onPress={() => setShowDatePicker(true)} style={[styles.input, { backgroundColor: theme.backgroundElement }]}><Text style={{ color: theme.text }}>{selectedDate.toLocaleDateString()}</Text></Pressable>{showDatePicker && <DateTimePicker value={selectedDate} mode="date" onChange={(_, date) => { setShowDatePicker(Platform.OS === 'ios'); if (date) setSelectedDate(date); }} />}</>}
+            ) : <><Pressable accessibilityRole="button" onPress={() => setShowDatePicker(true)} style={[styles.input, { borderColor: theme.border, backgroundColor: theme.backgroundElement }]}><Text style={{ color: theme.text }}>{selectedDate.toLocaleDateString()}</Text></Pressable>{showDatePicker && <DateTimePicker value={selectedDate} mode="date" onChange={(_, date) => { setShowDatePicker(Platform.OS === 'ios'); if (date) setSelectedDate(date); }} />}</>}
             {activeTab === 'task' && isTimeEnabled && (Platform.OS === 'web' ?
               <input aria-label="Reminder time" type="time" value={`${String(selectedTime.getHours()).padStart(2, '0')}:${String(selectedTime.getMinutes()).padStart(2, '0')}`} onChange={event => { if (!event.target.value) return; const [h, m] = event.target.value.split(':').map(Number); const next = new Date(selectedTime); next.setHours(h, m); setSelectedTime(next); }} style={{ padding: 13, borderRadius: 12, border: `1px solid ${theme.border}`, background: theme.backgroundElement, color: theme.text, font: 'inherit', minHeight: 46, boxSizing: 'border-box', width: '100%' }} /> :
-              <><Pressable accessibilityRole="button" onPress={() => setShowTimePicker(true)} style={[styles.input, { backgroundColor: theme.backgroundElement }]}><Text style={{ color: theme.text }}>{selectedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text></Pressable>{showTimePicker && <DateTimePicker value={selectedTime} mode="time" onChange={(_, time) => { setShowTimePicker(Platform.OS === 'ios'); if (time) setSelectedTime(time); }} />}</>)}
+              <><Pressable accessibilityRole="button" onPress={() => setShowTimePicker(true)} style={[styles.input, { borderColor: theme.border, backgroundColor: theme.backgroundElement }]}><Text style={{ color: theme.text }}>{selectedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text></Pressable>{showTimePicker && <DateTimePicker value={selectedTime} mode="time" onChange={(_, time) => { setShowTimePicker(Platform.OS === 'ios'); if (time) setSelectedTime(time); }} />}</>)}
             {!!formError && <Text accessibilityRole="alert" style={{ color: theme.red, fontSize: 14 }}>{formError}</Text>}
 
             {/* Save Button */}
             <Pressable 
-              style={({ pressed }) => [styles.saveBtn, { backgroundColor: theme.blue, opacity: pressed ? 0.8 : 1 }]}
+              style={({ pressed }) => [styles.saveBtn, { backgroundColor: theme.accentFill, opacity: pressed ? 0.8 : 1 }]}
               accessibilityRole="button"
               disabled={saving}
               onPress={handleSave}
             >
-              <Text style={styles.saveBtnText}>{saving ? 'Saving…' : initialItem ? 'Save changes' : `Create ${activeTab}`}</Text>
+              <Text style={[styles.saveBtnText, { color: theme.onAccent }]}>{saving ? 'Saving…' : initialItem ? 'Save changes' : `Create ${activeTab}`}</Text>
             </Pressable>
           </ScrollView>
         </Animated.View>
@@ -418,8 +436,8 @@ const styles = StyleSheet.create({
     maxWidth: 560,
     maxHeight: '92%',
     alignSelf: 'center',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     padding: 24,
     paddingBottom: 48,
     shadowColor: '#000',
@@ -440,14 +458,16 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   closeBtn: {
-    padding: 4,
-    backgroundColor: 'rgba(120,120,128,0.12)',
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 16,
   },
   tabsWrapper: {
     flexDirection: 'row',
     borderRadius: 12,
-    padding: 4,
+    padding: 3,
     marginBottom: 24,
   },
   tabButton: {
@@ -455,8 +475,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 9,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: 'transparent',
     gap: 6,
   },
   tabText: {
@@ -466,16 +488,23 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   input: {
-    padding: 16,
+    padding: 14,
     borderRadius: 12,
+    borderWidth: 1,
   },
   row: {
     flexDirection: 'row',
   },
+  pillRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   pill: {
-    paddingVertical: 6,
+    paddingVertical: 7,
     paddingHorizontal: 12,
-    borderRadius: 12,
+    borderRadius: 999,
+    borderWidth: 1,
   },
   subtaskRow: {
     flexDirection: 'row',
@@ -485,14 +514,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   saveBtn: {
-    paddingVertical: 16,
-    borderRadius: 16,
+    paddingVertical: 15,
+    borderRadius: 14,
     alignItems: 'center',
     marginTop: 12,
   },
   saveBtnText: {
-    color: '#FFF',
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
   }
 });

@@ -3,42 +3,55 @@ import { Platform } from 'react-native';
 
 export const Colors = {
   light: {
-    text: '#14181F',
-    textSecondary: '#6B7280',
-    textTertiary: '#9CA3AF',
-    background: '#F7F7F8',
-    backgroundElement: '#FFFFFF',
-    backgroundSelected: '#EEF2FF',
-    border: '#E5E7EB',
-    accent: '#6366F1',
-    accentSoft: '#EEF2FF',
-    income: '#10B981',
-    incomeSoft: '#ECFDF5',
-    expense: '#F43F5E',
-    expenseSoft: '#FEF2F2',
-    warning: '#F59E0B',
-    warningSoft: '#FFFBEB',
-    blue: '#137C66',
-    red: '#F43F5E',
+    text: '#2B2320',
+    textSecondary: '#75685F',
+    textTertiary: '#A8998C',
+    background: '#FBF6EE',
+    backgroundElement: '#FFFDF9',
+    /** Inset surfaces inside cards: pills, tracks, input wells. */
+    backgroundMuted: '#F3EADD',
+    backgroundSelected: '#F8E3D6',
+    border: '#EADFCF',
+    /** Accent for text and icons (a shade darker than the fill so small text stays readable on cream). */
+    accent: '#B34A23',
+    accentSoft: '#F8E3D6',
+    /** Solid fill for primary buttons and selected pills; always pair with onAccent for content on top. */
+    accentFill: '#C4532A',
+    onAccent: '#FFFFFF',
+    /** Translucent layer for tiles and tracks drawn on top of an accentFill surface. */
+    onAccentOverlay: 'rgba(255,255,255,0.18)',
+    income: '#3E8E5E',
+    incomeSoft: '#E4F0E6',
+    expense: '#C2413B',
+    expenseSoft: '#F8E1DE',
+    warning: '#B97A12',
+    warningSoft: '#FBEFD6',
+    /** Legacy name (was a separate teal accent); kept as an alias so every screen shares one accent. */
+    blue: '#B34A23',
+    red: '#C2413B',
   },
   dark: {
-    text: '#F5F5F7',
-    textSecondary: '#9CA3AF',
-    textTertiary: '#6B7280',
-    background: '#0A0B0F',
-    backgroundElement: '#16181D',
-    backgroundSelected: '#1E1B3A',
-    border: '#26282E',
-    accent: '#818CF8',
-    accentSoft: '#1E1B3A',
-    income: '#34D399',
-    incomeSoft: '#0F2A20',
-    expense: '#FB7185',
-    expenseSoft: '#2D1518',
-    warning: '#FBBF24',
-    warningSoft: '#2D2410',
-    blue: '#5DD4B5',
-    red: '#FB7185',
+    text: '#F6EEE6',
+    textSecondary: '#C3B4A6',
+    textTertiary: '#8E7F72',
+    background: '#1C1714',
+    backgroundElement: '#262019',
+    backgroundMuted: '#312922',
+    backgroundSelected: '#3D2A20',
+    border: '#3A3029',
+    accent: '#F29062',
+    accentSoft: '#3D2A20',
+    accentFill: '#E8784A',
+    onAccent: '#1C1310',
+    onAccentOverlay: 'rgba(28,19,16,0.12)',
+    income: '#7BC49A',
+    incomeSoft: '#1F2C22',
+    expense: '#F2837A',
+    expenseSoft: '#3A221F',
+    warning: '#E9B45A',
+    warningSoft: '#3A2E1A',
+    blue: '#F29062',
+    red: '#F2837A',
   },
 } as const;
 
@@ -52,30 +65,22 @@ export const Radius = {
   pill: 999,
 } as const;
 
+/** Cards sit on a soft border plus a faint warm shadow; floating surfaces lift a little more. */
 export const Shadow = {
   card: {
-    shadowColor: '#000',
+    shadowColor: '#5A3A22',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 2,
+    shadowRadius: 8,
+    elevation: 1,
   },
   raised: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    elevation: 6,
+    shadowColor: '#3A2412',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.16,
+    shadowRadius: 18,
+    elevation: 5,
   },
-} as const;
-
-export const Type = {
-  displayLg: { fontSize: 34, fontWeight: '700' as const, letterSpacing: -0.5 },
-  display: { fontSize: 26, fontWeight: '700' as const, letterSpacing: -0.3 },
-  title: { fontSize: 20, fontWeight: '600' as const },
-  body: { fontSize: 15, fontWeight: '400' as const },
-  label: { fontSize: 13, fontWeight: '500' as const },
-  caption: { fontSize: 12, fontWeight: '400' as const },
 } as const;
 
 export const Fonts = Platform.select({
@@ -98,6 +103,16 @@ export const Fonts = Platform.select({
     mono: 'var(--font-mono)',
   },
 });
+
+/** Headings use the rounded system face (SF Pro Rounded on Apple devices) for a softer, friendlier voice. */
+export const Type = {
+  displayLg: { fontSize: 34, fontWeight: '800' as const, letterSpacing: -0.6, fontFamily: Fonts?.rounded },
+  display: { fontSize: 26, fontWeight: '700' as const, letterSpacing: -0.4, fontFamily: Fonts?.rounded },
+  title: { fontSize: 20, fontWeight: '700' as const, letterSpacing: -0.2, fontFamily: Fonts?.rounded },
+  body: { fontSize: 15, fontWeight: '400' as const },
+  label: { fontSize: 13, fontWeight: '500' as const },
+  caption: { fontSize: 12, fontWeight: '400' as const },
+} as const;
 
 export const Spacing = {
   half: 2,

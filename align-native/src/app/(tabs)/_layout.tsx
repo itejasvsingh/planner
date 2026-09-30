@@ -1,6 +1,6 @@
 import NotificationsManager from '@/components/NotificationsManager';
 import QuickAddBar from '@/components/QuickAddBar';
-import { Colors, Shadow, TabBarHeight, tabBarBottomPadding } from '@/constants/theme';
+import { Colors, TabBarHeight, tabBarBottomPadding } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
@@ -35,8 +35,9 @@ export default function TabsLayout() {
   
   const TabIcon = ({ Icon, focused }: any) => (
     <View style={{ alignItems: 'center', justifyContent: 'center', height: 32 }}>
-      <Icon color={focused ? c.accent : c.textTertiary} size={22} />
-      {focused && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: c.accent, marginTop: 4 }} />}
+      <View style={{ paddingHorizontal: 14, paddingVertical: 4, borderRadius: 999, backgroundColor: focused ? c.accentSoft : 'transparent' }}>
+        <Icon color={focused ? c.accent : c.textTertiary} size={21} strokeWidth={focused ? 2.4 : 2} />
+      </View>
     </View>
   );
 
@@ -59,8 +60,6 @@ export default function TabsLayout() {
             backgroundColor: 'transparent',
             borderTopWidth: 1,
             borderTopColor: c.border,
-            ...Shadow.card,
-            shadowOffset: { width: 0, height: -2 },
             position: 'absolute' as const,
             bottom: 0,
             left: 0,

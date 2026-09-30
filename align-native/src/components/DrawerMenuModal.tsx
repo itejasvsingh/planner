@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, Animated, Dimensions, Switch, Alert, ScrollView, Platform } from 'react-native';
-import { LogOut, Shield, MessageCircle, Moon, Sun, Bell, Smartphone, Repeat, ChevronRight, X } from 'lucide-react-native';
+import { LogOut, Shield, MessageCircle, Moon, Sun, Bell, Smartphone, Repeat, ChevronRight, X, Check } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { doc, setDoc, onSnapshot } from 'firebase/firestore';
@@ -145,23 +145,31 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         </Animated.View>
 
-        <Animated.View style={[styles.drawer, { backgroundColor: theme.background, paddingTop: topPadding, transform: [{ translateX: slideAnim }] }]}>
-          <View style={styles.header}>
-            <View style={[styles.avatar, { backgroundColor: theme.backgroundElement }]}>
-              <Smartphone color={theme.text} size={24} />
+        <Animated.View style={[styles.drawer, { backgroundColor: theme.background, borderRightColor: theme.border, paddingTop: topPadding, transform: [{ translateX: slideAnim }] }]}>
+          <View style={styles.brandRow}>
+            <View style={[styles.brandMark, { backgroundColor: theme.accentFill }]}>
+              <Check size={14} color={theme.onAccent} strokeWidth={3.5} />
+            </View>
+            <Text style={[styles.brandText, { color: theme.text }]}>align.</Text>
+            <View style={{ flex: 1 }} />
+            <Pressable accessibilityRole="button" accessibilityLabel="Close menu" onPress={onClose} style={[styles.closeBtn, { backgroundColor: theme.backgroundMuted }]}><X size={18} color={theme.textSecondary} /></Pressable>
+          </View>
+
+          <View style={[styles.header, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
+            <View style={[styles.avatar, { backgroundColor: theme.backgroundMuted }]}>
+              <Smartphone color={theme.text} size={20} />
             </View>
             <View style={styles.accountInfo}>
               <Text style={[styles.phoneText, { color: theme.text }]} numberOfLines={1}>
                 {firebaseUser?.displayName || firebaseUser?.email || formattedPhone || 'Personal Workspace'}
               </Text>
               <View style={styles.statusRow}>
-                <View style={[styles.statusDot, { backgroundColor: firebaseUser ? '#34C759' : '#FF9500' }]} />
+                <View style={[styles.statusDot, { backgroundColor: firebaseUser ? theme.income : theme.warning }]} />
                 <Text style={{ color: theme.textSecondary, fontSize: 13 }} numberOfLines={1}>
                   {firebaseUser?.email && formattedPhone ? formattedPhone : firebaseUser ? 'Google Account' : formattedPhone ? 'WhatsApp Synced' : 'Guest'}
                 </Text>
               </View>
             </View>
-            <Pressable accessibilityRole="button" accessibilityLabel="Close menu" onPress={onClose} style={{ padding: 10 }}><X size={22} color={theme.textSecondary} /></Pressable>
           </View>
 
           {!firebaseUser && (
@@ -187,16 +195,16 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
           <ScrollView showsVerticalScrollIndicator={false}>
             {/* Preferences */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Preferences</Text>
+              <Text style={[styles.sectionTitle, { color: theme.textTertiary }]}>Preferences</Text>
               
               {Platform.OS !== 'web' && (
               <View style={[styles.menuItem, { borderBottomColor: theme.border }]}>
-                <Bell color={theme.text} size={22} />
+                <Bell color={theme.textSecondary} size={20} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.menuText, { color: theme.text }]}>Local Reminders</Text>
                   <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Notify me for scheduled tasks</Text>
                 </View>
-                <Switch value={pushEnabled} onValueChange={handleTogglePush} />
+                <Switch value={pushEnabled} onValueChange={handleTogglePush} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
               </View>
               )}
 
@@ -206,7 +214,7 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
                   onClose();
                   router.push('/settings/notifications');
                 }}>
-                <Bell color={theme.text} size={22} />
+                <Bell color={theme.textSecondary} size={20} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.menuText, { color: theme.text }]}>Notification Settings</Text>
                 </View>
@@ -214,16 +222,16 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
               </Pressable>
 
               <View style={[styles.menuItem, { borderBottomColor: theme.border }]}>
-                <Repeat color={theme.text} size={22} />
+                <Repeat color={theme.textSecondary} size={20} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.menuText, { color: theme.text }]}>Auto-Push Rollover</Text>
                   <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>Move unfinished tasks to tomorrow</Text>
                 </View>
-                <Switch value={autoPushEnabled} onValueChange={handleToggleAutoPush} />
+                <Switch value={autoPushEnabled} onValueChange={handleToggleAutoPush} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
               </View>
               
               <Pressable style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={cycleTheme}>
-                {scheme === 'dark' ? <Moon color={theme.text} size={22} /> : <Sun color={theme.text} size={22} />}
+                {scheme === 'dark' ? <Moon color={theme.textSecondary} size={20} /> : <Sun color={theme.textSecondary} size={20} />}
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.menuText, { color: theme.text }]}>Appearance</Text>
                 </View>
@@ -233,10 +241,10 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
 
             {/* WhatsApp & Bot */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>WhatsApp & Bot</Text>
+              <Text style={[styles.sectionTitle, { color: theme.textTertiary }]}>WhatsApp & Bot</Text>
               
               <Pressable style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={() => navigateTo('/settings/whatsapp')}>
-                <MessageCircle color={theme.text} size={22} />
+                <MessageCircle color={theme.textSecondary} size={20} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.menuText, { color: theme.text }]}>WhatsApp Settings</Text>
                   <Text style={[styles.menuSubtext, { color: theme.textSecondary }]}>
@@ -244,7 +252,7 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
                   </Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Text style={{ color: dailySummaryEnabled ? '#34C759' : theme.textSecondary, fontWeight: '700' }}>
+                  <Text style={{ color: dailySummaryEnabled ? theme.accent : theme.textSecondary, fontWeight: '700' }}>
                     {dailySummaryEnabled ? 'Active' : 'Configure'}
                   </Text>
                   <Text style={{ color: theme.textSecondary, fontSize: 18, marginBottom: 2 }}>›</Text>
@@ -254,15 +262,15 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
 
             {/* Security */}
             <View style={styles.section}>
-              <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>Security & Privacy</Text>
+              <Text style={[styles.sectionTitle, { color: theme.textTertiary }]}>Security & Privacy</Text>
               
               <Pressable style={[styles.menuItem, { borderBottomColor: theme.border }]} onPress={() => navigateTo('/settings/security')}>
-                <Shield color={theme.text} size={22} />
+                <Shield color={theme.textSecondary} size={20} />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.menuText, { color: theme.text }]}>Security</Text>
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                  <Text style={{ color: securityActive ? '#34C759' : theme.textSecondary, fontWeight: '700' }}>
+                  <Text style={{ color: securityActive ? theme.accent : theme.textSecondary, fontWeight: '700' }}>
                     {securityActive ? 'On' : 'Off'}
                   </Text>
                   <Text style={{ color: theme.textSecondary, fontSize: 18, marginBottom: 2 }}>›</Text>
@@ -280,10 +288,10 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
                 router.replace('/login');
               }}
             >
-              <View style={[styles.avatar, { width: 40, height: 40, backgroundColor: 'rgba(255,59,48,0.1)' }]}>
-                <LogOut color="#FF3B30" size={20} />
+              <View style={[styles.avatar, { width: 36, height: 36, borderRadius: 10, backgroundColor: theme.expenseSoft }]}>
+                <LogOut color={theme.red} size={18} />
               </View>
-              <Text style={[styles.menuText, { color: '#FF3B30', fontWeight: '700' }]}>
+              <Text style={[styles.menuText, { color: theme.red, fontWeight: '700' }]}>
                 {phone || firebaseUser ? 'Log out / Switch account' : 'Sign in'}
               </Text>
             </Pressable>
@@ -297,14 +305,18 @@ export default function DrawerMenuModal({ visible, onClose }: DrawerMenuModalPro
 const styles = StyleSheet.create({
   container: { flex: 1, flexDirection: 'row' },
   overlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.5)' },
-  drawer: { width: DRAWER_WIDTH, height: '100%', paddingHorizontal: 20, paddingBottom: 40, shadowColor: '#000', shadowOffset: { width: 4, height: 0 }, shadowOpacity: 0.1, shadowRadius: 12, elevation: 10 },
+  drawer: { width: DRAWER_WIDTH, height: '100%', paddingHorizontal: 18, paddingBottom: 40, borderRightWidth: 1, shadowColor: '#000', shadowOffset: { width: 6, height: 0 }, shadowOpacity: 0.2, shadowRadius: 18, elevation: 10 },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 20 },
+  brandMark: { width: 24, height: 24, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  brandText: { fontSize: 20, fontWeight: '800', letterSpacing: -0.6 },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   quickGoogleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 11,
     paddingHorizontal: 16,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     marginBottom: 20,
     gap: 10,
@@ -318,16 +330,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  header: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 24 },
-  avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 20, padding: 12, borderRadius: 14, borderWidth: 1 },
+  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   accountInfo: { flex: 1 },
-  phoneText: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
+  phoneText: { fontSize: 15, fontWeight: '700', marginBottom: 3 },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statusDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#34C759' },
   section: { marginBottom: 24 },
-  sectionTitle: { fontSize: 13, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 },
-  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth, gap: 16 },
-  menuText: { fontSize: 16, fontWeight: '600' },
+  sectionTitle: { fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 4 },
+  menuItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, gap: 14 },
+  menuText: { fontSize: 15, fontWeight: '600' },
   menuSubtext: { fontSize: 12, marginTop: 2, fontWeight: '500' },
   badge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 16 },
   badgeText: { fontSize: 12, fontWeight: '800' }

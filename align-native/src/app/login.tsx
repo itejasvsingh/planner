@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Check } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
@@ -84,13 +85,13 @@ export default function LoginScreen() {
   return (
     <View style={[styles.safe, { backgroundColor: theme.background, paddingTop: topPadding }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.center}>
-        <View style={styles.logo}>
-          <Text style={styles.logoMark}>⚡</Text>
+        <View style={[styles.logo, { backgroundColor: theme.accentFill }]}>
+          <Check size={36} color={theme.onAccent} strokeWidth={3.5} />
         </View>
 
         {!showPhoneStep ? (
           <>
-            <Text style={[styles.title, { color: theme.text }]}>Align</Text>
+            <Text style={[styles.title, { color: theme.text }]}>align.</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
               Enter your WhatsApp number to sync your personalized timeline and finances.
             </Text>
@@ -125,13 +126,13 @@ export default function LoginScreen() {
               disabled={busy}
               style={({ pressed }) => [
                 styles.button,
-                { backgroundColor: theme.blue, opacity: pressed || busy ? 0.8 : 1 },
+                { backgroundColor: theme.accentFill, opacity: pressed || busy ? 0.8 : 1 },
               ]}
             >
               {busy ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={theme.onAccent} />
               ) : (
-                <Text style={styles.buttonText}>Continue</Text>
+                <Text style={[styles.buttonText, { color: theme.onAccent }]}>Continue</Text>
               )}
             </Pressable>
 
@@ -220,13 +221,13 @@ export default function LoginScreen() {
               disabled={busy}
               style={({ pressed }) => [
                 styles.button,
-                { backgroundColor: theme.blue, opacity: pressed || busy ? 0.8 : 1 },
+                { backgroundColor: theme.accentFill, opacity: pressed || busy ? 0.8 : 1 },
               ]}
             >
               {busy ? (
-                <ActivityIndicator color="#fff" />
+                <ActivityIndicator color={theme.onAccent} />
               ) : (
-                <Text style={styles.buttonText}>Complete Setup</Text>
+                <Text style={[styles.buttonText, { color: theme.onAccent }]}>Complete Setup</Text>
               )}
             </Pressable>
 
@@ -258,24 +259,17 @@ const styles = StyleSheet.create({
   logo: {
     width: 80,
     height: 80,
-    borderRadius: 22,
-    backgroundColor: '#007AFF',
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 24,
-    shadowColor: '#007AFF',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
   },
-  logoMark: { fontSize: 36, color: '#fff' },
-  title: { fontSize: 32, fontWeight: '800', letterSpacing: -0.5, marginBottom: 8 },
+  title: { fontSize: 36, fontWeight: '800', letterSpacing: -1.2, marginBottom: 8 },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     lineHeight: 22,
     textAlign: 'center',
-    maxWidth: 320,
+    maxWidth: 300,
     marginBottom: 32,
   },
   accountBadge: {
@@ -288,31 +282,26 @@ const styles = StyleSheet.create({
     maxWidth: 340,
     fontSize: 18,
     padding: 16,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   button: {
     width: '100%',
     maxWidth: 340,
     padding: 16,
-    borderRadius: 14,
+    borderRadius: 12,
     alignItems: 'center',
   },
-  buttonText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  buttonText: { fontSize: 16, fontWeight: '800' },
   googleButton: {
     width: '100%',
     maxWidth: 340,
     padding: 16,
-    borderRadius: 14,
+    borderRadius: 12,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
   },
   googleButtonContent: {
     flexDirection: 'row',
@@ -326,7 +315,7 @@ const styles = StyleSheet.create({
     color: '#4285F4',
   },
   googleButtonText: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '600',
   },
   error: { fontSize: 14, fontWeight: '600', textAlign: 'center', marginBottom: 12, maxWidth: 340 },

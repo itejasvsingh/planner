@@ -1,9 +1,10 @@
 import { Modal, View, Text, TextInput, Pressable, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
-import { Colors, Radius, Shadow, Type } from '@/constants/theme';
+import { Colors, Radius, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { X, Trash2, Coffee, ShoppingBag, Car, Zap, Heart, Ticket, Wallet, Briefcase, Plus } from 'lucide-react-native';
+import { X, Trash2 } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import SegmentedControl from './SegmentedControl';
+import { categoriesFor, DEFAULT_CATEGORY, kindForType, resolveCategory, type CategoryKind } from '@/lib/categories';
 
 interface TransactionSheetProps {
     visible: boolean;
@@ -13,26 +14,6 @@ interface TransactionSheetProps {
     onDelete?: (id: string) => Promise<void>;
 }
 
-const EXPENSE_CATEGORIES = [
-    { name: 'Food Delivery', icon: Coffee },
-    { name: 'Cabs', icon: Car },
-    { name: 'Festival Shopping', icon: ShoppingBag },
-    { name: 'Mobile Recharge', icon: Zap },
-    { name: 'Maid/Help', icon: Heart },
-    { name: 'Other', icon: Wallet },
-];
-
-const INCOME_CATEGORIES = [
-    { name: 'Salary', icon: Briefcase },
-    { name: 'UPI Transfer', icon: Wallet },
-    { name: 'Other', icon: Plus },
-];
-
-const TRANSFER_CATEGORIES = [
-    { name: 'Self Transfer', icon: Wallet },
-    { name: 'Wallet Load', icon: Plus },
-];
-
 export default function TransactionSheet({ visible, onClose, item, onSave, onDelete }: TransactionSheetProps) {
     const { isDark } = useTheme();
     const c = isDark ? Colors.dark : Colors.light;
@@ -40,7 +21,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [type, setType] = useState('expense');
     const [title, setTitle] = useState('');
     const [amount, setAmount] = useState('');
-    const [category, setCategory] = useState('Food Delivery');
+    const [category, setCategory] = useState(DEFAULT_CATEGORY.expense);
         const [date, setDate] = useState('');
     const [isRecurring, setIsRecurring] = useState(false);
     const [isSplit, setIsSplit] = useState(false);
@@ -51,10 +32,10 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     useEffect(() => {
         if (visible) {
             if (item) {
-                setType(item.type === 'income' || item.type === 'deposit' ? 'income' : 'expense');
+                setType(kindForType(item.type));
                 setTitle(item.title || '');
                 setAmount(item.amount ? String(item.amount) : '');
-                setCategory(item.category || (item.type === 'income' ? 'Salary' : 'Food Delivery'));
+                setCategory(resolveCategory(item.category, kindForType(item.type)).name);
                 setDate(item.date || new Date().toISOString().split('T')[0]);
                 setIsRecurring(!!item.isRecurring);
                 setIsSplit(!!item.split);
@@ -67,7 +48,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                 setType('expense');
                 setTitle('');
                 setAmount('');
-                setCategory('Food Delivery');
+                setCategory(DEFAULT_CATEGORY.expense);
                 setDate(new Date().toISOString().split('T')[0]);
                 setIsRecurring(false);
                 setIsSplit(false);
@@ -81,7 +62,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     // Update default category when type changes
     useEffect(() => {
         if (!item) {
-            setCategory(type === 'income' ? 'Salary' : 'Food Delivery');
+            setCategory(DEFAULT_CATEGORY[type as CategoryKind] ?? DEFAULT_CATEGORY.expense);
         }
     }, [type, item]);
 
@@ -120,7 +101,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
         onClose();
     };
 
-    const categories = type === 'expense' ? EXPENSE_CATEGORIES : (type === 'transfer' ? TRANSFER_CATEGORIES : INCOME_CATEGORIES);
+    const categories = categoriesFor(kindForType(type));
 
     return (
         <Modal visible={visible} animationType="slide" transparent>
@@ -128,12 +109,12 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}
             >
-                <View style={{ backgroundColor: c.background, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 50, maxHeight: '90%' }}>
+                <View style={{ backgroundColor: c.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 44, maxHeight: '90%' }}>
                     
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                         <Text style={[Type.title, { color: c.text }]}>{item ? 'Edit Transaction' : 'New Transaction'}</Text>
-                        <Pressable onPress={onClose} style={{ padding: 8, backgroundColor: c.backgroundElement, borderRadius: Radius.pill }}>
-                            <X color={c.text} size={20} />
+                        <Pressable onPress={onClose} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: c.backgroundMuted, borderRadius: Radius.pill }}>
+                            <X color={c.textSecondary} size={18} />
                         </Pressable>
                     </View>
 
@@ -148,14 +129,14 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                         <View style={{ alignItems: 'center', paddingVertical: 10 }}>
                             <Text style={[Type.caption, { color: c.textTertiary, marginBottom: 8 }]}>Amount</Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Text style={[Type.displayLg, { color: type === 'income' ? c.income : (type === 'transfer' ? c.textSecondary : c.text), marginRight: 4 }]}>$</Text>
+                                <Text style={[Type.displayLg, { color: type === 'income' ? c.income : (type === 'transfer' ? c.textSecondary : c.text), marginRight: 4 }]}>₹</Text>
                                 <TextInput 
                                     value={amount}
                                     onChangeText={setAmount}
                                     keyboardType="decimal-pad"
-                                    placeholder="0.00"
+                                    placeholder="0"
                                     placeholderTextColor={c.textTertiary}
-                                    style={[Type.displayLg, { color: type === 'income' ? c.income : (type === 'transfer' ? c.textSecondary : c.text), minWidth: 100, textAlign: 'center' }]}
+                                    style={[Type.displayLg, { color: type === 'income' ? c.income : (type === 'transfer' ? c.textSecondary : c.text), minWidth: 60, width: 160, textAlign: 'left' }]}
                                     autoFocus={!item}
                                 />
                             </View>
@@ -170,7 +151,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                     onChangeText={setTitle}
                                     placeholder="What was this for?"
                                     placeholderTextColor={c.textTertiary}
-                                    style={{ backgroundColor: c.backgroundElement, color: c.text, padding: 16, borderRadius: Radius.md, fontSize: 16 }}
+                                    style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, color: c.text, padding: 14, borderRadius: Radius.md, fontSize: 16 }}
                                 />
                             </View>
                             <View style={{ flex: 1.5 }}>
@@ -178,7 +159,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                 <TextInput 
                                     value={date}
                                     onChangeText={setDate}
-                                    style={{ backgroundColor: c.backgroundElement, color: c.text, padding: 16, borderRadius: Radius.md, fontSize: 16 }}
+                                    style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, color: c.text, padding: 14, borderRadius: Radius.md, fontSize: 16 }}
                                 />
                             </View>
                         </View>
@@ -197,12 +178,14 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                             style={[{ 
                                                 flexDirection: 'row', alignItems: 'center', gap: 8, 
                                                 paddingHorizontal: 16, paddingVertical: 12, 
-                                                borderRadius: Radius.pill, 
-                                                backgroundColor: c.backgroundElement 
-                                            }, isSelected && { backgroundColor: type === 'income' ? c.incomeSoft : c.expenseSoft }]}
+                                                borderRadius: Radius.pill,
+                                                borderWidth: 1,
+                                                borderColor: c.border,
+                                                backgroundColor: c.backgroundElement
+                                            }, isSelected && { backgroundColor: c.accentFill, borderColor: c.accentFill }]}
                                         >
-                                            <Icon color={isSelected ? (type === 'income' ? c.income : c.expense) : c.textSecondary} size={18} />
-                                            <Text style={[Type.body, { fontWeight: isSelected ? '600' : '500', color: isSelected ? (type === 'income' ? c.income : c.expense) : c.text }]}>
+                                            <Icon color={isSelected ? c.onAccent : c.textSecondary} size={17} />
+                                            <Text style={[Type.body, { fontWeight: isSelected ? '700' : '500', color: isSelected ? c.onAccent : c.text }]}>
                                                 {cat.name}
                                             </Text>
                                         </Pressable>
@@ -214,7 +197,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                         
                         {/* Advanced Features */}
                         {type === 'expense' && (
-                            <View style={{ backgroundColor: c.backgroundElement, borderRadius: Radius.lg, padding: 16, gap: 16 }}>
+                            <View style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, borderRadius: Radius.lg, padding: 16, gap: 16 }}>
                                 {/* Recurring Toggle */}
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <View>
@@ -223,9 +206,9 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                     </View>
                                     <Pressable 
                                         onPress={() => setIsRecurring(!isRecurring)}
-                                        style={{ width: 50, height: 30, borderRadius: 15, backgroundColor: isRecurring ? c.accent : c.border, padding: 2, justifyContent: 'center', alignItems: isRecurring ? 'flex-end' : 'flex-start' }}
+                                        style={{ width: 50, height: 30, borderRadius: 15, backgroundColor: isRecurring ? c.accentFill : c.backgroundMuted, padding: 2, justifyContent: 'center', alignItems: isRecurring ? 'flex-end' : 'flex-start' }}
                                     >
-                                        <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#FFF' }} />
+                                        <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } }} />
                                     </Pressable>
                                 </View>
 
@@ -237,9 +220,9 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                     </View>
                                     <Pressable 
                                         onPress={() => setIsSplit(!isSplit)}
-                                        style={{ width: 50, height: 30, borderRadius: 15, backgroundColor: isSplit ? c.accent : c.border, padding: 2, justifyContent: 'center', alignItems: isSplit ? 'flex-end' : 'flex-start' }}
+                                        style={{ width: 50, height: 30, borderRadius: 15, backgroundColor: isSplit ? c.accentFill : c.backgroundMuted, padding: 2, justifyContent: 'center', alignItems: isSplit ? 'flex-end' : 'flex-start' }}
                                     >
-                                        <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#FFF' }} />
+                                        <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } }} />
                                     </Pressable>
                                 </View>
 
@@ -251,20 +234,20 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                             onChangeText={setSplitWith}
                                             placeholder="Friend's Name"
                                             placeholderTextColor={c.textTertiary}
-                                            style={{ backgroundColor: isDark ? '#000' : '#FFF', color: c.text, padding: 12, borderRadius: Radius.md }}
+                                            style={{ backgroundColor: c.backgroundMuted, color: c.text, padding: 12, borderRadius: Radius.md }}
                                         />
                                         <View style={{ flexDirection: 'row', gap: 12 }}>
                                             <Pressable 
                                                 onPress={() => setPaidByYou(true)}
-                                                style={{ flex: 1, padding: 12, borderRadius: Radius.md, backgroundColor: paidByYou ? c.accent : (isDark ? '#000' : '#FFF'), alignItems: 'center' }}
+                                                style={{ flex: 1, padding: 12, borderRadius: Radius.md, backgroundColor: paidByYou ? c.accentFill : c.backgroundMuted, alignItems: 'center' }}
                                             >
-                                                <Text style={[Type.caption, { color: paidByYou ? '#FFF' : c.textSecondary, fontWeight: '600' }]}>You Paid</Text>
+                                                <Text style={[Type.caption, { color: paidByYou ? c.onAccent : c.textSecondary, fontWeight: '700' }]}>You Paid</Text>
                                             </Pressable>
                                             <Pressable 
                                                 onPress={() => setPaidByYou(false)}
-                                                style={{ flex: 1, padding: 12, borderRadius: Radius.md, backgroundColor: !paidByYou ? c.accent : (isDark ? '#000' : '#FFF'), alignItems: 'center' }}
+                                                style={{ flex: 1, padding: 12, borderRadius: Radius.md, backgroundColor: !paidByYou ? c.accentFill : c.backgroundMuted, alignItems: 'center' }}
                                             >
-                                                <Text style={[Type.caption, { color: !paidByYou ? '#FFF' : c.textSecondary, fontWeight: '600' }]}>They Paid</Text>
+                                                <Text style={[Type.caption, { color: !paidByYou ? c.onAccent : c.textSecondary, fontWeight: '700' }]}>They Paid</Text>
                                             </Pressable>
                                         </View>
                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -275,7 +258,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                                 placeholder={amount ? String(parseFloat(amount) / 2) : "0.00"}
                                                 keyboardType="decimal-pad"
                                                 placeholderTextColor={c.textTertiary}
-                                                style={{ backgroundColor: isDark ? '#000' : '#FFF', color: c.text, padding: 12, borderRadius: Radius.md, flex: 1 }}
+                                                style={{ backgroundColor: c.backgroundMuted, color: c.text, padding: 12, borderRadius: Radius.md, flex: 1 }}
                                             />
                                         </View>
                                     </View>
@@ -293,10 +276,10 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                             )}
                             <Pressable 
                                 onPress={handleSave} 
-                                style={{ flex: item ? 3 : 1, backgroundColor: (amount && title) ? c.accent : c.border, padding: 16, borderRadius: Radius.md, alignItems: 'center', ...Shadow.raised }}
+                                style={{ flex: item ? 3 : 1, backgroundColor: (amount && title) ? c.accentFill : c.backgroundMuted, padding: 16, borderRadius: Radius.md, alignItems: 'center' }}
                                 disabled={!amount || !title}
                             >
-                                <Text style={[Type.label, { color: (amount && title) ? '#FFF' : c.textTertiary, fontWeight: '700' }]}>
+                                <Text style={[Type.label, { color: (amount && title) ? c.onAccent : c.textTertiary, fontWeight: '700', fontSize: 15 }]}>
                                     {item ? 'Save Changes' : 'Add Transaction'}
                                 </Text>
                             </Pressable>
