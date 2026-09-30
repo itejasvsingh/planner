@@ -1,4 +1,4 @@
-import { Colors, Radius, Shadow } from '@/constants/theme';
+import { Colors, Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { Pressable, Text, View } from 'react-native';
 
@@ -15,10 +15,10 @@ export default function SegmentedControl({ tabs, activeTab, onTabChange }: Segme
     return (
         <View style={{
             flexDirection: 'row',
-            backgroundColor: isDark ? '#1C1C1E' : '#E5E5EA',
+            backgroundColor: c.backgroundMuted,
             padding: 3,
-            borderRadius: 9,
-            marginBottom: 20
+            borderRadius: Radius.md,
+            marginBottom: 4
         }}>
             {tabs.map(tab => {
                 const isActive = activeTab === tab;
@@ -27,13 +27,13 @@ export default function SegmentedControl({ tabs, activeTab, onTabChange }: Segme
                         key={tab}
                         onPress={() => onTabChange(tab)}
                         style={[
-                            { flex: 1, paddingVertical: 6, alignItems: 'center', borderRadius: 7 },
-                            isActive && { backgroundColor: c.backgroundElement, ...Shadow.card, shadowOpacity: 0.1, shadowRadius: 3 }
+                            { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: Radius.sm + 1, borderWidth: 1, borderColor: 'transparent' },
+                            isActive && { backgroundColor: c.backgroundElement, borderColor: c.border }
                         ]}
                     >
                         <Text style={{ 
                             fontSize: 13, 
-                            fontWeight: isActive ? '600' : '500', 
+                            fontWeight: isActive ? '700' : '500', 
                             color: isActive ? c.text : c.textSecondary 
                         }}>
                             {tab}

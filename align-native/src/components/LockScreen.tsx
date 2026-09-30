@@ -11,7 +11,10 @@ import {
     BiometricAvailability,
 } from '../lib/auth';
 import { getItem } from '../lib/storage';
-import { Fingerprint, ScanFace } from 'lucide-react-native';
+import { Check, Fingerprint, ScanFace } from 'lucide-react-native';
+import { Colors } from '@/constants/theme';
+
+const C = Colors.dark;
 
 export type AuthStage = 'choose-length' | 'locked' | 'set-pin' | 'confirm-pin' | 'forgot-pin' | 'unlocked';
 
@@ -41,8 +44,8 @@ function PinDots({ filled, total, shakeAnim }: { filled: number; total: number; 
                         {
                             width: total === 6 ? 12 : 14,
                             height: total === 6 ? 12 : 14,
-                            backgroundColor: i < filled ? '#3B82F6' : 'transparent',
-                            borderColor: i < filled ? '#3B82F6' : 'rgba(255,255,255,0.35)',
+                            backgroundColor: i < filled ? C.accentFill : 'transparent',
+                            borderColor: i < filled ? C.accentFill : C.textTertiary,
                         }
                     ]}
                 />
@@ -98,7 +101,7 @@ function PinLengthChooser({ onChoose, onSkip }: { onChoose: (len: 4 | 6) => void
 
             {onSkip && (
                 <TouchableOpacity onPress={onSkip} style={{ alignItems: 'center', marginTop: 12 }}>
-                    <Text style={{ color: '#94A3B8', fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' }}>
+                    <Text style={{ color: C.textSecondary, fontSize: 14, fontWeight: '600', textDecorationLine: 'underline' }}>
                         Skip (No App Lock)
                     </Text>
                 </TouchableOpacity>
@@ -221,16 +224,16 @@ export default function LockScreen({
         <View style={styles.container}>
             {onCancel && stage !== 'locked' && (
                 <TouchableOpacity onPress={onCancel} style={styles.cancelBtnTop}>
-                    <Text style={{ color: '#F8FAFC', fontSize: 14, fontWeight: '700' }}>← Back</Text>
+                    <Text style={{ color: C.text, fontSize: 14, fontWeight: '700' }}>← Back</Text>
                 </TouchableOpacity>
             )}
 
             <View style={styles.header}>
                 <View style={styles.logo}>
-                    <Text style={styles.logoText}>⚡</Text>
+                    <Check size={30} color={C.onAccent} strokeWidth={3.5} />
                 </View>
                 <Text style={styles.title}>{stageTitle}</Text>
-                <Text style={[styles.subtitle, { color: message && !message.includes('confirm') && !message.includes('cleared') ? '#F87171' : '#94A3B8' }]}>
+                <Text style={[styles.subtitle, { color: message && !message.includes('confirm') && !message.includes('cleared') ? C.expense : C.textSecondary }]}>
                     {message || (stage === 'forgot-pin' ? 'Enter your phone number' : 'Enter your PIN')}
                 </Text>
             </View>
@@ -257,17 +260,17 @@ export default function LockScreen({
                             style={styles.phoneInput}
                             keyboardType="phone-pad"
                             placeholder="e.g. 919876543210"
-                            placeholderTextColor="rgba(255,255,255,0.3)"
+                            placeholderTextColor={C.textTertiary}
                             value={forgotPhone}
                             onChangeText={(t) => { setForgotPhone(t); setMessage(''); }}
                             autoFocus
                         />
                     </Animated.View>
                     <TouchableOpacity onPress={handleForgotPin} style={styles.verifyBtn}>
-                        <Text style={{ color: '#FFF', fontSize: 15, fontWeight: '700' }}>Verify & Reset PIN</Text>
+                        <Text style={{ color: C.onAccent, fontSize: 15, fontWeight: '800' }}>Verify & Reset PIN</Text>
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => { setStage('locked'); setMessage(''); }} style={{ marginTop: 12, padding: 8 }}>
-                        <Text style={{ color: '#64748B', fontSize: 13 }}>Cancel</Text>
+                        <Text style={{ color: C.textTertiary, fontSize: 13 }}>Cancel</Text>
                     </TouchableOpacity>
                 </View>
             )}
@@ -283,26 +286,26 @@ export default function LockScreen({
 
             {stage === 'locked' && biometryType !== 'none' && (
                 <TouchableOpacity onPress={() => promptBiometric('Unlock')} style={styles.biometricButton}>
-                    {biometryType === 'face' ? <ScanFace color="#94A3B8" size={20} /> : <Fingerprint color="#94A3B8" size={20} />}
+                    {biometryType === 'face' ? <ScanFace color={C.textSecondary} size={20} /> : <Fingerprint color={C.textSecondary} size={20} />}
                     <Text style={styles.biometricText}>Use {biometryType === 'face' ? 'Face ID' : 'Fingerprint'}</Text>
                 </TouchableOpacity>
             )}
 
             {stage === 'locked' && wrongCount >= 1 && (
                 <TouchableOpacity onPress={() => { setStage('forgot-pin'); setPin(''); setMessage(''); }} style={{ marginTop: 24, padding: 8 }}>
-                    <Text style={{ color: '#64748B', fontSize: 13 }}>Forgot PIN?</Text>
+                    <Text style={{ color: C.textTertiary, fontSize: 13 }}>Forgot PIN?</Text>
                 </TouchableOpacity>
             )}
 
             {stage === 'set-pin' && (
                 <TouchableOpacity onPress={() => { setStage('choose-length'); setPin(''); setMessage(''); }} style={{ marginTop: 24, padding: 8 }}>
-                    <Text style={{ color: '#64748B', fontSize: 13 }}>← Change PIN length</Text>
+                    <Text style={{ color: C.textTertiary, fontSize: 13 }}>← Change PIN length</Text>
                 </TouchableOpacity>
             )}
 
             {stage === 'confirm-pin' && (
                 <TouchableOpacity onPress={() => { setStage('set-pin'); setFirstPin(''); setPin(''); setMessage(''); }} style={{ marginTop: 24, padding: 8 }}>
-                    <Text style={{ color: '#94A3B8', fontSize: 13 }}>← Back to enter PIN</Text>
+                    <Text style={{ color: C.textSecondary, fontSize: 13 }}>← Back to enter PIN</Text>
                 </TouchableOpacity>
             )}
         </View>
@@ -312,7 +315,7 @@ export default function LockScreen({
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#0F172A',
+        backgroundColor: C.background,
         alignItems: 'center',
         justifyContent: 'center',
         padding: 24,
@@ -321,9 +324,9 @@ const styles = StyleSheet.create({
         position: 'absolute',
         top: 60,
         left: 20,
-        backgroundColor: 'rgba(255,255,255,0.08)',
+        backgroundColor: C.backgroundElement,
         borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.12)',
+        borderColor: C.border,
         borderRadius: 12,
         paddingVertical: 8,
         paddingHorizontal: 14,
@@ -336,24 +339,25 @@ const styles = StyleSheet.create({
     logo: {
         width: 64,
         height: 64,
-        backgroundColor: '#3B82F6',
-        borderRadius: 16,
+        backgroundColor: C.accentFill,
+        borderRadius: 18,
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 16,
     },
     logoText: {
-        color: '#ffffff',
+        color: C.onAccent,
         fontSize: 32,
     },
     title: {
-        color: '#ffffff',
+        color: C.text,
         fontSize: 24,
-        fontWeight: 'bold',
+        fontWeight: '800',
+        letterSpacing: -0.5,
         marginBottom: 8,
     },
     subtitle: {
-        color: '#94A3B8',
+        color: C.textSecondary,
         fontSize: 14,
         textAlign: 'center',
         minHeight: 24,
@@ -364,8 +368,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         borderRadius: 18,
         borderWidth: 1.5,
-        borderColor: 'rgba(255,255,255,0.13)',
-        backgroundColor: 'rgba(255,255,255,0.07)',
+        borderColor: C.border,
+        backgroundColor: C.backgroundElement,
         alignItems: 'center',
     },
     lengthDot: {
@@ -373,16 +377,16 @@ const styles = StyleSheet.create({
         height: 10,
         borderRadius: 5,
         borderWidth: 2,
-        borderColor: 'rgba(255,255,255,0.4)',
+        borderColor: C.textTertiary,
     },
     lengthTitle: {
-        color: '#F8FAFC',
+        color: C.text,
         fontSize: 16,
         fontWeight: '700',
         marginBottom: 4,
     },
     lengthSub: {
-        color: '#64748B',
+        color: C.textTertiary,
         fontSize: 12,
         fontWeight: '500',
     },
@@ -392,9 +396,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         borderRadius: 14,
         borderWidth: 1.5,
-        borderColor: 'rgba(255,255,255,0.15)',
-        backgroundColor: 'rgba(255,255,255,0.08)',
-        color: '#F8FAFC',
+        borderColor: C.border,
+        backgroundColor: C.backgroundElement,
+        color: C.text,
         fontSize: 16,
         textAlign: 'center',
     },
@@ -402,7 +406,7 @@ const styles = StyleSheet.create({
         width: '100%',
         padding: 14,
         borderRadius: 14,
-        backgroundColor: '#3B82F6',
+        backgroundColor: C.accentFill,
         alignItems: 'center',
     },
     pinArea: {
@@ -438,13 +442,13 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     numpadButtonNormal: {
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: C.backgroundMuted,
     },
     numpadButtonDel: {
-        backgroundColor: 'rgba(255,255,255,0.07)',
+        backgroundColor: C.backgroundElement,
     },
     numpadButtonText: {
-        color: '#ffffff',
+        color: C.text,
         fontSize: 28,
         fontWeight: '600',
     },
@@ -452,13 +456,13 @@ const styles = StyleSheet.create({
         marginTop: 32,
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: C.backgroundMuted,
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderRadius: 12,
     },
     biometricText: {
-        color: '#94A3B8',
+        color: C.textSecondary,
         marginLeft: 8,
         fontWeight: '600',
     },

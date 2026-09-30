@@ -79,10 +79,10 @@ export default function SplitEditorModal({ visible, onClose, expense }: SplitEdi
           </View>
 
           <Pressable 
-            style={({ pressed }) => [styles.saveBtn, { backgroundColor: theme.blue, opacity: pressed ? 0.8 : 1 }]}
+            style={({ pressed }) => [styles.saveBtn, { backgroundColor: theme.accentFill, opacity: pressed ? 0.8 : 1 }]}
             onPress={handleSave}
           >
-            <Text style={styles.saveBtnText}>Save Splits</Text>
+            <Text style={[styles.saveBtnText, { color: theme.onAccent }]}>Save Splits</Text>
           </Pressable>
         </Animated.View>
       </KeyboardAvoidingView>
@@ -96,8 +96,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   sheet: {
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     padding: 24,
     paddingBottom: 48,
     shadowColor: '#000',
@@ -118,19 +118,18 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   closeBtn: {
-    padding: 4,
-    backgroundColor: 'rgba(120,120,128,0.12)',
+    padding: 6,
+    backgroundColor: 'rgba(120,120,128,0.14)',
     borderRadius: 16,
   },
   saveBtn: {
-    paddingVertical: 16,
-    borderRadius: 16,
+    paddingVertical: 15,
+    borderRadius: 14,
     alignItems: 'center',
     marginTop: 20,
   },
   saveBtnText: {
-    color: '#FFF',
-    fontSize: 17,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
   }
 });

@@ -8,8 +8,8 @@ html, body {
   bottom: 0;
   width: 100%;
   height: 100%;
-  background-color: #0A0B0F !important;
-  color: #F5F5F7 !important;
+  background-color: #1C1714 !important;
+  color: #F6EEE6 !important;
   overflow: hidden;
 }
 
@@ -26,39 +26,44 @@ html, body {
 
 @media (prefers-color-scheme: light) {
   html, body, #root {
-    background-color: #F4F7F6 !important;
-    color: #182B32 !important;
+    background-color: #FBF6EE !important;
+    color: #2B2320 !important;
   }
 }
 
 html[data-theme="dark"],
 html[data-theme="dark"] body,
 html[data-theme="dark"] #root {
-  background-color: #0A0B0F !important;
-  color: #F5F5F7 !important;
+  background-color: #1C1714 !important;
+  color: #F6EEE6 !important;
 }
 
 html[data-theme="light"],
 html[data-theme="light"] body,
 html[data-theme="light"] #root {
-  background-color: #F4F7F6 !important;
-  color: #182B32 !important;
+  background-color: #FBF6EE !important;
+  color: #2B2320 !important;
 }
 
 :root {
-  --tab-bar-bg: #0A0B0F;
+  --tab-bar-bg: #1C1714;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --tab-bar-bg: #F4F7F6;
+    --tab-bar-bg: #FBF6EE;
   }
 }
 
 html[data-theme="dark"] {
-  --tab-bar-bg: #0A0B0F;
+  --tab-bar-bg: #1C1714;
 }
 
 html[data-theme="light"] {
-  --tab-bar-bg: #F4F7F6;
+  --tab-bar-bg: #FBF6EE;
+}
+
+/* Rounded display face for headings (SF Pro Rounded on Apple devices, system UI elsewhere). */
+:root {
+  --font-rounded: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 }

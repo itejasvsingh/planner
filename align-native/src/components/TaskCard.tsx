@@ -1,5 +1,5 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { Check, Clock, AlertCircle, CheckSquare, Bell, CreditCard, DollarSign } from 'lucide-react-native';
+import { Check, Clock, AlertCircle, Bell, ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
 import { type PlannerItem } from '@/lib/planner-item';
 import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 
@@ -18,6 +18,7 @@ export default function TaskCard({
   onToggle,
   onPress,
   isSwipable,
+  hideTime,
 }: {
   item: PlannerItem;
   theme: any;
@@ -26,6 +27,8 @@ export default function TaskCard({
   onToggle: () => void;
   onPress: () => void;
   isSwipable?: boolean;
+  /** Set when the parent already shows the time next to the card. */
+  hideTime?: boolean;
 }) {
   const overdue = !!item.dueDate && item.dueDate < today;
   const prio = prioLabel(item.priority);
@@ -37,27 +40,21 @@ export default function TaskCard({
 
   const isIncome = item.type === 'income' || item.type === 'deposit';
   const isExpense = item.type === 'expense';
-  
-  let IconComponent = CheckSquare;
-  let iconColor: string = c.textTertiary;
-  let iconBg: any = c.background;
+  const isTask = item.type === 'task' || !item.type;
+  const showTime = !!item.dueTime && !hideTime;
 
+  // Tasks lead with their checkbox; money and reminder items lead with a type icon.
+  let Icon = Bell;
+  let iconColor: string = c.warning;
+  let iconBg: string = c.warningSoft;
   if (isExpense) {
-    IconComponent = CreditCard;
+    Icon = ArrowUpRight;
     iconColor = c.expense;
     iconBg = c.expenseSoft;
   } else if (isIncome) {
-    IconComponent = DollarSign;
+    Icon = ArrowDownLeft;
     iconColor = c.income;
     iconBg = c.incomeSoft;
-  } else if (item.type === 'reminder') {
-    IconComponent = Bell;
-    iconColor = c.warning;
-    iconBg = c.warningSoft;
-  } else {
-    IconComponent = CheckSquare;
-    iconColor = c.accent;
-    iconBg = c.accentSoft;
   }
 
   return (
@@ -67,90 +64,91 @@ export default function TaskCard({
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
-        { 
-          backgroundColor: c.backgroundElement, 
-          flex: compact ? 1 : undefined, 
-          marginBottom: isSwipable ? 0 : 12,
-          opacity: pressed ? 0.9 : 1,
-          transform: [{ scale: pressed ? 0.98 : 1 }]
+        {
+          backgroundColor: c.backgroundElement,
+          borderColor: c.border,
+          flex: compact ? 1 : undefined,
+          marginBottom: isSwipable ? 0 : 0,
+          opacity: pressed ? 0.85 : 1,
         },
-        Shadow.card
+        Shadow.card,
       ]}>
-      
-      {/* Colored chip icon */}
-      <View style={[styles.iconChip, { backgroundColor: iconBg }]}>
-        <IconComponent color={iconColor} size={20} />
-      </View>
+
+      {isTask ? (
+        <Pressable
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: item.done }}
+          hitSlop={8}
+          onPress={onToggle}
+          style={({ pressed }) => [
+            styles.check,
+            {
+              borderColor: item.done ? c.accentFill : c.textTertiary,
+              backgroundColor: item.done ? c.accentFill : 'transparent',
+              opacity: pressed ? 0.6 : 1,
+            },
+          ]}
+        >
+          {item.done && <Check color={c.onAccent} size={14} strokeWidth={3} />}
+        </Pressable>
+      ) : (
+        <View style={[styles.iconChip, { backgroundColor: iconBg }]}>
+          <Icon color={iconColor} size={18} />
+        </View>
+      )}
 
       <View style={{ flex: 1 }}>
-        <Text style={[
-          Type.body,
-          { 
-            color: item.done ? c.textSecondary : c.text,
-            fontWeight: '600',
-            textDecorationLine: item.done ? 'line-through' : 'none'
-          }
-        ]}>
+        <Text
+          style={[
+            Type.body,
+            {
+              color: item.done ? c.textTertiary : c.text,
+              fontWeight: '600',
+              textDecorationLine: item.done ? 'line-through' : 'none',
+            },
+          ]}
+        >
           {item.title}
         </Text>
-        
-        {(item.dueTime || prio || overdue || subsTotal > 0 || item.amount) && (
+
+        {(showTime || prio || (overdue && !item.done) || subsTotal > 0) && (
           <View style={styles.metaRow}>
-            {!!item.amount && (
-               <Text style={[
-                 Type.label, 
-                 { 
-                   color: isExpense ? c.expense : c.income, 
-                   fontVariant: ['tabular-nums'], 
-                   fontWeight: '700' 
-                 }
-               ]}>
-                 {isExpense ? '-' : '+'}₹{item.amount}
-               </Text>
-            )}
-            {item.dueTime && (
-              <View style={[styles.pillLayout, { backgroundColor: c.background }]}>
-                <Clock color={c.textSecondary} size={12} />
-                <Text style={[Type.caption, { color: c.textSecondary }]}>{item.dueTime}</Text>
+            {showTime && (
+              <View style={[styles.pill, { backgroundColor: c.backgroundMuted }]}>
+                <Clock color={c.textSecondary} size={11} />
+                <Text style={[styles.pillText, { color: c.textSecondary }]}>{item.dueTime}</Text>
               </View>
             )}
             {prio && (
-              <View style={[styles.pillLayout, { backgroundColor: prio === 'High' ? c.expenseSoft : c.background }]}>
-                <Text style={[Type.caption, { color: prio === 'High' ? c.expense : c.textSecondary }]}>{prio}</Text>
+              <View style={[styles.pill, { backgroundColor: prio === 'High' ? c.expenseSoft : c.backgroundMuted }]}>
+                <Text style={[styles.pillText, { color: prio === 'High' ? c.expense : c.textSecondary }]}>{prio}</Text>
               </View>
             )}
             {overdue && !item.done && (
-              <View style={[styles.pillLayout, { backgroundColor: c.expenseSoft }]}>
-                <AlertCircle color={c.expense} size={12} />
-                <Text style={[Type.caption, { color: c.expense }]}>Overdue</Text>
+              <View style={[styles.pill, { backgroundColor: c.expenseSoft }]}>
+                <AlertCircle color={c.expense} size={11} />
+                <Text style={[styles.pillText, { color: c.expense }]}>Overdue</Text>
               </View>
             )}
             {subsTotal > 0 && (
-              <View style={[styles.pillLayout, { backgroundColor: c.background }]}>
-                <Text style={[Type.caption, { color: c.textSecondary }]}>{subsDone}/{subsTotal}</Text>
+              <View style={[styles.pill, { backgroundColor: c.backgroundMuted }]}>
+                <Text style={[styles.pillText, { color: c.textSecondary }]}>{subsDone}/{subsTotal} subtasks</Text>
               </View>
             )}
           </View>
         )}
       </View>
-      
-      {item.type === 'task' || !item.type ? (
-        <Pressable 
-          accessibilityRole="checkbox" 
-          accessibilityState={{ checked: item.done }} 
-          onPress={onToggle} 
-          style={({ pressed }) => [
-            styles.check, 
-            { 
-              borderColor: item.done ? c.income : c.border,
-              backgroundColor: item.done ? c.income : 'transparent',
-              opacity: pressed ? 0.6 : 1
-            }
+
+      {!!item.amount && (
+        <Text
+          style={[
+            Type.body,
+            { color: isExpense ? c.text : c.income, fontVariant: ['tabular-nums'], fontWeight: '700' },
           ]}
         >
-          {item.done && <Check color="#fff" size={14} strokeWidth={3} />}
-        </Pressable>
-      ) : null}
+          {isExpense ? '−' : '+'}₹{Number(item.amount).toLocaleString('en-IN')}
+        </Text>
+      )}
     </Pressable>
   );
 }
@@ -159,38 +157,44 @@ const styles = StyleSheet.create({
   card: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
     borderRadius: Radius.lg,
-    gap: 14,
+    borderWidth: 1,
+    gap: 12,
   },
   iconChip: {
-    width: 36,
-    height: 36,
-    borderRadius: Radius.pill,
+    width: 34,
+    height: 34,
+    borderRadius: Radius.md,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  check: { 
-    width: 26, 
-    height: 26, 
-    borderRadius: Radius.pill, 
-    borderWidth: 2, 
-    alignItems: 'center', 
-    justifyContent: 'center' 
+  check: {
+    width: 24,
+    height: 24,
+    borderRadius: Radius.pill,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  metaRow: { 
-    flexDirection: 'row', 
-    flexWrap: 'wrap', 
-    gap: 6, 
-    marginTop: 8,
+  metaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 7,
     alignItems: 'center',
   },
-  pillLayout: {
+  pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 999,
     gap: 4,
+  },
+  pillText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

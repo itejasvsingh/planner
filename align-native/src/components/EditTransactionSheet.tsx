@@ -52,11 +52,11 @@ export default function EditTransactionSheet({ visible, onClose, item, onSave, o
     return (
         <Modal visible={visible} animationType="slide" transparent>
             <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-                <View style={{ backgroundColor: c.background, borderTopLeftRadius: 32, borderTopRightRadius: 32, padding: 24, paddingBottom: 50 }}>
+                <View style={{ backgroundColor: c.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 44 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                         <Text style={[Type.title, { color: c.text }]}>Edit Transaction</Text>
-                        <Pressable onPress={onClose} style={{ padding: 8, backgroundColor: c.backgroundElement, borderRadius: Radius.pill }}>
-                            <X color={c.text} size={20} />
+                        <Pressable onPress={onClose} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: c.backgroundMuted, borderRadius: Radius.pill }}>
+                            <X color={c.textSecondary} size={18} />
                         </Pressable>
                     </View>
 
@@ -65,28 +65,28 @@ export default function EditTransactionSheet({ visible, onClose, item, onSave, o
                         value={amount}
                         onChangeText={setAmount}
                         keyboardType="numeric"
-                        style={{ backgroundColor: c.backgroundElement, color: c.text, padding: 16, borderRadius: Radius.md, fontSize: 24, fontWeight: '700', marginBottom: 16 }}
+                        style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, color: c.text, padding: 14, borderRadius: Radius.md, fontSize: 24, fontWeight: '700', marginBottom: 16 }}
                     />
 
                     <Text style={[Type.label, { color: c.textSecondary, marginBottom: 8 }]}>Title</Text>
                     <TextInput 
                         value={title}
                         onChangeText={setTitle}
-                        style={{ backgroundColor: c.backgroundElement, color: c.text, padding: 16, borderRadius: Radius.md, fontSize: 16, marginBottom: 16 }}
+                        style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, color: c.text, padding: 14, borderRadius: Radius.md, fontSize: 16, marginBottom: 16 }}
                     />
 
                     <Text style={[Type.label, { color: c.textSecondary, marginBottom: 8 }]}>Category</Text>
                     <TextInput 
                         value={category}
                         onChangeText={setCategory}
-                        style={{ backgroundColor: c.backgroundElement, color: c.text, padding: 16, borderRadius: Radius.md, fontSize: 16, marginBottom: 16 }}
+                        style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, color: c.text, padding: 14, borderRadius: Radius.md, fontSize: 16, marginBottom: 16 }}
                     />
                     
                     <Text style={[Type.label, { color: c.textSecondary, marginBottom: 8 }]}>Date (YYYY-MM-DD)</Text>
                     <TextInput 
                         value={date}
                         onChangeText={setDate}
-                        style={{ backgroundColor: c.backgroundElement, color: c.text, padding: 16, borderRadius: Radius.md, fontSize: 16, marginBottom: 24 }}
+                        style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, color: c.text, padding: 14, borderRadius: Radius.md, fontSize: 16, marginBottom: 24 }}
                     />
 
                     <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -94,8 +94,8 @@ export default function EditTransactionSheet({ visible, onClose, item, onSave, o
                             <Trash2 color={c.expense} size={18} />
                             <Text style={[Type.label, { color: c.expense, fontWeight: '600' }]}>Delete</Text>
                         </Pressable>
-                        <Pressable onPress={handleSave} style={{ flex: 2, backgroundColor: c.accent, padding: 16, borderRadius: Radius.md, alignItems: 'center' }}>
-                            <Text style={[Type.label, { color: '#FFF', fontWeight: '600' }]}>Save Changes</Text>
+                        <Pressable onPress={handleSave} style={{ flex: 2, backgroundColor: c.accentFill, padding: 16, borderRadius: Radius.md, alignItems: 'center' }}>
+                            <Text style={[Type.label, { color: c.onAccent, fontWeight: '700' }]}>Save Changes</Text>
                         </Pressable>
                     </View>
                 </View>

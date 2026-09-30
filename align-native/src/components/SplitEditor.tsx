@@ -62,14 +62,14 @@ export default function SplitEditor({ splits = [], setSplits, totalAmount, recen
     <View style={styles.container}>
       <Text style={[styles.heading, { color: theme.text }]}>Who owes you?</Text>
       
-      <View style={[styles.modeOptions, { backgroundColor: theme.background }]}>
+      <View style={[styles.modeOptions, { backgroundColor: theme.backgroundMuted }]}>
         {(['equal', 'percentage', 'custom'] as const).map(mode => (
           <Pressable
             key={mode}
-            style={[styles.modeOption, splitMode === mode && { backgroundColor: theme.blue }]}
+            style={[styles.modeOption, splitMode === mode && { backgroundColor: theme.accentFill }]}
             onPress={() => setMode(mode)}
           >
-            <Text style={[styles.modeText, { color: splitMode === mode ? '#FFF' : theme.textSecondary }]}>
+            <Text style={[styles.modeText, { color: splitMode === mode ? theme.onAccent : theme.textSecondary }]}>
               {mode === 'custom' ? 'Custom' : mode === 'percentage' ? '%' : 'Equal'}
             </Text>
           </Pressable>
@@ -126,8 +126,8 @@ export default function SplitEditor({ splits = [], setSplits, totalAmount, recen
           onSubmitEditing={addManualPerson}
           returnKeyType="done"
         />
-        <Pressable style={[styles.addBtn, { backgroundColor: theme.blue }]} onPress={addManualPerson}>
-          <Text style={{ color: '#FFF', fontWeight: '700' }}>Add</Text>
+        <Pressable style={[styles.addBtn, { backgroundColor: theme.accentFill }]} onPress={addManualPerson}>
+          <Text style={{ color: theme.onAccent, fontWeight: '700' }}>Add</Text>
         </Pressable>
       </View>
 

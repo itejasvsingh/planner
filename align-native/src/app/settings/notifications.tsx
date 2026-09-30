@@ -102,7 +102,7 @@ export default function NotificationsSettingsScreen() {
       
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={10}>
-          <ChevronLeft color={theme.blue} size={32} />
+          <ChevronLeft color={theme.text} size={28} />
         </Pressable>
         <Text style={[styles.title, { color: theme.text }]}>Notifications</Text>
       </View>
@@ -110,20 +110,20 @@ export default function NotificationsSettingsScreen() {
       <ScrollView style={styles.content}>
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>ALERTS</Text>
-          <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+          <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
             <View style={styles.row}>
               <Text style={[styles.rowText, { color: theme.text }]}>Enable Local Reminders</Text>
-              <Switch value={pushEnabled} onValueChange={handleTogglePush} />
+              <Switch value={pushEnabled} onValueChange={handleTogglePush} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
             </View>
           </View>
         </View>
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>DAILY SUMMARY</Text>
-          <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+          <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
             <View style={[styles.row, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border }]}>
               <Text style={[styles.rowText, { color: theme.text }]}>Daily Agenda Summary</Text>
-              <Switch value={dailySummaryEnabled} onValueChange={handleToggleDailySummary} />
+              <Switch value={dailySummaryEnabled} onValueChange={handleToggleDailySummary} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
             </View>
             
             {dailySummaryEnabled && (
@@ -145,10 +145,10 @@ export default function NotificationsSettingsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>AUTO PUSH</Text>
-          <View style={[styles.card, { backgroundColor: theme.backgroundElement }]}>
+          <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
             <View style={styles.row}>
               <Text style={[styles.rowText, { color: theme.text }]}>Auto-push Tasks</Text>
-              <Switch value={autoPushEnabled} onValueChange={handleToggleAutoPush} />
+              <Switch value={autoPushEnabled} onValueChange={handleToggleAutoPush} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
             </View>
           </View>
           <Text style={[styles.footerText, { color: theme.textSecondary }]}>
