@@ -19,6 +19,7 @@ jobs:
     params:
       fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
       profile: preview
+      platform: android
 
   build_android:
     name: Build new APK (native code changed)
@@ -34,6 +35,10 @@ jobs:
     needs: [get_android_build]
     if: ${{ needs.get_android_build.outputs.build_id }}
     type: update
+    # Same EAS environment the APK is built with; the update job otherwise defaults to "production",
+    # which doesn't hold EXPO_PUBLIC_API_URL, and AI quick-add / SMS import would break on the phone.
+    environment: preview
     params:
       branch: preview
       platform: android
+      message: ${{ github.commit_message }}

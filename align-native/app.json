@@ -77,7 +77,7 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "owner": "itejasv-team",
+    "owner": "itejasv",
     "runtimeVersion": {
       "policy": "fingerprint"
     },
