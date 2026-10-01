@@ -1,10 +1,17 @@
 # On every push to main: if native code changed (new fingerprint), build a new preview APK;
 # otherwise send an over-the-air update that installed APKs pick up on next launch.
+# Lives in align-native/.eas because Expo reads workflows relative to the project's GitHub base directory,
+# which must be set to "align-native" (expo.dev > @itejasv/align-native > GitHub). With the repo root as base
+# directory the jobs run in the Next.js app and fail with "EAS project not configured".
 name: Deploy Android (APK or OTA update)
 
 on:
   push:
     branches: ['main']
+
+# Pin the SDK 57 image: when Expo can't detect the SDK it falls back to an old Node 18 image.
+defaults:
+  image: sdk-57
 
 jobs:
   fingerprint:
