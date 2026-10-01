@@ -1,0 +1,39 @@
+# On every push to main: if native code changed (new fingerprint), build a new preview APK;
+# otherwise send an over-the-air update that installed APKs pick up on next launch.
+name: Deploy Android (APK or OTA update)
+
+on:
+  push:
+    branches: ['main']
+
+jobs:
+  fingerprint:
+    name: Fingerprint
+    type: fingerprint
+    environment: preview
+
+  get_android_build:
+    name: Check for an APK with this fingerprint
+    needs: [fingerprint]
+    type: get-build
+    params:
+      fingerprint_hash: ${{ needs.fingerprint.outputs.android_fingerprint_hash }}
+      profile: preview
+
+  build_android:
+    name: Build new APK (native code changed)
+    needs: [get_android_build]
+    if: ${{ !needs.get_android_build.outputs.build_id }}
+    type: build
+    params:
+      platform: android
+      profile: preview
+
+  publish_android_update:
+    name: Publish OTA update
+    needs: [get_android_build]
+    if: ${{ needs.get_android_build.outputs.build_id }}
+    type: update
+    params:
+      branch: preview
+      platform: android

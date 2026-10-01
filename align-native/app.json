@@ -77,9 +77,9 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "owner": "itejasv",
+    "owner": "itejasv-team",
     "runtimeVersion": {
-      "policy": "appVersion"
+      "policy": "fingerprint"
     },
     "updates": {
       "url": "https://u.expo.dev/3bbcf086-82d6-41f6-a682-d439a890514d"
