@@ -1,0 +1,114 @@
+# Ship every push to main to the Android APK, on GitHub's runners (no EAS queue).
+# - Native code unchanged (an APK with this fingerprint exists): publish an over-the-air update to the
+#   "preview" channel; installed APKs pick it up on their next launch. Takes a few minutes.
+# - Native code changed (new native module, SDK/plugin change): build a new APK on this runner and attach it
+#   to a GitHub Release "android-<fingerprint>"; install it once from the Releases page.
+# Needs the EXPO_TOKEN repository secret (expo.dev > Account settings > Access tokens). Without it the
+# workflow skips with a warning instead of failing.
+name: Android (OTA update or APK)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'align-native/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: android-deploy
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      has_token: ${{ steps.token.outputs.has_token }}
+    steps:
+      - id: token
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -n "$EXPO_TOKEN" ]; then
+            echo "has_token=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::EXPO_TOKEN secret is not set; skipping the Android deploy."
+            echo "has_token=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    needs: check
+    if: needs.check.outputs.has_token == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: align-native
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: align-native/package-lock.json
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - run: npm ci
+
+      - name: Fingerprint native code
+        id: fp
+        run: |
+          hash=$(eas fingerprint:generate -p android --build-profile preview --json --non-interactive | jq -r .hash)
+          test -n "$hash" && test "$hash" != "null"
+          echo "hash=$hash" >> "$GITHUB_OUTPUT"
+          echo "Android fingerprint: $hash"
+
+      - name: Look for an APK with this fingerprint
+        id: find
+        run: |
+          hash='${{ steps.fp.outputs.hash }}'
+          if gh release view "android-$hash" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Found GitHub release android-$hash"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          elif [ "$(eas build:list -p android --build-profile preview --status finished --fingerprint-hash "$hash" --limit 1 --json --non-interactive | jq 'length')" -gt 0 ]; then
+            echo "Found an EAS build with this fingerprint"
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No APK with this fingerprint yet"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish OTA update
+        if: steps.find.outputs.exists == 'true'
+        run: |
+          eas update --channel preview --environment preview --platform android \
+            --message "$(git log -1 --pretty=%s)" --non-interactive
+
+      - uses: actions/setup-java@v4
+        if: steps.find.outputs.exists == 'false'
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Build APK on this runner
+        if: steps.find.outputs.exists == 'false'
+        run: eas build -p android --profile preview --local --non-interactive --output "$RUNNER_TEMP/align.apk"
+
+      - name: Attach APK to a GitHub Release
+        if: steps.find.outputs.exists == 'false'
+        run: |
+          hash='${{ steps.fp.outputs.hash }}'
+          gh release create "android-$hash" "$RUNNER_TEMP/align.apk#align-${hash:0:8}.apk" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Align Android (${hash:0:8})" \
+            --notes "APK for native fingerprint $hash, built from $GITHUB_SHA. Install this once; later JS changes arrive as over-the-air updates."
