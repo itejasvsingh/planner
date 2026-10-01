@@ -41,6 +41,10 @@ export type PlannerItem = {
   unit?: string;
   progressHistory?: { value: number; at: string }[];
   
+  /** Set when the item was recorded automatically (e.g. from a bank SMS). */
+  source?: 'sms' | 'email' | string;
+  autoDetected?: boolean;
+
   createdAt?: any;
 };
 

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Pressable } from '@/components/ui/pressable';
 import { useTheme } from '@/hooks/use-theme';
 import { ChevronLeft, ChevronRight, Plus } from 'lucide-react-native';
 import { Radius, Shadow } from '@/constants/theme';
@@ -12,7 +13,7 @@ import { type PlannerItem, isTaskForDate } from '@/lib/planner-item';
 import TaskCard from '@/components/TaskCard';
 import SwipeAction from '@/components/SwipeAction';
 import ItemModal from '@/components/ItemModal';
-import DrawerMenuModal from '@/components/DrawerMenuModal';
+import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 
 const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
@@ -26,7 +27,6 @@ export default function CalendarScreen() {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [editingItem, setEditingItem] = useState<PlannerItem | null>(null);
   const [isAddingItem, setIsAddingItem] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const today = todayKey();
   const selectedKey = formatDateKey(selectedDate);
@@ -58,11 +58,10 @@ export default function CalendarScreen() {
 
   return (
     <View style={[styles.safe, { backgroundColor: theme.background }]}>
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 150 }} showsVerticalScrollIndicator={false} onScroll={collapseQuickAddOnScroll} scrollEventThrottle={16}>
         <ScreenHeader
           title="Calendar"
           subtitle="See the space ahead."
-          onMenu={() => setIsDrawerOpen(true)}
           actions={
             <>
               <Pressable
@@ -187,7 +186,6 @@ export default function CalendarScreen() {
         initialItem={editingItem}
         defaultDate={selectedKey}
       />
-      <DrawerMenuModal visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
     </View>
   );
 }

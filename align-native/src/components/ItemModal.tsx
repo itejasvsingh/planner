@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, TextInput, KeyboardAvoidingView, Platform, Animated, Switch, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Modal, TextInput, KeyboardAvoidingView, Platform, Animated, Switch, ScrollView } from 'react-native';
+import { Pressable } from '@/components/ui/pressable';
 import { Calendar, Wallet, Target, X, Plus, Trash2, CheckCircle2, Circle } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';

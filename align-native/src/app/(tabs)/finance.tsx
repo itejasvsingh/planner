@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { Pressable } from '@/components/ui/pressable';
 import { ArrowDownLeft, ArrowUpRight, Plus, Wallet } from 'lucide-react-native';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems, useBudgetLimits } from '@/lib/use-planner-items';
 import { Colors, Fonts, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import TransactionSheet from '@/components/TransactionSheet';
-import DrawerMenuModal from '@/components/DrawerMenuModal';
+import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 import { kindForType, resolveCategory } from '@/lib/categories';
 
@@ -31,9 +32,10 @@ export default function FinanceScreen() {
     const { phone } = usePhone();
     const theme = useTheme();
     const c = theme.isDark ? Colors.dark : Colors.light;
-    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     
-    const { items, updateItem, deleteItem, addItem } = usePlannerItems(phone);
+    const { items, loading, updateItem, deleteItem, addItem, refresh } = usePlannerItems(phone);
+    const [refreshing, setRefreshing] = useState(false);
+    if (refreshing && !loading) setRefreshing(false);
 
     // Filter only finance items
     
@@ -128,11 +130,13 @@ export default function FinanceScreen() {
                 style={{ flex: 1, backgroundColor: c.background }}
                 contentContainerStyle={{ paddingBottom: 150 }}
                 showsVerticalScrollIndicator={false}
+                onScroll={collapseQuickAddOnScroll}
+                scrollEventThrottle={16}
+                refreshControl={<RefreshControl refreshing={refreshing} tintColor={c.accent} onRefresh={() => { setRefreshing(true); refresh(); }} />}
             >
                 <ScreenHeader
                     title="Money"
                     subtitle={`Salary cycle · ${cycleLabel}`}
-                    onMenu={() => setIsDrawerOpen(true)}
                     actions={
                         <HeaderButton label="Add transaction" onPress={openAddSheet} filled>
                             <Plus color={c.onAccent} size={20} strokeWidth={2.5} />
@@ -237,7 +241,7 @@ export default function FinanceScreen() {
                                                 </View>
                                                 <View style={{ flex: 1 }}>
                                                     <Text style={[Type.body, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>{item.title}</Text>
-                                                    <Text style={[Type.caption, { color: c.textTertiary, marginTop: 2 }]}>{category.name}</Text>
+                                                    <Text style={[Type.caption, { color: c.textTertiary, marginTop: 2 }]}>{category.name}{item.autoDetected ? ' · Auto from SMS' : ''}</Text>
                                                 </View>
                                                 <Text style={[Type.body, { color: isIncome ? c.income : (isTransfer ? c.textSecondary : c.text), fontWeight: '700', fontVariant: ['tabular-nums'] }]}>
                                                     {isTransfer ? '' : (isIncome ? '+' : '−')}{formatMoney(Number(item.amount) || 0)}
@@ -259,7 +263,6 @@ export default function FinanceScreen() {
                 onSave={handleSave}
                 onDelete={deleteItem}
             />
-            <DrawerMenuModal visible={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} />
         </>
     );
 }

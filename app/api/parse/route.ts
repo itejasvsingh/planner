@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db, firebase } from '../../../lib/firebase';
+import { consumeRateLimit } from '../../../lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,15 @@ export async function POST(req: Request) {
         const rateLimitKey = (phone && typeof phone === 'string' && phone.trim().length >= 4)
             ? `phone_${phone.replace(/\D/g, '') || 'valid'}`
             : `ip_${clientIp.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+
+        // Always also limit by IP so rotating the client-supplied `phone` can't bypass the cap
+        const ipAllowed = await consumeRateLimit(`parse_ip_${clientIp}`, 100, 60 * 60 * 1000).catch(() => true);
+        if (!ipAllowed) {
+            return NextResponse.json(
+                { error: 'Rate limit exceeded for this network. Try again later.' },
+                { status: 429, headers: corsHeaders() }
+            );
+        }
 
         const rateLimitRef = db.collection('rate_limits').doc(`parse_${rateLimitKey}`);
         const ONE_HOUR_MS = 60 * 60 * 1000;

@@ -2,8 +2,10 @@ import ItemModal from '@/components/ItemModal';
 import { useTheme } from '@/hooks/use-theme';
 import { auth } from '@/lib/firebase';
 import { Mic, Plus, Sparkles, X } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { expandQuickAdd, useQuickAddCollapsed } from '@/lib/quick-add-state';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, LayoutAnimation, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable } from '@/components/ui/pressable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { usePhone } from '@/lib/phone-context';
@@ -27,6 +29,14 @@ export default function QuickAddBar() {
   const [text, setText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+  const scrolledAway = useQuickAddCollapsed();
+  // Shrink to a round button while the list scrolls, unless the bar is in use
+  const collapsed = scrolledAway && !focused && !text.trim() && !isProcessing && !isListening && !feedback;
+  useEffect(() => {
+    if (Platform.OS !== 'web') LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+  }, [collapsed]);
 
   useSpeechRecognitionEvent('result', (event: any) => {
     const transcript = event.results[0]?.transcript;
@@ -155,6 +165,19 @@ export default function QuickAddBar() {
       style={[styles.keyboardView, { bottom: quickAddBottom }]}
     >
       {!!feedback && <View style={[styles.feedback, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}><Text accessibilityLiveRegion="polite" style={{ color: hasError ? theme.red : theme.blue, flex: 1, fontSize: 13, lineHeight: 19 }}>{feedback}</Text><Pressable accessibilityRole="button" accessibilityLabel="Dismiss message" onPress={() => setFeedback('')}><X size={16} color={theme.textSecondary} /></Pressable></View>}
+      {collapsed ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Quick add"
+          onPress={() => {
+            expandQuickAdd();
+            setTimeout(() => inputRef.current?.focus(), 60);
+          }}
+          style={[styles.collapsedBtn, { backgroundColor: theme.accentFill }]}
+        >
+          <Sparkles color={theme.onAccent} size={22} />
+        </Pressable>
+      ) : (
       <View style={[styles.container, { backgroundColor: theme.backgroundElement, borderColor: theme.border, paddingLeft: 12 }]}>
 
         <Pressable accessibilityRole="button" accessibilityLabel="Add item manually" onPress={() => setManualOpen(true)} style={styles.iconBtn}><Plus size={22} color={theme.blue} /></Pressable>
@@ -165,6 +188,9 @@ export default function QuickAddBar() {
         )}
 
         <TextInput
+          ref={inputRef}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           accessibilityLabel="AI quick add"
           maxLength={500}
           style={[styles.input, { color: theme.text }]}
@@ -191,6 +217,7 @@ export default function QuickAddBar() {
           </Pressable>
         </View>
       </View>
+      )}
       <ItemModal visible={manualOpen} onClose={() => setManualOpen(false)} />
     </KeyboardAvoidingView>
   );
@@ -207,6 +234,14 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     zIndex: 1000,
     alignItems: 'flex-end',
+  },
+  collapsedBtn: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadow.raised,
   },
   container: {
     flexDirection: 'row',

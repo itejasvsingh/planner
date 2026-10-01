@@ -1,0 +1,240 @@
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Notifications from 'expo-notifications';
+import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { Bell, BellRing, ChevronRight, LogOut, MessageCircle, MessageSquareText, Moon, Repeat, Shield, Smartphone, Sun } from 'lucide-react-native';
+
+import { useTheme } from '@/hooks/use-theme';
+import { useThemeMode } from '@/lib/theme-context';
+import { usePhone } from '@/lib/phone-context';
+import { triggerHaptic } from '@/lib/haptics';
+import { db } from '@/lib/firebase';
+import { isSecurityEnabled } from '@/lib/auth';
+import { signInWithGoogle } from '@/lib/google-auth';
+import { Radius } from '@/constants/theme';
+
+function format12Hour(timeStr: string) {
+  if (!timeStr) return '';
+  const [hStr, mStr = '00'] = timeStr.split(':');
+  const h = parseInt(hStr, 10);
+  return `${h % 12 || 12}:${mStr.padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+
+type Theme = ReturnType<typeof useTheme>;
+
+/** Rounded group of rows, iOS "inset grouped" style. */
+function Group({ title, footer, children, c }: { title?: string; footer?: string; children: ReactNode; c: Theme }) {
+  return (
+    <View style={styles.groupWrap}>
+      {!!title && <Text style={[styles.groupTitle, { color: c.textTertiary }]}>{title}</Text>}
+      <View style={[styles.group, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>{children}</View>
+      {!!footer && <Text style={[styles.groupFooter, { color: c.textTertiary }]}>{footer}</Text>}
+    </View>
+  );
+}
+
+/** One settings row: colored icon tile, label (+ optional subtitle), trailing value/switch/chevron. */
+function Row({
+  c, icon, tint, label, subtitle, value, onPress, trailing, last, destructive,
+}: {
+  c: Theme;
+  icon: ReactNode;
+  tint: string;
+  label: string;
+  subtitle?: string;
+  value?: string;
+  onPress?: () => void;
+  trailing?: ReactNode;
+  last?: boolean;
+  destructive?: boolean;
+}) {
+  const content = (pressed: boolean) => (
+    <View style={[styles.row, pressed && { backgroundColor: c.backgroundMuted }]}>
+      <View style={[styles.iconTile, { backgroundColor: tint }]}>{icon}</View>
+      <View style={[styles.rowBody, !last && { borderBottomColor: c.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.rowLabel, { color: destructive ? c.red : c.text }]} numberOfLines={1}>{label}</Text>
+          {!!subtitle && <Text style={[styles.rowSubtitle, { color: c.textSecondary }]} numberOfLines={1}>{subtitle}</Text>}
+        </View>
+        {!!value && <Text style={[styles.rowValue, { color: c.textSecondary }]}>{value}</Text>}
+        {trailing ?? (onPress && !destructive ? <ChevronRight color={c.textTertiary} size={18} /> : null)}
+      </View>
+    </View>
+  );
+  if (!onPress) return content(false);
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={() => { triggerHaptic('light'); onPress(); }}>
+      {({ pressed }) => content(pressed)}
+    </Pressable>
+  );
+}
+
+export default function SettingsScreen() {
+  const c = useTheme();
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { phone, firebaseUser, logout } = usePhone();
+  const { mode: themeMode, scheme, setMode } = useThemeMode();
+
+  const [pushEnabled, setPushEnabled] = useState(false);
+  const [autoPushEnabled, setAutoPushEnabled] = useState(false);
+  const [securityActive, setSecurityActive] = useState(false);
+  const [dailySummaryEnabled, setDailySummaryEnabled] = useState(true);
+  const [dailySummaryTime, setDailySummaryTime] = useState('22:00');
+
+  // Re-read device state each time the screen is shown (e.g. coming back from Security)
+  useFocusEffect(useCallback(() => {
+    isSecurityEnabled().then(setSecurityActive);
+    if (Platform.OS !== 'web') {
+      Notifications.getPermissionsAsync()
+        .then(({ status }) => setPushEnabled(status === 'granted'))
+        .catch(() => setPushEnabled(false));
+    }
+  }, []));
+
+  useEffect(() => {
+    if (!phone) return;
+    return onSnapshot(
+      doc(db, 'planner_settings', `preferences_${phone}`),
+      (d) => {
+        const data = d.data();
+        if (!data) return;
+        if (typeof data.autoPushEnabled === 'boolean') setAutoPushEnabled(data.autoPushEnabled);
+        if (typeof data.dailySummaryEnabled === 'boolean') setDailySummaryEnabled(data.dailySummaryEnabled);
+        if (data.dailySummaryTime) setDailySummaryTime(data.dailySummaryTime);
+      },
+      (err) => console.warn('Settings preferences notice:', err),
+    );
+  }, [phone]);
+
+  const togglePush = async () => {
+    triggerHaptic('light');
+    if (pushEnabled) {
+      Alert.alert('Settings', 'Please disable notifications in your phone settings.');
+      return;
+    }
+    const { status } = await Notifications.requestPermissionsAsync();
+    setPushEnabled(status === 'granted');
+    if (status !== 'granted') Alert.alert('Permission required', 'Please enable notifications in your phone settings.');
+  };
+
+  const toggleAutoPush = async (next: boolean) => {
+    triggerHaptic('light');
+    setAutoPushEnabled(next);
+    if (!phone) return;
+    try {
+      await Promise.all([
+        setDoc(doc(db, 'planner_settings', `preferences_${phone}`), { autoPushEnabled: next }, { merge: true }),
+        setDoc(doc(db, 'user_sessions', phone), { autoPushEnabled: next }, { merge: true }),
+      ]);
+    } catch (e) {
+      console.warn('Error saving autoPush:', e);
+      setAutoPushEnabled(!next);
+    }
+  };
+
+  const cycleTheme = () => setMode(themeMode === 'system' ? 'light' : themeMode === 'light' ? 'dark' : 'system');
+
+  const signIn = async () => {
+    try {
+      const u = await signInWithGoogle();
+      if (u) triggerHaptic('success');
+    } catch (e: any) {
+      Alert.alert('Sign In Notice', e.message || 'Could not complete Google Sign-In');
+    }
+  };
+
+  const signOut = () => {
+    logout();
+    router.replace('/login');
+  };
+
+  const maskedPhone = phone ? (phone.length > 10 ? `+${phone.slice(0, phone.length - 10)} ` : '') + `******${phone.slice(-4)}` : '';
+  const name = firebaseUser?.displayName || firebaseUser?.email || maskedPhone || 'Personal Workspace';
+  const accountLine = firebaseUser?.email && maskedPhone ? maskedPhone : firebaseUser ? 'Google Account' : maskedPhone ? 'WhatsApp synced' : 'Guest';
+  const initial = (firebaseUser?.displayName || firebaseUser?.email || '').trim().charAt(0).toUpperCase();
+  const switchTrack = { false: c.backgroundMuted, true: c.income };
+
+  return (
+    <ScrollView
+      style={{ flex: 1, backgroundColor: c.background }}
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
+    >
+      <Group c={c}>
+        <View style={styles.profile}>
+          <View style={[styles.avatar, { backgroundColor: c.accentFill }]}>
+            {initial ? <Text style={[styles.avatarText, { color: c.onAccent }]}>{initial}</Text> : <Smartphone color={c.onAccent} size={24} />}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.profileName, { color: c.text }]} numberOfLines={1}>{name}</Text>
+            <View style={styles.statusRow}>
+              <View style={[styles.statusDot, { backgroundColor: firebaseUser ? c.income : c.warning }]} />
+              <Text style={{ color: c.textSecondary, fontSize: 14 }} numberOfLines={1}>{accountLine}</Text>
+            </View>
+          </View>
+        </View>
+        {!firebaseUser && (
+          <Pressable accessibilityRole="button" onPress={signIn} style={({ pressed }) => [styles.googleRow, { borderTopColor: c.border }, pressed && { backgroundColor: c.backgroundMuted }]}>
+            <Text style={styles.googleG}>G</Text>
+            <Text style={[styles.rowLabel, { color: c.accent }]}>Sign in with Google</Text>
+          </Pressable>
+        )}
+      </Group>
+
+      <Group c={c} title="Preferences">
+        {Platform.OS !== 'web' && (
+          <Row c={c} tint="#E0473C" icon={<BellRing color="#fff" size={17} />} label="Local Reminders"
+            trailing={<Switch value={pushEnabled} onValueChange={togglePush} trackColor={switchTrack} ios_backgroundColor={c.backgroundMuted} />} />
+        )}
+        <Row c={c} tint="#E8784A" icon={<Bell color="#fff" size={17} />} label="Notifications" onPress={() => router.push('/settings/notifications')} />
+        <Row c={c} tint="#3E8E5E" icon={<Repeat color="#fff" size={17} />} label="Auto-Push Rollover" subtitle="Move unfinished tasks to tomorrow"
+          trailing={<Switch value={autoPushEnabled} onValueChange={toggleAutoPush} trackColor={switchTrack} ios_backgroundColor={c.backgroundMuted} />} />
+        <Row c={c} tint="#5B5BD6" icon={scheme === 'dark' ? <Moon color="#fff" size={17} /> : <Sun color="#fff" size={17} />}
+          label="Appearance" value={themeMode.charAt(0).toUpperCase() + themeMode.slice(1)} onPress={cycleTheme} last />
+      </Group>
+
+      <Group c={c} title="Assistant">
+        <Row c={c} tint="#25A244" icon={<MessageCircle color="#fff" size={17} />} label="WhatsApp"
+          subtitle={dailySummaryEnabled ? `Daily summary at ${format12Hour(dailySummaryTime)}` : 'Daily summary, reminders & bot'}
+          onPress={() => router.push('/settings/whatsapp')} />
+        <Row c={c} tint="#2F80ED" icon={<MessageSquareText color="#fff" size={17} />} label="SMS Auto-Import"
+          subtitle="Add expenses from bank messages" onPress={() => router.push('/settings/sms')} last />
+      </Group>
+
+      <Group c={c} title="Privacy">
+        <Row c={c} tint="#6E7681" icon={<Shield color="#fff" size={17} />} label="App Lock" value={securityActive ? 'On' : 'Off'}
+          onPress={() => router.push('/settings/security')} last />
+      </Group>
+
+      <Group c={c}>
+        <Row c={c} tint={c.expenseSoft} icon={<LogOut color={c.red} size={17} />} label={phone || firebaseUser ? 'Log Out' : 'Sign In'}
+          onPress={signOut} destructive last />
+      </Group>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  content: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 16, paddingTop: 12 },
+  groupWrap: { marginBottom: 24 },
+  groupTitle: { fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginLeft: 16, marginBottom: 7 },
+  groupFooter: { fontSize: 13, marginHorizontal: 16, marginTop: 7 },
+  group: { borderRadius: Radius.md + 2, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', paddingLeft: 14 },
+  iconTile: { width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  rowBody: { flex: 1, flexDirection: 'row', alignItems: 'center', minHeight: 50, paddingVertical: 10, paddingRight: 14, gap: 8 },
+  rowLabel: { fontSize: 16, fontWeight: '500' },
+  rowSubtitle: { fontSize: 13, marginTop: 2 },
+  rowValue: { fontSize: 16 },
+  profile: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16 },
+  avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 24, fontWeight: '700' },
+  profileName: { fontSize: 19, fontWeight: '700', marginBottom: 3 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  googleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 14, borderTopWidth: StyleSheet.hairlineWidth },
+  googleG: { fontSize: 16, fontWeight: '800', color: '#4285F4' },
+});

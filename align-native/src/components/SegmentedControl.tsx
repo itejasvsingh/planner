@@ -1,6 +1,7 @@
 import { Colors, Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { Pressable, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { Pressable } from '@/components/ui/pressable';
 
 interface SegmentedControlProps {
     tabs: string[];

@@ -51,6 +51,11 @@ export function usePlannerItems(phone: string | null) {
   const [items, setItems] = useState<PlannerItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refresh = useCallback(() => {
+    setLoading(true);
+    setRefreshKey((k) => k + 1);
+  }, []);
 
   useEffect(() => {
     const currentPhone: string = phone || 'guest';
@@ -136,7 +141,7 @@ export function usePlannerItems(phone: string | null) {
       if (retryTimer) clearTimeout(retryTimer);
       if (unsubscribeListener) unsubscribeListener();
     };
-  }, [phone]);
+  }, [phone, refreshKey]);
 
   const persistCache = useCallback(
     async (next: PlannerItem[]) => {
@@ -500,7 +505,7 @@ export function usePlannerItems(phone: string | null) {
 
   return { 
     items, settleUpWith, 
-    loading, error, 
+    loading, error, refresh,
     toggleDone, 
     deleteItem,
     updateItem,

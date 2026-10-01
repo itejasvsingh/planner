@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Switch, Alert, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Switch, Alert, Platform, ScrollView } from 'react-native';
+import { Pressable } from '@/components/ui/pressable';
 import { Stack, useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import * as Notifications from 'expo-notifications';

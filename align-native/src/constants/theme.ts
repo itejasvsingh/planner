@@ -5,7 +5,7 @@ export const Colors = {
   light: {
     text: '#2B2320',
     textSecondary: '#75685F',
-    textTertiary: '#A8998C',
+    textTertiary: '#83736A',
     background: '#FBF6EE',
     backgroundElement: '#FFFDF9',
     /** Inset surfaces inside cards: pills, tracks, input wells. */
@@ -20,11 +20,11 @@ export const Colors = {
     onAccent: '#FFFFFF',
     /** Translucent layer for tiles and tracks drawn on top of an accentFill surface. */
     onAccentOverlay: 'rgba(255,255,255,0.18)',
-    income: '#3E8E5E',
+    income: '#2F7A4D',
     incomeSoft: '#E4F0E6',
     expense: '#C2413B',
     expenseSoft: '#F8E1DE',
-    warning: '#B97A12',
+    warning: '#8A6414',
     warningSoft: '#FBEFD6',
     /** Legacy name (was a separate teal accent); kept as an alias so every screen shares one accent. */
     blue: '#B34A23',
