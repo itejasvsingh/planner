@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { Pressable } from '@/components/ui/pressable';
-import { ArrowDownLeft, ArrowUpRight, Plus, Wallet } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, Plus, Target, Wallet } from 'lucide-react-native';
+import BudgetSheet from '@/components/BudgetSheet';
+import { MONTHLY_BUDGET_KEY, budgetStatus, categoryBudgets, summarizeBudget, type BudgetStatus } from '@/lib/budget';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems, useBudgetLimits } from '@/lib/use-planner-items';
 import { Colors, Fonts, Radius, Shadow, Type } from '@/constants/theme';
@@ -39,7 +41,8 @@ export default function FinanceScreen() {
 
     // Filter only finance items
     
-    const { budgetLimits: limits } = useBudgetLimits(phone);
+    const { budgetLimits: limits, saveBudgets } = useBudgetLimits(phone);
+    const [budgetOpen, setBudgetOpen] = useState(false);
     const payday = limits?.payday || 1;
     
     // Calculate current cycle dates
@@ -78,13 +81,18 @@ export default function FinanceScreen() {
             const cat = resolveCategory(e.category).name;
             totals[cat] = (totals[cat] || 0) + (Number(e.amount) || 0);
         });
+        const limitsByCat = categoryBudgets(limits);
+        for (const name of Object.keys(limitsByCat)) totals[name] = totals[name] || 0;
         return Object.entries(totals)
-            .map(([name, amount]) => ({ name, amount, icon: resolveCategory(name).icon }))
-            .sort((a, b) => b.amount - a.amount)
-            .slice(0, 4); // Top 4
-    }, [expenses]);
+            .map(([name, amount]) => ({ name, amount, limit: limitsByCat[name] || 0, icon: resolveCategory(name).icon }))
+            // budgeted categories first (most used first), then the biggest unbudgeted ones
+            .sort((a, b) => (b.limit ? 1 : 0) - (a.limit ? 1 : 0) || (b.limit ? b.amount / b.limit - a.amount / a.limit : b.amount - a.amount))
+            .filter((cat, i) => cat.limit > 0 || i < 6);
+    }, [expenses, limits]);
 
     const balance = totalEarned - totalSpent;
+    const monthlyBudget = Number(limits?.[MONTHLY_BUDGET_KEY]) || 0;
+    const budget = monthlyBudget > 0 ? summarizeBudget(monthlyBudget, totalSpent, cycleEnd) : null;
 
     // Group transactions by date
     const groupedTransactions = useMemo(() => {
@@ -145,19 +153,45 @@ export default function FinanceScreen() {
                 />
 
                 <View style={styles.content}>
-                    {/* Balance card */}
-                    <View style={[styles.hero, { backgroundColor: c.accentFill }, Shadow.raised]}>
-                        <Text style={[styles.heroLabel, { color: c.onAccent }]}>Left this cycle</Text>
-                        <Text style={[styles.heroAmount, { color: c.onAccent }]} numberOfLines={1} adjustsFontSizeToFit>
-                            {formatMoney(balance)}
-                        </Text>
-
-                        <View style={[styles.heroTrack, { backgroundColor: c.onAccentOverlay }]}>
-                            <View style={{ width: `${Math.round(spentShare * 100)}%`, height: '100%', backgroundColor: c.onAccent, borderRadius: Radius.pill }} />
-                        </View>
-                        <Text style={[styles.heroNote, { color: c.onAccent }]}>
-                            {totalEarned > 0 ? `${Math.round(spentShare * 100)}% of income spent` : 'No income logged this cycle'}
-                        </Text>
+                    {/* Budget / balance card */}
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={budget ? 'Edit budget' : 'Set a monthly budget'}
+                        onPress={() => setBudgetOpen(true)}
+                        style={[styles.hero, { backgroundColor: budget?.status === 'over' ? c.expense : c.accentFill }, Shadow.raised]}
+                    >
+                        {budget ? (
+                            <>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <Text style={[styles.heroLabel, { color: c.onAccent }]}>{budget.left >= 0 ? 'Left to spend' : 'Over budget by'}</Text>
+                                    <Text style={[styles.heroLabel, { color: c.onAccent }]}>Budget {formatMoney(budget.budget)}</Text>
+                                </View>
+                                <Text style={[styles.heroAmount, { color: c.onAccent }]} numberOfLines={1} adjustsFontSizeToFit>
+                                    {formatMoney(Math.abs(budget.left))}
+                                </Text>
+                                <View style={[styles.heroTrack, { backgroundColor: c.onAccentOverlay }]}>
+                                    <View style={{ width: `${Math.round(Math.min(1, budget.used) * 100)}%`, height: '100%', backgroundColor: c.onAccent, borderRadius: Radius.pill }} />
+                                </View>
+                                <Text style={[styles.heroNote, { color: c.onAccent }]}>
+                                    {budget.status === 'over'
+                                        ? `${formatMoney(budget.spent)} spent of ${formatMoney(budget.budget)}`
+                                        : `${Math.round(budget.used * 100)}% used · ${formatMoney(budget.perDay)}/day for ${budget.daysLeft} ${budget.daysLeft === 1 ? 'day' : 'days'}`}
+                                </Text>
+                            </>
+                        ) : (
+                            <>
+                                <Text style={[styles.heroLabel, { color: c.onAccent }]}>Left this cycle</Text>
+                                <Text style={[styles.heroAmount, { color: c.onAccent }]} numberOfLines={1} adjustsFontSizeToFit>
+                                    {formatMoney(balance)}
+                                </Text>
+                                <View style={[styles.heroTrack, { backgroundColor: c.onAccentOverlay }]}>
+                                    <View style={{ width: `${Math.round(spentShare * 100)}%`, height: '100%', backgroundColor: c.onAccent, borderRadius: Radius.pill }} />
+                                </View>
+                                <Text style={[styles.heroNote, { color: c.onAccent }]}>
+                                    {totalEarned > 0 ? `${Math.round(spentShare * 100)}% of income spent` : 'No income logged this cycle'}
+                                </Text>
+                            </>
+                        )}
 
                         <View style={styles.heroStats}>
                             <View style={[styles.heroStat, { backgroundColor: c.onAccentOverlay }]}>
@@ -175,16 +209,35 @@ export default function FinanceScreen() {
                                 </View>
                             </View>
                         </View>
-                    </View>
+                    </Pressable>
+
+                    {!budget && (
+                        <Pressable
+                            accessibilityRole="button"
+                            onPress={() => setBudgetOpen(true)}
+                            style={[styles.setBudget, { backgroundColor: c.backgroundElement, borderColor: c.border }]}
+                        >
+                            <Target color={c.accent} size={18} />
+                            <Text style={{ color: c.text, fontWeight: '600', flex: 1 }}>Set a monthly budget</Text>
+                            <Text style={{ color: c.accent, fontWeight: '700' }}>Set</Text>
+                        </Pressable>
+                    )}
 
                     {/* Spending by category */}
                     {categoryTotals.length > 0 && (
                         <>
-                            <Text style={[styles.sectionHeader, { color: c.textTertiary }]}>Where it went</Text>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                                <Text style={[styles.sectionHeader, { color: c.textTertiary }]}>Where it went</Text>
+                                <Pressable accessibilityRole="button" onPress={() => setBudgetOpen(true)} hitSlop={8}>
+                                    <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Category limits</Text>
+                                </Pressable>
+                            </View>
                             <View style={[styles.group, { backgroundColor: c.backgroundElement, borderColor: c.border, padding: 16, gap: 16 }, Shadow.card]}>
                                 {categoryTotals.map(cat => {
                                     const Icon = cat.icon;
-                                    const share = cat.amount / Math.max(totalSpent, 1);
+                                    const share = cat.limit ? cat.amount / cat.limit : cat.amount / Math.max(totalSpent, 1);
+                                    const status: BudgetStatus | null = cat.limit ? budgetStatus(share) : null;
+                                    const barColor = status === 'over' ? c.expense : status === 'warning' ? c.warning : c.text;
                                     return (
                                         <View key={cat.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                                             <View style={[styles.catIcon, { backgroundColor: c.backgroundMuted }]}>
@@ -193,12 +246,14 @@ export default function FinanceScreen() {
                                             <View style={{ flex: 1 }}>
                                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 7 }}>
                                                     <Text style={[Type.label, { color: c.text, fontWeight: '600' }]}>{cat.name}</Text>
-                                                    <Text style={[Type.label, { color: c.textSecondary, fontVariant: ['tabular-nums'] }]}>
-                                                        {formatMoney(cat.amount)} · {Math.round(share * 100)}%
+                                                    <Text style={[Type.label, { color: status === 'over' ? c.expense : c.textSecondary, fontVariant: ['tabular-nums'] }]}>
+                                                        {cat.limit
+                                                            ? `${formatMoney(cat.amount)} of ${formatMoney(cat.limit)}`
+                                                            : `${formatMoney(cat.amount)} · ${Math.round(share * 100)}%`}
                                                     </Text>
                                                 </View>
                                                 <View style={[styles.catTrack, { backgroundColor: c.backgroundMuted }]}>
-                                                    <View style={{ width: `${Math.min(100, share * 100)}%`, height: '100%', backgroundColor: c.text, borderRadius: Radius.pill }} />
+                                                    <View style={{ width: `${Math.min(100, share * 100)}%`, height: '100%', backgroundColor: barColor, borderRadius: Radius.pill }} />
                                                 </View>
                                             </View>
                                         </View>
@@ -256,6 +311,13 @@ export default function FinanceScreen() {
                 </View>
             </ScrollView>
 
+            <BudgetSheet
+                visible={budgetOpen}
+                onClose={() => setBudgetOpen(false)}
+                monthly={monthlyBudget}
+                categories={categoryBudgets(limits)}
+                onSave={saveBudgets}
+            />
             <TransactionSheet
                 visible={isSheetVisible}
                 item={editingItem}
@@ -270,6 +332,7 @@ export default function FinanceScreen() {
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, width: '100%', maxWidth: 720, alignSelf: 'center' },
   hero: { padding: 20, borderRadius: Radius.xl, marginBottom: 8 },
+  setBudget: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderRadius: Radius.lg, borderWidth: 1, marginTop: 4 },
   heroLabel: { fontSize: 13, fontWeight: '700', letterSpacing: 0.2, opacity: 0.7 },
   heroAmount: { fontSize: 42, fontWeight: '800', letterSpacing: -1, marginTop: 4, fontVariant: ['tabular-nums'], fontFamily: Fonts?.rounded },
   heroTrack: { height: 6, borderRadius: Radius.pill, overflow: 'hidden', marginTop: 16 },
