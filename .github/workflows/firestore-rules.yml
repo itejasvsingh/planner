@@ -25,6 +25,18 @@ jobs:
         with:
           node-version: 20
 
+      - name: Check secret (no value printed)
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          echo "repository: ${{ github.repository }}"
+          echo "secret length: ${#FIREBASE_SERVICE_ACCOUNT}"
+          if printf '%s' "$FIREBASE_SERVICE_ACCOUNT" | jq -e .project_id >/dev/null 2>&1; then
+            echo "secret is valid JSON with a project_id"
+          else
+            echo "secret is NOT valid service-account JSON"
+          fi
+
       - name: Write service account key
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
