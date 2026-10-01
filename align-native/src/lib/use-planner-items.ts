@@ -571,7 +571,7 @@ export function useBudgetLimits(phone: string | null) {
 
   const saveBudgets = useCallback(async (updates: Record<string, number>) => {
     if (!phone) return;
-    setBudgetLimits(updates);
+    setBudgetLimits((prev) => ({ ...prev, ...updates }));
     await setDoc(doc(db, 'planner_settings', `budgets_${phone}`), updates, { merge: true });
   }, [phone]);
 
