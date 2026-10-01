@@ -12,6 +12,7 @@ import {
   kindForType,
   newCustomId,
   resolveCategory,
+  tintColors,
   type Category,
   type CategoryConfig,
   type CategoryKind,
@@ -179,8 +180,8 @@ export default function CategoryManager({
           return (
             <View key={cat.id} style={[styles.row, i < list.length - 1 && { borderBottomColor: c.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
               <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${cat.name}`} onPress={() => open({ mode: 'edit', category: cat })} style={styles.rowMain}>
-                <View style={[styles.iconTile, { backgroundColor: c.backgroundMuted, opacity: cat.hidden ? 0.5 : 1 }]}>
-                  <Icon color={c.textSecondary} size={18} />
+                <View style={[styles.iconTile, { backgroundColor: tintColors(cat.tint, c.isDark).bg, opacity: cat.hidden ? 0.5 : 1 }]}>
+                  <Icon color={tintColors(cat.tint, c.isDark).fg} size={18} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.rowName, { color: cat.hidden ? c.textTertiary : c.text }]} numberOfLines={1}>{cat.name}</Text>
@@ -231,7 +232,7 @@ export default function CategoryManager({
                 return (
                   <Pressable key={t.id} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => setTarget(t.name)}
                     style={[styles.chip, selected ? { backgroundColor: c.accentFill, borderColor: c.accentFill } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
-                    <Icon size={15} color={selected ? c.onAccent : c.textSecondary} />
+                    <Icon size={15} color={selected ? c.onAccent : tintColors(t.tint, c.isDark).fg} />
                     <Text style={{ color: selected ? c.onAccent : c.text, fontWeight: '600' }}>{t.name}</Text>
                   </Pressable>
                 );

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-nat
 import { Pressable } from '@/components/ui/pressable';
 import { Target, Plus, Check } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
-import { Fonts, Radius, Shadow } from '@/constants/theme';
+import { Radius, Shadow } from '@/constants/theme';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems } from '@/lib/use-planner-items';
 import { type PlannerItem } from '@/lib/planner-item';
@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, width: '100%', maxWidth: 720, alignSelf: 'center' },
   summary: { flexDirection: 'row', gap: 8, marginBottom: 14 },
   stat: { flex: 1, borderWidth: 1, borderRadius: Radius.lg, padding: 14 },
-  statValue: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5, fontVariant: ['tabular-nums'], fontFamily: Fonts?.rounded },
+  statValue: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
   statLabel: { fontSize: 13, fontWeight: '500', marginTop: 2 },
   segmented: { flexDirection: 'row', borderRadius: Radius.md, padding: 3, marginBottom: 14 },
   segment: { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: Radius.sm + 1, borderWidth: 1, borderColor: 'transparent' },
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   card: { padding: 16, borderRadius: Radius.lg, borderWidth: 1 },
   cardHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   meta: { fontSize: 13, marginTop: 3, fontVariant: ['tabular-nums'] },
-  percent: { fontSize: 22, fontWeight: '800', letterSpacing: -0.4, fontVariant: ['tabular-nums'], fontFamily: Fonts?.rounded },
+  percent: { fontSize: 22, fontWeight: '800', letterSpacing: -0.4, fontVariant: ['tabular-nums'] },
   track: { height: 8, borderRadius: Radius.pill, marginTop: 14, overflow: 'hidden' },
   cardFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 },
   stepBtn: { height: 28, minWidth: 28, borderRadius: Radius.pill, alignItems: 'center', justifyContent: 'center' },

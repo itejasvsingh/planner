@@ -8,6 +8,7 @@ import { Bell, BellRing, ChevronRight, LogOut, MessageCircle, MessageSquareText,
 
 import { useTheme } from '@/hooks/use-theme';
 import { useThemeMode } from '@/lib/theme-context';
+import { tintColors, type TintKey } from '@/lib/categories';
 import { usePhone } from '@/lib/phone-context';
 import { triggerHaptic } from '@/lib/haptics';
 import { db } from '@/lib/firebase';
@@ -37,11 +38,12 @@ function Group({ title, footer, children, c }: { title?: string; footer?: string
 
 /** One settings row: colored icon tile, label (+ optional subtitle), trailing value/switch/chevron. */
 function Row({
-  c, icon, tint, label, subtitle, value, onPress, trailing, last, destructive,
+  c, icon, tint = 'gray', label, subtitle, value, onPress, trailing, last, destructive,
 }: {
   c: Theme;
   icon: ReactNode;
-  tint: string;
+  /** Soft colored tile behind the icon. */
+  tint?: TintKey;
   label: string;
   subtitle?: string;
   value?: string;
@@ -52,7 +54,7 @@ function Row({
 }) {
   const content = (pressed: boolean) => (
     <View style={[styles.row, pressed && { backgroundColor: c.backgroundMuted }]}>
-      <View style={[styles.iconTile, { backgroundColor: tint }]}>{icon}</View>
+      <View style={[styles.iconTile, { backgroundColor: tintColors(tint, c.isDark).bg }]}>{icon}</View>
       <View style={[styles.rowBody, !last && { borderBottomColor: c.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.rowLabel, { color: destructive ? c.red : c.text }]} numberOfLines={1}>{label}</Text>
@@ -186,31 +188,31 @@ export default function SettingsScreen() {
 
       <Group c={c} title="Preferences">
         {Platform.OS !== 'web' && (
-          <Row c={c} tint="#E0473C" icon={<BellRing color="#fff" size={17} />} label="Local Reminders"
+          <Row c={c} tint="red" icon={<BellRing color={tintColors('red', c.isDark).fg} size={17} />} label="Local Reminders"
             trailing={<Switch value={pushEnabled} onValueChange={togglePush} trackColor={switchTrack} ios_backgroundColor={c.backgroundMuted} />} />
         )}
-        <Row c={c} tint="#E8784A" icon={<Bell color="#fff" size={17} />} label="Notifications" onPress={() => router.push('/settings/notifications')} />
-        <Row c={c} tint="#3E8E5E" icon={<Repeat color="#fff" size={17} />} label="Auto-Push Rollover" subtitle="Move unfinished tasks to tomorrow"
+        <Row c={c} tint="orange" icon={<Bell color={tintColors('orange', c.isDark).fg} size={17} />} label="Notifications" onPress={() => router.push('/settings/notifications')} />
+        <Row c={c} tint="green" icon={<Repeat color={tintColors('green', c.isDark).fg} size={17} />} label="Auto-Push Rollover" subtitle="Move unfinished tasks to tomorrow"
           trailing={<Switch value={autoPushEnabled} onValueChange={toggleAutoPush} trackColor={switchTrack} ios_backgroundColor={c.backgroundMuted} />} />
-        <Row c={c} tint="#5B5BD6" icon={scheme === 'dark' ? <Moon color="#fff" size={17} /> : <Sun color="#fff" size={17} />}
+        <Row c={c} tint="violet" icon={scheme === 'dark' ? <Moon color={tintColors('violet', c.isDark).fg} size={17} /> : <Sun color={tintColors('violet', c.isDark).fg} size={17} />}
           label="Appearance" value={themeMode.charAt(0).toUpperCase() + themeMode.slice(1)} onPress={cycleTheme} last />
       </Group>
 
       <Group c={c} title="Assistant">
-        <Row c={c} tint="#25A244" icon={<MessageCircle color="#fff" size={17} />} label="WhatsApp"
+        <Row c={c} tint="green" icon={<MessageCircle color={tintColors('green', c.isDark).fg} size={17} />} label="WhatsApp"
           subtitle={dailySummaryEnabled ? `Daily summary at ${format12Hour(dailySummaryTime)}` : 'Daily summary, reminders & bot'}
           onPress={() => router.push('/settings/whatsapp')} />
-        <Row c={c} tint="#2F80ED" icon={<MessageSquareText color="#fff" size={17} />} label="SMS Auto-Import"
+        <Row c={c} tint="blue" icon={<MessageSquareText color={tintColors('blue', c.isDark).fg} size={17} />} label="SMS Auto-Import"
           subtitle="Add expenses from bank messages" onPress={() => router.push('/settings/sms')} last />
       </Group>
 
       <Group c={c} title="Privacy">
-        <Row c={c} tint="#6E7681" icon={<Shield color="#fff" size={17} />} label="App Lock" value={securityActive ? 'On' : 'Off'}
+        <Row c={c} tint="gray" icon={<Shield color={tintColors('gray', c.isDark).fg} size={17} />} label="App Lock" value={securityActive ? 'On' : 'Off'}
           onPress={() => router.push('/settings/security')} last />
       </Group>
 
       <Group c={c}>
-        <Row c={c} tint={c.expenseSoft} icon={<LogOut color={c.red} size={17} />} label={phone || firebaseUser ? 'Log Out' : 'Sign In'}
+        <Row c={c} tint="red" icon={<LogOut color={c.red} size={17} />} label={phone || firebaseUser ? 'Log Out' : 'Sign In'}
           onPress={signOut} destructive last />
       </Group>
     </ScrollView>

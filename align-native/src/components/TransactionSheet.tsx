@@ -5,7 +5,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { X, Trash2 } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import SegmentedControl from './SegmentedControl';
-import { categoriesFor, DEFAULT_CATEGORY, kindForType, resolveCategory, type CategoryKind } from '@/lib/categories';
+import { categoriesFor, DEFAULT_CATEGORY, kindForType, resolveCategory, tintColors, type CategoryKind } from '@/lib/categories';
 import { useCategoryConfig } from '@/lib/use-category-config';
 
 interface TransactionSheetProps {
@@ -189,7 +189,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                                 backgroundColor: c.backgroundElement
                                             }, isSelected && { backgroundColor: c.accentFill, borderColor: c.accentFill }]}
                                         >
-                                            <Icon color={isSelected ? c.onAccent : c.textSecondary} size={17} />
+                                            <Icon color={isSelected ? c.onAccent : tintColors(cat.tint, isDark).fg} size={17} />
                                             <Text style={[Type.body, { fontWeight: isSelected ? '700' : '500', color: isSelected ? c.onAccent : c.text }]}>
                                                 {cat.name}
                                             </Text>

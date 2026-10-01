@@ -9,7 +9,7 @@ import { usePlannerItems } from '@/lib/use-planner-items';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { formatDateKey, parseDateKey, timeToMinutes } from '@/lib/dates';
 import { type PlannerItem, type PlannerSubtask } from '@/lib/planner-item';
-import { categoriesFor, resolveCategory } from '@/lib/categories';
+import { categoriesFor, resolveCategory, tintColors } from '@/lib/categories';
 import { useCategoryConfig } from '@/lib/use-category-config';
 
 interface ItemModalProps {
@@ -287,7 +287,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
                         onPress={() => setCategory(cat.name)}
                         style={[styles.pill, styles.pillRow, selected ? { backgroundColor: theme.accentFill, borderColor: theme.accentFill } : { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
                       >
-                        <Icon size={15} color={selected ? theme.onAccent : theme.textSecondary} />
+                        <Icon size={15} color={selected ? theme.onAccent : tintColors(cat.tint, theme.isDark).fg} />
                         <Text style={{ color: selected ? theme.onAccent : theme.text, fontWeight: '600' }}>{cat.name}</Text>
                       </Pressable>
                     );

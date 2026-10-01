@@ -5,7 +5,7 @@ import { Check } from 'lucide-react-native';
 import { Skeleton } from '@/components/ui/skeleton';
 import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import { useTheme } from '@/hooks/use-theme';
-import { Fonts, Radius, Shadow } from '@/constants/theme';
+import { Radius, Shadow } from '@/constants/theme';
 import { addDays, formatDateKey, startOfWeek, timeToMinutes, todayKey } from '@/lib/dates';
 import { usePhone } from '@/lib/phone-context';
 import { isTaskForDate, itemTime, type PlannerItem } from '@/lib/planner-item';
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800',
     letterSpacing: -0.2,
-    fontFamily: Fonts?.rounded,
+
   },
   progressLabel: {
     fontSize: 13,

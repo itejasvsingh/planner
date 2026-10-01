@@ -4,7 +4,7 @@ import { X } from 'lucide-react-native';
 import { Pressable } from '@/components/ui/pressable';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Type } from '@/constants/theme';
-import { categoriesFor } from '@/lib/categories';
+import { categoriesFor, tintColors } from '@/lib/categories';
 import { useCategoryConfig } from '@/lib/use-category-config';
 import { MONTHLY_BUDGET_KEY, categoryBudgetKey } from '@/lib/budget';
 import { triggerHaptic } from '@/lib/haptics';
@@ -110,7 +110,7 @@ export default function BudgetSheet({
                   const Icon = cat.icon;
                   return (
                     <View key={cat.name} style={[styles.catRow, i < arr.length - 1 && { borderBottomColor: c.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
-                      <Icon color={c.textSecondary} size={18} />
+                      <Icon color={tintColors(cat.tint, c.isDark).fg} size={18} />
                       <Text style={[styles.catName, { color: c.text }]} numberOfLines={1}>{cat.name}</Text>
                       <Text style={{ color: c.textTertiary }}>₹</Text>
                       <TextInput

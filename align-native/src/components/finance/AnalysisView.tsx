@@ -3,8 +3,8 @@ import { StyleSheet, Text, View } from 'react-native';
 import { ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Lightbulb, Minus, TrendingDown, TrendingUp } from 'lucide-react-native';
 import { Pressable } from '@/components/ui/pressable';
 import { useTheme } from '@/hooks/use-theme';
-import { Fonts, Radius, Shadow, Type } from '@/constants/theme';
-import { kindForType, resolveCategory, type CategoryConfig } from '@/lib/categories';
+import { Radius, Shadow, Type } from '@/constants/theme';
+import { kindForType, resolveCategory, tintColors, type CategoryConfig } from '@/lib/categories';
 import {
   amountOf,
   buildInsights,
@@ -255,12 +255,13 @@ export default function AnalysisView({
               {cats.map(cat => {
                 const resolved = resolveCategory(cat.name, 'expense', config);
                 const Icon = resolved.icon;
+                const tint = tintColors(resolved.tint, c.isDark);
                 const ch = changes.get(cat.name);
                 return (
                   <Pressable key={cat.name} accessibilityRole="button" accessibilityLabel={`${cat.name}, ${money(cat.amount)}`} onPress={() => onSelectCategory(cat.name)}
                     style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                    <View style={[styles.catIcon, { backgroundColor: c.backgroundMuted }]}>
-                      <Icon color={c.textSecondary} size={16} />
+                    <View style={[styles.catIcon, { backgroundColor: tint.bg }]}>
+                      <Icon color={tint.fg} size={16} />
                     </View>
                     <View style={{ flex: 1, gap: 6 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -268,7 +269,7 @@ export default function AnalysisView({
                         <Text style={[Type.label, { color: c.text, fontWeight: '700', fontVariant: ['tabular-nums'] }]}>{money(cat.amount)}</Text>
                       </View>
                       <View style={[styles.track, { backgroundColor: c.backgroundMuted }]}>
-                        <View style={{ width: `${Math.max(2, cat.share * 100)}%`, height: '100%', backgroundColor: c.accentFill, borderRadius: Radius.pill }} />
+                        <View style={{ width: `${Math.max(2, cat.share * 100)}%`, height: '100%', backgroundColor: tint.fg, borderRadius: Radius.pill }} />
                       </View>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                         <Text style={{ color: c.textTertiary, fontSize: 12, flex: 1 }}>
@@ -349,7 +350,7 @@ const styles = StyleSheet.create({
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tile: { flexBasis: '47%', flexGrow: 1, borderWidth: 1, borderRadius: Radius.lg, padding: 14, gap: 4 },
   tileLabel: { fontSize: 12, fontWeight: '600' },
-  tileValue: { fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'], fontFamily: Fonts?.rounded },
+  tileValue: { fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 18, marginBottom: 8 },
   sectionHeader: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
   card: { borderWidth: 1, borderRadius: Radius.lg, padding: 16 },
