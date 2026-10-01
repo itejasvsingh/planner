@@ -65,7 +65,7 @@ const pwaHeadSnippet = `
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Align">
-  <meta name="theme-color" content="#1C1714">
+  <meta name="theme-color" content="#0E0D14">
   <meta name="format-detection" content="telephone=no">
   <meta name="apple-touch-fullscreen" content="yes">
   <link rel="manifest" href="/manifest.json">
@@ -115,7 +115,7 @@ const pwaHeadSnippet = `
       -webkit-user-select: auto;
     }
     input, textarea, select { font-size: 16px; }
-    :focus-visible { outline: 2px solid #E8784A; outline-offset: 3px; }
+    :focus-visible { outline: 2px solid #7F3DFF; outline-offset: 3px; }
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
     }
@@ -140,10 +140,10 @@ const pwaHeadSnippet = `
       right: 16px;
       max-width: 440px;
       margin: 0 auto;
-      background: rgba(38, 32, 25, 0.97);
+      background: rgba(24, 23, 31, 0.97);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
-      border: 1px solid #3A3029;
+      border: 1px solid #2A2933;
       border-radius: 22px;
       padding: 16px 18px;
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6);
@@ -266,20 +266,20 @@ const iosBannerHtml = `
   <div style="display:flex; align-items:flex-start; gap:14px;">
     <img src="/apple-touch-icon.png" style="width:48px; height:48px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.3); flex-shrink:0;" />
     <div style="flex:1;">
-      <div style="font-weight:700; font-size:15px; color:#F6EEE6; margin-bottom:4px;">Install Align on iOS</div>
-      <div style="font-size:13px; color:#C3B4A6; line-height:1.45;">
+      <div style="font-weight:700; font-size:15px; color:#FFFFFF; margin-bottom:4px;">Install Align on iOS</div>
+      <div style="font-size:13px; color:#B4B4C4; line-height:1.45;">
         Keep your planner a tap away:
-        <div style="margin-top:6px; font-weight:500; color:#F6EEE6;">
+        <div style="margin-top:6px; font-weight:500; color:#FFFFFF;">
           1. Tap <strong>Share</strong> <span style="display:inline-block; font-size:15px;">⎋</span> at the bottom
           <br>
           2. Tap <strong>Add to Home Screen ⊞</strong>
         </div>
       </div>
     </div>
-    <button onclick="dismissIosInstall()" style="background:none; border:none; color:#8E7F72; font-size:20px; line-height:1; padding:2px 6px; cursor:pointer;">✕</button>
+    <button onclick="dismissIosInstall()" style="background:none; border:none; color:#8E8EA3; font-size:20px; line-height:1; padding:2px 6px; cursor:pointer;">✕</button>
   </div>
   <div style="margin-top:14px; display:flex; justify-content:flex-end; gap:8px;">
-    <button onclick="dismissIosInstall()" style="background:#E8784A; color:#1C1310; border:none; border-radius:999px; padding:8px 18px; font-weight:800; font-size:13px; cursor:pointer;">Got It</button>
+    <button onclick="dismissIosInstall()" style="background:#7F3DFF; color:#FFFFFF; border:none; border-radius:16px; padding:8px 18px; font-weight:700; font-size:13px; cursor:pointer;">Got It</button>
   </div>
 </div>
 `;

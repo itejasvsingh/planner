@@ -9,7 +9,8 @@ import { usePlannerItems } from '@/lib/use-planner-items';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { formatDateKey, parseDateKey, timeToMinutes } from '@/lib/dates';
 import { type PlannerItem, type PlannerSubtask } from '@/lib/planner-item';
-import { EXPENSE_CATEGORIES, resolveCategory } from '@/lib/categories';
+import { categoriesFor, resolveCategory, tintColors } from '@/lib/categories';
+import { useCategoryConfig } from '@/lib/use-category-config';
 
 interface ItemModalProps {
   visible: boolean;
@@ -26,6 +27,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
   const { phone } = usePhone();
   const { addTask, addExpense, addGoal, updateItem } = usePlannerItems(phone);
   
+  const { config: categoryConfig } = useCategoryConfig();
   const [activeTab, setActiveTab] = useState<TabType>(defaultType);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
@@ -68,7 +70,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
         setActiveTab(typeStr as TabType);
         setTitle(initialItem.title || '');
         setAmount(String(initialItem.amount || ''));
-        setCategory(resolveCategory(initialItem.category).name);
+        setCategory(resolveCategory(initialItem.category, 'expense', categoryConfig).name);
         setTarget(String(initialItem.target || ''));
         setCurrentProgress(String(initialItem.current || 0));
         setUnit(initialItem.unit || 'times');
@@ -125,6 +127,8 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
     } else {
       Animated.timing(slideAnim, { toValue: 800, duration: 250, useNativeDriver: true }).start();
     }
+    // Category config is read only when the sheet opens; re-running on a background sync would reset the form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, initialItem, defaultDate, defaultType, slideAnim]);
 
   const handleSave = async () => {
@@ -272,7 +276,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
                 />
                 <Text style={{ color: theme.textSecondary, fontSize: 13 }}>Category</Text>
                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {EXPENSE_CATEGORIES.map(cat => {
+                  {categoriesFor('expense', categoryConfig).map(cat => {
                     const selected = category === cat.name;
                     const Icon = cat.icon;
                     return (
@@ -283,7 +287,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
                         onPress={() => setCategory(cat.name)}
                         style={[styles.pill, styles.pillRow, selected ? { backgroundColor: theme.accentFill, borderColor: theme.accentFill } : { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
                       >
-                        <Icon size={15} color={selected ? theme.onAccent : theme.textSecondary} />
+                        <Icon size={15} color={selected ? theme.onAccent : tintColors(cat.tint, theme.isDark).fg} />
                         <Text style={{ color: selected ? theme.onAccent : theme.text, fontWeight: '600' }}>{cat.name}</Text>
                       </Pressable>
                     );

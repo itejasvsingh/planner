@@ -132,8 +132,8 @@ export default function SmsImportScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: c.background }} contentContainerStyle={styles.content} contentInsetAdjustmentBehavior="automatic">
       <View style={[styles.hero, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
-        <View style={[styles.heroIcon, { backgroundColor: '#2F80ED' }]}>
-          <MessageSquareText color="#fff" size={22} />
+        <View style={[styles.heroIcon, { backgroundColor: c.accentFill }]}>
+          <MessageSquareText color={c.onAccent} size={22} />
         </View>
         <Text style={[styles.heroTitle, { color: c.text }]}>Add expenses from bank SMS</Text>
         <Text style={[styles.body, { color: c.textSecondary, textAlign: 'center' }]}>

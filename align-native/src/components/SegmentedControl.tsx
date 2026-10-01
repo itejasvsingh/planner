@@ -26,6 +26,8 @@ export default function SegmentedControl({ tabs, activeTab, onTabChange }: Segme
                 return (
                     <Pressable
                         key={tab}
+                        accessibilityRole="tab"
+                        accessibilityState={{ selected: isActive }}
                         onPress={() => onTabChange(tab)}
                         style={[
                             { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: Radius.sm + 1, borderWidth: 1, borderColor: 'transparent' },
