@@ -53,7 +53,9 @@ SMS: """${text.slice(0, 600)}"""`;
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({} as any));
   const auth = req.headers.get('authorization');
-  const token = String(body.token || (auth?.startsWith('Bearer ') ? auth.slice(7) : '') || '').trim();
+  // Key from the body, a Bearer header, or ?k= (the one-link iPhone Shortcut setup; the key only allows adding SMS)
+  const queryKey = new URL(req.url).searchParams.get('k');
+  const token = String(body.token || (auth?.startsWith('Bearer ') ? auth.slice(7) : '') || queryKey || '').trim();
   const text = typeof body.text === 'string' ? body.text.trim() : '';
 
   if (token.length < 20) return NextResponse.json({ status: 'error', message: 'Missing or invalid token' }, { status: 401 });

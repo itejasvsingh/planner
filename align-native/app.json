@@ -28,9 +28,8 @@
         "android.permission.USE_BIOMETRIC",
         "android.permission.USE_FINGERPRINT",
         "android.permission.RECORD_AUDIO",
-        "android.permission.USE_BIOMETRIC",
-        "android.permission.USE_FINGERPRINT",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECEIVE_SMS",
+        "android.permission.READ_SMS"
       ],
       "package": "com.tejasvsingh.align",
       "googleServicesFile": "./google-services.json"
