@@ -241,7 +241,7 @@ export default function FinanceScreen() {
                                                 </View>
                                                 <View style={{ flex: 1 }}>
                                                     <Text style={[Type.body, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>{item.title}</Text>
-                                                    <Text style={[Type.caption, { color: c.textTertiary, marginTop: 2 }]}>{category.name}</Text>
+                                                    <Text style={[Type.caption, { color: c.textTertiary, marginTop: 2 }]}>{category.name}{item.autoDetected ? ' · Auto from SMS' : ''}</Text>
                                                 </View>
                                                 <Text style={[Type.body, { color: isIncome ? c.income : (isTransfer ? c.textSecondary : c.text), fontWeight: '700', fontVariant: ['tabular-nums'] }]}>
                                                     {isTransfer ? '' : (isIncome ? '+' : '−')}{formatMoney(Number(item.amount) || 0)}

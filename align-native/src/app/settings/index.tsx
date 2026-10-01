@@ -4,7 +4,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { Bell, BellRing, ChevronRight, LogOut, MessageCircle, Moon, Repeat, Shield, Smartphone, Sun } from 'lucide-react-native';
+import { Bell, BellRing, ChevronRight, LogOut, MessageCircle, MessageSquareText, Moon, Repeat, Shield, Smartphone, Sun } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 import { useThemeMode } from '@/lib/theme-context';
@@ -199,7 +199,9 @@ export default function SettingsScreen() {
       <Group c={c} title="Assistant">
         <Row c={c} tint="#25A244" icon={<MessageCircle color="#fff" size={17} />} label="WhatsApp"
           subtitle={dailySummaryEnabled ? `Daily summary at ${format12Hour(dailySummaryTime)}` : 'Daily summary, reminders & bot'}
-          onPress={() => router.push('/settings/whatsapp')} last />
+          onPress={() => router.push('/settings/whatsapp')} />
+        <Row c={c} tint="#2F80ED" icon={<MessageSquareText color="#fff" size={17} />} label="SMS Auto-Import"
+          subtitle="Add expenses from bank messages" onPress={() => router.push('/settings/sms')} last />
       </Group>
 
       <Group c={c} title="Privacy">

@@ -11,6 +11,7 @@ const nextConfig: NextConfig = {
         { source: '/goals', destination: '/_web/goals.html' },
         { source: '/login', destination: '/_web/login.html' },
         { source: '/settings', destination: '/_web/settings/index.html' },
+        { source: '/settings/sms', destination: '/_web/settings/sms.html' },
         { source: '/settings/whatsapp', destination: '/_web/settings/whatsapp.html' },
         { source: '/settings/security', destination: '/_web/settings/security.html' },
         { source: '/settings/notifications', destination: '/_web/settings/notifications.html' },

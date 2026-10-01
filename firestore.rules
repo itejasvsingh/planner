@@ -43,6 +43,9 @@ service cloud.firestore {
           settingId == ('budgets_' + getUserPhone())
         ))
       ) : true;
+      // SMS auto-import keys: doc id is ingest_<sha256(key)>, data.phone is the owner
+      allow create, update: if isAuthenticated() && settingId.matches('ingest_[0-9a-f]{64}') && isOwner(request.resource.data.phone);
+      allow delete: if isAuthenticated() && settingId.matches('ingest_[0-9a-f]{64}') && isOwner(resource.data.phone);
     }
 
     // rate_limits: used for API rate-limiting
