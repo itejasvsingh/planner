@@ -4,7 +4,8 @@ import { X } from 'lucide-react-native';
 import { Pressable } from '@/components/ui/pressable';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Type } from '@/constants/theme';
-import { EXPENSE_CATEGORIES } from '@/lib/categories';
+import { categoriesFor } from '@/lib/categories';
+import { useCategoryConfig } from '@/lib/use-category-config';
 import { MONTHLY_BUDGET_KEY, categoryBudgetKey } from '@/lib/budget';
 import { triggerHaptic } from '@/lib/haptics';
 
@@ -30,6 +31,8 @@ export default function BudgetSheet({
   onSave: (updates: Record<string, number>) => Promise<void>;
 }) {
   const c = useTheme();
+  const { config: categoryConfig } = useCategoryConfig();
+  const expenseCategories = categoriesFor('expense', categoryConfig);
   const [amount, setAmount] = useState('');
   const [catAmounts, setCatAmounts] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -47,7 +50,7 @@ export default function BudgetSheet({
     try {
       const updates: Record<string, number> = { [MONTHLY_BUDGET_KEY]: toNumber(amount) };
       // Write every category key so cleared limits are stored as 0 (removed)
-      for (const cat of EXPENSE_CATEGORIES) updates[categoryBudgetKey(cat.name)] = toNumber(catAmounts[cat.name] || '');
+      for (const cat of expenseCategories) updates[categoryBudgetKey(cat.name)] = toNumber(catAmounts[cat.name] || '');
       await onSave(updates);
       triggerHaptic('success');
       onClose();
@@ -103,7 +106,7 @@ export default function BudgetSheet({
             <View style={{ gap: 6 }}>
               <Text style={[styles.sectionHeader, { color: c.textTertiary }]}>Category limits (optional)</Text>
               <View style={[styles.group, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
-                {EXPENSE_CATEGORIES.filter((cat) => cat.name !== 'Other').map((cat, i, arr) => {
+                {expenseCategories.filter((cat) => cat.id !== 'Other').map((cat, i, arr) => {
                   const Icon = cat.icon;
                   return (
                     <View key={cat.name} style={[styles.catRow, i < arr.length - 1 && { borderBottomColor: c.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>

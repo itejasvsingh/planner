@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, RefreshControl, TextInput } from 'react-native';
 import { Pressable } from '@/components/ui/pressable';
-import { ArrowDownLeft, ArrowUpRight, Plus, Target, Wallet } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, Plus, Search, Tags, Target, Wallet, X } from 'lucide-react-native';
 import BudgetSheet from '@/components/BudgetSheet';
 import { MONTHLY_BUDGET_KEY, budgetStatus, categoryBudgets, summarizeBudget, type BudgetStatus } from '@/lib/budget';
 import { usePhone } from '@/lib/phone-context';
@@ -12,6 +12,19 @@ import TransactionSheet from '@/components/TransactionSheet';
 import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 import { kindForType, resolveCategory } from '@/lib/categories';
+import { useCategoryConfig } from '@/lib/use-category-config';
+import { amountOf, cycleRange, isMoney } from '@/lib/finance-analysis';
+import SegmentedControl from '@/components/SegmentedControl';
+import CategoryManager from '@/components/CategoryManager';
+import AnalysisView from '@/components/finance/AnalysisView';
+
+const TYPE_FILTERS = [
+    { key: 'all', label: 'All' },
+    { key: 'expense', label: 'Expenses' },
+    { key: 'income', label: 'Income' },
+    { key: 'transfer', label: 'Transfers' },
+] as const;
+type TypeFilter = typeof TYPE_FILTERS[number]['key'];
 
 function formatMoney(amount: number) {
     return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
@@ -42,24 +55,18 @@ export default function FinanceScreen() {
     // Filter only finance items
     
     const { budgetLimits: limits, saveBudgets } = useBudgetLimits(phone);
+    const { config: categoryConfig } = useCategoryConfig();
     const [budgetOpen, setBudgetOpen] = useState(false);
+    const [categoriesOpen, setCategoriesOpen] = useState(false);
+    const [view, setView] = useState<'Overview' | 'Analysis'>('Overview');
+    const [query, setQuery] = useState('');
+    const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+    const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+    const nameOf = (i: { category?: string; type?: string }) => resolveCategory(i.category, kindForType(i.type), categoryConfig).name;
     const payday = limits?.payday || 1;
     
-    // Calculate current cycle dates
-    const today = new Date();
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
-    
-    let cycleStart = new Date(currentYear, currentMonth, payday);
-    if (today.getDate() < payday) {
-        cycleStart = new Date(currentYear, currentMonth - 1, payday);
-    }
-    
-    let cycleEnd = new Date(cycleStart);
-    cycleEnd.setMonth(cycleStart.getMonth() + 1);
-    
-    const cycleStartStr = cycleStart.toISOString().split('T')[0];
-    const cycleEndStr = cycleEnd.toISOString().split('T')[0];
+    // Current salary cycle, in local dates
+    const { start: cycleStart, end: cycleEnd, startKey: cycleStartStr, endKey: cycleEndStr } = cycleRange(payday);
 
     // Filter only finance items for the CURRENT CYCLE
     const financeItems = items.filter(i => {
@@ -78,26 +85,43 @@ export default function FinanceScreen() {
     const categoryTotals = useMemo(() => {
         const totals: Record<string, number> = {};
         expenses.forEach(e => {
-            const cat = resolveCategory(e.category).name;
+            const cat = nameOf(e);
             totals[cat] = (totals[cat] || 0) + (Number(e.amount) || 0);
         });
         const limitsByCat = categoryBudgets(limits);
         for (const name of Object.keys(limitsByCat)) totals[name] = totals[name] || 0;
         return Object.entries(totals)
-            .map(([name, amount]) => ({ name, amount, limit: limitsByCat[name] || 0, icon: resolveCategory(name).icon }))
+            .map(([name, amount]) => ({ name, amount, limit: limitsByCat[name] || 0, icon: resolveCategory(name, 'expense', categoryConfig).icon }))
             // budgeted categories first (most used first), then the biggest unbudgeted ones
             .sort((a, b) => (b.limit ? 1 : 0) - (a.limit ? 1 : 0) || (b.limit ? b.amount / b.limit - a.amount / a.limit : b.amount - a.amount))
             .filter((cat, i) => cat.limit > 0 || i < 6);
-    }, [expenses, limits]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [expenses, limits, categoryConfig]);
 
     const balance = totalEarned - totalSpent;
     const monthlyBudget = Number(limits?.[MONTHLY_BUDGET_KEY]) || 0;
     const budget = monthlyBudget > 0 ? summarizeBudget(monthlyBudget, totalSpent, cycleEnd) : null;
 
+    // Any filter searches all of history; otherwise the list shows the current cycle.
+    const filtering = query.trim() !== '' || typeFilter !== 'all' || categoryFilter !== null;
+    const listItems = useMemo(() => {
+        if (!filtering) return financeItems;
+        const q = query.trim().toLowerCase();
+        return items.filter(i => {
+            if (!isMoney(i)) return false;
+            if (typeFilter !== 'all' && kindForType(i.type) !== typeFilter) return false;
+            if (categoryFilter && nameOf(i) !== categoryFilter) return false;
+            if (q && !`${i.title || ''} ${nameOf(i)} ${i.amount ?? ''}`.toLowerCase().includes(q)) return false;
+            return true;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filtering, financeItems, items, query, typeFilter, categoryFilter, categoryConfig]);
+    const listTotal = listItems.reduce((sum, i) => sum + (i.type === 'expense' ? -amountOf(i) : i.type === 'transfer' ? 0 : amountOf(i)), 0);
+
     // Group transactions by date
     const groupedTransactions = useMemo(() => {
         const groups: Record<string, any[]> = {};
-        const sorted = [...financeItems].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        const sorted = [...listItems].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
         
         sorted.forEach(item => {
             const date = item.date || 'Unknown';
@@ -106,7 +130,7 @@ export default function FinanceScreen() {
         });
         
         return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
-    }, [financeItems]);
+    }, [listItems]);
 
     const [editingItem, setEditingItem] = useState<any>(null);
     const [isSheetVisible, setIsSheetVisible] = useState(false);
@@ -153,6 +177,17 @@ export default function FinanceScreen() {
                 />
 
                 <View style={styles.content}>
+                    <SegmentedControl tabs={['Overview', 'Analysis']} activeTab={view} onTabChange={t => setView(t as 'Overview' | 'Analysis')} />
+                    <View style={{ height: 12 }} />
+
+                    {view === 'Analysis' ? (
+                        <AnalysisView
+                            items={items}
+                            payday={payday}
+                            config={categoryConfig}
+                            onSelectCategory={name => { setCategoryFilter(name); setTypeFilter('expense'); setView('Overview'); }}
+                        />
+                    ) : (<>
                     {/* Budget / balance card */}
                     <Pressable
                         accessibilityRole="button"
@@ -228,9 +263,14 @@ export default function FinanceScreen() {
                         <>
                             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
                                 <Text style={[styles.sectionHeader, { color: c.textTertiary }]}>Where it went</Text>
-                                <Pressable accessibilityRole="button" onPress={() => setBudgetOpen(true)} hitSlop={8}>
-                                    <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Category limits</Text>
-                                </Pressable>
+                                <View style={{ flexDirection: 'row', gap: 16 }}>
+                                    <Pressable accessibilityRole="button" onPress={() => setCategoriesOpen(true)} hitSlop={8}>
+                                        <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Edit categories</Text>
+                                    </Pressable>
+                                    <Pressable accessibilityRole="button" onPress={() => setBudgetOpen(true)} hitSlop={8}>
+                                        <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Limits</Text>
+                                    </Pressable>
+                                </View>
                             </View>
                             <View style={[styles.group, { backgroundColor: c.backgroundElement, borderColor: c.border, padding: 16, gap: 16 }, Shadow.card]}>
                                 {categoryTotals.map(cat => {
@@ -239,7 +279,7 @@ export default function FinanceScreen() {
                                     const status: BudgetStatus | null = cat.limit ? budgetStatus(share) : null;
                                     const barColor = status === 'over' ? c.expense : status === 'warning' ? c.warning : c.text;
                                     return (
-                                        <View key={cat.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                        <Pressable key={cat.name} accessibilityRole="button" accessibilityLabel={`Show ${cat.name} transactions`} onPress={() => { setCategoryFilter(cat.name); setTypeFilter('expense'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                                             <View style={[styles.catIcon, { backgroundColor: c.backgroundMuted }]}>
                                                 <Icon color={c.textSecondary} size={16} />
                                             </View>
@@ -256,7 +296,7 @@ export default function FinanceScreen() {
                                                     <View style={{ width: `${Math.min(100, share * 100)}%`, height: '100%', backgroundColor: barColor, borderRadius: Radius.pill }} />
                                                 </View>
                                             </View>
-                                        </View>
+                                        </Pressable>
                                     );
                                 })}
                             </View>
@@ -264,12 +304,61 @@ export default function FinanceScreen() {
                     )}
 
                     {/* Transactions */}
-                    <Text style={[styles.sectionHeader, { color: c.textTertiary }]}>Transactions</Text>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                        <Text style={[styles.sectionHeader, { color: c.textTertiary }]}>{filtering ? 'All-time results' : 'Transactions this cycle'}</Text>
+                        {categoryTotals.length === 0 && (
+                            <Pressable accessibilityRole="button" onPress={() => setCategoriesOpen(true)} hitSlop={8}>
+                                <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Edit categories</Text>
+                            </Pressable>
+                        )}
+                    </View>
+
+                    <View style={[styles.search, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+                        <Search color={c.textTertiary} size={17} />
+                        <TextInput
+                            accessibilityLabel="Search transactions"
+                            value={query}
+                            onChangeText={setQuery}
+                            placeholder="Search by name, category or amount"
+                            placeholderTextColor={c.textTertiary}
+                            style={[styles.searchInput, { color: c.text }]}
+                            returnKeyType="search"
+                        />
+                        {query !== '' && (
+                            <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={8} onPress={() => setQuery('')}>
+                                <X color={c.textTertiary} size={16} />
+                            </Pressable>
+                        )}
+                    </View>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+                        {TYPE_FILTERS.map(f => {
+                            const active = typeFilter === f.key;
+                            return (
+                                <Pressable key={f.key} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => setTypeFilter(f.key)}
+                                    style={[styles.filterChip, active ? { backgroundColor: c.accentFill, borderColor: c.accentFill } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+                                    <Text style={{ color: active ? c.onAccent : c.text, fontWeight: '600', fontSize: 13 }}>{f.label}</Text>
+                                </Pressable>
+                            );
+                        })}
+                        {categoryFilter && (
+                            <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${categoryFilter} filter`} onPress={() => setCategoryFilter(null)}
+                                style={[styles.filterChip, { backgroundColor: c.accentSoft, borderColor: c.accentSoft, flexDirection: 'row', gap: 6 }]}>
+                                <Tags color={c.accent} size={14} />
+                                <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>{categoryFilter}</Text>
+                                <X color={c.accent} size={14} />
+                            </Pressable>
+                        )}
+                    </ScrollView>
+                    {filtering && (
+                        <Text style={{ color: c.textSecondary, fontSize: 13, marginBottom: 10 }}>
+                            {listItems.length} {listItems.length === 1 ? 'transaction' : 'transactions'} · net {listTotal < 0 ? '−' : '+'}{formatMoney(Math.abs(listTotal))}
+                        </Text>
+                    )}
 
                     {groupedTransactions.length === 0 ? (
                         <View style={[styles.empty, { borderColor: c.border }]}>
                             <Wallet color={c.textTertiary} size={32} />
-                            <Text style={[Type.body, { color: c.textSecondary, textAlign: 'center' }]}>No transactions yet.{'\n'}Tap + to add one.</Text>
+                            <Text style={[Type.body, { color: c.textSecondary, textAlign: 'center' }]}>{filtering ? 'Nothing matches these filters.' : <>No transactions yet.{'\n'}Tap + to add one.</>}</Text>
                         </View>
                     ) : (
                         groupedTransactions.map(([date, items]) => (
@@ -279,7 +368,7 @@ export default function FinanceScreen() {
                                     {items.map((item, index) => {
                                         const isIncome = item.type === 'income' || item.type === 'deposit';
                                         const isTransfer = item.type === 'transfer';
-                                        const category = resolveCategory(item.category, kindForType(item.type));
+                                        const category = resolveCategory(item.category, kindForType(item.type), categoryConfig);
                                         const Icon = category.icon;
                                         return (
                                             <Pressable
@@ -308,9 +397,18 @@ export default function FinanceScreen() {
                             </View>
                         ))
                     )}
+                    </>)}
                 </View>
             </ScrollView>
 
+            <CategoryManager
+                visible={categoriesOpen}
+                onClose={() => setCategoriesOpen(false)}
+                items={items}
+                updateItem={updateItem}
+                budgets={limits as Record<string, number>}
+                saveBudgets={saveBudgets}
+            />
             <BudgetSheet
                 visible={budgetOpen}
                 onClose={() => setBudgetOpen(false)}
@@ -348,5 +446,9 @@ const styles = StyleSheet.create({
   catTrack: { height: 5, borderRadius: Radius.pill, overflow: 'hidden' },
   rowItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
   iconBox: { width: 36, height: 36, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  search: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: 12, marginBottom: 10 },
+  searchInput: { flex: 1, fontSize: 15, paddingVertical: 11 },
+  filters: { gap: 8, paddingBottom: 12 },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, borderWidth: 1, alignItems: 'center' },
   empty: { padding: 32, alignItems: 'center', gap: 12, borderWidth: 1, borderStyle: 'dashed', borderRadius: Radius.lg },
 });

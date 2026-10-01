@@ -6,6 +6,7 @@ import { X, Trash2 } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import SegmentedControl from './SegmentedControl';
 import { categoriesFor, DEFAULT_CATEGORY, kindForType, resolveCategory, type CategoryKind } from '@/lib/categories';
+import { useCategoryConfig } from '@/lib/use-category-config';
 
 interface TransactionSheetProps {
     visible: boolean;
@@ -18,6 +19,7 @@ interface TransactionSheetProps {
 export default function TransactionSheet({ visible, onClose, item, onSave, onDelete }: TransactionSheetProps) {
     const { isDark } = useTheme();
     const c = isDark ? Colors.dark : Colors.light;
+    const { config: categoryConfig } = useCategoryConfig();
 
     const [type, setType] = useState('expense');
     const [title, setTitle] = useState('');
@@ -36,7 +38,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                 setType(kindForType(item.type));
                 setTitle(item.title || '');
                 setAmount(item.amount ? String(item.amount) : '');
-                setCategory(resolveCategory(item.category, kindForType(item.type)).name);
+                setCategory(resolveCategory(item.category, kindForType(item.type), categoryConfig).name);
                 setDate(item.date || new Date().toISOString().split('T')[0]);
                 setIsRecurring(!!item.isRecurring);
                 setIsSplit(!!item.split);
@@ -58,6 +60,8 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                 setYourShareStr('');
             }
         }
+        // Category config is read only when the sheet opens; re-running on a background sync would reset the form.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [visible, item]);
 
     // Update default category when type changes
@@ -102,7 +106,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
         onClose();
     };
 
-    const categories = categoriesFor(kindForType(type));
+    const categories = categoriesFor(kindForType(type), categoryConfig);
 
     return (
         <Modal visible={visible} animationType="slide" transparent>

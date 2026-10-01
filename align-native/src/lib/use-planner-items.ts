@@ -19,6 +19,15 @@ import { getItem, itemsCacheKey, setItem } from '@/lib/storage';
 import { triggerHaptic } from '@/lib/haptics';
 import { LayoutAnimation } from 'react-native';
 import { getPhoneVariants } from '@/lib/phone';
+import { billsToGenerate } from '@/lib/recurring';
+
+/**
+ * Bills already auto-added (or attempted) this session, shared by every usePlannerItems instance. Several
+ * screens mount the hook at once and each would otherwise add its own copy before the others' writes sync
+ * back; and a failed save removes the optimistic copy, which without this guard would be re-added on every
+ * items change (an endless write loop).
+ */
+const attemptedBills = new Set<string>();
 
 export function parseCachedItems(raw: string | null): PlannerItem[] {
   if (!raw) return [];
@@ -441,50 +450,13 @@ export function usePlannerItems(phone: string | null) {
   // --- AUTOMATED RECURRING BILLS INJECTION ---
   useEffect(() => {
     if (!phone || items.length === 0) return;
-    
-    // Only run if we actually have templates, avoids thrashing
-    const recurringTemplates = items.filter(it => it.type === 'expense' && it.isRecurring && !it.isGeneratedRecurring);
-    if (recurringTemplates.length === 0) return;
-
     const now = new Date();
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    const currentMonthKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}`;
-    const todayStr = `${currentMonthKey}-${pad(now.getDate())}`;
-
-    const newItemsToInject: Omit<PlannerItem, 'id' | 'createdAt' | 'ownerId'>[] = [];
-    
-    recurringTemplates.forEach(rec => {
-      const hasThisMonth = items.some(it =>
-        it.type === 'expense' &&
-        (it.id === rec.id || it.recurringParentId === rec.id) &&
-        (it.date || '').startsWith(currentMonthKey)
-      );
-
-      const recDate = rec.date || '';
-      if (!hasThisMonth && !recDate.startsWith(currentMonthKey)) {
-        const originalDay = recDate.length >= 10 ? recDate.slice(8, 10) : '01';
-        const billDate = `${currentMonthKey}-${originalDay}`;
-
-        newItemsToInject.push({
-          type: 'expense',
-          title: rec.title,
-          amount: rec.amount,
-          date: billDate <= todayStr ? billDate : `${currentMonthKey}-01`,
-          category: rec.category || '#Bills',
-          tags: rec.tags || ['#Bills'],
-          splits: [],
-          isRecurring: true,
-          isGeneratedRecurring: true,
-          recurringParentId: rec.id,
-          recurringFrequency: rec.recurringFrequency || 'monthly'
-        });
-      }
-    });
-
-    if (newItemsToInject.length > 0) {
-      newItemsToInject.forEach(item => {
-        _saveNewItem(item).catch(console.warn);
-      });
+    const monthKey = `${now.getFullYear()}-${now.getMonth() + 1}`;
+    for (const bill of billsToGenerate(items)) {
+      const key = `${phone}:${(bill.title || '').trim().toLowerCase()}:${monthKey}`;
+      if (attemptedBills.has(key)) continue;
+      attemptedBills.add(key);
+      _saveNewItem(bill).catch(console.warn);
     }
   }, [items, phone, _saveNewItem]);
 
