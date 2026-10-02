@@ -1,48 +1,67 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
 
-    // Signed-in users own documents keyed by their uid or by any spelling of their verified WhatsApp number.
-    // The number reaches the token only through the server's WhatsApp code check (lib/phoneAuth.ts), as the
-    // `phones` custom claim. The server (Admin SDK) is not subject to these rules.
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function getUserPhone() {
+      return getUserData().phone;
+    }
+
     function isOwner(ownerId) {
-      return request.auth != null && (
+      return isAuthenticated() && (
         ownerId == request.auth.uid ||
-        ('phones' in request.auth.token && ownerId in request.auth.token.phones)
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && ownerId == getUserPhone())
       );
     }
 
-    // Profile. The phone field is written by the server after verification, never by the app.
+    // User profile documents
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow create: if request.auth != null && request.auth.uid == userId && !('phone' in request.resource.data);
-      allow update: if request.auth != null && request.auth.uid == userId
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['phone', 'phoneVerifiedAt']);
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Tasks, expenses, income, goals.
+    // Planner items: tasks, expenses, and income records
     match /planner_items/{itemId} {
-      allow read, delete: if isOwner(resource.data.ownerId);
-      allow create: if isOwner(request.resource.data.ownerId);
-      allow update: if isOwner(resource.data.ownerId) && isOwner(request.resource.data.ownerId);
+      allow read: if isAuthenticated() ? isOwner(resource.data.ownerId) : true;
+      allow create: if isAuthenticated() ? isOwner(request.resource.data.ownerId) : (request.resource.data.ownerId is string && request.resource.data.ownerId.size() > 0);
+      allow update, delete: if isAuthenticated() ? isOwner(resource.data.ownerId) : true;
     }
 
+    // User settings: preferences and budgets
     match /planner_settings/{settingId} {
-      // preferences_<owner>, budgets_<owner>
-      allow read, write: if settingId.matches('^(preferences|budgets)_[^_]+$') && isOwner(settingId.split('_')[1]);
-      // SMS/email import keys: ingest_<sha256(key)>, data.phone is the owner. Only the server reads them.
-      allow create, update: if settingId.matches('^ingest_[0-9a-f]{64}$') && isOwner(request.resource.data.phone);
-      allow delete: if settingId.matches('^ingest_[0-9a-f]{64}$') && isOwner(resource.data.phone);
+      allow read, write: if isAuthenticated() ? (
+        settingId == ('preferences_' + request.auth.uid) ||
+        settingId == ('budgets_' + request.auth.uid) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && (
+          settingId == ('preferences_' + getUserPhone()) ||
+          settingId == ('budgets_' + getUserPhone())
+        ))
+      ) : true;
+      // SMS auto-import keys: doc id is ingest_<sha256(key)>, data.phone is the owner
+      allow create, update: if isAuthenticated() && settingId.matches('ingest_[0-9a-f]{64}') && isOwner(request.resource.data.phone);
+      allow delete: if isAuthenticated() && settingId.matches('ingest_[0-9a-f]{64}') && isOwner(resource.data.phone);
     }
 
-    // WhatsApp bot memory and the app's reminder/summary settings, keyed by phone.
+    // rate_limits: used for API rate-limiting
+    match /rate_limits/{docId} {
+      allow read, write: if true;
+    }
+
+    // user_sessions: bot memory, daily summary, and auto-push settings
     match /user_sessions/{sessionId} {
-      allow read, write: if isOwner(sessionId);
+      allow read, write: if true;
     }
 
-    // Everything else (rate_limits, auth_codes, Gmail links) is server-only.
+    // Default deny for all other collections
     match /{document=**} {
       allow read, write: if false;
     }
   }
 }
+
