@@ -189,7 +189,8 @@ function explain(message: string) {
     return 'The Gmail API is switched off for Align. In Google Cloud (planner-app): APIs & Services → Library → Gmail API → Enable, then tap Check now.';
   }
   if (/insufficient|PERMISSION_DENIED|403/i.test(message) && /Gmail API/.test(message)) {
-    return 'Google didn’t give Align permission to read Gmail. Disconnect, then connect again and leave the Gmail box ticked.';
+    const google = message.replace(/^Gmail API \d+:\s*/, '').slice(0, 160);
+    return `Google didn’t give Align permission to read Gmail. Disconnect, then connect again and leave the Gmail box ticked. (Google says: ${google || 'permission denied'})`;
   }
   if (/token refresh failed/i.test(message)) return 'Google refused Align’s access key. Disconnect and connect Gmail again.';
   if (/requires an index|FAILED_PRECONDITION/i.test(message)) return 'Align’s database needs a setup change before it can save Gmail transactions.';
