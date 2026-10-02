@@ -65,7 +65,8 @@
           "color": "#007AFF"
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "./plugins/with-no-release-lint"
     ],
     "extra": {
       "router": {},
