@@ -44,15 +44,6 @@ export default function GoalsScreen() {
         />
 
         <View style={styles.content}>
-          <View style={styles.summary}>
-            {[{ label: 'In progress', value: goals.length - done.length }, { label: 'Completed', value: done.length }].map(stat => (
-              <View key={stat.label} style={[styles.stat, { backgroundColor: theme.backgroundElement, borderColor: theme.border }, Shadow.card]}>
-                <Text style={[styles.statValue, { color: theme.text }]}>{stat.value}</Text>
-                <Text style={[styles.statLabel, { color: theme.textSecondary }]}>{stat.label}</Text>
-              </View>
-            ))}
-          </View>
-
           <View style={[styles.segmented, { backgroundColor: theme.backgroundMuted }]}>
             {[false, true].map(value => {
               const active = showCompleted === value;
@@ -66,6 +57,7 @@ export default function GoalsScreen() {
                 >
                   <Text style={{ color: active ? theme.text : theme.textSecondary, fontSize: 13, fontWeight: active ? '700' : '500' }}>
                     {value ? 'Completed' : 'In progress'}
+                    <Text style={{ color: theme.textTertiary, fontWeight: '600' }}>  {value ? done.length : goals.length - done.length}</Text>
                   </Text>
                 </Pressable>
               );
@@ -161,10 +153,6 @@ export default function GoalsScreen() {
 
 const styles = StyleSheet.create({
   content: { paddingHorizontal: 16, width: '100%', maxWidth: 720, alignSelf: 'center' },
-  summary: { flexDirection: 'row', gap: 8, marginBottom: 14 },
-  stat: { flex: 1, borderWidth: 1, borderRadius: Radius.lg, padding: 14 },
-  statValue: { fontSize: 28, fontWeight: '800', letterSpacing: -0.5, fontVariant: ['tabular-nums'] },
-  statLabel: { fontSize: 13, fontWeight: '500', marginTop: 2 },
   segmented: { flexDirection: 'row', borderRadius: Radius.md, padding: 3, marginBottom: 14 },
   segment: { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: Radius.sm + 1, borderWidth: 1, borderColor: 'transparent' },
   empty: { padding: 28, borderWidth: 1, borderStyle: 'dashed', borderRadius: Radius.lg, alignItems: 'center', gap: 10 },

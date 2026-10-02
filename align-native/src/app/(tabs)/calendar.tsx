@@ -195,13 +195,13 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   body: { paddingHorizontal: 16, width: '100%', maxWidth: 720, alignSelf: 'center' },
   todayBtn: { height: 40, paddingHorizontal: 14, borderRadius: Radius.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
-  monthCard: { borderWidth: 1, borderRadius: Radius.lg, padding: 12, paddingTop: 14 },
+  monthCard: { borderWidth: 1, borderRadius: Radius.lg, padding: 10, paddingTop: 12 },
   monthSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 4,
-    marginBottom: 12,
+    marginBottom: 6,
   },
   monthArrow: {
     width: 32,
@@ -232,7 +232,8 @@ const styles = StyleSheet.create({
   },
   dayCell: {
     width: '14.285714%',
-    height: 46,
+    // Compact rows so the selected day's tasks start above the fold.
+    height: 38,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: Radius.md,
@@ -254,7 +255,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   agendaSection: {
-    marginTop: 20,
+    marginTop: 14,
   },
   agendaHeader: {
     fontSize: 12,

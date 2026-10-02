@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Pressable } from '@/components/ui/pressable';
-import { Check } from 'lucide-react-native';
+import { Check, Plus, Undo2 } from 'lucide-react-native';
 import { Skeleton } from '@/components/ui/skeleton';
 import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import { useTheme } from '@/hooks/use-theme';
@@ -12,7 +12,8 @@ import { isTaskForDate, itemTime, type PlannerItem } from '@/lib/planner-item';
 import { usePlannerItems } from '@/lib/use-planner-items';
 import ItemModal from '@/components/ItemModal';
 import TaskCard from '@/components/TaskCard';
-import ScreenHeader from '@/components/ScreenHeader';
+import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
+import SwipeAction from '@/components/SwipeAction';
 import { triggerHaptic } from '@/lib/haptics';
 
 const FILTERS = ['All', 'Open', 'Completed'] as const;
@@ -22,7 +23,7 @@ export default function DailyScreen() {
   const theme = useTheme();
   const c = theme;
   const { phone } = usePhone();
-  const { items, loading, error, toggleDone, refresh } = usePlannerItems(phone);
+  const { items, loading, error, toggleDone, deleteItem, addItem, refresh } = usePlannerItems(phone);
   const [refreshing, setRefreshing] = useState(false);
   if (refreshing && !loading) setRefreshing(false);
   const [dailyDate, setDailyDate] = useState(() => new Date());
@@ -30,6 +31,14 @@ export default function DailyScreen() {
   const [editingItem, setEditingItem] = useState<PlannerItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [actionError, setActionError] = useState('');
+  // Last task removed by swipe, kept briefly so it can be restored.
+  const [deleted, setDeleted] = useState<PlannerItem | null>(null);
+
+  useEffect(() => {
+    if (!deleted) return;
+    const t = setTimeout(() => setDeleted(null), 5000);
+    return () => clearTimeout(t);
+  }, [deleted]);
 
   const dateKey = formatDateKey(dailyDate);
   const today = todayKey();
@@ -63,17 +72,48 @@ export default function DailyScreen() {
     }
   }
 
+  async function remove(item: PlannerItem) {
+    setActionError('');
+    // Offer undo right away: the delete is applied locally at once, and the server confirmation can take a
+    // long time (or never arrive while offline).
+    setDeleted(item);
+    try {
+      await deleteItem(item.id);
+    } catch {
+      setDeleted(null);
+      setActionError('Could not delete this task. Please try again.');
+    }
+  }
+
+  async function undoDelete() {
+    if (!deleted) return;
+    // Re-create it from the removed copy (it gets a new id and owner/created time).
+    const copy: Partial<PlannerItem> = { ...deleted };
+    delete copy.id;
+    delete copy.createdAt;
+    delete copy.ownerId;
+    setDeleted(null);
+    try {
+      await addItem(copy as Omit<PlannerItem, 'id' | 'createdAt' | 'ownerId'>);
+    } catch {
+      setActionError('Could not restore the task.');
+    }
+  }
+
   function renderTask(item: PlannerItem, hideTime = false) {
+    // Swipe right to complete, left to delete (same as the Calendar tab).
     return (
-      <TaskCard
-        key={item.id}
-        item={item}
-        theme={theme}
-        today={today}
-        hideTime={hideTime}
-        onToggle={() => void complete(item)}
-        onPress={() => openEditor(item)}
-      />
+      <SwipeAction key={item.id} onComplete={() => void complete(item)} onDelete={() => void remove(item)}>
+        <TaskCard
+          item={item}
+          theme={theme}
+          today={today}
+          hideTime={hideTime}
+          isSwipable
+          onToggle={() => void complete(item)}
+          onPress={() => openEditor(item)}
+        />
+      </SwipeAction>
     );
   }
 
@@ -92,6 +132,11 @@ export default function DailyScreen() {
         <ScreenHeader
           title={dateKey === today ? 'Today' : dailyDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
           subtitle={dailyDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+          actions={
+            <HeaderButton label="Add task" onPress={() => openEditor()} filled>
+              <Plus color={c.onAccent} size={20} strokeWidth={2.5} />
+            </HeaderButton>
+          }
         />
 
         <View style={styles.content}>
@@ -245,6 +290,16 @@ export default function DailyScreen() {
         </View>
       </ScrollView>
 
+      {deleted && (
+        <View style={[styles.undoBar, { backgroundColor: c.text }, Shadow.raised]} accessibilityLiveRegion="polite">
+          <Text style={{ color: c.background, flex: 1, fontWeight: '600' }} numberOfLines={1}>Deleted “{deleted.title}”</Text>
+          <Pressable accessibilityRole="button" onPress={() => void undoDelete()} hitSlop={8} style={styles.undoBtn}>
+            <Undo2 color={c.background} size={16} />
+            <Text style={{ color: c.background, fontWeight: '800' }}>Undo</Text>
+          </Pressable>
+        </View>
+      )}
+
       <ItemModal
         visible={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -256,6 +311,24 @@ export default function DailyScreen() {
 }
 
 const styles = StyleSheet.create({
+  // Floats above the quick-add bar and tab bar.
+  undoBar: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 150,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: Radius.md,
+  },
+  undoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   safe: {
     flex: 1,
   },

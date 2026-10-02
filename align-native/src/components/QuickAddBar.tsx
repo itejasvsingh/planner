@@ -1,7 +1,6 @@
-import ItemModal from '@/components/ItemModal';
 import { useTheme } from '@/hooks/use-theme';
 import { auth } from '@/lib/firebase';
-import { Mic, Plus, Sparkles, X } from 'lucide-react-native';
+import { Mic, Sparkles, X } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { expandQuickAdd, useQuickAddCollapsed } from '@/lib/quick-add-state';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, LayoutAnimation, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
@@ -23,7 +22,6 @@ export default function QuickAddBar() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { phone } = usePhone();
-  const [manualOpen, setManualOpen] = useState(false);
   const [feedback, setFeedback] = useState('');
   const [hasError, setHasError] = useState(false);
   const [text, setText] = useState('');
@@ -180,7 +178,6 @@ export default function QuickAddBar() {
       ) : (
       <View style={[styles.container, { backgroundColor: theme.backgroundElement, borderColor: theme.border, paddingLeft: 12 }]}>
 
-        <Pressable accessibilityRole="button" accessibilityLabel="Add item manually" onPress={() => setManualOpen(true)} style={styles.iconBtn}><Plus size={22} color={theme.blue} /></Pressable>
         {Platform.OS !== 'web' && (
           <Pressable onPress={toggleListening} hitSlop={10} style={styles.iconBtn}>
             <Mic color={isListening ? theme.red : theme.textSecondary} size={24} />
@@ -218,7 +215,6 @@ export default function QuickAddBar() {
         </View>
       </View>
       )}
-      <ItemModal visible={manualOpen} onClose={() => setManualOpen(false)} />
     </KeyboardAvoidingView>
   );
 }
