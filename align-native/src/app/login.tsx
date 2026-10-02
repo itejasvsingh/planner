@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Pressable } from '@/components/ui/pressable';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,94 +7,71 @@ import { Check } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
-import { signInWithGoogle } from '@/lib/google-auth';
-import { normalizePhone } from '@/lib/phone';
-
-const CODE_LEN = 6;
-const RESEND_SECONDS = 30;
-
-const masked = (p: string) => {
-  const d = normalizePhone(p);
-  return d.length > 10 ? `+${d.slice(0, d.length - 10)} ••••• ${d.slice(-5)}` : `••••• ${d.slice(-5)}`;
-};
+import { signInWithGoogle, signOutGoogle } from '@/lib/google-auth';
 
 export default function LoginScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { phone, firebaseUser, needsPhoneSetup, lastPhone, sendCode, verifyCode, logout } = usePhone();
+  const { phone, firebaseUser, needsPhoneSetup, savePhone, login, logout } = usePhone();
 
-  const [step, setStep] = useState<'phone' | 'code'>('phone');
   const [phoneInput, setPhoneInput] = useState('');
-  const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [viaTemplate, setViaTemplate] = useState(true);
-  const [wait, setWait] = useState(0);
 
   useEffect(() => {
-    if (phone && !needsPhoneSetup) router.replace('/(tabs)');
+    // If user has a phone set up, navigate directly to main tabs
+    if (phone && !needsPhoneSetup) {
+      router.replace('/(tabs)');
+    }
   }, [phone, needsPhoneSetup, router]);
 
-  useEffect(() => {
-    if (lastPhone && !phoneInput) setPhoneInput(lastPhone);
-    // Prefill once when the saved number loads; don't overwrite what the user types.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastPhone]);
-
-  useEffect(() => {
-    if (wait <= 0) return;
-    const t = setTimeout(() => setWait((w) => w - 1), 1000);
-    return () => clearTimeout(t);
-  }, [wait]);
-
-  async function requestCode() {
+  async function handlePhoneLogin() {
     if (!phoneInput.trim()) {
-      setError('Enter your WhatsApp number.');
+      setError('Please enter your WhatsApp number.');
       return;
     }
     setBusy(true);
     setError(null);
-    const res = await sendCode(phoneInput.trim());
-    setBusy(false);
-    if (!res.ok) {
-      setError(res.message);
-      return;
-    }
-    setViaTemplate(res.template);
-    setCode('');
-    setStep('code');
-    setWait(RESEND_SECONDS);
-  }
 
-  async function submitCode(value = code) {
-    if (value.length !== CODE_LEN) {
-      setError('Enter the 6-digit code from WhatsApp.');
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    const res = await verifyCode(phoneInput.trim(), value);
+    const result = await login(phoneInput.trim());
     setBusy(false);
-    if (!res.ok) setError(res.message);
+
+    if (!result.ok) {
+      setError(result.message);
+      Alert.alert('Login Notice', result.message);
+    } else {
+      router.replace('/(tabs)');
+    }
   }
 
   async function handleGoogleSignIn() {
     setBusy(true);
     setError(null);
     try {
-      await signInWithGoogle();
+      const user = await signInWithGoogle();
+      if (!user) {
+        setBusy(false);
+        return;
+      }
     } catch (err: any) {
-      if (err?.code !== 'auth/popup-closed-by-user') setError(err?.message || 'Could not sign in with Google.');
+      console.error('Google sign-in error:', err);
+      const msg = err.message || 'Failed to sign in with Google.';
+      setError(msg);
+      Alert.alert('Sign In Failed', msg);
     } finally {
       setBusy(false);
     }
   }
 
-  // Signed in with Google, number not verified yet: same code flow, then it is linked to the account.
-  const linking = Boolean(firebaseUser && needsPhoneSetup);
+  async function handleCompletePhoneSetup() {
+    return handlePhoneLogin();
+  }
+
+  // Show one-time phone capture step if user has signed in with Google but has no linked phone
+  const showPhoneStep = Boolean(firebaseUser && needsPhoneSetup);
+  
   const insets = useSafeAreaInsets();
   const topPadding = Platform.OS === 'web' ? insets.top + 8 : Math.max(insets.top, 52);
-  const inputStyle = [styles.input, { color: theme.text, backgroundColor: theme.backgroundElement, borderColor: theme.border }];
 
   return (
     <View style={[styles.safe, { backgroundColor: theme.background, paddingTop: topPadding }]}>
@@ -103,125 +80,162 @@ export default function LoginScreen() {
           <Check size={36} color={theme.onAccent} strokeWidth={3.5} />
         </View>
 
-        <Text style={[styles.title, { color: theme.text }]}>{linking ? 'One last step' : 'align.'}</Text>
-
-        {step === 'phone' ? (
+        {!showPhoneStep ? (
           <>
+            <Text style={[styles.title, { color: theme.text }]}>align.</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              {linking
-                ? 'Verify your WhatsApp number to load your timeline and money. We\'ll send a code on WhatsApp.'
-                : 'Sign in with your WhatsApp number. We\'ll send you a 6-digit code on WhatsApp.'}
+              Enter your WhatsApp number to sync your personalized timeline and finances.
             </Text>
-            {linking && firebaseUser?.email ? (
-              <Text style={[styles.accountBadge, { color: theme.textSecondary }]}>Signed in as {firebaseUser.email}</Text>
-            ) : null}
+
             <TextInput
-              accessibilityLabel="WhatsApp number"
               value={phoneInput}
               onChangeText={(t) => {
                 setPhoneInput(t);
                 if (error) setError(null);
               }}
-              placeholder="e.g. 9876543210"
+              placeholder="e.g. 919876543210"
               placeholderTextColor={theme.textSecondary}
               keyboardType="phone-pad"
-              autoComplete="tel"
               autoFocus
               textAlign="center"
-              onSubmitEditing={() => void requestCode()}
-              style={inputStyle}
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.backgroundElement,
+                  borderColor: theme.border,
+                },
+              ]}
             />
-            {error ? <Text style={[styles.error, { color: theme.red }]}>{error}</Text> : null}
-            <PrimaryButton theme={theme} label="Send code on WhatsApp" busy={busy} onPress={() => void requestCode()} />
 
-            {linking ? (
-              <Pressable onPress={() => void logout()} style={styles.switchAccountBtn}>
-                <Text style={[styles.switchAccountText, { color: theme.blue }]}>Use a different account</Text>
-              </Pressable>
-            ) : Platform.OS === 'web' ? (
-              <>
-                <View style={styles.dividerRow}>
-                  <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-                  <Text style={[styles.dividerText, { color: theme.textSecondary }]}>OR</Text>
-                  <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-                </View>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Sign in with Google"
-                  onPress={() => void handleGoogleSignIn()}
-                  disabled={busy}
-                  style={({ pressed }) => [
-                    styles.googleButton,
-                    { backgroundColor: theme.backgroundElement, borderColor: theme.border, opacity: pressed || busy ? 0.8 : 1 },
-                  ]}
-                >
-                  <View style={styles.googleButtonContent}>
-                    <Text style={styles.googleIconText}>G</Text>
-                    <Text style={[styles.googleButtonText, { color: theme.text }]}>Sign in with Google</Text>
-                  </View>
-                </Pressable>
-              </>
-            ) : null}
+            {error ? <Text style={[styles.error, { color: theme.red }]}>{error}</Text> : null}
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Continue"
+              onPress={handlePhoneLogin}
+              disabled={busy}
+              style={({ pressed }) => [
+                styles.button,
+                { backgroundColor: theme.accentFill, opacity: pressed || busy ? 0.8 : 1 },
+              ]}
+            >
+              {busy ? (
+                <ActivityIndicator color={theme.onAccent} />
+              ) : (
+                <Text style={[styles.buttonText, { color: theme.onAccent }]}>Continue</Text>
+              )}
+            </Pressable>
+
+            <View style={styles.dividerRow}>
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+              <Text style={[styles.dividerText, { color: theme.textSecondary }]}>OR</Text>
+              <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Sign in with Google"
+              onPress={handleGoogleSignIn}
+              disabled={busy}
+              style={({ pressed }) => [
+                styles.googleButton,
+                {
+                  backgroundColor: theme.backgroundElement,
+                  borderColor: theme.border,
+                  opacity: pressed || busy ? 0.8 : 1,
+                },
+              ]}
+            >
+              <View style={styles.googleButtonContent}>
+                <Text style={styles.googleIconText}>G</Text>
+                <Text style={[styles.googleButtonText, { color: theme.text }]}>
+                  Sign in with Google
+                </Text>
+              </View>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Continue without sign-in"
+              onPress={async () => {
+                await login('guest');
+                router.replace('/(tabs)');
+              }}
+              style={styles.guestButton}
+            >
+              <Text style={[styles.guestButtonText, { color: theme.textSecondary }]}>
+                Continue without sign-in →
+              </Text>
+            </Pressable>
           </>
         ) : (
           <>
+            <Text style={[styles.title, { color: theme.text }]}>One Last Step</Text>
             <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              Enter the code sent on WhatsApp to {masked(phoneInput)}.
+              Enter your WhatsApp number to sync your personalized timeline and finances.
             </Text>
-            <TextInput
-              accessibilityLabel="Login code"
-              value={code}
-              onChangeText={(t) => {
-                const digits = t.replace(/\D/g, '').slice(0, CODE_LEN);
-                setCode(digits);
-                if (error) setError(null);
-                if (digits.length === CODE_LEN) void submitCode(digits);
-              }}
-              placeholder="••••••"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="number-pad"
-              textContentType="oneTimeCode"
-              autoComplete="one-time-code"
-              maxLength={CODE_LEN}
-              autoFocus
-              textAlign="center"
-              style={[inputStyle, styles.codeInput]}
-            />
-            {error ? <Text style={[styles.error, { color: theme.red }]}>{error}</Text> : null}
-            <PrimaryButton theme={theme} label="Verify" busy={busy} onPress={() => void submitCode()} />
-            {!viaTemplate ? (
-              <Text style={[styles.hint, { color: theme.textSecondary }]}>
-                Not getting it? Send &quot;hi&quot; to Align on WhatsApp first, then tap Resend.
+
+            {firebaseUser?.email ? (
+              <Text style={[styles.accountBadge, { color: theme.textSecondary }]}>
+                Signed in as {firebaseUser.email}
               </Text>
             ) : null}
-            <View style={styles.codeLinks}>
-              <Pressable disabled={wait > 0 || busy} onPress={() => void requestCode()} style={styles.switchAccountBtn}>
-                <Text style={[styles.switchAccountText, { color: wait > 0 ? theme.textSecondary : theme.blue }]}>
-                  {wait > 0 ? `Resend in ${wait}s` : 'Resend code'}
-                </Text>
-              </Pressable>
-              <Pressable onPress={() => { setStep('phone'); setError(null); }} style={styles.switchAccountBtn}>
-                <Text style={[styles.switchAccountText, { color: theme.blue }]}>Change number</Text>
-              </Pressable>
-            </View>
+
+            <TextInput
+              value={phoneInput}
+              onChangeText={(t) => {
+                setPhoneInput(t);
+                if (error) setError(null);
+              }}
+              placeholder="e.g. 919876543210"
+              placeholderTextColor={theme.textSecondary}
+              keyboardType="phone-pad"
+              autoFocus
+              textAlign="center"
+              style={[
+                styles.input,
+                {
+                  color: theme.text,
+                  backgroundColor: theme.backgroundElement,
+                  borderColor: theme.border,
+                },
+              ]}
+            />
+
+            {error ? <Text style={[styles.error, { color: theme.red }]}>{error}</Text> : null}
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Complete Setup"
+              onPress={handleCompletePhoneSetup}
+              disabled={busy}
+              style={({ pressed }) => [
+                styles.button,
+                { backgroundColor: theme.accentFill, opacity: pressed || busy ? 0.8 : 1 },
+              ]}
+            >
+              {busy ? (
+                <ActivityIndicator color={theme.onAccent} />
+              ) : (
+                <Text style={[styles.buttonText, { color: theme.onAccent }]}>Complete Setup</Text>
+              )}
+            </Pressable>
+
+            <Pressable
+              onPress={async () => {
+                await logout();
+              }}
+              style={styles.switchAccountBtn}
+            >
+              <Text style={[styles.switchAccountText, { color: theme.blue }]}>
+                Use a different account
+              </Text>
+            </Pressable>
           </>
         )}
       </KeyboardAvoidingView>
     </View>
-  );
-}
-
-function PrimaryButton({ theme, label, busy, onPress }: { theme: ReturnType<typeof useTheme>; label: string; busy: boolean; onPress: () => void }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      onPress={onPress}
-      disabled={busy}
-      style={({ pressed }) => [styles.button, { backgroundColor: theme.accentFill, opacity: pressed || busy ? 0.8 : 1 }]}
-    >
-      {busy ? <ActivityIndicator color={theme.onAccent} /> : <Text style={[styles.buttonText, { color: theme.onAccent }]}>{label}</Text>}
-    </Pressable>
   );
 }
 
@@ -322,7 +336,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1,
   },
-  codeInput: { fontSize: 26, letterSpacing: 10, fontWeight: '700' },
-  hint: { fontSize: 13, lineHeight: 18, textAlign: 'center', maxWidth: 320, marginTop: 14 },
-  codeLinks: { flexDirection: 'row', gap: 24, marginTop: 4 },
+  guestButton: {
+    marginTop: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  guestButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });

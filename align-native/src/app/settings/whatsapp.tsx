@@ -152,8 +152,7 @@ export default function WhatsAppSettingsScreen() {
     setTestStatus('Sending...');
     try {
       const apiBase = Platform.OS === 'web' ? '' : (process.env.EXPO_PUBLIC_API_URL || '');
-      const idToken = await auth.currentUser?.getIdToken();
-      const res = await fetch(`${apiBase}/api/whatsapp/test-summary?phone=${phone}`, { headers: idToken ? { Authorization: `Bearer ${idToken}` } : {} });
+      const res = await fetch(`${apiBase}/api/whatsapp/test-summary?phone=${phone}`);
       if (!res.ok) {
         setTestStatus(`Failed (${res.status})`);
         return;

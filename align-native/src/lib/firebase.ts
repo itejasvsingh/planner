@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
-import { connectFirestoreEmulator, getFirestore, initializeFirestore, type Firestore } from 'firebase/firestore';
-import { connectAuthEmulator, getAuth, initializeAuth, type Auth } from 'firebase/auth';
+import { getFirestore, initializeFirestore, type Firestore } from 'firebase/firestore';
+import { getAuth, initializeAuth, type Auth } from 'firebase/auth';
 // @ts-ignore
 import { getReactNativePersistence } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -39,12 +39,4 @@ function createAuth(): Auth {
 
 export const db = createDb();
 export const auth = createAuth();
-
-// Local test runs only (tests/e2e): EXPO_PUBLIC_FIREBASE_EMULATOR=<host> points the app at the Firebase
-// emulators. Release builds never set it.
-const EMULATOR = process.env.EXPO_PUBLIC_FIREBASE_EMULATOR;
-if (EMULATOR) {
-  connectAuthEmulator(auth, `http://${EMULATOR}:9099`, { disableWarnings: true });
-  connectFirestoreEmulator(db, EMULATOR, 8080);
-}
 
