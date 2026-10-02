@@ -92,7 +92,8 @@ export async function POST(req: Request) {
   if (!phone) return NextResponse.json({ status: 'error', message: 'Unknown token. Create a new one in Align Settings.' }, { status: 401 });
 
   let tx = text ? parseTransactionSms(text) : null;
-  if (!tx && text && /(?:rs\.?|inr|₹)\s*[\d,]/i.test(text) && /debit|credit|spent|paid|sent|received/i.test(text)) {
+  // Emails never go to the AI fallback (see /privacy); only SMS text does.
+  if (!tx && text && source === 'sms' && /(?:rs\.?|inr|₹)\s*[\d,]/i.test(text) && /debit|credit|spent|paid|sent|received/i.test(text)) {
     tx = await parseWithGemini(text);
   }
   if (!tx) return NextResponse.json({ status: 'ignored', message: 'Not a transaction' });
