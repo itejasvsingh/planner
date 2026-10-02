@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import { doc, onSnapshot, setDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { usePhone } from '@/lib/phone-context';
 import { getItem, setItem } from '@/lib/storage';
 import type { CategoryConfig } from '@/lib/categories';
+import { pushOp } from '@/lib/outbox';
 
 /** Field inside planner_settings/preferences_<phone>. */
 const FIELD = 'expenseCategories';
@@ -87,7 +88,8 @@ export function useCategoryConfig() {
     void setItem(cacheKey(key), JSON.stringify(clean));
     // mergeFields replaces this one field wholesale (merge: true would deep-merge its maps, so removed
     // renames/icons would never be deleted) while leaving the rest of the preferences doc alone.
-    await setDoc(doc(db, 'planner_settings', `preferences_${key}`), { [FIELD]: clean }, { mergeFields: [FIELD] });
+    // Queued like every other write, so category edits made offline sync later.
+    await pushOp(key, { kind: 'set', col: 'planner_settings', id: `preferences_${key}`, data: { [FIELD]: clean }, mergeFields: [FIELD] });
   }, [key]);
 
   return { config, saveConfig };

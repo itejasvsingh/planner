@@ -8,7 +8,9 @@ import { Pressable } from '@/components/ui/pressable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { usePhone } from '@/lib/phone-context';
-import { injectParsedItemsLocally } from '@/lib/use-planner-items';
+import { injectParsedItemsLocally, usePlannerItems } from '@/lib/use-planner-items';
+import { parseOffline } from '@/lib/quick-parse';
+import { todayKey } from '@/lib/dates';
 
 let ExpoSpeechRecognitionModule: any = null;
 let useSpeechRecognitionEvent: any = () => {};
@@ -22,6 +24,7 @@ export default function QuickAddBar() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { phone } = usePhone();
+  const { addItem } = usePlannerItems(phone);
   const [feedback, setFeedback] = useState('');
   const [hasError, setHasError] = useState(false);
   const [text, setText] = useState('');
@@ -54,9 +57,15 @@ export default function QuickAddBar() {
     if (!textToProcess.trim() || isProcessing) return;
     setFeedback('');
     setHasError(false);
+    // Without the server (offline, or no API URL in this build) save a simple version on the device instead.
+    const saveOffline = async (reason: string) => {
+      const draft = parseOffline(textToProcess, todayKey());
+      await addItem(draft);
+      setFeedback(`${reason} Saved “${draft.title}” as ${draft.type === 'expense' ? `an expense of ₹${draft.amount.toLocaleString('en-IN')}` : 'a task for today'}; edit it if needed.`);
+      setText('');
+    };
     if (Platform.OS !== 'web' && !API_BASE) {
-      setFeedback('Quick Add is not configured. Use + to add an item manually.');
-      setHasError(true);
+      await saveOffline('Smart quick-add isn\'t set up in this build.');
       return;
     }
 
@@ -103,6 +112,11 @@ export default function QuickAddBar() {
       setFeedback(`${result.items.length} ${result.items.length === 1 ? 'item' : 'items'} added to your planner.`);
       setText('');
     } catch (err: any) {
+      // fetch rejects with a TypeError when there's no connection at all.
+      if (err instanceof TypeError || /network|failed to fetch|load failed/i.test(String(err?.message))) {
+        await saveOffline('You\'re offline, so the AI couldn\'t read this.');
+        return;
+      }
       console.error(err);
       setHasError(true);
       setFeedback(err.message || 'Could not connect. Your text is here to retry.');

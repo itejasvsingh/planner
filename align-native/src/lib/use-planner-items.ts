@@ -1,17 +1,5 @@
-import {
-  addDoc,
-  collection,
-  deleteDoc,
-  doc,
-  onSnapshot,
-  query,
-  serverTimestamp,
-  updateDoc,
-  where,
-  arrayUnion,
-  setDoc,
-} from 'firebase/firestore';
-import { useCallback, useEffect, useState } from 'react';
+import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { db } from '@/lib/firebase';
 import { type PlannerItem, type PlannerSplit } from '@/lib/planner-item';
@@ -20,6 +8,10 @@ import { triggerHaptic } from '@/lib/haptics';
 import { LayoutAnimation } from 'react-native';
 import { getPhoneVariants } from '@/lib/phone';
 import { billsToGenerate } from '@/lib/recurring';
+import { newDocId, pushOp, useOutbox } from '@/lib/outbox';
+import { overlay, SERVER_TIMESTAMP } from '@/lib/outbox-core';
+
+const COL = 'planner_items';
 
 /**
  * Bills already auto-added (or attempted) this session, shared by every usePlannerItems instance. Several
@@ -57,6 +49,10 @@ export async function injectParsedItemsLocally(targetPhone: string | null, newIt
 }
 
 export function usePlannerItems(phone: string | null) {
+  const owner = phone || 'guest';
+  const { queue } = useOutbox(owner);
+  // Latest unconfirmed writes, for layering on top of whatever the server sends.
+  const queueRef = useRef(queue);
   const [items, setItems] = useState<PlannerItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +68,10 @@ export function usePlannerItems(phone: string | null) {
 
     let cancelled = false;
     let receivedSnapshot = false;
+    // Until the server has answered once, snapshots come from Firestore's in-memory cache, which is empty after
+    // a cold start offline. Don't let that wipe the items cached on the device.
+    let serverSeen = false;
+    let hadCache = false;
     let unsubscribeListener: (() => void) | null = null;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let retryCount = 0;
@@ -93,7 +93,9 @@ export function usePlannerItems(phone: string | null) {
     (async () => {
       const cached = parseCachedItems(await getItem(itemsCacheKey(currentPhone)));
       if (!cancelled && !receivedSnapshot && cached.length > 0) {
-        setItems(cached);
+        hadCache = true;
+        setItems(overlay(cached, queueRef.current, COL));
+        setLoading(false);
       }
     })();
 
@@ -106,27 +108,27 @@ export function usePlannerItems(phone: string | null) {
         { includeMetadataChanges: true },
         (snapshot) => {
           retryCount = 0;
+          if (!snapshot.metadata.fromCache) serverSeen = true;
+          if (!serverSeen && (hadCache || snapshot.empty)) {
+            // Offline cold start: keep the device cache on screen.
+            setLoading(false);
+            return;
+          }
           receivedSnapshot = true;
           setError(null);
           const fetched: PlannerItem[] = snapshot.docs.map((d) => ({
             id: d.id,
             ...(d.data() as Omit<PlannerItem, 'id'>),
           }));
-          setItems((prev) => {
-            const pendingLocals = prev.filter(
-              (p) =>
-                p.id.startsWith('local_') &&
-                !fetched.some((f) => f.title === p.title && f.dueDate === p.dueDate && f.date === p.date),
-            );
-            const combined = [...pendingLocals, ...fetched];
-            void setItem(itemsCacheKey(currentPhone), JSON.stringify(combined));
-            return combined;
-          });
+          // Server data with this device's unsynced changes on top.
+          const combined = overlay(fetched, queueRef.current, COL);
+          void setItem(itemsCacheKey(currentPhone), JSON.stringify(combined));
+          setItems(combined);
           setLoading(false);
         },
         (err) => {
           console.warn('Firestore items subscription notice:', err);
-          setError('Could not sync your planner. Showing available data; reconnect or sign in again.');
+          setError('Could not sync right now. Showing what\'s saved on this device; changes will sync later.');
           setLoading(false);
           if (!cancelled && retryCount < 5) {
             retryCount++;
@@ -152,6 +154,13 @@ export function usePlannerItems(phone: string | null) {
     };
   }, [phone, refreshKey]);
 
+  // The queue is shared by every screen, and it may finish loading after the device cache: keep pending changes
+  // (including ones made from another screen's copy of this hook) layered on top.
+  useEffect(() => {
+    queueRef.current = queue;
+    if (queue.length) setItems((prev) => overlay(prev, queue, COL));
+  }, [queue]);
+
   const persistCache = useCallback(
     async (next: PlannerItem[]) => {
       const effectiveKey = phone || 'guest';
@@ -169,14 +178,9 @@ export function usePlannerItems(phone: string | null) {
         void persistCache(updated);
         return updated;
       });
-      try {
-        await updateDoc(doc(db, 'planner_items', id), { done: !currentDone });
-      } catch {
-        setError('Could not update this task. Please try again.');
-        setItems(prev => prev.map(item => item.id === id ? { ...item, done: currentDone } : item));
-      }
+      await pushOp(owner, { kind: 'update', col: COL, id, patch: { done: !currentDone } });
     },
-    [persistCache],
+    [persistCache, owner],
   );
 
   const deleteItem = useCallback(
@@ -188,13 +192,9 @@ export function usePlannerItems(phone: string | null) {
         void persistCache(updated);
         return updated;
       });
-      try {
-        await deleteDoc(doc(db, 'planner_items', id));
-      } catch (e) {
-        console.warn('Deleted offline:', e);
-      }
+      await pushOp(owner, { kind: 'delete', col: COL, id });
     },
-    [persistCache],
+    [persistCache, owner],
   );
 
   const updateItem = useCallback(
@@ -205,14 +205,9 @@ export function usePlannerItems(phone: string | null) {
         void persistCache(updated);
         return updated;
       });
-      try {
-        await updateDoc(doc(db, 'planner_items', id), patch);
-      } catch (e) {
-        setError('Could not save changes. Please try again.');
-        throw e;
-      }
+      await pushOp(owner, { kind: 'update', col: COL, id, patch: patch as Record<string, unknown> });
     },
-    [persistCache]
+    [persistCache, owner]
   );
 
   const addSubtask = useCallback(
@@ -227,14 +222,12 @@ export function usePlannerItems(phone: string | null) {
         
         // Also fire off update to Firestore
         const nextItem = updated.find(i => i.id === taskId);
-        if (nextItem && !taskId.startsWith('local_')) {
-          updateDoc(doc(db, 'planner_items', taskId), { subtasks: nextItem.subtasks }).catch(console.warn);
-        }
+        if (nextItem) void pushOp(owner, { kind: 'update', col: COL, id: taskId, patch: { subtasks: nextItem.subtasks } });
         
         return updated;
       });
     },
-    [persistCache]
+    [persistCache, owner]
   );
 
   const toggleSubtask = useCallback(
@@ -249,14 +242,12 @@ export function usePlannerItems(phone: string | null) {
         void persistCache(updated);
         
         const nextItem = updated.find(i => i.id === taskId);
-        if (nextItem && !taskId.startsWith('local_')) {
-          updateDoc(doc(db, 'planner_items', taskId), { subtasks: nextItem.subtasks }).catch(console.warn);
-        }
+        if (nextItem) void pushOp(owner, { kind: 'update', col: COL, id: taskId, patch: { subtasks: nextItem.subtasks } });
         
         return updated;
       });
     },
-    [persistCache]
+    [persistCache, owner]
   );
 
   const deleteSubtask = useCallback(
@@ -270,14 +261,12 @@ export function usePlannerItems(phone: string | null) {
         void persistCache(updated);
         
         const nextItem = updated.find(i => i.id === taskId);
-        if (nextItem && !taskId.startsWith('local_')) {
-          updateDoc(doc(db, 'planner_items', taskId), { subtasks: nextItem.subtasks }).catch(console.warn);
-        }
+        if (nextItem) void pushOp(owner, { kind: 'update', col: COL, id: taskId, patch: { subtasks: nextItem.subtasks } });
         
         return updated;
       });
     },
-    [persistCache]
+    [persistCache, owner]
   );
 
   const _saveNewItem = useCallback(
@@ -290,44 +279,27 @@ export function usePlannerItems(phone: string | null) {
         triggerHaptic('success');
       }
       
-      const tempId = 'local_' + Date.now() + '_' + Math.random().toString(36).slice(2, 9);
+      // The id is made on the device so the create can be replayed safely until the server confirms it.
+      const id = newDocId(COL);
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       const localItem: PlannerItem = {
-        id: tempId,
+        id,
         ownerId: effectiveOwner,
         ...newItem,
         createdAt: new Date().toISOString(),
       };
-      
+
       setItems((prev) => {
         const updated = [localItem, ...prev];
         void persistCache(updated);
         return updated;
       });
-      
-      try {
-        // Firestore rejects undefined values; optional fields must be omitted.
-        const cleanPayload = Object.fromEntries(Object.entries(localItem).filter(([key, value]) => key !== 'id' && value !== undefined));
-        const docRef = await addDoc(collection(db, 'planner_items'), {
-          ...cleanPayload,
-          createdAt: serverTimestamp(),
-        });
-        setItems((prev) => {
-          const updated = prev.map((it) => (it.id === tempId ? { ...it, id: docRef.id } : it));
-          void persistCache(updated);
-          return updated;
-        });
-      } catch (error) {
-        setItems(prev => {
-          const next = prev.filter(item => item.id !== tempId);
-          void persistCache(next);
-          return next;
-        });
-        setError('Could not save this item. Your form is still available to retry.');
-        throw error;
-      }
+
+      const { id: _omit, ...data } = localItem;
+      void _omit;
+      await pushOp(owner, { kind: 'set', col: COL, id, data: { ...data, createdAt: SERVER_TIMESTAMP } });
     },
-    [phone, persistCache],
+    [phone, persistCache, owner],
   );
 
   const addTask = useCallback(
@@ -397,29 +369,21 @@ export function usePlannerItems(phone: string | null) {
       const next = current + 1;
       const nowIso = new Date().toISOString();
       
+      let history: { value: number; at: string }[] = [];
       setItems((prev) => {
         const updated = prev.map((item) => {
           if (item.id !== id) return item;
-          return {
-            ...item,
-            current: next,
-            progressHistory: [...(item.progressHistory || []), { value: next, at: nowIso }],
-          };
+          history = [...(item.progressHistory || []), { value: next, at: nowIso }];
+          return { ...item, current: next, progressHistory: history };
         });
         void persistCache(updated);
         return updated;
       });
-      
-      try {
-        await updateDoc(doc(db, 'planner_items', id), {
-          current: next,
-          progressHistory: arrayUnion({ value: next, at: nowIso })
-        });
-      } catch (e) {
-        console.warn('Goal updated offline:', e);
-      }
+
+      // Full values rather than arrayUnion, so the queued write can be stored and replayed.
+      await pushOp(owner, { kind: 'update', col: COL, id, patch: { current: next, progressHistory: history } });
     },
-    [persistCache]
+    [persistCache, owner]
   );
 
   const saveSplit = useCallback(
@@ -429,13 +393,9 @@ export function usePlannerItems(phone: string | null) {
         void persistCache(updated);
         return updated;
       });
-      try {
-        await updateDoc(doc(db, 'planner_items', id), { splits });
-      } catch (e) {
-        console.warn('Split saved offline:', e);
-      }
+      await pushOp(owner, { kind: 'update', col: COL, id, patch: { splits } });
     },
-    [persistCache]
+    [persistCache, owner]
   );
 
   const toggleSplit = useCallback(
@@ -465,15 +425,19 @@ export function usePlannerItems(phone: string | null) {
     const toUpdate = items.filter(
       (item) => item.type === 'expense' && item.splits?.some((s) => s.name === personName && !s.settled)
     );
-    await Promise.all(
-      toUpdate.map((item) => {
-        const newSplits = (item.splits ?? []).map((s) =>
-          s.name === personName ? { ...s, settled: true } : s
-        );
-        return updateDoc(doc(db, 'planner_items', item.id), { splits: newSplits });
-      })
-    );
-  }, [items]);
+    const ids = new Set(toUpdate.map(i => i.id));
+    setItems(prev => {
+      const updated = prev.map(item => ids.has(item.id)
+        ? { ...item, splits: (item.splits ?? []).map(s => (s.name === personName ? { ...s, settled: true } : s)) }
+        : item);
+      void persistCache(updated);
+      return updated;
+    });
+    for (const item of toUpdate) {
+      const newSplits = (item.splits ?? []).map((s) => (s.name === personName ? { ...s, settled: true } : s));
+      await pushOp(owner, { kind: 'update', col: COL, id: item.id, patch: { splits: newSplits } });
+    }
+  }, [items, owner, persistCache]);
 
   return { 
     items, settleUpWith, 
@@ -544,7 +508,7 @@ export function useBudgetLimits(phone: string | null) {
   const saveBudgets = useCallback(async (updates: Record<string, number>) => {
     if (!phone) return;
     setBudgetLimits((prev) => ({ ...prev, ...updates }));
-    await setDoc(doc(db, 'planner_settings', `budgets_${phone}`), updates, { merge: true });
+    await pushOp(phone, { kind: 'set', col: 'planner_settings', id: `budgets_${phone}`, data: updates, merge: true });
   }, [phone]);
 
   return { budgetLimits, saveBudgets, DEFAULT_BUDGET_LIMITS };

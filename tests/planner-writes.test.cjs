@@ -5,25 +5,25 @@ const vm = require('node:vm');
 const ts = require('typescript');
 const path = require('node:path');
 
-// Exercise the real hook's write paths against an isolated Firestore boundary.
+// Exercise the real hook's write paths with the outbox and Firestore mocked out.
 // No credentials, network requests, or production records are used.
-function setup({ reject = false, phone = 'test-owner' } = {}) {
-  const writes = [];
+function setup({ phone = 'test-owner' } = {}) {
+  const ops = [];
   const states = [];
   const cache = new Map();
-  const firestore = {
-    collection: (_, name) => name,
-    doc: (_, name, id) => { assert.ok(id); return { name, id }; },
-    serverTimestamp: () => 'server-timestamp',
-    addDoc: async (collection, data) => {
+  let ids = 0;
+  const outbox = {
+    newDocId: () => `local-${++ids}`,
+    useOutbox: () => ({ queue: [], online: true, dropped: 0 }),
+    pushOp: async (owner, op) => {
       function check(value) {
         assert.notEqual(value, undefined, 'Firestore rejects undefined fields');
         if (value && typeof value === 'object') Object.values(value).forEach(check);
       }
-      check(data);
-      if (reject) throw new Error('permission-denied');
-      writes.push({ collection, data });
-      return { id: `saved-${writes.length}` };
+      // the real outbox drops undefined values before queueing
+      const data = op.data && Object.fromEntries(Object.entries(op.data).filter(([, v]) => v !== undefined));
+      if (data) check(data);
+      ops.push({ owner, ...op, ...(data ? { data } : {}) });
     },
   };
   const react = {
@@ -34,61 +34,68 @@ function setup({ reject = false, phone = 'test-owner' } = {}) {
     },
     useCallback: fn => fn,
     useEffect: () => {},
+    useRef: current => ({ current }),
   };
   const source = fs.readFileSync(path.join(__dirname, '../align-native/src/lib/use-planner-items.ts'), 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
+  const coreSrc = fs.readFileSync(path.join(__dirname, '../align-native/src/lib/outbox-core.ts'), 'utf8');
+  const core = { exports: {} };
+  new Function('module', 'exports', ts.transpileModule(coreSrc, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText)(core, core.exports);
   const exports = {};
   vm.runInNewContext(code, {
     exports, console, setTimeout, clearTimeout,
     require: name => {
       if (name === 'react') return react;
-      if (name === 'firebase/firestore') return firestore;
+      if (name === 'react-native') return { LayoutAnimation: { configureNext() {}, Presets: {} } };
+      if (name === 'firebase/firestore') return {};
       if (name.endsWith('/firebase')) return { db: {} };
-      if (name.endsWith('/storage')) return { itemsCacheKey: p => p, setItem: async (key, val) => cache.set(key, val) };
+      if (name.endsWith('/storage')) return { itemsCacheKey: p => p, getItem: async () => null, setItem: async (key, val) => cache.set(key, val) };
       if (name.endsWith('/haptics')) return { triggerHaptic() {} };
-      if (name.endsWith('/phone')) return {};
+      if (name.endsWith('/phone')) return { getPhoneVariants: p => [p] };
+      if (name.endsWith('/recurring')) return { billsToGenerate: () => [] };
+      if (name.endsWith('/outbox')) return outbox;
+      if (name.endsWith('/outbox-core')) return core.exports;
       throw new Error(`Unexpected dependency: ${name}`);
     },
   });
-  return { hook: exports.usePlannerItems(phone), writes, states, cache };
+  return { hook: exports.usePlannerItems(phone), ops, states, cache };
 }
 
-test('manual task is saved without a client id or undefined values', async () => {
-  const { hook, writes, states } = setup();
+test('a new task shows at once and is queued under a device-made id', async () => {
+  const { hook, ops, states, cache } = setup();
   await hook.addTask({ title: 'Read', dueDate: '2026-09-14', reminderTime: null });
-  assert.equal(writes[0].collection, 'planner_items');
-  assert.equal(writes[0].data.ownerId, 'test-owner');
-  assert.equal(writes[0].data.type, 'task');
-  assert.equal(writes[0].data.id, undefined);
-  assert.equal(states[0][0].id, 'saved-1');
+  assert.equal(ops.length, 1);
+  assert.equal(ops[0].kind, 'set');
+  assert.equal(ops[0].col, 'planner_items');
+  assert.equal(ops[0].id, 'local-1');
+  assert.equal(ops[0].data.ownerId, 'test-owner');
+  assert.equal(ops[0].data.type, 'task');
+  assert.equal(ops[0].data.id, undefined);
+  assert.equal(ops[0].data.createdAt, '__server_timestamp__');
+  assert.equal(states[0][0].id, 'local-1');
+  assert.equal(JSON.parse(cache.get('test-owner'))[0].title, 'Read');
 });
 
 test('optional recurring expense fields are omitted', async () => {
-  const { hook, writes } = setup();
+  const { hook, ops } = setup();
   await hook.addExpense({ title: 'Coffee', amount: 100, date: '2026-09-14', category: '#Dining' });
-  assert.equal(writes[0].data.amount, 100);
-  assert.equal('isRecurring' in writes[0].data, false);
-  assert.equal('recurringFrequency' in writes[0].data, false);
+  assert.equal(ops[0].data.amount, 100);
+  assert.equal('isRecurring' in ops[0].data, false);
+  assert.equal('recurringFrequency' in ops[0].data, false);
 });
 
 test('new goals use the create path and preserve decimal targets', async () => {
-  const { hook, writes } = setup();
+  const { hook, ops } = setup();
   await hook.addGoal({ title: 'Run', target: 12.5, unit: 'km', date: '2026-10-01' });
-  assert.equal(writes[0].data.type, 'goal');
-  assert.equal(writes[0].data.current, 0);
-  assert.equal(writes[0].data.target, 12.5);
+  assert.equal(ops[0].data.type, 'goal');
+  assert.equal(ops[0].data.current, 0);
+  assert.equal(ops[0].data.target, 12.5);
 });
 
-test('rejected writes remain retryable and remove the unsaved optimistic item', async () => {
-  const { hook, states, cache } = setup({ reject: true });
-  await assert.rejects(hook.addTask({ title: 'Retry me', dueDate: '2026-09-14', reminderTime: null }), /permission-denied/);
-  assert.equal(states[0].length, 0);
-  assert.equal(cache.get('test-owner'), '[]');
-  assert.match(states[2], /Could not save/);
-});
-
-test('missing identity fails explicitly instead of pretending to save', async () => {
-  const { hook, writes } = setup({ phone: null });
-  await assert.rejects(hook.addGoal({ title: 'Read', target: 2, unit: 'books', date: '2026-10-01' }), /sign in/);
-  assert.equal(writes.length, 0);
+test('edits and deletes are queued against the same doc', async () => {
+  const { hook, ops } = setup();
+  await hook.toggleDone('abc', false);
+  await hook.deleteItem('abc');
+  assert.deepEqual(ops.map(o => [o.kind, o.id]), [['update', 'abc'], ['delete', 'abc']]);
+  assert.equal(JSON.stringify(ops[0].patch), '{"done":true}');
 });

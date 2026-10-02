@@ -2,12 +2,13 @@ import type { ReactNode } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { Pressable } from '@/components/ui/pressable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { UserRound } from 'lucide-react-native';
+import { CloudOff, RefreshCw, UserRound } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { usePhone } from '@/lib/phone-context';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Type } from '@/constants/theme';
 import { triggerHaptic } from '@/lib/haptics';
+import { flush, useOutbox } from '@/lib/outbox';
 
 /** Round bordered icon button used in screen headers. */
 export function HeaderButton({
@@ -60,6 +61,31 @@ function ProfileButton() {
   );
 }
 
+/** Shows when changes made on this device haven't reached the server yet; tap to retry now. */
+function SyncStatus() {
+  const c = useTheme();
+  const { phone } = usePhone();
+  const owner = phone || 'guest';
+  const { queue, online } = useOutbox(owner);
+  if (!queue.length) return null;
+  const offline = online === false;
+  const Icon = offline ? CloudOff : RefreshCw;
+  const label = offline
+    ? `Offline · ${queue.length} ${queue.length === 1 ? 'change' : 'changes'} saved`
+    : `Syncing ${queue.length}…`;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label}. Tap to sync now.`}
+      onPress={() => void flush(owner)}
+      style={[styles.sync, { backgroundColor: offline ? c.warningSoft : c.backgroundMuted }]}
+    >
+      <Icon size={13} color={offline ? c.warning : c.textSecondary} />
+      <Text style={{ color: offline ? c.warning : c.textSecondary, fontSize: 12, fontWeight: '700' }}>{label}</Text>
+    </Pressable>
+  );
+}
+
 /** Shared header for the main tabs: profile button + actions row, then a large title and subtitle. */
 export default function ScreenHeader({
   title,
@@ -82,6 +108,7 @@ export default function ScreenHeader({
     <View style={[styles.wrap, { paddingTop: topPadding }]}>
       <View style={styles.bar}>
         <ProfileButton />
+        <SyncStatus />
         <View style={styles.actions}>{actions}</View>
       </View>
       <View style={styles.titleRow}>
@@ -98,6 +125,7 @@ export default function ScreenHeader({
 }
 
 const styles = StyleSheet.create({
+  sync: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radius.pill },
   wrap: {
     width: '100%',
     maxWidth: 720,

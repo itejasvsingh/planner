@@ -550,9 +550,10 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
         });
       });
     }
+    // Offline support: register the service worker (it caches the app shell; see Step 4 of prepare-expo-web.js).
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function(regs) {
-        for (var r of regs) r.update();
+      window.addEventListener('load', function() {
+        navigator.serviceWorker.register('/sw.js').then(function(reg) { return reg.update(); }).catch(function() {});
       });
     }
 
@@ -576,7 +577,7 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
       if (banner) banner.style.display = 'none';
     }
   </script>
-</head><body><div id="root"><div class="css-g5y9jx r-13awgt0"></div></div><script src="/_expo/static/js/web/entry-d2218313a8705978f4c213bcfd926f3d.js" defer></script>
+</head><body><div id="root"><div class="css-g5y9jx r-13awgt0"></div></div><script src="/_expo/static/js/web/entry-70140ff7b87b6b5fb0f81d3ed8dacd7e.js" defer></script>
 
 <div id="ios-install-banner">
   <div style="display:flex; align-items:flex-start; gap:14px;">
