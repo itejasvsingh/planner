@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requestUser } from '../../../../lib/requestUser';
-import { startConnect } from '../../../../lib/gmail';
+import { GmailConfigError, startConnect } from '../../../../lib/gmail';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +13,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ url: await startConnect(user.phone, body.returnTo === 'app' ? 'app' : 'web') });
   } catch (e) {
     console.warn('Gmail connect start failed:', (e as Error).message);
-    return NextResponse.json({ error: 'Gmail connection is not set up yet.' }, { status: 503 });
+    const message = e instanceof GmailConfigError ? e.message : 'Could not start connecting Gmail. Try again.';
+    return NextResponse.json({ error: message }, { status: 503 });
   }
 }

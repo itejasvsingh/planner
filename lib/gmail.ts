@@ -29,10 +29,18 @@ const states = () => db.collection('gmail_oauth_states');
 
 export type ReturnTo = 'web' | 'app';
 
+// Pasted values often carry spaces, line breaks or quotes, which Google reports as "OAuth client was not found".
+const cleanEnv = (v?: string) => String(v || '').trim().replace(/^["']|["']$/g, '').trim();
+
+export class GmailConfigError extends Error {}
+
 function oauthClient() {
-  const id = process.env.GOOGLE_OAUTH_CLIENT_ID;
-  const secret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
-  if (!id || !secret) throw new Error('GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET are not set.');
+  const id = cleanEnv(process.env.GOOGLE_OAUTH_CLIENT_ID);
+  const secret = cleanEnv(process.env.GOOGLE_OAUTH_CLIENT_SECRET);
+  if (!id || !secret) throw new GmailConfigError('Gmail sign-in is not set up yet (GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET).');
+  if (!/^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/.test(id)) {
+    throw new GmailConfigError('GOOGLE_OAUTH_CLIENT_ID in Vercel doesn’t look like a Google client ID (it should end in .apps.googleusercontent.com).');
+  }
   return { id, secret };
 }
 

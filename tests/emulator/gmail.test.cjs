@@ -6,7 +6,7 @@ const path = require('node:path');
 
 process.env.FIREBASE_PROJECT_ID = 'demo-align';
 process.env.GCLOUD_PROJECT = 'demo-align';
-process.env.GOOGLE_OAUTH_CLIENT_ID = 'client-id.apps.googleusercontent.com';
+process.env.GOOGLE_OAUTH_CLIENT_ID = '123456789012-testclient.apps.googleusercontent.com';
 process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'client-secret';
 process.env.GMAIL_TOKEN_KEY = Buffer.alloc(32, 9).toString('base64');
 
@@ -144,4 +144,13 @@ test('API calls need a signed-in user with a verified number', async () => {
   assert.equal(await requestUser(req(await noPhone.user.getIdToken())), null);
   const withPhone = await signInWithCustomToken(auth, await adminAuth().createCustomToken(`wa_${PHONE}`, { phone: PHONE, phones: [PHONE] }));
   assert.deepEqual(await requestUser(req(await withPhone.user.getIdToken())), { uid: `wa_${PHONE}`, phone: PHONE });
+});
+
+test('client ID pasted with spaces or quotes still works; a wrong-looking one gives a clear message', async () => {
+  process.env.GOOGLE_OAUTH_CLIENT_ID = '  "123456789012-abc123def.apps.googleusercontent.com"\n';
+  const url = new URL(await gmail.startConnect(PHONE, 'web'));
+  assert.equal(url.searchParams.get('client_id'), '123456789012-abc123def.apps.googleusercontent.com');
+  process.env.GOOGLE_OAUTH_CLIENT_ID = 'GOCSPX-this-is-a-secret';
+  await assert.rejects(gmail.startConnect(PHONE, 'web'), /doesn’t look like a Google client ID/);
+  process.env.GOOGLE_OAUTH_CLIENT_ID = '123456789012-testclient.apps.googleusercontent.com';
 });
