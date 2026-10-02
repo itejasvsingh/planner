@@ -78,8 +78,8 @@ export default function GmailScreen() {
     setBusy('sync');
     try {
       const r = await gmailSyncNow();
-      if (!quiet || r.added) {
-        setNote({ ok: r.status === 'ok', text: r.status === 'ok' ? (r.added ? `Added ${r.added} new transaction${r.added === 1 ? '' : 's'} from Gmail.` : 'Checked. Nothing new.') : 'Couldn’t check Gmail just now.' });
+      if (!quiet || r.added || r.status !== 'ok') {
+        setNote({ ok: r.status === 'ok', text: r.status === 'ok' ? (r.added ? `Added ${r.added} new transaction${r.added === 1 ? '' : 's'} from Gmail.` : 'Checked. Nothing new.') : r.message || 'Couldn’t check Gmail just now.' });
       }
     } catch (e) {
       setNote({ ok: false, text: (e as Error).message });
@@ -93,7 +93,7 @@ export default function GmailScreen() {
     setNote(OUTCOME[outcome] || OUTCOME.failed);
     if (outcome === 'connected') {
       triggerHaptic('success');
-      void syncNow(true).then(() => setNote({ ok: true, text: 'Gmail connected. Bank emails from the last 90 days are being added.' }));
+      void syncNow(true);
     } else {
       void load();
     }

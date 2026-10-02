@@ -15,7 +15,7 @@ const DAY = 86400000;
 const b64 = s => Buffer.from(s, 'utf8').toString('base64url');
 const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
-const google = { scope: `openid email ${GMAIL_SCOPE}`, revoked: [], refreshFails: false, queries: [], fetched: [] };
+const google = { scope: `openid email ${GMAIL_SCOPE}`, revoked: [], refreshFails: false, apiDisabled: false, queries: [], fetched: [] };
 const mailbox = [
   { id: 'g1', internalDate: String(Date.now() - 3 * DAY), payload: { mimeType: 'text/plain', headers: [{ name: 'Subject', value: 'UPI txn' }], body: { data: b64('Dear Customer, Rs.250.00 has been debited from account **1234 to VPA zomato@hdfcbank ZOMATO on 01-10-26. Your UPI transaction reference number is 427512345678. Never share your OTP.') } } },
   { id: 'g2', internalDate: String(Date.now() - 2 * DAY), payload: { mimeType: 'text/html', headers: [{ name: 'Subject', value: 'Card alert' }], body: { data: b64('<p>Dear Customer,</p><p>Your ICICI Bank Credit Card XX9876 has been used for a transaction of INR 3,250.00 on Sep 29, 2026 at 11:02:33. Info: AMAZON PAY IN.</p>') } } },
@@ -37,6 +37,9 @@ global.fetch = async (url, opts = {}) => {
   if (u.startsWith('https://oauth2.googleapis.com/revoke')) {
     google.revoked.push(new URL(u).searchParams.get('token'));
     return json({});
+  }
+  if (google.apiDisabled && u.startsWith('https://gmail.googleapis.com/')) {
+    return json({ error: { code: 403, message: 'Gmail API has not been used in project 817744322906 before or it is disabled.', status: 'PERMISSION_DENIED' } }, 403);
   }
   if (u.startsWith('https://gmail.googleapis.com/gmail/v1/users/me/messages?')) {
     google.queries.push(new URL(u).searchParams.get('q'));
@@ -153,4 +156,14 @@ test('client ID pasted with spaces or quotes still works; a wrong-looking one gi
   process.env.GOOGLE_OAUTH_CLIENT_ID = 'GOCSPX-this-is-a-secret';
   await assert.rejects(gmail.startConnect(PHONE, 'web'), /doesn’t look like a Google client ID/);
   process.env.GOOGLE_OAUTH_CLIENT_ID = '123456789012-testclient.apps.googleusercontent.com';
+});
+
+test('a failed check says what to fix (Gmail API switched off)', async () => {
+  await connect('code3');
+  google.apiDisabled = true;
+  const r = await gmail.syncGmail(PHONE, Date.now() + 5000);
+  google.apiDisabled = false;
+  assert.equal(r.status, 'error');
+  assert.match(r.message, /Gmail API is switched off.*Enable/);
+  assert.match((await gmail.linkStatus(PHONE)).lastError, /Gmail API is switched off/);
 });

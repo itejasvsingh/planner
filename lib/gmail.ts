@@ -164,7 +164,10 @@ async function accessToken(refreshToken: string): Promise<string | 'revoked'> {
 
 async function gmail<T>(token: string, path: string): Promise<T> {
   const res = await fetch(`${GMAIL_API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
-  if (!res.ok) throw new Error(`Gmail API ${res.status}`);
+  if (!res.ok) {
+    const detail = ((await res.json().catch(() => ({}))) as { error?: { message?: string } }).error?.message || '';
+    throw new Error(`Gmail API ${res.status}: ${detail}`.slice(0, 300));
+  }
   return (await res.json()) as T;
 }
 
@@ -178,7 +181,20 @@ async function pool<T>(items: T[], width: number, deadline: number, fn: (item: T
   return i;
 }
 
-export type SyncResult = { status: 'ok' | 'reconnect' | 'not_connected' | 'error'; added: number; checked: number };
+export type SyncResult = { status: 'ok' | 'reconnect' | 'not_connected' | 'error'; added: number; checked: number; message?: string };
+
+/** What the user (the app's owner, for setup problems) can do about a failed check. */
+function explain(message: string) {
+  if (/has not been used|is disabled|SERVICE_DISABLED|accessNotConfigured/i.test(message)) {
+    return 'The Gmail API is switched off for Align. In Google Cloud (planner-app): APIs & Services → Library → Gmail API → Enable, then tap Check now.';
+  }
+  if (/insufficient|PERMISSION_DENIED|403/i.test(message) && /Gmail API/.test(message)) {
+    return 'Google didn’t give Align permission to read Gmail. Disconnect, then connect again and leave the Gmail box ticked.';
+  }
+  if (/token refresh failed/i.test(message)) return 'Google refused Align’s access key. Disconnect and connect Gmail again.';
+  if (/requires an index|FAILED_PRECONDITION/i.test(message)) return 'Align’s database needs a setup change before it can save Gmail transactions.';
+  return `Could not check Gmail just now (${message.slice(0, 120)}). It will try again shortly.`;
+}
 
 /**
  * Reads new bank emails for one user and records their transactions. The first run looks back 90 days;
@@ -239,8 +255,9 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
   } catch (e) {
     const message = (e as Error).message;
     console.warn('Gmail sync failed for a user:', message);
-    await ref.update({ lastSyncAt: Date.now(), lastError: 'Could not check Gmail just now. It will try again shortly.' }).catch(() => {});
-    return { status: 'error', added: 0, checked: 0 };
+    const explained = explain(message);
+    await ref.update({ lastSyncAt: Date.now(), lastError: explained }).catch(() => {});
+    return { status: 'error', added: 0, checked: 0, message: explained };
   }
 }
 

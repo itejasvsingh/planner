@@ -23,7 +23,7 @@ async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const gmailStatus = () => call<GmailStatus>('/api/gmail/status');
-export const gmailSyncNow = () => call<{ status: string; added: number; checked: number }>('/api/gmail/sync', { method: 'POST' });
+export const gmailSyncNow = () => call<{ status: string; added: number; checked: number; message?: string }>('/api/gmail/sync', { method: 'POST' });
 export const gmailDisconnect = () => call<{ connected: false }>('/api/gmail/disconnect', { method: 'POST' });
 
 /**
