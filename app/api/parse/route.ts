@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { db, firebase } from '../../../lib/firebase';
+import { db, FieldValue } from '../../../lib/firebase';
 import { consumeRateLimit } from '../../../lib/rateLimit';
 
 export const dynamic = 'force-dynamic';
@@ -55,7 +55,7 @@ export async function POST(req: Request) {
                     transaction.set(rateLimitRef, {
                         count: 1,
                         resetAt: nowMs + ONE_HOUR_MS,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: FieldValue.serverTimestamp(),
                         key: rateLimitKey,
                     });
                     return true;
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
                     transaction.set(rateLimitRef, {
                         count: 1,
                         resetAt: nowMs + ONE_HOUR_MS,
-                        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                        updatedAt: FieldValue.serverTimestamp(),
                         key: rateLimitKey,
                     });
                     return true;
@@ -79,8 +79,8 @@ export async function POST(req: Request) {
                 }
 
                 transaction.update(rateLimitRef, {
-                    count: firebase.firestore.FieldValue.increment(1),
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+                    count: FieldValue.increment(1),
+                    updatedAt: FieldValue.serverTimestamp(),
                 });
                 return true;
             });
@@ -232,7 +232,7 @@ export async function POST(req: Request) {
                 amount: item.amount || null,
                 category: item.category || (item.type === 'expense' ? '#General' : item.type === 'income' ? '#Income' : null),
                 tags: item.tags || (item.category ? [item.category] : []),
-                createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+                createdAt: FieldValue.serverTimestamp(),
                 ...(item.type === 'task' ? { done: false, subtasks: [] } : {}),
                 ...(item.type === 'expense' || item.type === 'income' ? { date: item.dueDate || today, splits: [] } : {})
             };

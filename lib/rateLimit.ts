@@ -1,4 +1,4 @@
-import { db, firebase } from './firebase';
+import { db, FieldValue } from './firebase';
 
 /** Fixed-window counter in `rate_limits`. Returns false when `key` has exceeded `max` within `windowMs`. */
 export async function consumeRateLimit(key: string, max: number, windowMs: number): Promise<boolean> {
@@ -8,11 +8,11 @@ export async function consumeRateLimit(key: string, max: number, windowMs: numbe
         const now = Date.now();
         const data = snap.exists ? snap.data() : null;
         if (!data || typeof data.resetAt !== 'number' || now > data.resetAt) {
-            tx.set(ref, { count: 1, resetAt: now + windowMs, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+            tx.set(ref, { count: 1, resetAt: now + windowMs, updatedAt: FieldValue.serverTimestamp() });
             return true;
         }
         if ((data.count || 0) >= max) return false;
-        tx.update(ref, { count: firebase.firestore.FieldValue.increment(1) });
+        tx.update(ref, { count: FieldValue.increment(1) });
         return true;
     });
 }
