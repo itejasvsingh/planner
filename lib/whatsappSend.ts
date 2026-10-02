@@ -39,3 +39,38 @@ export async function sendLoginCode(to: string, code: string): Promise<{ ok: boo
     return { ok: false, template: !!template };
   }
 }
+
+/** A plain text message (delivered within 24 hours of the person's last message to Align). */
+export async function sendWhatsAppText(to: string, body: string): Promise<boolean> {
+  const token = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
+  const phoneId = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
+  if (!token || !phoneId) return false;
+  try {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}/messages`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', to, type: 'text', text: { body } }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+let botNumberCache: string | null = null;
+
+/** Align's WhatsApp number (digits), for wa.me links. Read once from the WhatsApp API. */
+export async function botNumber(): Promise<string | null> {
+  if (botNumberCache) return botNumberCache;
+  const token = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
+  const phoneId = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
+  if (!token || !phoneId) return null;
+  try {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${phoneId}?fields=display_phone_number`, { headers: { Authorization: `Bearer ${token}` } });
+    const digits = String((await res.json())?.display_phone_number || '').replace(/\D/g, '');
+    botNumberCache = digits.length >= 10 ? digits : null;
+    return botNumberCache;
+  } catch {
+    return null;
+  }
+}

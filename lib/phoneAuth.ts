@@ -2,7 +2,7 @@ import { createHash, randomInt, timingSafeEqual } from 'node:crypto';
 import { adminAuth, db, FieldValue } from './firebase';
 import { consumeRateLimit } from './rateLimit';
 import { getPhoneVariants, isValidPhone, normalizePhone } from './phone';
-import { sendLoginCode } from './whatsappSend';
+import { sendLoginCode, sendWhatsAppText } from './whatsappSend';
 
 /**
  * WhatsApp-number sign-in. The server sends a 6-digit code on WhatsApp; a correct code returns a Firebase
@@ -31,17 +31,42 @@ export async function startPhoneLogin(rawPhone: string, ip: string): Promise<Sta
   ]);
   if (!byPhone || !byIp) return { status: 'error', message: 'Too many codes requested. Try again in an hour.', http: 429 };
 
-  const ref = db.collection('auth_codes').doc(phone);
-  const prev = await ref.get();
+  const prev = await db.collection('auth_codes').doc(phone).get();
   if (prev.exists && Date.now() - Number(prev.data()?.sentAt || 0) < RESEND_AFTER_MS) {
     return { status: 'error', message: 'A code was just sent. Wait 30 seconds before asking for another.', http: 429 };
   }
 
-  const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
-  await ref.set({ hash: hash(phone, code).toString('hex'), expiresAt: Date.now() + CODE_TTL_MS, sentAt: Date.now(), attempts: 0 });
+  const code = await issueCode(phone);
   const sent = await sendLoginCode(phone, code);
   if (!sent.ok) return { status: 'error', message: "Couldn't send a WhatsApp message right now. Try again shortly.", http: 502 };
   return { status: 'sent', template: sent.template };
+}
+
+/** A fresh code for `phone`; any earlier code stops working. */
+async function issueCode(phone: string) {
+  const code = String(randomInt(0, 1_000_000)).padStart(6, '0');
+  await db.collection('auth_codes').doc(phone).set({ hash: hash(phone, code).toString('hex'), expiresAt: Date.now() + CODE_TTL_MS, sentAt: Date.now(), attempts: 0 });
+  return code;
+}
+
+/** "Login", "log in", "code", "OTP"… sent to the Align bot. */
+export function isLoginRequest(text: string) {
+  return /^\s*(?:log ?in|sign ?in|login code|code|otp)\s*[.!]?\s*$/i.test(String(text || ''));
+}
+
+/**
+ * Replies to someone who messaged the bot asking to log in. Their message proves they hold the number, and a
+ * reply to it is always delivered (no template, no 24-hour limit, and free), so this works on Meta's test
+ * account too.
+ */
+export async function replyWithLoginCode(sender: string): Promise<void> {
+  const phone = normalizePhone(sender);
+  if (!isValidPhone(phone)) return;
+  if (!(await consumeRateLimit(`authcode_phone_${phone}`, 6, HOUR))) {
+    await sendWhatsAppText(phone, 'Too many login codes were asked for. Try again in an hour.');
+    return;
+  }
+  await sendLoginCode(phone, await issueCode(phone));
 }
 
 export type VerifyResult =

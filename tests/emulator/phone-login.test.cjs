@@ -14,6 +14,9 @@ delete process.env.WHATSAPP_AUTH_TEMPLATE;
 const sent = [];
 const realFetch = global.fetch;
 global.fetch = async (url, opts) => {
+  if (String(url).includes('fields=display_phone_number')) {
+    return new Response(JSON.stringify({ display_phone_number: '+1 555-010-0199', id: 'test-phone-id' }), { status: 200 });
+  }
   if (String(url).startsWith('https://graph.facebook.com/')) {
     sent.push(JSON.parse(opts.body));
     return new Response(JSON.stringify({ messages: [{ id: 'wamid.test' }] }), { status: 200 });
@@ -23,7 +26,8 @@ global.fetch = async (url, opts) => {
 const lastCode = () => sent[sent.length - 1].text.body.match(/\d{6}/)[0];
 
 const jiti = require('jiti')(__filename);
-const { startPhoneLogin, verifyPhoneLogin } = jiti(path.join(__dirname, '../../lib/phoneAuth.ts'));
+const { startPhoneLogin, verifyPhoneLogin, isLoginRequest, replyWithLoginCode } = jiti(path.join(__dirname, '../../lib/phoneAuth.ts'));
+const { botNumber } = jiti(path.join(__dirname, '../../lib/whatsappSend.ts'));
 const { db, adminAuth } = jiti(path.join(__dirname, '../../lib/firebase.ts'));
 
 const { initializeApp } = require('firebase/app');
@@ -111,4 +115,22 @@ test('bad input and bad tokens are refused', async () => {
   await startPhoneLogin(ME, '10.0.0.4');
   const forged = await verifyPhoneLogin(ME, lastCode(), 'not-a-real-id-token');
   assert.equal(forged.status, 'error');
+});
+
+test('"Login" sent to the bot gets a code back that signs in, without the 30-second wait', async () => {
+  for (const t of ['Login', 'login', ' log in ', 'LOGIN!', 'code', 'OTP', 'sign in']) assert.ok(isLoginRequest(t), t);
+  for (const t of ['login to netflix 499', 'spent 250 on lunch', 'what is my code', '']) assert.ok(!isLoginRequest(t), t);
+
+  const who = '919876500003';
+  await startPhoneLogin(who, '10.0.0.5'); // app asked first; the bot reply must not be blocked by the resend wait
+  const before = sent.length;
+  await replyWithLoginCode(who);
+  assert.equal(sent.length, before + 1);
+  assert.equal(sent[sent.length - 1].to, who);
+  const ok = await verifyPhoneLogin(who.slice(2), lastCode());
+  assert.equal(ok.status, 'ok');
+});
+
+test("the login screen can find Align's WhatsApp number", async () => {
+  assert.equal(await botNumber(), '15550100199');
 });
