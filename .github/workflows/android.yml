@@ -109,8 +109,28 @@ jobs:
         if: steps.find.outputs.exists == 'false'
 
       - name: Build APK on this runner
+        id: build
         if: steps.find.outputs.exists == 'false'
-        run: eas build -p android --profile preview --local --non-interactive --output "$RUNNER_TEMP/align.apk"
+        run: |
+          log="$RUNNER_TEMP/build.log"
+          # Progress notes every 10 minutes (annotations are readable without repo admin access), so a stall shows
+          # where it stopped even if the job is killed.
+          ( for i in 1 2 3 4 5; do sleep 600; echo "::notice title=APK build at ${i}0 min::$(tail -n 3 "$log" 2>/dev/null | tr -d '\r' | cut -c1-300 | tr '\n' ' ')"; done ) &
+          heartbeat=$!
+          set +e -o pipefail
+          timeout 50m eas build -p android --profile preview --local --non-interactive --output "$RUNNER_TEMP/align.apk" 2>&1 | tee "$log"
+          status=$?
+          # Stop the progress loop, or it keeps the step's output open until it finishes.
+          pkill -P "$heartbeat" 2>/dev/null; kill "$heartbeat" 2>/dev/null
+          [ "$status" -eq 124 ] && echo "::error title=APK build timed out::No result after 50 minutes"
+          exit "$status"
+
+      - name: Report build failure
+        if: failure() && steps.build.outcome == 'failure'
+        run: |
+          # Last lines of the build output as one error annotation (newlines encoded for the workflow command).
+          tail -n 60 "$RUNNER_TEMP/build.log" | tr -d '\r' | cut -c1-400 | sed -e 's/%/%25/g' | awk 'BEGIN{ORS="%0A"}{print}' > "$RUNNER_TEMP/tail.txt"
+          echo "::error title=APK build log (last 60 lines)::$(cat "$RUNNER_TEMP/tail.txt")"
 
       - name: Attach APK to a GitHub Release
         if: steps.find.outputs.exists == 'false'
