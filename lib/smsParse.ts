@@ -33,7 +33,7 @@ const NOT_A_TRANSACTION = [
   /\boffer\b/i,
 ];
 
-const DEBIT = /\b(?:debited|spent|paid|sent|withdrawn|deducted|purchase|txn of|charged|dr\b|debit(?:ed)? (?:by|for|with))/i;
+const DEBIT = /\b(?:debited|spent|paid|sent|withdrawn|deducted|purchase|txn of|charged|dr\b|debit(?:ed)? (?:by|for|with)|thank you for using|(?:has been )?used for a? ?transaction)/i;
 const CREDIT = /\b(?:credited|received|deposited|refund(?:ed)?|cashback|cr\b)/i;
 
 const CATEGORY_KEYWORDS: [string, RegExp][] = [
@@ -73,7 +73,7 @@ function parseMerchant(text: string, type: 'expense' | 'income'): string {
           /\btrf to\s+([^.\n]+?)(?:\s+refno|\s+ref|\.|$)/i,
           /\bto\s+vpa\s+([\w.@-]+)/i,
           /;\s*([A-Za-z][^;.\n]+?)\s+credited/i, // "...debited; MERCHANT credited"
-          /\b(?:at|to|towards|for)\s+([A-Za-z][^.\n]{1,40}?)(?:\s+on\s|\s+via\s|\s+using\s|\s+ref|\s+upi|\.|,|$)/i,
+          /\b(?:at|to|towards|for)\s+(?!(?:rs|inr|using|your|the|a)\b)([A-Za-z][^.\n]{1,40}?)(?:\s+on\s|\s+via\s|\s+using\s|\s+ref|\s+upi|\.|,|$)/i,
           /\binfo:?\s*(?:upi\/)?(?:p2[am]\/)?(?:\d+\/)?([A-Za-z][\w &.-]{1,40})/i,
         ]
       : [
@@ -92,8 +92,9 @@ function parseMerchant(text: string, type: 'expense' | 'income'): string {
 
 function parseRef(text: string): string | null {
   const m =
-    text.match(/\b(?:upi\s*)?ref(?:erence)?\.?\s*(?:no\.?|number|id)?\s*[:.\-]?\s*(\d{6,})/i) ||
-    text.match(/\b(?:txn|transaction)\s*(?:id|no\.?)?\s*[:.\-]?\s*([A-Z0-9]{8,})/i) ||
+    text.match(/\b(?:upi\s*)?ref(?:erence)?\.?\s*(?:no\.?|number|id)?\s*(?:is\s*)?[:.\-]?\s*(\d{6,})/i) ||
+    // must contain a digit, so "transaction reference" isn't read as an id
+    text.match(/\b(?:txn|transaction)\s*(?:id|no\.?)?\s*[:.\-]?\s*((?=[A-Z0-9]*\d)[A-Z0-9]{8,})/i) ||
     text.match(/\bimps\s*(?:ref)?\s*[:.\-]?\s*(\d{6,})/i);
   return m ? m[1] : null;
 }

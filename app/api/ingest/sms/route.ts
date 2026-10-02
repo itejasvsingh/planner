@@ -4,15 +4,28 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db, firebase } from '../../../../lib/firebase';
 import { consumeRateLimit } from '../../../../lib/rateLimit';
 import { parseTransactionSms, guessCategory, type ParsedTransaction } from '../../../../lib/smsParse';
+import { alertWindow } from '../../../../lib/emailAlert';
 
 export const dynamic = 'force-dynamic';
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 
-function todayIST() {
-  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+function dateIST(at: Date) {
+  const now = new Date(at.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+function todayIST() {
+  return dateIST(new Date());
+}
+
+/** The email's own date (sent by the Gmail script) when the alert text has none; ignored if implausible. */
+function sentDate(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const at = new Date(raw);
+  const age = Date.now() - at.getTime();
+  return Number.isFinite(age) && age > -86400000 && age < 400 * 86400000 ? dateIST(at) : null;
 }
 
 /** Fallback for bank formats the rules don't know. Only called for text that looks like a completed transaction. */
@@ -46,7 +59,8 @@ SMS: """${text.slice(0, 600)}"""`;
 }
 
 /**
- * Receives bank SMS forwarded by the user's iOS Shortcuts automation and records the transaction.
+ * Receives bank SMS (Android app, iOS Shortcut) and bank alert emails (the user's Gmail Apps Script, with
+ * source: 'email') and records the transaction.
  * Auth: per-user secret token (body.token or Authorization: Bearer), mapped to the user via
  * planner_settings/ingest_<sha256(token)>.
  */
@@ -56,10 +70,13 @@ export async function POST(req: Request) {
   // Key from the body, a Bearer header, or ?k= (the one-link iPhone Shortcut setup; the key only allows adding SMS)
   const queryKey = new URL(req.url).searchParams.get('k');
   const token = String(body.token || (auth?.startsWith('Bearer ') ? auth.slice(7) : '') || queryKey || '').trim();
-  const text = typeof body.text === 'string' ? body.text.trim() : '';
+  const source: 'sms' | 'email' = body.source === 'email' ? 'email' : 'sms';
+  const raw = typeof body.text === 'string' ? body.text.trim().slice(0, 8000) : '';
+  // Emails wrap the transaction in greetings and disclaimers; keep just the transaction sentences.
+  const text = source === 'email' ? alertWindow(raw) || '' : raw;
 
   if (token.length < 20) return NextResponse.json({ status: 'error', message: 'Missing or invalid token' }, { status: 401 });
-  if (!text) return NextResponse.json({ status: 'error', message: 'No message text' }, { status: 400 });
+  if (!raw) return NextResponse.json({ status: 'error', message: 'No message text' }, { status: 400 });
 
   const tokenHash = sha256(token);
   try {
@@ -74,8 +91,8 @@ export async function POST(req: Request) {
   const phone = link.exists ? String(link.data()?.phone || '') : '';
   if (!phone) return NextResponse.json({ status: 'error', message: 'Unknown token. Create a new one in Align Settings.' }, { status: 401 });
 
-  let tx = parseTransactionSms(text);
-  if (!tx && /(?:rs\.?|inr|₹)\s*[\d,]/i.test(text) && /debit|credit|spent|paid|sent|received/i.test(text)) {
+  let tx = text ? parseTransactionSms(text) : null;
+  if (!tx && text && /(?:rs\.?|inr|₹)\s*[\d,]/i.test(text) && /debit|credit|spent|paid|sent|received/i.test(text)) {
     tx = await parseWithGemini(text);
   }
   if (!tx) return NextResponse.json({ status: 'ignored', message: 'Not a transaction' });
@@ -87,7 +104,17 @@ export async function POST(req: Request) {
   // Same payment can arrive more than once (SMS + email, or a re-run Shortcut): key on the bank ref when present
   const dedupKey = tx.ref ? `ref_${tx.ref}` : `txt_${sha256(text.replace(/\s+/g, ' ').toLowerCase()).slice(0, 24)}`;
   const ref = db.collection('planner_items').doc(`auto_${sha256(`${phone}_${dedupKey}`).slice(0, 28)}`);
-  const date = tx.date || todayIST();
+  const date = tx.date || sentDate(body.date) || todayIST();
+
+  // Without a bank ref, the same card spend can arrive as both an SMS and an email with different text:
+  // treat a same-day, same-amount item recorded from the other channel as this one.
+  if (!tx.ref) {
+    const other = source === 'sms' ? 'email' : 'sms';
+    const same = await db.collection('planner_items').where('ownerId', '==', phone).where('date', '==', date).where('amount', '==', tx.amount).limit(10).get();
+    if (same.docs.some((d: any) => d.data()?.source === other && d.data()?.type === tx!.type)) {
+      return NextResponse.json({ status: 'duplicate', message: `Already recorded from ${other === 'sms' ? 'SMS' : 'email'}: ₹${tx.amount.toLocaleString('en-IN')}` });
+    }
+  }
 
   const created = await db.runTransaction(async (t: any) => {
     if ((await t.get(ref)).exists) return false;
@@ -101,7 +128,7 @@ export async function POST(req: Request) {
       category: tx!.category,
       tags: [tx!.category],
       splits: [],
-      source: 'sms',
+      source,
       autoDetected: true,
       createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     });

@@ -4,7 +4,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
-import { Bell, BellRing, ChevronRight, FileUp, LogOut, MessageCircle, MessageSquareText, Moon, Repeat, Shield, Smartphone, Sun } from 'lucide-react-native';
+import { Bell, BellRing, ChevronRight, FileUp, LogOut, Mail, MessageCircle, MessageSquareText, Moon, Repeat, Shield, Smartphone, Sun } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 import { useThemeMode } from '@/lib/theme-context';
@@ -204,6 +204,8 @@ export default function SettingsScreen() {
           onPress={() => router.push('/settings/whatsapp')} />
         <Row c={c} tint="blue" icon={<MessageSquareText color={tintColors('blue', c.isDark).fg} size={17} />} label="SMS Auto-Import"
           subtitle="Add expenses from bank messages" onPress={() => router.push('/settings/sms')} />
+        <Row c={c} tint="orange" icon={<Mail color={tintColors('orange', c.isDark).fg} size={17} />} label="Email Auto-Import"
+          subtitle="Add expenses from bank alert emails" onPress={() => router.push('/settings/email')} />
         <Row c={c} tint="teal" icon={<FileUp color={tintColors('teal', c.isDark).fg} size={17} />} label="Import Statement"
           subtitle="Add transactions from a bank or card statement" onPress={() => router.push('/settings/import')} last />
       </Group>
