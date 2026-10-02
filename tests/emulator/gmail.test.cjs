@@ -15,7 +15,7 @@ const DAY = 86400000;
 const b64 = s => Buffer.from(s, 'utf8').toString('base64url');
 const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
-const google = { scope: `openid email ${GMAIL_SCOPE}`, revoked: [], refreshFails: false, apiDisabled: false, queries: [], fetched: [] };
+const google = { scope: `openid email ${GMAIL_SCOPE}`, revoked: [], refreshFails: false, apiDisabled: false, throttleAfter: Infinity, gets: 0, queries: [], fetched: [] };
 const mailbox = [
   { id: 'g1', internalDate: String(Date.now() - 3 * DAY), payload: { mimeType: 'text/plain', headers: [{ name: 'Subject', value: 'UPI txn' }], body: { data: b64('Dear Customer, Rs.250.00 has been debited from account **1234 to VPA zomato@hdfcbank ZOMATO on 01-10-26. Your UPI transaction reference number is 427512345678. Never share your OTP.') } } },
   { id: 'g2', internalDate: String(Date.now() - 2 * DAY), payload: { mimeType: 'text/html', headers: [{ name: 'Subject', value: 'Card alert' }], body: { data: b64('<p>Dear Customer,</p><p>Your ICICI Bank Credit Card XX9876 has been used for a transaction of INR 3,250.00 on Sep 29, 2026 at 11:02:33. Info: AMAZON PAY IN.</p>') } } },
@@ -46,6 +46,9 @@ global.fetch = async (url, opts = {}) => {
     return json({ messages: [...mailbox].reverse().map(m => ({ id: m.id })) }); // newest first, like Gmail
   }
   const m = u.match(/\/messages\/(\w+)\?format=full$/);
+  if (m && ++google.gets > google.throttleAfter) {
+    return json({ error: { code: 403, message: "Quota exceeded for quota metric 'Total query cost' and limit 'Total query cost per minute per user'", status: 'PERMISSION_DENIED' } }, 403);
+  }
   if (m) {
     google.fetched.push(m[1]);
     return json(mailbox.find(x => x.id === m[1]));
@@ -166,4 +169,25 @@ test('a failed check says what to fix (Gmail API switched off)', async () => {
   assert.equal(r.status, 'error');
   assert.match(r.message, /Gmail API is switched off.*Enable/);
   assert.match((await gmail.linkStatus(PHONE)).lastError, /Gmail API is switched off/);
+});
+
+test('when Gmail says slow down, what was read is kept and the next check continues', async () => {
+  const P2 = '919876500011';
+  await gmail.finishConnect('code4', new URL(await gmail.startConnect(P2, 'web')).searchParams.get('state'));
+  google.gets = 0;
+  google.throttleAfter = 1; // the second read is refused
+  const first = await gmail.syncGmail(P2, Date.now() + 10000);
+  assert.equal(first.status, 'ok');
+  assert.match(first.message, /slow down/);
+  assert.equal(first.checked, 1);
+  const afterFirst = (await db.collection('planner_items').where('ownerId', '==', P2).get()).size;
+
+  google.throttleAfter = Infinity;
+  const second = await gmail.syncGmail(P2, Date.now() + 10000);
+  assert.equal(second.status, 'ok');
+  assert.equal(second.message, undefined);
+  const total = (await db.collection('planner_items').where('ownerId', '==', P2).get()).size;
+  assert.equal(total, 2, 'UPI alert + card alert, each once');
+  assert.ok(total > afterFirst);
+  assert.equal((await gmail.linkStatus(P2)).lastError, null);
 });

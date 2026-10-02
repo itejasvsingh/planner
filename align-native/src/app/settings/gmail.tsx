@@ -78,8 +78,12 @@ export default function GmailScreen() {
     setBusy('sync');
     try {
       const r = await gmailSyncNow();
-      if (!quiet || r.added || r.status !== 'ok') {
-        setNote({ ok: r.status === 'ok', text: r.status === 'ok' ? (r.added ? `Added ${r.added} new transaction${r.added === 1 ? '' : 's'} from Gmail.` : 'Checked. Nothing new.') : r.message || 'Couldn’t check Gmail just now.' });
+      if (!quiet || r.added || r.message || r.status !== 'ok') {
+        const addedText = r.added ? `Added ${r.added} new transaction${r.added === 1 ? '' : 's'} from Gmail.` : '';
+        setNote({
+          ok: r.status === 'ok',
+          text: r.status === 'ok' ? [addedText, r.message].filter(Boolean).join(' ') || 'Checked. Nothing new.' : r.message || 'Couldn’t check Gmail just now.',
+        });
       }
     } catch (e) {
       setNote({ ok: false, text: (e as Error).message });

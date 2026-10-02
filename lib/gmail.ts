@@ -22,6 +22,9 @@ const STATE_TTL_MS = 10 * 60 * 1000;
 const BACKFILL_DAYS = 90;
 const OVERLAP_SEC = 2 * 24 * 3600; // re-read the last two days each run; recording is idempotent
 const MAX_MESSAGES_PER_RUN = 150;
+// Gmail allows 250 quota units per user per second and a message read costs 5: stay well under it.
+const READ_WIDTH = 2;
+const READ_PAUSE_MS = 120;
 const DAY_MS = 86400000;
 
 const links = () => db.collection('gmail_links');
@@ -162,23 +165,44 @@ async function accessToken(refreshToken: string): Promise<string | 'revoked'> {
   return tok.access_token;
 }
 
+/** Gmail asked us to slow down (it answers 429, or 403 with a quota/rate reason). */
+export class GmailThrottled extends Error {}
+
 async function gmail<T>(token: string, path: string): Promise<T> {
   const res = await fetch(`${GMAIL_API}${path}`, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) {
     const detail = ((await res.json().catch(() => ({}))) as { error?: { message?: string } }).error?.message || '';
+    if (res.status === 429 || (res.status === 403 && /quota|rate ?limit|too many/i.test(detail))) throw new GmailThrottled(detail);
     throw new Error(`Gmail API ${res.status}: ${detail}`.slice(0, 300));
   }
   return (await res.json()) as T;
 }
 
-/** Runs `fn` over `items`, `width` at a time, stopping early once `deadline` passes. */
+/**
+ * Runs `fn` over `items` in order, `width` at a time with a pause between calls, stopping early once
+ * `deadline` passes or Gmail asks to slow down. Returns how many items were completed, in order: items
+ * after the first unfinished one are not counted even if they ran.
+ */
 async function pool<T>(items: T[], width: number, deadline: number, fn: (item: T) => Promise<void>) {
-  let i = 0;
+  let next = 0;
+  let stop = false;
+  const ok = new Array<boolean>(items.length).fill(false);
   const worker = async () => {
-    while (i < items.length && Date.now() < deadline) await fn(items[i++]);
+    while (!stop && next < items.length && Date.now() < deadline) {
+      const i = next++;
+      try {
+        await fn(items[i]);
+        ok[i] = true;
+      } catch (e) {
+        if (e instanceof GmailThrottled) stop = true;
+        else throw e;
+      }
+      await new Promise((r) => setTimeout(r, READ_PAUSE_MS));
+    }
   };
   await Promise.all(Array.from({ length: width }, worker));
-  return i;
+  const done = ok.indexOf(false);
+  return { done: done === -1 ? items.length : done, throttled: stop };
 }
 
 export type SyncResult = { status: 'ok' | 'reconnect' | 'not_connected' | 'error'; added: number; checked: number; message?: string };
@@ -188,6 +212,7 @@ function explain(message: string) {
   if (/has not been used|is disabled|SERVICE_DISABLED|accessNotConfigured/i.test(message)) {
     return 'The Gmail API is switched off for Align. In Google Cloud (planner-app): APIs & Services → Library → Gmail API → Enable, then tap Check now.';
   }
+  if (/quota|rate ?limit/i.test(message)) return 'Gmail asked Align to slow down. The next check (within 15 minutes) continues.';
   if (/insufficient|PERMISSION_DENIED|403/i.test(message) && /Gmail API/.test(message)) {
     const google = message.replace(/^Gmail API \d+:\s*/, '').slice(0, 160);
     return `Google didn’t give Align permission to read Gmail. Disconnect, then connect again and leave the Gmail box ticked. (Google says: ${google || 'permission denied'})`;
@@ -232,11 +257,11 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
     // Gmail lists newest first; read oldest first.
     const batch = ids.reverse().slice(0, MAX_MESSAGES_PER_RUN);
     let added = 0;
-    let newest = Number(link.syncedThrough || 0);
-    const done = await pool(batch, 5, deadline, async (id) => {
+    const dates = new Array<number>(batch.length).fill(0);
+    const { done, throttled } = await pool(batch, READ_WIDTH, deadline, async (id) => {
       const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=full`);
       const at = Number(msg.internalDate || Date.now());
-      newest = Math.max(newest, at);
+      dates[batch.indexOf(id)] = at;
       const window = alertWindow(messageText(msg).text);
       const tx = window ? parseTransactionSms(window) : null;
       if (!tx) return;
@@ -244,15 +269,18 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
       if (outcome === 'added') added++;
     });
 
-    // Everything up to this run's start was read, or only up to the newest email reached before stopping.
+    // Everything up to this run's start was read, or only up to the newest email of the unbroken run of
+    // emails read from the oldest (the next check continues from there).
     const finished = ids.length <= MAX_MESSAGES_PER_RUN && done === batch.length;
+    const newest = Math.max(Number(link.syncedThrough || 0), ...dates.slice(0, done));
+    const message = throttled ? 'Gmail asked Align to slow down, so the rest will be added in the next check (within 15 minutes).' : undefined;
     await ref.update({
       lastSyncAt: Date.now(),
       syncedThrough: finished ? runStart : newest || link.syncedThrough || null,
       added: FieldValue.increment(added),
-      lastError: null,
+      lastError: message || null,
     });
-    return { status: 'ok', added, checked: done };
+    return { status: 'ok', added, checked: done, ...(message ? { message } : {}) };
   } catch (e) {
     const message = (e as Error).message;
     console.warn('Gmail sync failed for a user:', message);
