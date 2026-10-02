@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { db, FieldValue } from '../../../../lib/firebase';
+import { db } from '../../../../lib/firebase';
 import { consumeRateLimit } from '../../../../lib/rateLimit';
 import { parseTransactionSms, guessCategory, type ParsedTransaction } from '../../../../lib/smsParse';
 import { alertWindow } from '../../../../lib/emailAlert';
+import { recordTransaction } from '../../../../lib/recordTransaction';
 
 export const dynamic = 'force-dynamic';
 
@@ -102,39 +103,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: 'test', message: `Works! Would add ₹${tx.amount.toLocaleString('en-IN')} · ${tx.merchant} · ${tx.category}`, ...tx });
   }
 
-  // Same payment can arrive more than once (SMS + email, or a re-run Shortcut): key on the bank ref when present
-  const dedupKey = tx.ref ? `ref_${tx.ref}` : `txt_${sha256(text.replace(/\s+/g, ' ').toLowerCase()).slice(0, 24)}`;
-  const ref = db.collection('planner_items').doc(`auto_${sha256(`${phone}_${dedupKey}`).slice(0, 28)}`);
   const date = tx.date || sentDate(body.date) || todayIST();
-
-  // Without a bank ref, the same card spend can arrive as both an SMS and an email with different text:
-  // treat a same-day, same-amount item recorded from the other channel as this one.
-  if (!tx.ref) {
-    const other = source === 'sms' ? 'email' : 'sms';
-    const same = await db.collection('planner_items').where('ownerId', '==', phone).where('date', '==', date).where('amount', '==', tx.amount).limit(10).get();
-    if (same.docs.some((d: any) => d.data()?.source === other && d.data()?.type === tx!.type)) {
-      return NextResponse.json({ status: 'duplicate', message: `Already recorded from ${other === 'sms' ? 'SMS' : 'email'}: ₹${tx.amount.toLocaleString('en-IN')}` });
-    }
-  }
-
-  const created = await db.runTransaction(async (t: any) => {
-    if ((await t.get(ref)).exists) return false;
-    t.set(ref, {
-      ownerId: phone,
-      type: tx!.type,
-      title: tx!.merchant,
-      amount: tx!.amount,
-      date,
-      dueDate: date,
-      category: tx!.category,
-      tags: [tx!.category],
-      splits: [],
-      source,
-      autoDetected: true,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    return true;
-  });
+  const outcome = await recordTransaction(phone, tx, { source, dedupText: text, date });
+  const created = outcome === 'added';
 
   const label = `₹${tx.amount.toLocaleString('en-IN')} ${tx.type === 'expense' ? 'to' : 'from'} ${tx.merchant}`;
   return created

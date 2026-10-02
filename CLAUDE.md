@@ -30,3 +30,12 @@
 - `npm run test:emulator` runs the rules and sign-in tests against the Firebase emulators (project `demo-align`;
   needs Java). The app can be pointed at the emulators with `EXPO_PUBLIC_FIREBASE_EMULATOR=127.0.0.1` and
   `EXPO_PUBLIC_FIREBASE_PROJECT_ID=demo-align` for local end-to-end runs; never set these for a release build.
+- Connected Gmail (`lib/gmail.ts`, `/api/gmail/*`, Settings → Gmail): read-only OAuth; the refresh token is sealed
+  with `GMAIL_TOKEN_KEY` (AES-GCM, `lib/secretBox.ts`) in server-only `gmail_links/<phone>`. Only bank senders
+  (`lib/bankSenders.ts`, mirrored in the app's Gmail script) are read; alerts go through `lib/emailAlert.ts` +
+  `lib/recordTransaction.ts` (shared dedupe with SMS). Gmail/email data must never be sent to Gemini or stored
+  verbatim (promised in /privacy). `.github/workflows/gmail-sync.yml` calls `/api/gmail/sync-all` every 15 min
+  with `GMAIL_SYNC_SECRET`. Env: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GMAIL_TOKEN_KEY`,
+  `GMAIL_SYNC_SECRET`. The OAuth app is unverified (100-user lifetime cap); test with your own Google account.
+- Vercel functions can't require() ESM-only packages (see tests/server-modules.test.cjs); before shipping
+  server dependencies, load built routes with `node --no-experimental-require-module`.

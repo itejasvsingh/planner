@@ -53,6 +53,7 @@ export default function SettingsLayout() {
         <Stack.Screen name="sms" options={{ title: 'SMS Auto-Import' }} />
         <Stack.Screen name="import" options={{ title: 'Import Statement' }} />
         <Stack.Screen name="email" options={{ title: 'Email Auto-Import' }} />
+        <Stack.Screen name="gmail" options={{ title: 'Gmail' }} />
       </Stack>
     </Animated.View>
   );

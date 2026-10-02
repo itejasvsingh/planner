@@ -204,8 +204,8 @@ export default function SettingsScreen() {
           onPress={() => router.push('/settings/whatsapp')} />
         <Row c={c} tint="blue" icon={<MessageSquareText color={tintColors('blue', c.isDark).fg} size={17} />} label="SMS Auto-Import"
           subtitle="Add expenses from bank messages" onPress={() => router.push('/settings/sms')} />
-        <Row c={c} tint="orange" icon={<Mail color={tintColors('orange', c.isDark).fg} size={17} />} label="Email Auto-Import"
-          subtitle="Add expenses from bank alert emails" onPress={() => router.push('/settings/email')} />
+        <Row c={c} tint="orange" icon={<Mail color={tintColors('orange', c.isDark).fg} size={17} />} label="Gmail"
+          subtitle="Add bank alerts from your email automatically" onPress={() => router.push('/settings/gmail')} />
         <Row c={c} tint="teal" icon={<FileUp color={tintColors('teal', c.isDark).fg} size={17} />} label="Import Statement"
           subtitle="Add transactions from a bank or card statement" onPress={() => router.push('/settings/import')} last />
       </Group>

@@ -1,0 +1,23 @@
+name: Gmail sync
+
+# Asks Align to read new bank emails for everyone who connected Gmail. GitHub runs schedules on a best-effort
+# basis (often a few minutes late); the app also checks when it is opened.
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: gmail-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Sync connected Gmail accounts
+        env:
+          GMAIL_SYNC_SECRET: ${{ secrets.GMAIL_SYNC_SECRET }}
+        run: |
+          curl -fsS --max-time 90 -X POST -H "x-sync-secret: $GMAIL_SYNC_SECRET" https://alignplanner.vercel.app/api/gmail/sync-all

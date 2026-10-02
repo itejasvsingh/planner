@@ -7,6 +7,7 @@ import { Tabs } from 'expo-router';
 import { triggerHaptic } from '@/lib/haptics';
 import { expandQuickAdd } from '@/lib/quick-add-state';
 import { flushPendingSms } from '@/lib/sms-import';
+import { startGmailAutoSync } from '@/lib/gmail-connect';
 import { Calendar, ListTodo, Target, Wallet } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
@@ -29,6 +30,8 @@ function useWebSafeAreaBottom(): number {
 export default function TabsLayout() {
   // Android APK: resend bank SMS the background listener couldn't upload while offline
   useEffect(() => { flushPendingSms(); }, []);
+  // Connected Gmail: check for new bank emails when the app is opened
+  useEffect(() => startGmailAutoSync(), []);
   const { isDark } = useTheme();
   const c = isDark ? Colors.dark : Colors.light;
   const insets = useSafeAreaInsets();
