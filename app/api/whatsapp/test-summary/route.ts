@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { runDailySummaryForUser } from '../../../../lib/dailySummary';
 import { consumeRateLimit } from '../../../../lib/rateLimit';
+import { adminAuth } from '../../../../lib/firebase';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +26,15 @@ export async function GET(req: Request) {
             return NextResponse.json({ error: 'A valid phone is required' }, { status: 400, headers: corsHeaders() });
         }
 
-        // Unauthenticated endpoint that sends a real WhatsApp message: cap per-number and per-IP volume (fails closed)
+        // Only the signed-in owner of the number may trigger a message to it.
+        const auth = req.headers.get('authorization');
+        const claims = auth?.startsWith('Bearer ') ? await adminAuth().verifyIdToken(auth.slice(7)).catch(() => null) : null;
+        const phones = Array.isArray(claims?.phones) ? (claims!.phones as string[]) : [];
+        if (!phones.includes(phone)) {
+            return NextResponse.json({ error: 'Sign in to send a summary to this number.' }, { status: 401, headers: corsHeaders() });
+        }
+
+        // Sends a real WhatsApp message: cap per-number and per-IP volume (fails closed)
         const digits = phone.replace(/\D/g, '');
         const ip = (req.headers.get('x-forwarded-for')?.split(',')[0].trim()) || req.headers.get('x-real-ip') || 'unknown-ip';
         const HOUR = 60 * 60 * 1000;

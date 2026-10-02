@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createHash } from 'node:crypto';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { db, firebase } from '../../../../lib/firebase';
+import { db, FieldValue } from '../../../../lib/firebase';
 import { consumeRateLimit } from '../../../../lib/rateLimit';
 import { parseTransactionSms, guessCategory, type ParsedTransaction } from '../../../../lib/smsParse';
 import { alertWindow } from '../../../../lib/emailAlert';
@@ -130,7 +130,7 @@ export async function POST(req: Request) {
       splits: [],
       source,
       autoDetected: true,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      createdAt: FieldValue.serverTimestamp(),
     });
     return true;
   });

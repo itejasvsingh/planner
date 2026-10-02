@@ -7,7 +7,9 @@
     "export:web": "node scripts/prepare-expo-web.js",
     "build": "next build --webpack",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test tests/*.test.cjs",
+    "test:emulator": "firebase emulators:exec --only firestore,auth --project demo-align 'node --test --test-concurrency=1 tests/emulator/*.test.cjs'"
   },
   "dependencies": {
     "@google/genai": "^2.21.0",
@@ -23,6 +25,7 @@
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

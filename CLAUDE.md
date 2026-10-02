@@ -16,3 +16,17 @@
   it to a new GitHub Release for the owner to install once. Needs the `EXPO_TOKEN` repo secret. Build-time
   `EXPO_PUBLIC_*` values come from the EAS `preview` environment, not `.env`. (EAS Workflows were dropped: the
   free-plan queue held jobs for hours.)
+## Data access and sign-in
+
+- Firestore rules are owner-only. The app reaches data only when signed in to Firebase: WhatsApp-number users
+  through `/api/auth/code` + `/api/auth/verify` (a code sent on WhatsApp; the custom token's `phones` claim lists
+  the number's spellings, matched against `ownerId`), Google users after verifying a number the same way.
+  Never add client writes of `users/<uid>.phone` or rules that allow signed-out access.
+- Server code (API routes, crons, the WhatsApp bot) uses the Admin SDK (`lib/firebase.ts`), which needs
+  `FIREBASE_SERVICE_ACCOUNT` (service-account JSON, raw or base64) in Vercel. Server-only collections:
+  `rate_limits`, `auth_codes` and anything not matched in `firestore.rules`.
+- Login codes: `WHATSAPP_AUTH_TEMPLATE` (approved Meta "Authentication" template with a copy-code button) makes
+  them arrive any time; without it they go as plain messages, delivered only within 24 h of the user messaging Align.
+- `npm run test:emulator` runs the rules and sign-in tests against the Firebase emulators (project `demo-align`;
+  needs Java). The app can be pointed at the emulators with `EXPO_PUBLIC_FIREBASE_EMULATOR=127.0.0.1` and
+  `EXPO_PUBLIC_FIREBASE_PROJECT_ID=demo-align` for local end-to-end runs; never set these for a release build.

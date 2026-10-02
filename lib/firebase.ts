@@ -1,53 +1,59 @@
-import firebase from 'firebase/compat/app';
-import 'firebase/compat/firestore';
+import { cert, getApps, initializeApp, type App, type ServiceAccount } from 'firebase-admin/app';
+import { FieldValue, getFirestore, type Firestore } from 'firebase-admin/firestore';
+import { getAuth, type Auth } from 'firebase-admin/auth';
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "AIzaSyDSIN2F2sDc-vB_S7ITCMnKILbr9l-r6co",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "planner-app-3471f.firebaseapp.com",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "planner-app-3471f",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "planner-app-3471f.firebasestorage.app",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "817744322906",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "1:817744322906:web:35d264cd7079a211749363"
-};
+/**
+ * Server-side Firebase through the Admin SDK. Admin access is not subject to Firestore rules, so the rules can
+ * keep phones and browsers to their own data while API routes, crons and the WhatsApp bot work as before.
+ *
+ * Credentials: FIREBASE_SERVICE_ACCOUNT, the service-account key JSON (raw or base64), or FIREBASE_CLIENT_EMAIL +
+ * FIREBASE_PRIVATE_KEY. Against the local emulators (FIRESTORE_EMULATOR_HOST / FIREBASE_AUTH_EMULATOR_HOST) none are needed.
+ */
+const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'planner-app-3471f';
 
-let _app: firebase.app.App | null = null;
-let _db: firebase.firestore.Firestore | null = null;
-
-function getApp(): firebase.app.App {
-  if (!_app) {
-    if (!firebase.apps.length) {
-      if (!firebaseConfig.apiKey || !firebaseConfig.projectId) {
-        throw new Error("Missing required Firebase configuration. Ensure NEXT_PUBLIC_FIREBASE_API_KEY and NEXT_PUBLIC_FIREBASE_PROJECT_ID are set.");
-      }
-      _app = firebase.initializeApp(firebaseConfig);
-    } else {
-      _app = firebase.app();
+function serviceAccount(): (ServiceAccount & { project_id?: string }) | null {
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT?.trim();
+  if (raw) {
+    try {
+      return JSON.parse(raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8'));
+    } catch {
+      console.error('FIREBASE_SERVICE_ACCOUNT is not valid JSON; trying FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY.');
     }
   }
+  // The older split form of the same key.
+  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+  if (clientEmail && privateKey) return { projectId: PROJECT_ID, clientEmail, privateKey: privateKey.replace(/\\n/g, '\n') };
+  return null;
+}
+
+let _app: App | null = null;
+
+export function getApp(): App {
+  if (_app) return _app;
+  const existing = getApps();
+  if (existing.length) return (_app = existing[0]);
+  const sa = serviceAccount();
+  if (!sa && !process.env.FIRESTORE_EMULATOR_HOST) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT is not set. Add the Firebase service-account key to the environment.');
+  }
+  _app = initializeApp(sa ? { credential: cert(sa), projectId: sa.project_id || PROJECT_ID } : { projectId: PROJECT_ID });
   return _app;
 }
 
-function getDb(): firebase.firestore.Firestore {
-  if (!_db) {
-    _db = getApp().firestore();
-    if (typeof window !== 'undefined') {
-      try {
-        _db.enablePersistence({ synchronizeTabs: true }).catch((err: any) => {
-          if (err.code === 'failed-precondition') {
-            _db?.enablePersistence().catch(() => {});
-          } else {
-            console.warn("Firebase persistence notice:", err.code, err.message);
-          }
-        });
-      } catch (e) {
-        console.warn("Firestore persistence init error:", e);
-      }
-    }
-  }
+let _db: Firestore | null = null;
+
+export function getDb(): Firestore {
+  if (!_db) _db = getFirestore(getApp());
   return _db;
 }
 
-const db = new Proxy({} as firebase.firestore.Firestore, {
+export function adminAuth(): Auth {
+  return getAuth(getApp());
+}
+
+// Created on first use, so importing this module (e.g. during `next build`) needs no credentials.
+const db = new Proxy({} as Firestore, {
   get(_target, prop) {
     const firestore = getDb();
     const val = (firestore as any)[prop];
@@ -55,12 +61,4 @@ const db = new Proxy({} as firebase.firestore.Firestore, {
   },
 });
 
-const app = new Proxy({} as firebase.app.App, {
-  get(_target, prop) {
-    const instance = getApp();
-    const val = (instance as any)[prop];
-    return typeof val === 'function' ? val.bind(instance) : val;
-  },
-});
-
-export { app, db, firebase, getApp, getDb };
+export { db, FieldValue };
