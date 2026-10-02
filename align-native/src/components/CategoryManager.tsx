@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { ChevronLeft, ChevronRight, Eye, EyeOff, Plus, Trash2, X } from 'lucide-react-native';
+import { ChevronLeft, EyeOff, Plus, Trash2, X } from 'lucide-react-native';
 import { Pressable } from '@/components/ui/pressable';
 import SegmentedControl from '@/components/SegmentedControl';
 import { useTheme } from '@/hooks/use-theme';
@@ -16,8 +16,11 @@ import {
   type Category,
   type CategoryConfig,
   type CategoryKind,
+  withHidden,
 } from '@/lib/categories';
 import { useCategoryConfig } from '@/lib/use-category-config';
+import { useBudgetLimits, usePlannerItems } from '@/lib/use-planner-items';
+import { usePhone } from '@/lib/phone-context';
 import { categoryBudgetKey } from '@/lib/budget';
 import { triggerHaptic } from '@/lib/haptics';
 import type { PlannerItem } from '@/lib/planner-item';
@@ -41,7 +44,9 @@ export default function CategoryManager({
   updateItem,
   budgets,
   saveBudgets,
+  initialKind = 'expense',
 }: {
+  initialKind?: CategoryKind;
   visible: boolean;
   onClose: () => void;
   items: PlannerItem[];
@@ -51,7 +56,7 @@ export default function CategoryManager({
 }) {
   const c = useTheme();
   const { config, saveConfig } = useCategoryConfig();
-  const [kind, setKind] = useState<CategoryKind>('expense');
+  const [kind, setKind] = useState<CategoryKind>(initialKind);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [name, setName] = useState('');
   const [iconKey, setIconKey] = useState('tag');
@@ -61,7 +66,8 @@ export default function CategoryManager({
 
   useEffect(() => {
     if (!visible) setEditing(null);
-  }, [visible]);
+    else setKind(initialKind);
+  }, [visible, initialKind]);
 
   const list = allCategories(kind, config);
 
@@ -141,10 +147,7 @@ export default function CategoryManager({
   };
 
   const toggleHidden = (cat: Category) => {
-    const hidden = new Set(config.hidden || []);
-    if (hidden.has(cat.id)) hidden.delete(cat.id);
-    else hidden.add(cat.id);
-    background(saveConfig({ ...config, hidden: [...hidden] }));
+    background(saveConfig(withHidden(config, cat.id, !cat.hidden)));
     triggerHaptic('light');
   };
 
@@ -157,8 +160,8 @@ export default function CategoryManager({
     try {
       if (count > 0 && target) moveTransactions(cat, target);
       const next: CategoryConfig = cat.builtin
-        ? { ...config, hidden: [...new Set([...(config.hidden || []), cat.id])] }
-        : { ...config, custom: (config.custom || []).filter(cc => cc.id !== cat.id), hidden: (config.hidden || []).filter(h => h !== cat.id) };
+        ? withHidden(config, cat.id, true)
+        : { ...config, custom: (config.custom || []).filter(cc => cc.id !== cat.id), hidden: (config.hidden || []).filter(h => h !== cat.id), shown: (config.shown || []).filter(h => h !== cat.id) };
       background(saveConfig(next));
       triggerHaptic('success');
       setEditing(null);
@@ -169,45 +172,64 @@ export default function CategoryManager({
     }
   };
 
+  const renderRow = (cat: Category, i: number, rows: Category[]) => {
+    const Icon = cat.icon;
+    const count = itemsByCategory.get(cat.id)?.length || 0;
+    return (
+      <View key={cat.id} style={[styles.row, i < rows.length - 1 && { borderBottomColor: c.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
+        <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${cat.name}`} onPress={() => open({ mode: 'edit', category: cat })} style={styles.rowMain}>
+          <View style={[styles.iconTile, { backgroundColor: tintColors(cat.tint, c.isDark).bg, opacity: cat.hidden ? 0.5 : 1 }]}>
+            <Icon color={tintColors(cat.tint, c.isDark).fg} size={18} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.rowName, { color: cat.hidden ? c.textSecondary : c.text }]} numberOfLines={1}>{cat.name}</Text>
+            {(count > 0 || !cat.builtin) && (
+              <Text style={[styles.rowMeta, { color: c.textTertiary }]}>
+                {count > 0 ? `${count} ${count === 1 ? 'transaction' : 'transactions'}` : ''}{count > 0 && !cat.builtin ? ' · ' : ''}{cat.builtin ? '' : 'Custom'}
+              </Text>
+            )}
+          </View>
+        </Pressable>
+        {cat.id === 'Other' ? null : cat.hidden ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Turn on ${cat.name}`} hitSlop={8} onPress={() => toggleHidden(cat)} style={[styles.toggle, { backgroundColor: c.accentSoft }]}>
+            <Plus color={c.accent} size={14} strokeWidth={2.5} />
+            <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>Add</Text>
+          </Pressable>
+        ) : cat.builtin ? (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Turn off ${cat.name}`} hitSlop={8} onPress={() => toggleHidden(cat)} style={styles.rowAction}>
+            <EyeOff color={c.textTertiary} size={18} />
+          </Pressable>
+        ) : (
+          <Pressable accessibilityRole="button" accessibilityLabel={`Delete ${cat.name}`} hitSlop={8} onPress={() => open({ mode: 'remove', category: cat })} style={styles.rowAction}>
+            <Trash2 color={c.expense} size={18} />
+          </Pressable>
+        )}
+      </View>
+    );
+  };
+
+  const active = list.filter(cat => !cat.hidden);
+  const off = list.filter(cat => cat.hidden);
+
   const renderList = () => (
     <>
       <SegmentedControl tabs={KINDS.map(k => k.label)} activeTab={KINDS.find(k => k.kind === kind)!.label} onTabChange={t => setKind(KINDS.find(k => k.label === t)!.kind)} />
       <Text style={[styles.hint, { color: c.textSecondary }]}>Tap a category to rename it or change its icon.</Text>
       <View style={[styles.group, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
-        {list.map((cat, i) => {
-          const Icon = cat.icon;
-          const count = itemsByCategory.get(cat.id)?.length || 0;
-          return (
-            <View key={cat.id} style={[styles.row, i < list.length - 1 && { borderBottomColor: c.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
-              <Pressable accessibilityRole="button" accessibilityLabel={`Edit ${cat.name}`} onPress={() => open({ mode: 'edit', category: cat })} style={styles.rowMain}>
-                <View style={[styles.iconTile, { backgroundColor: tintColors(cat.tint, c.isDark).bg, opacity: cat.hidden ? 0.5 : 1 }]}>
-                  <Icon color={tintColors(cat.tint, c.isDark).fg} size={18} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.rowName, { color: cat.hidden ? c.textTertiary : c.text }]} numberOfLines={1}>{cat.name}</Text>
-                  <Text style={[styles.rowMeta, { color: c.textTertiary }]}>
-                    {count} {count === 1 ? 'transaction' : 'transactions'}{cat.hidden ? ' · Hidden' : ''}{cat.builtin ? '' : ' · Custom'}
-                  </Text>
-                </View>
-              </Pressable>
-              {cat.builtin && cat.id !== 'Other' ? (
-                <Pressable accessibilityRole="button" accessibilityLabel={cat.hidden ? `Show ${cat.name}` : `Hide ${cat.name}`} hitSlop={8} onPress={() => toggleHidden(cat)} style={styles.rowAction}>
-                  {cat.hidden ? <EyeOff color={c.textTertiary} size={18} /> : <Eye color={c.textSecondary} size={18} />}
-                </Pressable>
-              ) : !cat.builtin ? (
-                <Pressable accessibilityRole="button" accessibilityLabel={`Delete ${cat.name}`} hitSlop={8} onPress={() => open({ mode: 'remove', category: cat })} style={styles.rowAction}>
-                  <Trash2 color={c.expense} size={18} />
-                </Pressable>
-              ) : null}
-              <ChevronRight color={c.textTertiary} size={16} />
-            </View>
-          );
-        })}
+        {active.map((cat, i) => renderRow(cat, i, active))}
       </View>
       <Pressable accessibilityRole="button" onPress={() => open({ mode: 'new' })} style={[styles.addRow, { borderColor: c.border }]}>
         <Plus color={c.accent} size={18} strokeWidth={2.5} />
         <Text style={{ color: c.accent, fontWeight: '700', fontSize: 15 }}>New {kind} category</Text>
       </Pressable>
+      {off.length > 0 && (
+        <>
+          <Text style={[styles.section, { color: c.textSecondary }]}>TURNED OFF</Text>
+          <View style={[styles.group, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+            {off.map((cat, i) => renderRow(cat, i, off))}
+          </View>
+        </>
+      )}
     </>
   );
 
@@ -222,7 +244,7 @@ export default function CategoryManager({
           <Text style={[Type.body, { color: c.text }]}>
             {count > 0
               ? `“${cat.name}” has ${count} ${count === 1 ? 'transaction' : 'transactions'}. Move ${count === 1 ? 'it' : 'them'} to:${cat.builtin ? ' (optional; otherwise they stay where they are)' : ''}`
-              : `${cat.builtin ? 'Hide' : 'Delete'} “${cat.name}”? It has no transactions.`}
+              : `${cat.builtin ? 'Turn off' : 'Delete'} “${cat.name}”? It has no transactions.`}
           </Text>
           {count > 0 && (
             <View style={styles.chips}>
@@ -243,7 +265,7 @@ export default function CategoryManager({
           <Pressable accessibilityRole="button" disabled={busy} onPress={() => void confirmRemove()} style={[styles.primary, { backgroundColor: c.expense, opacity: busy ? 0.6 : 1 }]}>
             <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 16 }}>
               {cat.builtin
-                ? (count > 0 && target ? `Move to ${target} and hide` : 'Hide category')
+                ? (count > 0 && target ? `Move to ${target} and turn off` : 'Turn off category')
                 : (count > 0 && target ? `Move to ${target} and delete` : 'Delete category')}
             </Text>
           </Pressable>
@@ -290,14 +312,14 @@ export default function CategoryManager({
         </Pressable>
         {cat && cat.id !== 'Other' && (
           <Pressable accessibilityRole="button" onPress={() => open({ mode: 'remove', category: cat })} style={styles.secondary}>
-            <Text style={{ color: c.expense, fontWeight: '600' }}>{cat.builtin ? 'Hide or merge into another category' : 'Delete or merge into another category'}</Text>
+            <Text style={{ color: c.expense, fontWeight: '600' }}>{cat.builtin ? 'Turn off or merge into another category' : 'Delete or merge into another category'}</Text>
           </Pressable>
         )}
       </>
     );
   };
 
-  const title = !editing ? 'Categories' : editing.mode === 'new' ? `New ${kind} category` : editing.mode === 'remove' ? (editing.category.builtin ? `Hide ${editing.category.name}` : `Delete ${editing.category.name}`) : `Edit ${editing.category.name}`;
+  const title = !editing ? 'Categories' : editing.mode === 'new' ? `New ${kind} category` : editing.mode === 'remove' ? (editing.category.builtin ? `Turn off ${editing.category.name}` : `Delete ${editing.category.name}`) : `Edit ${editing.category.name}`;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={() => (editing ? setEditing(null) : onClose())}>
@@ -337,6 +359,8 @@ const styles = StyleSheet.create({
   rowName: { fontSize: 15, fontWeight: '600' },
   rowMeta: { fontSize: 12, marginTop: 2 },
   rowAction: { padding: 8 },
+  toggle: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radius.pill, marginRight: 4 },
+  section: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, marginTop: 6 },
   addRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: Radius.lg, borderWidth: 1, borderStyle: 'dashed' },
   label: { fontSize: 13, fontWeight: '600' },
   input: { borderWidth: 1, borderRadius: Radius.md, padding: 14, fontSize: 16 },
@@ -347,3 +371,25 @@ const styles = StyleSheet.create({
   primary: { alignItems: 'center', paddingVertical: 15, borderRadius: Radius.md, marginTop: 4 },
   secondary: { alignItems: 'center', paddingVertical: 12 },
 });
+
+/** The manager with its own data, for opening from an add/edit sheet. Loads only while open. */
+export function CategoryManagerSheet({ visible, onClose, kind }: { visible: boolean; onClose: () => void; kind: CategoryKind }) {
+  return visible ? <ConnectedManager onClose={onClose} kind={kind} /> : null;
+}
+
+function ConnectedManager({ onClose, kind }: { onClose: () => void; kind: CategoryKind }) {
+  const { phone } = usePhone();
+  const { items, updateItem } = usePlannerItems(phone);
+  const { budgetLimits, saveBudgets } = useBudgetLimits(phone);
+  return (
+    <CategoryManager
+      visible
+      onClose={onClose}
+      initialKind={kind}
+      items={items}
+      updateItem={updateItem}
+      budgets={budgetLimits as Record<string, number>}
+      saveBudgets={saveBudgets}
+    />
+  );
+}

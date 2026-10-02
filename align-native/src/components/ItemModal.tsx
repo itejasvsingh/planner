@@ -9,7 +9,8 @@ import { usePlannerItems } from '@/lib/use-planner-items';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { formatDateKey, parseDateKey, timeToMinutes } from '@/lib/dates';
 import { type PlannerItem, type PlannerSubtask } from '@/lib/planner-item';
-import { categoriesFor, resolveCategory, tintColors } from '@/lib/categories';
+import { resolveCategory } from '@/lib/categories';
+import CategoryPicker from '@/components/CategoryPicker';
 import { useCategoryConfig } from '@/lib/use-category-config';
 
 interface ItemModalProps {
@@ -275,24 +276,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
                   keyboardType="decimal-pad"
                 />
                 <Text style={{ color: theme.textSecondary, fontSize: 13 }}>Category</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                  {categoriesFor('expense', categoryConfig).map(cat => {
-                    const selected = category === cat.name;
-                    const Icon = cat.icon;
-                    return (
-                      <Pressable
-                        key={cat.name}
-                        accessibilityRole="button"
-                        accessibilityState={{ selected }}
-                        onPress={() => setCategory(cat.name)}
-                        style={[styles.pill, styles.pillRow, selected ? { backgroundColor: theme.accentFill, borderColor: theme.accentFill } : { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}
-                      >
-                        <Icon size={15} color={selected ? theme.onAccent : tintColors(cat.tint, theme.isDark).fg} />
-                        <Text style={{ color: selected ? theme.onAccent : theme.text, fontWeight: '600' }}>{cat.name}</Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                <CategoryPicker kind="expense" value={category} onChange={setCategory} />
                 <View style={[styles.row, { alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12 }]}>
                   <Text style={{ color: theme.text, fontSize: 16 }}>Recurring Bill</Text>
                   <Switch value={isRecurring} onValueChange={setIsRecurring} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />

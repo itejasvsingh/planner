@@ -96,7 +96,8 @@ export type Category = {
   aliases: string[];
 };
 
-type Builtin = { name: string; iconKey: string; tint: TintKey; aliases: string[] };
+/** `optional` built-ins start turned off (hidden from pickers) to keep the list short; users can turn them on. */
+type Builtin = { name: string; iconKey: string; tint: TintKey; aliases: string[]; optional?: true };
 
 const BUILTIN: Record<CategoryKind, Builtin[]> = {
   expense: [
@@ -105,11 +106,11 @@ const BUILTIN: Record<CategoryKind, Builtin[]> = {
     { name: 'Transport', tint: 'blue', iconKey: 'taxi', aliases: ['cabs', 'cab', 'travel', 'transit', 'uber', 'ola', 'rapido', 'fuel', 'petrol', 'metro', 'auto', 'flights'] },
     { name: 'Shopping', tint: 'yellow', iconKey: 'bag', aliases: ['festival shopping', 'amazon', 'flipkart', 'myntra', 'clothes'] },
     { name: 'Bills & Recharge', tint: 'violet', iconKey: 'receipt', aliases: ['bills', 'bill', 'mobile recharge', 'recharge', 'electricity', 'internet', 'wifi', 'utilities'] },
-    { name: 'Home & Help', tint: 'teal', iconKey: 'house', aliases: ['maid/help', 'maid', 'help', 'rent', 'home', 'household'] },
-    { name: 'Health', tint: 'pink', iconKey: 'health', aliases: ['medical', 'medicine', 'pharmacy', 'doctor', 'gym', 'fitness'] },
-    { name: 'Education', tint: 'blue', iconKey: 'education', aliases: ['academics', 'courses', 'course', 'books', 'tuition'] },
-    { name: 'Entertainment', tint: 'orange', iconKey: 'movie', aliases: ['movies', 'subscriptions', 'subscription', 'netflix', 'spotify', 'games'] },
-    { name: 'Gifts', tint: 'pink', iconKey: 'gift', aliases: ['gift', 'donation', 'donations'] },
+    { name: 'Home & Help', tint: 'teal', iconKey: 'house', optional: true, aliases: ['maid/help', 'maid', 'help', 'rent', 'home', 'household'] },
+    { name: 'Health', tint: 'pink', iconKey: 'health', optional: true, aliases: ['medical', 'medicine', 'pharmacy', 'doctor', 'gym', 'fitness'] },
+    { name: 'Education', tint: 'blue', iconKey: 'education', optional: true, aliases: ['academics', 'courses', 'course', 'books', 'tuition'] },
+    { name: 'Entertainment', tint: 'orange', iconKey: 'movie', optional: true, aliases: ['movies', 'subscriptions', 'subscription', 'netflix', 'spotify', 'games'] },
+    { name: 'Gifts', tint: 'pink', iconKey: 'gift', optional: true, aliases: ['gift', 'donation', 'donations'] },
     { name: 'Other', tint: 'gray', iconKey: 'other', aliases: ['general', 'misc', 'miscellaneous', 'uncategorized'] },
   ],
   income: [
@@ -132,6 +133,8 @@ export type CategoryConfig = {
   custom?: CustomCategory[];
   /** Ids hidden from pickers. Their transactions keep showing under them. */
   hidden?: string[];
+  /** Optional built-ins the user turned on. */
+  shown?: string[];
   /** Built-in id -> the name the user gave it. */
   renamed?: Record<string, string>;
   /** Built-in id -> icon key chosen by the user. */
@@ -161,6 +164,7 @@ export function allCategories(kind: CategoryKind, config: CategoryConfig = NO_CO
   if (hit) return hit;
 
   const hidden = new Set(config.hidden || []);
+  const shown = new Set(config.shown || []);
   const builtins: Category[] = BUILTIN[kind].map(b => {
     const name = config.renamed?.[b.name]?.trim() || b.name;
     const iconKey = config.icons?.[b.name] || b.iconKey;
@@ -172,7 +176,7 @@ export function allCategories(kind: CategoryKind, config: CategoryConfig = NO_CO
       tint: b.tint,
       kind,
       builtin: true,
-      hidden: hidden.has(b.name),
+      hidden: hidden.has(b.name) || (!!b.optional && !shown.has(b.name)),
       // Keep the original name as an alias so items saved before a rename still match.
       aliases: name === b.name ? b.aliases : [b.name.toLowerCase(), ...b.aliases],
     };
@@ -190,6 +194,14 @@ export function allCategories(kind: CategoryKind, config: CategoryConfig = NO_CO
 /** Categories offered in pickers (hidden ones left out). */
 export function categoriesFor(kind: CategoryKind, config?: CategoryConfig): Category[] {
   return allCategories(kind, config).filter(c => !c.hidden);
+}
+
+/** Config with a category turned on or off in pickers. */
+export function withHidden(config: CategoryConfig, id: string, hide: boolean): CategoryConfig {
+  const hidden = new Set(config.hidden || []);
+  const shown = new Set(config.shown || []);
+  if (hide) { hidden.add(id); shown.delete(id); } else { hidden.delete(id); shown.add(id); }
+  return { ...config, hidden: [...hidden], shown: [...shown] };
 }
 
 /** Built-in expense categories (no user edits); kept for callers that don't load the user's config. */

@@ -5,7 +5,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { X, Trash2 } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import SegmentedControl from './SegmentedControl';
-import { categoriesFor, DEFAULT_CATEGORY, kindForType, resolveCategory, tintColors, type CategoryKind } from '@/lib/categories';
+import { DEFAULT_CATEGORY, kindForType, resolveCategory, type CategoryKind } from '@/lib/categories';
+import CategoryPicker from './CategoryPicker';
 import { useCategoryConfig } from '@/lib/use-category-config';
 
 interface TransactionSheetProps {
@@ -106,7 +107,6 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
         onClose();
     };
 
-    const categories = categoriesFor(kindForType(type), categoryConfig);
 
     return (
         <Modal visible={visible} animationType="slide" transparent>
@@ -172,31 +172,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                         {/* Category Selector */}
                         <View>
                             <Text style={[Type.label, { color: c.textSecondary, marginBottom: 8 }]}>Category</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingVertical: 4 }}>
-                                {categories.map(cat => {
-                                    const isSelected = category === cat.name;
-                                    const Icon = cat.icon;
-                                    return (
-                                        <Pressable 
-                                            key={cat.name} 
-                                            onPress={() => setCategory(cat.name)}
-                                            style={[{ 
-                                                flexDirection: 'row', alignItems: 'center', gap: 8, 
-                                                paddingHorizontal: 16, paddingVertical: 12, 
-                                                borderRadius: Radius.pill,
-                                                borderWidth: 1,
-                                                borderColor: c.border,
-                                                backgroundColor: c.backgroundElement
-                                            }, isSelected && { backgroundColor: c.accentFill, borderColor: c.accentFill }]}
-                                        >
-                                            <Icon color={isSelected ? c.onAccent : tintColors(cat.tint, isDark).fg} size={17} />
-                                            <Text style={[Type.body, { fontWeight: isSelected ? '700' : '500', color: isSelected ? c.onAccent : c.text }]}>
-                                                {cat.name}
-                                            </Text>
-                                        </Pressable>
-                                    );
-                                })}
-                            </ScrollView>
+                            <CategoryPicker kind={kindForType(type)} value={category} onChange={setCategory} />
                         </View>
 
                         
