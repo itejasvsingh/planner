@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Pressable } from '@/components/ui/pressable';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,7 +10,6 @@ import { usePhone } from '@/lib/phone-context';
 import { signInWithGoogle } from '@/lib/google-auth';
 import { normalizePhone } from '@/lib/phone';
 
-const API_BASE = Platform.OS === 'web' ? '' : process.env.EXPO_PUBLIC_API_URL || '';
 const CODE_LEN = 6;
 const RESEND_SECONDS = 30;
 
@@ -31,7 +30,6 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [viaTemplate, setViaTemplate] = useState(true);
   const [wait, setWait] = useState(0);
-  const [botNumber, setBotNumber] = useState<string | null>(null);
 
   useEffect(() => {
     if (phone && !needsPhoneSetup) router.replace('/(tabs)');
@@ -42,15 +40,6 @@ export default function LoginScreen() {
     // Prefill once when the saved number loads; don't overwrite what the user types.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastPhone]);
-
-  // Align's WhatsApp number, for the "Get code on WhatsApp" button.
-  useEffect(() => {
-    if (step !== 'code' || botNumber) return;
-    fetch(`${API_BASE}/api/auth/bot`)
-      .then((r) => r.json())
-      .then((d) => d?.number && setBotNumber(String(d.number)))
-      .catch(() => {});
-  }, [step, botNumber]);
 
   useEffect(() => {
     if (wait <= 0) return;
@@ -200,23 +189,9 @@ export default function LoginScreen() {
             />
             {error ? <Text style={[styles.error, { color: theme.red }]}>{error}</Text> : null}
             <PrimaryButton theme={theme} label="Verify" busy={busy} onPress={() => void submitCode()} />
-            {botNumber ? (
-              <>
-                <Text style={[styles.hint, { color: theme.textSecondary }]}>
-                  {viaTemplate ? 'Not getting it?' : 'No code yet?'} Send &quot;Login&quot; to Align on WhatsApp and it replies with your code.
-                </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Get code on WhatsApp"
-                  onPress={() => void Linking.openURL(`https://wa.me/${botNumber}?text=Login`)}
-                  style={({ pressed }) => [styles.waButton, { borderColor: theme.border, backgroundColor: theme.backgroundElement, opacity: pressed ? 0.8 : 1 }]}
-                >
-                  <Text style={[styles.googleButtonText, { color: theme.text }]}>Get code on WhatsApp</Text>
-                </Pressable>
-              </>
-            ) : !viaTemplate ? (
+            {!viaTemplate ? (
               <Text style={[styles.hint, { color: theme.textSecondary }]}>
-                Not getting it? Send &quot;Login&quot; to Align on WhatsApp and it replies with your code.
+                Not getting it? Send &quot;hi&quot; to Align on WhatsApp first, then tap Resend.
               </Text>
             ) : null}
             <View style={styles.codeLinks}>
@@ -350,5 +325,4 @@ const styles = StyleSheet.create({
   codeInput: { fontSize: 26, letterSpacing: 10, fontWeight: '700' },
   hint: { fontSize: 13, lineHeight: 18, textAlign: 'center', maxWidth: 320, marginTop: 14 },
   codeLinks: { flexDirection: 'row', gap: 24, marginTop: 4 },
-  waButton: { width: '100%', maxWidth: 340, padding: 14, borderRadius: 12, borderWidth: 1, alignItems: 'center', marginTop: 12 },
 });

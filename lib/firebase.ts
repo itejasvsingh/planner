@@ -6,25 +6,15 @@ import { getAuth, type Auth } from 'firebase-admin/auth';
  * Server-side Firebase through the Admin SDK. Admin access is not subject to Firestore rules, so the rules can
  * keep phones and browsers to their own data while API routes, crons and the WhatsApp bot work as before.
  *
- * Credentials: FIREBASE_SERVICE_ACCOUNT, the service-account key JSON (raw or base64), or FIREBASE_CLIENT_EMAIL +
- * FIREBASE_PRIVATE_KEY. Against the local emulators (FIRESTORE_EMULATOR_HOST / FIREBASE_AUTH_EMULATOR_HOST) none are needed.
+ * Credentials: FIREBASE_SERVICE_ACCOUNT, the service-account key JSON (raw or base64). Against the local
+ * emulators (FIRESTORE_EMULATOR_HOST / FIREBASE_AUTH_EMULATOR_HOST) none are needed.
  */
 const PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'planner-app-3471f';
 
 function serviceAccount(): (ServiceAccount & { project_id?: string }) | null {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT?.trim();
-  if (raw) {
-    try {
-      return JSON.parse(raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8'));
-    } catch {
-      console.error('FIREBASE_SERVICE_ACCOUNT is not valid JSON; trying FIREBASE_CLIENT_EMAIL / FIREBASE_PRIVATE_KEY.');
-    }
-  }
-  // The older split form of the same key.
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
-  if (clientEmail && privateKey) return { projectId: PROJECT_ID, clientEmail, privateKey: privateKey.replace(/\\n/g, '\n') };
-  return null;
+  if (!raw) return null;
+  return JSON.parse(raw.startsWith('{') ? raw : Buffer.from(raw, 'base64').toString('utf8'));
 }
 
 let _app: App | null = null;

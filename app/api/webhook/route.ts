@@ -1,7 +1,6 @@
 import { NextResponse, after } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db } from '../../../lib/firebase';
-import { isLoginRequest, replyWithLoginCode } from '../../../lib/phoneAuth';
 import { runDailySummaryForUser } from '../../../lib/dailySummary';
 
 export const dynamic = 'force-dynamic';
@@ -99,11 +98,6 @@ export async function POST(req: Request) {
                     // ROUTE B: Handle Text
                     else if (message.type === 'text') {
                         const textBody = message.text.body;
-                        if (isLoginRequest(textBody)) {
-                            // "Login" from the app's "Get code on WhatsApp" button: reply with a sign-in code.
-                            await replyWithLoginCode(senderPhone);
-                            return;
-                        }
                         console.log(`💬 Text from ${senderPhone}: ${textBody}`);
                         await processTextQuery(textBody, senderPhone);
                     }
