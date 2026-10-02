@@ -8,7 +8,7 @@ import { triggerHaptic } from '@/lib/haptics';
 import { LayoutAnimation } from 'react-native';
 import { getPhoneVariants } from '@/lib/phone';
 import { billsToGenerate } from '@/lib/recurring';
-import { newDocId, pushOp, useOutbox } from '@/lib/outbox';
+import { newDocId, pushOp, pushOps, useOutbox } from '@/lib/outbox';
 import { overlay, SERVER_TIMESTAMP } from '@/lib/outbox-core';
 
 const COL = 'planner_items';
@@ -302,6 +302,24 @@ export function usePlannerItems(phone: string | null) {
     [phone, persistCache, owner],
   );
 
+  /** Adds many transactions under ids chosen by the caller (statement import), skipping none. */
+  const importItems = useCallback(
+    async (list: (Omit<PlannerItem, 'createdAt' | 'ownerId'> & { id: string })[]) => {
+      if (!list.length) return;
+      const effectiveOwner = phone || 'guest';
+      const now = new Date().toISOString();
+      const local: PlannerItem[] = list.map((it) => ({ ...it, ownerId: effectiveOwner, createdAt: now }));
+      const ids = new Set(local.map((it) => it.id));
+      setItems((prev) => {
+        const updated = [...local, ...prev.filter((p) => !ids.has(p.id))];
+        void persistCache(updated);
+        return updated;
+      });
+      await pushOps(owner, local.map(({ id, ...data }) => ({ kind: 'set' as const, col: COL, id, data: { ...data, createdAt: SERVER_TIMESTAMP } })));
+    },
+    [phone, persistCache, owner],
+  );
+
   const addTask = useCallback(
     async (input: { title: string; dueDate: string; reminderTime: string | null; priority?: string; subtasks?: import('./planner-item').PlannerSubtask[] }) => {
       return _saveNewItem({
@@ -449,7 +467,7 @@ export function usePlannerItems(phone: string | null) {
     toggleSubtask,
     deleteSubtask,
     addTask, 
-    addItem, addExpense, addGoal, 
+    addItem, addExpense, addGoal, importItems,
     updateGoalProgress,
     saveSplit,
     toggleSplit

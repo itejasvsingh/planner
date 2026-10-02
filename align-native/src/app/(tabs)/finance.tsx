@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, RefreshControl, TextInput } from 'react-native';
 import { Pressable } from '@/components/ui/pressable';
-import { ArrowDownLeft, ArrowUpRight, Plus, Search, Tags, Target, Wallet, X } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, FileUp, Plus, Search, Tags, Target, Wallet, X } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import BudgetSheet from '@/components/BudgetSheet';
 import { MONTHLY_BUDGET_KEY, budgetStatus, categoryBudgets, summarizeBudget, type BudgetStatus } from '@/lib/budget';
 import { usePhone } from '@/lib/phone-context';
@@ -49,6 +50,7 @@ export default function FinanceScreen() {
     const c = theme.isDark ? Colors.dark : Colors.light;
     
     const { items, loading, updateItem, deleteItem, addItem, refresh } = usePlannerItems(phone);
+    const router = useRouter();
     const [refreshing, setRefreshing] = useState(false);
     if (refreshing && !loading) setRefreshing(false);
 
@@ -170,9 +172,14 @@ export default function FinanceScreen() {
                     title="Money"
                     subtitle={`Salary cycle · ${cycleLabel}`}
                     actions={
-                        <HeaderButton label="Add transaction" onPress={openAddSheet} filled>
-                            <Plus color={c.onAccent} size={20} strokeWidth={2.5} />
-                        </HeaderButton>
+                        <>
+                            <HeaderButton label="Import statement" onPress={() => router.push('/settings/import')}>
+                                <FileUp color={c.text} size={19} />
+                            </HeaderButton>
+                            <HeaderButton label="Add transaction" onPress={openAddSheet} filled>
+                                <Plus color={c.onAccent} size={20} strokeWidth={2.5} />
+                            </HeaderButton>
+                        </>
                     }
                 />
 
@@ -359,7 +366,7 @@ export default function FinanceScreen() {
                     {groupedTransactions.length === 0 ? (
                         <View style={[styles.empty, { borderColor: c.border }]}>
                             <Wallet color={c.textTertiary} size={32} />
-                            <Text style={[Type.body, { color: c.textSecondary, textAlign: 'center' }]}>{filtering ? 'Nothing matches these filters.' : <>No transactions yet.{'\n'}Tap + to add one.</>}</Text>
+                            <Text style={[Type.body, { color: c.textSecondary, textAlign: 'center' }]}>{filtering ? 'Nothing matches these filters.' : <>No transactions yet.{'\n'}Tap + to add one, or import a bank statement.</>}</Text>
                         </View>
                     ) : (
                         groupedTransactions.map(([date, items]) => (

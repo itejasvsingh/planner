@@ -87,6 +87,24 @@ export async function pushOp(owner: string, op: NewOp) {
   void flush(owner);
 }
 
+/** Queues many writes at once (one save, one send attempt), e.g. a statement import. */
+export async function pushOps(owner: string, ops: NewOp[]) {
+  if (!ops.length) return;
+  await ensureLoaded(owner);
+  const s = stateFor(owner);
+  const at = Date.now();
+  let queue = s.snapshot.queue;
+  for (const op of ops) {
+    const withTime = { ...op, at } as OutboxOp;
+    if (withTime.kind === 'set') withTime.data = cleanData(withTime.data);
+    if (withTime.kind === 'update') withTime.patch = cleanData(withTime.patch);
+    queue = enqueue(queue, withTime);
+  }
+  update(owner, { queue });
+  persist(owner);
+  void flush(owner);
+}
+
 function toFirestore(data: DocData): DocData {
   const out: DocData = {};
   for (const [k, v] of Object.entries(data)) out[k] = v === SERVER_TIMESTAMP ? serverTimestamp() : v;
