@@ -11,6 +11,10 @@ export const BANK_DOMAINS = [
   'bobcard.co.in', 'pnb.co.in', 'canarabank.com', 'unionbankofindia.co.in', 'rblbank.com', 'sc.com',
   'hsbc.co.in', 'americanexpress.com', 'getonecard.app', 'idbibank.co.in', 'bandhanbank.com', 'iob.in',
   'indianbank.in', 'dbs.com', 'citi.com',
+  // slice (card and savings account)
+  'sliceit.com', 'slice.bank.in',
+  // RBI moved Indian banks to .bank.in addresses; Gmail's from:bank.in matches any of them
+  'bank.in',
 ];
 
 export function gmailScript(link: string) {

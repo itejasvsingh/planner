@@ -61,6 +61,7 @@ test('setup installs one 15-minute trigger and imports the last 30 days of bank 
   r.sandbox.setup();
   assert.deepEqual(r.triggers, [{ name: 'importBankEmails', n: 15 }]);
   assert.match(r.queries[0], /^from:\(hdfcbank\.net OR .*\) newer_than:30d/);
+  assert.match(r.queries[0], /slice\.bank\.in/); // slice: noreply@slice.bank.in
   assert.deepEqual(r.posts.map(p => p.body.source), ['email', 'email']);
   assert.match(r.posts[0].url, /k=KEY$/);
   assert.ok(r.posts[0].body.date);
