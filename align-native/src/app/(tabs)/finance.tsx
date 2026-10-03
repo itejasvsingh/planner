@@ -10,7 +10,7 @@ import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems, useBudgetLimits } from '@/lib/use-planner-items';
 import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import TransactionSheet, { type MerchantSuggestion } from '@/components/TransactionSheet';
+import TransactionSheet from '@/components/TransactionSheet';
 import CycleStepper, { cycleName } from '@/components/finance/CycleStepper';
 import FriendsCard from '@/components/finance/FriendsCard';
 import { friendBalances, recentFriends, settleUpPatches, splitOf } from '@/lib/splits';
@@ -130,27 +130,6 @@ export default function FinanceScreen() {
     // "last cycle" / "in August 2026", for sentences about a past cycle
     const inPeriod = offset === -1 ? 'last cycle' : `in ${periodName}`;
 
-    // Places you've paid recently, most used first, for one-tap filling in the add sheet
-    const suggestSince = cycleRange(payday, -3).startKey;
-    const suggestions = useMemo<MerchantSuggestion[]>(() => {
-        const since = suggestSince;
-        const seen = new Map<string, MerchantSuggestion & { n: number; last: string }>();
-        for (const i of items) {
-            if (!isMoney(i) || i.type === 'transfer' || !i.title?.trim() || (i.date || '') < since) continue;
-            const key = `${kindForType(i.type)}|${i.title.trim().toLowerCase()}`;
-            const prev = seen.get(key);
-            const latest = !prev || (i.date || '') >= prev.last;
-            seen.set(key, {
-                title: latest ? i.title.trim() : prev!.title,
-                category: latest ? nameOf(i) : prev!.category,
-                type: i.type || 'expense',
-                n: (prev?.n || 0) + 1,
-                last: latest ? i.date || '' : prev!.last,
-            });
-        }
-        return [...seen.values()].sort((a, b) => b.n - a.n || b.last.localeCompare(a.last)).slice(0, 20);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [items, categoryConfig, suggestSince]);
 
     // Splitwise-style balances with friends, across all time
     const balances = useMemo(() => friendBalances(items), [items]);
@@ -498,7 +477,6 @@ export default function FinanceScreen() {
                 onClose={() => setIsSheetVisible(false)}
                 onSave={handleSave}
                 onDelete={deleteItem}
-                suggestions={suggestions}
                 friends={friends}
             />
         </>

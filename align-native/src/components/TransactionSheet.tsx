@@ -25,26 +25,21 @@ const formatClock = (hhmm: string) => {
 };
 const SOURCE_NAME: Record<string, string> = { sms: 'SMS', email: 'email', gmail: 'Gmail', statement: 'a statement' };
 
-/** A merchant you used recently, for one-tap filling when adding. */
-export type MerchantSuggestion = { title: string; category: string; type: string };
-
 interface TransactionSheetProps {
     visible: boolean;
     onClose: () => void;
     item: any | null; // null means adding a new item
-    /** Recent merchants, most used first (adding only). */
-    suggestions?: MerchantSuggestion[];
     /** Friends you've split with, most recent first. */
     friends?: string[];
     onSave: (updates: any) => Promise<void>;
     onDelete?: (id: string) => Promise<void>;
 }
 
-export default function TransactionSheet({ visible, onClose, item, onSave, onDelete, suggestions = [], friends = [] }: TransactionSheetProps) {
+export default function TransactionSheet({ visible, onClose, item, onSave, onDelete, friends = [] }: TransactionSheetProps) {
     const { isDark } = useTheme();
     const c = isDark ? Colors.dark : Colors.light;
     const { config: categoryConfig, merchantCategory } = useCategoryConfig();
-    // Once you pick a category yourself, typing or suggestions don't change it
+    // Once you pick a category yourself, typing a known merchant doesn't change it
     const [categoryTouched, setCategoryTouched] = useState(false);
 
     const [type, setType] = useState('expense');
@@ -56,12 +51,6 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [isSplit, setIsSplit] = useState(false);
     const [splitDraft, setSplitDraft] = useState<SplitDraft>(emptyDraft);
 
-    // Recent places for this type, narrowed as you type (hidden once the title matches one exactly)
-    const typed = title.trim().toLowerCase();
-    const visibleSuggestions = suggestions
-        .filter(sg => kindForType(sg.type) === type)
-        .filter(sg => !typed || (sg.title.toLowerCase().includes(typed) && sg.title.toLowerCase() !== typed))
-        .slice(0, 6);
 
     useEffect(() => {
         if (visible) {
@@ -171,7 +160,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                             </View>
                         </View>
 
-                        {/* Title, with your recent merchants one tap away when adding */}
+                        {/* Title */}
                         <View style={{ gap: 8 }}>
                             <Text style={[Type.label, { color: c.textSecondary }]}>Title</Text>
                             <TextInput
@@ -187,24 +176,6 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                 placeholderTextColor={c.textTertiary}
                                 style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, color: c.text, paddingHorizontal: 14, paddingVertical: 11, borderRadius: Radius.md, fontSize: 16 }}
                             />
-                            {!item && type !== 'transfer' && visibleSuggestions.length > 0 ? (
-                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                                    {visibleSuggestions.map(sg => (
-                                        <Pressable
-                                            key={sg.title}
-                                            accessibilityRole="button"
-                                            accessibilityLabel={`Use ${sg.title}`}
-                                            onPress={() => {
-                                                setTitle(sg.title);
-                                                if (!categoryTouched) setCategory(merchantCategory(sg.title) || sg.category);
-                                            }}
-                                            style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: Radius.pill, backgroundColor: c.backgroundMuted }}
-                                        >
-                                            <Text style={{ color: c.text, fontSize: 13, fontWeight: '600' }}>{sg.title}</Text>
-                                        </Pressable>
-                                    ))}
-                                </View>
-                            ) : null}
                         </View>
 
                         <View style={{ gap: 8 }}>
