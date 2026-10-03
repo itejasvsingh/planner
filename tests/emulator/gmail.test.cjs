@@ -191,3 +191,15 @@ test('when Gmail says slow down, what was read is kept and the next check contin
   assert.ok(total > afterFirst);
   assert.equal((await gmail.linkStatus(P2)).lastError, null);
 });
+
+test('two checks for the same person never run at once (they share Gmail\'s per-minute quota)', async () => {
+  const P3 = '919876500012';
+  await gmail.finishConnect('code5', new URL(await gmail.startConnect(P3, 'web')).searchParams.get('state'));
+  google.gets = 0;
+  const [a, b] = await Promise.all([gmail.syncGmail(P3, Date.now() + 10000), gmail.syncGmail(P3, Date.now() + 10000)]);
+  const busy = [a, b].filter(r => /Already checking/.test(r.message || ''));
+  assert.equal(busy.length, 1, 'one of them backs off');
+  assert.equal(google.gets, 3, 'each email read once');
+  const after = await gmail.syncGmail(P3, Date.now() + 10000);
+  assert.doesNotMatch(after.message || '', /Already checking/, 'the lock is released when a check ends');
+});

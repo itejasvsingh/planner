@@ -21,10 +21,14 @@ const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 const STATE_TTL_MS = 10 * 60 * 1000;
 const BACKFILL_DAYS = 90;
 const OVERLAP_SEC = 2 * 24 * 3600; // re-read the last two days each run; recording is idempotent
-const MAX_MESSAGES_PER_RUN = 150;
-// Gmail allows 250 quota units per user per second and a message read costs 5: stay well under it.
-const READ_WIDTH = 2;
-const READ_PAUSE_MS = 120;
+// Google projects created after May 2026 get 6,000 Gmail quota units per user per minute, and reading a
+// message costs 20 (Google also throttles below that in practice). One read about every half second is
+// ~2,400 units a minute; a long backfill continues over the next checks.
+const MAX_MESSAGES_PER_RUN = 60;
+const READ_WIDTH = 1;
+const READ_PAUSE_MS = 450;
+// Checks for one user don't overlap (app open, "Check now" and the 15-minute job share the quota).
+const RUN_LOCK_MS = 90 * 1000;
 const DAY_MS = 86400000;
 
 const links = () => db.collection('gmail_links');
@@ -230,14 +234,23 @@ function explain(message: string) {
 export async function syncGmail(phone: string, deadline: number): Promise<SyncResult> {
   const runStart = Date.now();
   const ref = links().doc(phone);
-  const snap = await ref.get();
-  const link = snap.data();
-  if (!snap.exists || !link || link.status !== 'connected') return { status: snap.exists ? 'reconnect' : 'not_connected', added: 0, checked: 0 };
+  const claim = await db.runTransaction(async (t) => {
+    const snap = await t.get(ref);
+    const link = snap.data();
+    if (!snap.exists || !link) return { state: 'not_connected' as const };
+    if (link.status !== 'connected') return { state: 'reconnect' as const };
+    if (Number(link.syncingSince || 0) > runStart - RUN_LOCK_MS) return { state: 'busy' as const };
+    t.update(ref, { syncingSince: runStart });
+    return { state: 'go' as const, link };
+  });
+  if (claim.state === 'not_connected' || claim.state === 'reconnect') return { status: claim.state, added: 0, checked: 0 };
+  if (claim.state === 'busy') return { status: 'ok', added: 0, checked: 0, message: 'Already checking Gmail. New transactions will appear in a minute.' };
+  const link = claim.link;
 
   try {
     const token = await accessToken(open(link.token));
     if (token === 'revoked') {
-      await ref.update({ status: 'reconnect', lastError: 'Gmail access was removed. Connect Gmail again.' });
+      await ref.update({ status: 'reconnect', lastError: 'Gmail access was removed. Connect Gmail again.', syncingSince: null });
       return { status: 'reconnect', added: 0, checked: 0 };
     }
 
@@ -279,13 +292,14 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
       syncedThrough: finished ? runStart : newest || link.syncedThrough || null,
       added: FieldValue.increment(added),
       lastError: message || null,
+      syncingSince: null,
     });
     return { status: 'ok', added, checked: done, ...(message ? { message } : {}) };
   } catch (e) {
     const message = (e as Error).message;
     console.warn('Gmail sync failed for a user:', message);
     const explained = explain(message);
-    await ref.update({ lastSyncAt: Date.now(), lastError: explained }).catch(() => {});
+    await ref.update({ lastSyncAt: Date.now(), lastError: explained, syncingSince: null }).catch(() => {});
     return { status: 'error', added: 0, checked: 0, message: explained };
   }
 }
