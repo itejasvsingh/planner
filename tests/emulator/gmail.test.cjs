@@ -105,7 +105,7 @@ test('sync adds bank alerts once, skips what SMS already recorded, and ignores p
   await db.collection('planner_items').doc(smsId).set({ ownerId: PHONE, type: 'expense', title: 'Zomato', amount: 250, source: 'sms' });
 
   const first = await gmail.syncGmail(PHONE, Date.now() + 20000);
-  assert.deepEqual(first, { status: 'ok', added: 1, checked: 3 });
+  assert.deepEqual(first, { status: 'ok', added: 1, checked: 3, bills: 0 });
   assert.match(google.queries[0], /^from:\(.*slice\.bank\.in.*\) \{debited .*\} after:\d+ -in:spam -in:trash$/);
   assert.match(google.queries[1], / before:\d+ /, 'then the history');
   assert.ok(Number(google.queries[1].match(/after:(\d+)/)[1]) <= (Date.now() - 89 * DAY) / 1000, 'history goes back ~90 days');
@@ -125,7 +125,9 @@ test('sync adds bank alerts once, skips what SMS already recorded, and ignores p
   const second = await gmail.syncGmail(PHONE, Date.now() + 20000);
   assert.equal(second.added, 0);
   assert.equal(second.message, undefined, 'history finished in the first check');
-  assert.equal(google.queries.length, before + 1, 'later checks only look for new emails');
+  const later = google.queries.slice(before);
+  assert.ok(later.every(q => !/ before:/.test(q)), 'later checks look for new emails (and bills), not the history again');
+  assert.ok(later.some(q => /\{statement bill/.test(q)), 'and look for card bills');
   assert.ok(Number(google.queries[before].match(/after:(\d+)/)[1]) > (Date.now() - 3 * DAY) / 1000, 'later checks start near the last one');
   const status = await gmail.linkStatus(PHONE);
   assert.equal(status.added, 1);
@@ -137,8 +139,9 @@ test('revoked access asks the user to reconnect; disconnect revokes and forgets 
   assert.equal((await gmail.syncGmail(PHONE, Date.now() + 5000)).status, 'reconnect');
   assert.equal((await gmail.linkStatus(PHONE)).status, 'reconnect');
   google.refreshFails = false;
-  const all = await gmail.syncAll(Date.now() + 20000);
-  assert.equal(all.users, 0, 'only connected accounts are synced');
+  const before = (await gmail.linkStatus(PHONE)).lastSyncAt;
+  await gmail.syncAll(Date.now() + 20000);
+  assert.equal((await gmail.linkStatus(PHONE)).lastSyncAt, before, 'an account that needs reconnecting is skipped');
 
   await connect('code2');
   assert.ok(google.revoked.includes('rt-code1'), 'the replaced key is revoked');

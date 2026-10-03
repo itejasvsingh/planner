@@ -1,4 +1,5 @@
 import { db } from './firebase';
+import { billReminderLines } from './cardBills';
 
 const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
 const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
@@ -137,8 +138,9 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
     const isSummaryEnabled = prefData?.dailySummaryEnabled !== false && sessionData?.dailySummaryEnabled !== false;
     const isAutoPushEnabled = prefData?.autoPushEnabled !== false && sessionData?.autoPushEnabled !== false;
 
-    // If daily summary is disabled by user and not forced:
+    // If daily summary is disabled by user and not forced (card bill reminders the user asked for still go out):
     if (!isSummaryEnabled && !options?.force) {
+        await sendBillRemindersOnly(targetPhone, todayKey, sessionData);
         console.log(`⏭️ Skipped for ${targetPhone}: daily summary is disabled by user.`);
         return { success: false, reason: 'Daily summary disabled by user' };
     }
@@ -245,6 +247,14 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
         lines.push(`✨ *No pending tasks for today.*`);
     }
 
+    // Section D: Card bills (only for users who said yes to bill reminders: those tasks exist only then)
+    const billLines = billReminderLines(items, todayKey);
+    if (billLines.length) {
+        lines.push('');
+        lines.push(`💳 *Card bills:*`);
+        lines.push(...billLines);
+    }
+
     lines.push(`\n✨ Rest well! Your agenda is set for tomorrow.`);
 
     const summaryMessage = lines.join('\n');
@@ -265,4 +275,18 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
         pendingCount: incompleteTasks.length,
         summaryText: summaryMessage
     };
+}
+
+/** Nightly card-bill reminder for someone who turned the daily summary off, once a day. */
+async function sendBillRemindersOnly(targetPhone: string, todayKey: string, sessionData: any) {
+    if (sessionData?.lastBillReminderDate === todayKey) return;
+    const variants = getPhoneVariants(targetPhone);
+    const snap = await db.collection('planner_items')
+        .where('ownerId', 'in', variants.length > 0 ? variants : [targetPhone])
+        .where('kind', '==', 'card_bill')
+        .get();
+    const lines = billReminderLines(snap.docs.map((d: any) => d.data()), todayKey);
+    if (!lines.length) return;
+    await sendWhatsAppTextMessage(targetPhone, [`💳 *Card bill reminder*`, ...lines, `\n_Turn these off in Align → Settings → Gmail._`].join('\n'));
+    await db.collection('user_sessions').doc(targetPhone).set({ lastBillReminderDate: todayKey }, { merge: true });
 }

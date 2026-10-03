@@ -12,7 +12,7 @@ function load(file, deps = {}) {
   return mod.exports;
 }
 const sms = load('lib/smsParse.ts');
-const { alertWindow, parseBankEmail } = load('lib/emailAlert.ts', { './smsParse': sms });
+const { alertWindow, parseBankEmail, parseCardBill, isCardPaymentReceived } = load('lib/emailAlert.ts', { './smsParse': sms });
 const { parseTransactionSms } = sms;
 const parse = body => { const w = alertWindow(body); return w ? parseTransactionSms(w) : null; };
 
@@ -170,4 +170,32 @@ Date & Time Oct 3, 2026 09:15 AM`);
   assert.equal(upi.time, '09:15');
   const slice = parseBankEmail('₹20 debited from your slice bank account xx8002 via UPI.\nTransaction date 02-Oct-26\nTo ISTHARA PARKS PRIVATE LIMITED\nRRN 627574346774');
   assert.equal(slice.time, null, 'no time in the text: Gmail uses when the email arrived');
+});
+
+test('credit card bills: total due, minimum, due date and card, from sentences or tables', () => {
+  const sentence = parseCardBill(`Your HDFC Bank Credit Card Statement for September 2026
+Dear Customer, the statement for your HDFC Bank Credit Card ending 4321 is attached.
+Total Amount Due: Rs. 12,450.50 Minimum Amount Due: Rs. 630.00
+Payment Due Date: 15/10/2026`);
+  assert.deepEqual(sentence, { totalDue: 12450.5, minDue: 630, dueDate: '2026-10-15', last4: '4321' });
+
+  const table = parseCardBill(`slice card bill generated
+Hi Tejasv, your bill is ready.
+Card XX8802
+Total amount due ₹3,210.00
+Minimum due ₹161.00
+Due date 05 Nov 2026`);
+  assert.deepEqual(table, { totalDue: 3210, minDue: 161, dueDate: '2026-11-05', last4: '8802' });
+
+  const icici = parseCardBill('ICICI Bank Credit Card Statement\nYour statement for card XXXX9876 dated Sep 25, 2026. Total Dues: INR 8,000.00. Minimum Due: INR 400.00. Due by Oct 13, 2026.');
+  assert.deepEqual([icici.totalDue, icici.minDue, icici.dueDate, icici.last4], [8000, 400, '2026-10-13', '9876']);
+
+  assert.equal(parseCardBill('Your e-statement is attached. Please find the password in the email.'), null, 'amounts only in the PDF');
+  assert.equal(parseCardBill('Rs.250.00 has been debited from account **1234 to VPA zomato@hdfcbank on 01-10-26.'), null, 'an alert is not a bill');
+});
+
+test('card payment confirmations are recognised (they close the bill reminder)', () => {
+  assert.ok(isCardPaymentReceived('Payment received\nThank you for your payment of Rs 12,450.50 towards your HDFC Bank Credit Card ending 4321.'));
+  assert.ok(isCardPaymentReceived('We have received a payment of ₹3,210 for your slice card.'));
+  assert.ok(!isCardPaymentReceived('₹2,000 credited to your savings account. Received from PRIYA NAIR.'), 'money into a bank account is not a card payment');
 });

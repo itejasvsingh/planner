@@ -43,6 +43,9 @@ export type PlannerItem = {
   
   /** Set when the item was recorded automatically (e.g. from a bank SMS). */
   source?: 'sms' | 'email' | 'gmail' | 'statement' | string;
+  /** 'card_bill': a credit card bill reminder task created from Gmail (see lib/cardBills.ts on the server). */
+  kind?: 'card_bill' | string;
+  bill?: { issuer: string; issuerName: string; last4: string | null; totalDue: number; minDue: number | null };
   /** When the money moved, HH:MM (24-hour, India), for transactions read from SMS, email or Gmail. */
   time?: string | null;
   /** Bank reference (UPI RRN / UTR) when known; lets the same payment from SMS, email and statements match. */

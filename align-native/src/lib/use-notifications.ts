@@ -52,6 +52,16 @@ export function useLocalReminders(items: PlannerItem[], enabled: boolean) {
                   },
                 });
               }
+              // Card bills also get a heads-up three days before the due date.
+              if (item.kind === 'card_bill') {
+                const early = new Date(targetDate.getTime() - 3 * 86400000);
+                if (early.getTime() > now.getTime()) {
+                  toSchedule.push({
+                    content: { title: 'Card bill due in 3 days', body: item.title || 'Card bill', sound: true },
+                    trigger: { date: early, type: Notifications.SchedulableTriggerInputTypes.DATE },
+                  });
+                }
+              }
             }
           }
         });

@@ -65,3 +65,8 @@ export function startGmailAutoSync() {
   const sub = AppState.addEventListener('change', (state) => state === 'active' && void run());
   return () => sub.remove();
 }
+
+export type CardBill = { id: string; issuer: string; issuerName: string; last4: string | null; totalDue: number; minDue: number | null; dueDate: string };
+export const gmailBills = () => call<{ reminders: boolean | null; bills: CardBill[] }>('/api/gmail/bills');
+export const gmailSetBillReminders = (remind: boolean) =>
+  call<{ reminders: boolean; created: number }>('/api/gmail/bills', { method: 'POST', body: JSON.stringify({ remind }) });

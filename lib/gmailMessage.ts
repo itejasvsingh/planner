@@ -37,12 +37,14 @@ function collect(part: Part | undefined, out: { plain: string[]; html: string[] 
   for (const p of part.parts || []) collect(p, out);
 }
 
-export function messageText(msg: GmailMessage): { subject: string; text: string } {
-  const subject = msg.payload?.headers?.find((h) => h.name.toLowerCase() === 'subject')?.value || '';
+export function messageText(msg: GmailMessage): { subject: string; text: string; from: string } {
+  const header = (name: string) => msg.payload?.headers?.find((h) => h.name.toLowerCase() === name)?.value || '';
+  const subject = header('subject');
+  const from = (header('from').match(/<([^>]+)>/)?.[1] || header('from')).trim().toLowerCase();
   const out = { plain: [] as string[], html: [] as string[] };
   collect(msg.payload, out);
   const body = out.plain.join('\n').trim() || htmlToText(out.html.join('\n'));
-  return { subject, text: `${subject}\n${body}`.slice(0, 8000) };
+  return { subject, text: `${subject}\n${body}`.slice(0, 8000), from };
 }
 
 // Words every transaction alert contains; leaves out offers and newsletters, which would use up the quota.
@@ -52,4 +54,9 @@ const ALERT_WORDS = '{debited credited spent debit credit transaction txn withdr
 export function bankQuery(domains: string[], window: { after: number; before?: number }) {
   const before = window.before ? ` before:${Math.ceil(window.before)}` : '';
   return `from:(${domains.join(' OR ')}) ${ALERT_WORDS} after:${Math.floor(window.after)}${before} -in:spam -in:trash`;
+}
+
+/** Gmail search for card bill / statement emails from the given senders since `afterSec`. */
+export function billQuery(domains: string[], afterSec: number) {
+  return `from:(${domains.join(' OR ')}) {statement bill "amount due" "due date"} after:${Math.floor(afterSec)} -in:spam -in:trash`;
 }

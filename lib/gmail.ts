@@ -2,8 +2,9 @@ import { randomBytes } from 'node:crypto';
 import { db, FieldValue } from './firebase';
 import { open, seal } from './secretBox';
 import { BANKS, normalizeSender, sendersFor } from './bankSenders';
-import { bankQuery, messageText, type GmailMessage } from './gmailMessage';
-import { parseBankEmail } from './emailAlert';
+import { bankQuery, billQuery, messageText, type GmailMessage } from './gmailMessage';
+import { isCardPaymentReceived, parseBankEmail, parseCardBill } from './emailAlert';
+import { bankForSender, ensureBillTask, markBillsPaid, saveBill } from './cardBills';
 import { istParts, recordTransaction } from './recordTransaction';
 
 /**
@@ -203,7 +204,7 @@ async function pool<T>(items: T[], width: number, deadline: number, fn: (item: T
   return { done: done === -1 ? items.length : done, throttled: stop };
 }
 
-export type SyncResult = { status: 'ok' | 'reconnect' | 'not_connected' | 'error'; added: number; checked: number; message?: string };
+export type SyncResult = { status: 'ok' | 'reconnect' | 'not_connected' | 'error'; added: number; checked: number; bills?: number; message?: string };
 
 /** What the user (the app's owner, for setup problems) can do about a failed check. */
 function explain(message: string) {
@@ -266,6 +267,19 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
 
     let budget = MAX_MESSAGES_PER_RUN;
     let added = 0;
+    let billsFound = 0;
+    const readIds = new Set<string>();
+    const todayKey = istParts(Date.now()).date;
+
+    /** A bill or statement email: keep it, and make its reminder task if the user said yes. */
+    const takeBill = async (text: string, from: string) => {
+      const bill = parseCardBill(text);
+      if (!bill) return false;
+      const stored = await saveBill(phone, bill, from);
+      billsFound++;
+      if (link.billReminders === true && stored.dueDate >= todayKey) await ensureBillTask(phone, stored);
+      return true;
+    };
     let checked = 0;
     let throttled = false;
 
@@ -276,8 +290,19 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
         const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=full`);
         const at = Number(msg.internalDate || Date.now());
         dates[batch.indexOf(id)] = at;
-        const tx = parseBankEmail(messageText(msg).text);
-        if (!tx) return;
+        readIds.add(id);
+        const { text, from } = messageText(msg);
+        // Paying the card bill isn't income (the card spends were already counted): close the reminder instead.
+        if (isCardPaymentReceived(text)) {
+          const bank = bankForSender(from);
+          if (bank) await markBillsPaid(phone, bank.id);
+          return;
+        }
+        const tx = parseBankEmail(text);
+        if (!tx) {
+          await takeBill(text, from);
+          return;
+        }
         const arrived = istParts(at);
         const outcome = await recordTransaction(phone, tx, { source: 'gmail', dedupText: `gmail:${id}`, date: tx.date || arrived.date, time: arrived.time });
         if (outcome === 'added') added++;
@@ -322,6 +347,21 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
     }
     patch.backfillUntil = backfillUntil;
 
+    // 3. Card bills and statements the alert search didn't bring in (last 45 days, a few per check).
+    if (budget > 0 && !throttled && Date.now() < deadline) {
+      const seen = new Set<string>([...(link.billMsgIds || []), ...readIds]);
+      const found = await list(billQuery(senders, (Date.now() - 45 * DAY_MS) / 1000), 20);
+      const todo = found.ids.filter((id) => !seen.has(id)).slice(0, Math.min(5, budget));
+      const res = await pool(todo, READ_WIDTH, deadline, async (id) => {
+        const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=full`);
+        const { text, from } = messageText(msg);
+        await takeBill(text, from);
+      });
+      budget -= res.done;
+      throttled = throttled || res.throttled;
+      patch.billMsgIds = [...todo.slice(0, res.done), ...(link.billMsgIds || [])].slice(0, 100);
+    }
+
     const notes: string[] = [];
     if (throttled) notes.push('Gmail asked Align to slow down; it continues in the next check.');
     if (backfillUntil) {
@@ -336,7 +376,7 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
       lastError: throttled ? notes[0] : null,
       syncingSince: null,
     });
-    return { status: 'ok', added, checked, ...(message ? { message } : {}) };
+    return { status: 'ok', added, checked, bills: billsFound, ...(message ? { message } : {}) };
   } catch (e) {
     const message = (e as Error).message;
     console.warn('Gmail sync failed for a user:', message);

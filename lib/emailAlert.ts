@@ -143,3 +143,39 @@ export function parseBankEmail(text: string): ParsedTransaction | null {
     time: fromSentence?.time || fields.time || null,
   };
 }
+
+// ---------------------------------------------------------------- card bills
+
+export type CardBill = { totalDue: number; minDue: number | null; dueDate: string; last4: string | null };
+
+const MONEY = String.raw`(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)`;
+const TOTAL_DUE = new RegExp(String.raw`\b(?:total\s+(?:amount\s+)?(?:due|dues|payable)|amount\s+due|total\s+outstanding)\b[^\d₹]{0,25}?` + MONEY, 'i');
+const MIN_DUE = new RegExp(String.raw`\bmin(?:imum)?\.?\s+(?:amount\s+)?(?:due|payable)\b[^\d₹]{0,25}?` + MONEY, 'i');
+const DUE_DATE = /\b(?:payment\s+)?due\s+(?:date|by|on)\b\s*(?:is|:|-)?\s*([^\n]{6,40})/i;
+const CARD_LAST4 = /\b(?:card|a\/c|account)\b[^\n]{0,30}?(?:ending|no\.?|number)?\s*(?:in|with|:)?\s*(?:x+|\*+|•+)\s*(\d{4})\b|\bending\s+(?:in|with)?\s*(\d{4})\b/i;
+
+/**
+ * A credit card bill or statement email: total due, minimum due, due date and the card's last four digits,
+ * from sentences or table rows. Null for anything else (alerts, offers) or when the amounts aren't in the email.
+ */
+export function parseCardBill(text: string): CardBill | null {
+  const flat = text.replace(/[ \t]+/g, ' ');
+  if (!/statement|\bbill\b/i.test(flat) || !/\bdue\b/i.test(flat)) return null;
+  const money = (re: RegExp) => {
+    const m = flat.match(re);
+    const n = m ? parseFloat(m[1].replace(/,/g, '')) : NaN;
+    return n > 0 ? n : null;
+  };
+  const totalDue = money(TOTAL_DUE);
+  const dueRaw = flat.match(DUE_DATE)?.[1] || '';
+  const dueDate = parseDate(dueRaw);
+  if (!totalDue || !dueDate) return null;
+  const card = flat.match(CARD_LAST4);
+  return { totalDue, minDue: money(MIN_DUE), dueDate, last4: card ? card[1] || card[2] : null };
+}
+
+/** A card company confirming it received your bill payment. */
+export function isCardPaymentReceived(text: string) {
+  return /\b(?:payment|amount)\b[^.\n]{0,60}\b(?:received|credited|successful|has been posted)\b|\breceived (?:a |your |the )?payment\b|thank you for (?:your |the )?payment/i.test(text)
+    && /\bcard\b/i.test(text);
+}

@@ -8,6 +8,7 @@ import { Radius } from '@/constants/theme';
 import { triggerHaptic } from '@/lib/haptics';
 import { connectGmail, gmailBanks, gmailDisconnect, gmailStatus, gmailSyncNow, type GmailStatus } from '@/lib/gmail-connect';
 import BankPicker from '@/components/BankPicker';
+import CardBills from '@/components/CardBills';
 
 type Theme = ReturnType<typeof useTheme>;
 const PRIVACY_URL = 'https://alignplanner.vercel.app/privacy';
@@ -69,6 +70,7 @@ export default function GmailScreen() {
   // Bank picker: opens with detection right after connecting, or from "Change"
   const [picking, setPicking] = useState<null | 'after-connect' | 'change'>(null);
   const [bankSummary, setBankSummary] = useState<string | null>(null);
+  const [billsKey, setBillsKey] = useState(0);
 
   const loadBanks = useCallback(async () => {
     try {
@@ -102,6 +104,7 @@ export default function GmailScreen() {
       setNote({ ok: false, text: (e as Error).message });
     } finally {
       setBusy(null);
+      setBillsKey((k) => k + 1);
       void load();
     }
   }, [load]);
@@ -195,6 +198,7 @@ export default function GmailScreen() {
       {status === null ? (
         <ActivityIndicator color={c.accent} style={{ marginTop: 24 }} />
       ) : connected ? (
+        <>
         <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
           {connected.status === 'reconnect' ? (
             <View style={styles.point}>
@@ -248,6 +252,8 @@ export default function GmailScreen() {
             </Pressable>
           )}
         </View>
+        {connected.status === 'connected' && !picking ? <CardBills refreshKey={billsKey} /> : null}
+        </>
       ) : (
         <>
           <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>

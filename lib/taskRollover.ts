@@ -68,6 +68,8 @@ export async function runTaskRolloverForUser(userPhone: string, options?: { forc
 
     snapshot.docs.forEach(doc => {
         const data = doc.data();
+        // A card bill keeps its due date; moving it would hide that it's overdue.
+        if (data.kind === 'card_bill') return;
         const taskDate = data.dueDate || data.date;
         // Check if task date is strictly in the past (before today's date)
         if (taskDate && taskDate < todayKey) {
