@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, Animated, StyleSheet, TextInput } from 'react-native';
+import { View, TouchableOpacity, Animated, StyleSheet } from 'react-native';
+import { Text, TextInput } from '@/components/ui/text';
 import {
     checkBiometricAvailability,
     promptBiometric,

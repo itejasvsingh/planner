@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, ScrollView, Alert, Modal, Platform } from 'react-native';
+import { View, StyleSheet, Switch, ScrollView, Alert, Modal, Platform } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Shield, Key, Fingerprint, LogOut, ChevronRight } from 'lucide-react-native';
 

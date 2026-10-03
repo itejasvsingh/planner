@@ -1,4 +1,5 @@
-import { Modal, View, Text, TextInput, StyleSheet, ScrollView } from 'react-native';
+import { Modal, View, StyleSheet, ScrollView } from 'react-native';
+import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';

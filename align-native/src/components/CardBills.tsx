@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Switch, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { CreditCard } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius } from '@/constants/theme';

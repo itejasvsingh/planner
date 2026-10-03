@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { View } from 'react-native';
+import { Text, TextInput } from '@/components/ui/text';
 import { Plus, X } from 'lucide-react-native';
 import { Pressable } from '@/components/ui/pressable';
 import { Radius, Type } from '@/constants/theme';

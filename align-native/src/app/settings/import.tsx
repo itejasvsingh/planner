@@ -1,5 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react';
-import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/components/ui/text';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check, ChevronRight, CircleCheck, FileUp, Lock, X } from 'lucide-react-native';

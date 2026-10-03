@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import * as Clipboard from 'expo-clipboard';
 import { Check, Copy, MessageSquareText, Zap } from 'lucide-react-native';
 

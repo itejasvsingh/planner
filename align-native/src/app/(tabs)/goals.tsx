@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Target, Plus, Check } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';

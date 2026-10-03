@@ -1,5 +1,5 @@
 import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 
 import { db, whenSignedIn } from '@/lib/firebase';
 import { type PlannerItem, type PlannerSplit } from '@/lib/planner-item';
@@ -9,7 +9,7 @@ import { LayoutAnimation } from 'react-native';
 import { getPhoneVariants } from '@/lib/phone';
 import { billsToGenerate } from '@/lib/recurring';
 import { newDocId, pushOp, pushOps, useOutbox } from '@/lib/outbox';
-import { overlay, SERVER_TIMESTAMP } from '@/lib/outbox-core';
+import { overlay, SERVER_TIMESTAMP, type OutboxOp } from '@/lib/outbox-core';
 
 const COL = 'planner_items';
 
@@ -48,127 +48,192 @@ export async function injectParsedItemsLocally(targetPhone: string | null, newIt
   }
 }
 
+/**
+ * One shared copy of the items per signed-in number. Every screen that calls usePlannerItems reads the same
+ * list and the same Firestore listener, so a change re-renders each screen once and is saved to the device
+ * once (batched), instead of every screen keeping, listening for and saving its own copy.
+ */
+type Shared = {
+  items: PlannerItem[];
+  loading: boolean;
+  error: string | null;
+  snapshot: { items: PlannerItem[]; loading: boolean; error: string | null };
+  listeners: Set<() => void>;
+  users: number;
+  stop: (() => void) | null;
+  queue: OutboxOp[];
+  persistTimer: ReturnType<typeof setTimeout> | null;
+};
+const shared = new Map<string, Shared>();
+const PERSIST_DELAY_MS = 400;
+
+function sharedFor(owner: string): Shared {
+  let s = shared.get(owner);
+  if (!s) {
+    s = { items: [], loading: true, error: null, snapshot: { items: [], loading: true, error: null }, listeners: new Set(), users: 0, stop: null, queue: [], persistTimer: null };
+    shared.set(owner, s);
+  }
+  return s;
+}
+
+function emit(s: Shared) {
+  s.snapshot = { items: s.items, loading: s.loading, error: s.error };
+  s.listeners.forEach((l) => l());
+}
+
+/** Saves the list to the device a moment after the last change (many quick changes, one write). */
+function schedulePersist(owner: string) {
+  const s = sharedFor(owner);
+  if (s.persistTimer) clearTimeout(s.persistTimer);
+  s.persistTimer = setTimeout(() => {
+    s.persistTimer = null;
+    void setItem(itemsCacheKey(owner), JSON.stringify(s.items));
+  }, PERSIST_DELAY_MS);
+}
+
+function setShared(owner: string, patch: { items?: PlannerItem[]; loading?: boolean; error?: string | null }, persist = false) {
+  const s = sharedFor(owner);
+  if (patch.items !== undefined) s.items = patch.items;
+  if (patch.loading !== undefined) s.loading = patch.loading;
+  if (patch.error !== undefined) s.error = patch.error;
+  emit(s);
+  if (persist && patch.items !== undefined) schedulePersist(owner);
+}
+
+/** Starts the device cache load and the Firestore listener for `owner`; returns a function that stops them. */
+function startSync(owner: string): () => void {
+  const phoneVariants = getPhoneVariants(owner);
+  const s = sharedFor(owner);
+
+  let cancelled = false;
+  let receivedSnapshot = false;
+  // Until the server has answered once, snapshots come from Firestore's in-memory cache, which is empty after
+  // a cold start offline. Don't let that wipe the items cached on the device.
+  let serverSeen = false;
+  let hadCache = false;
+  let unsubscribeListener: (() => void) | null = null;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  let retryCount = 0;
+  setShared(owner, { loading: true });
+
+  const handleUpdate = () => {
+    getItem(itemsCacheKey(owner)).then((raw) => {
+      const cached = parseCachedItems(raw);
+      if (!cancelled && cached.length > 0) setShared(owner, { items: cached });
+    });
+  };
+  const hasWindowEvents = typeof window !== 'undefined' && typeof window.addEventListener === 'function';
+  if (hasWindowEvents) window.addEventListener('align_items_updated', handleUpdate);
+
+  (async () => {
+    const cached = parseCachedItems(await getItem(itemsCacheKey(owner)));
+    if (!cancelled && !receivedSnapshot && cached.length > 0) {
+      hadCache = true;
+      setShared(owner, { items: overlay(cached, s.queue, COL), loading: false });
+    }
+  })();
+
+  function subscribe() {
+    if (cancelled) return;
+    const variants = phoneVariants.length > 0 ? phoneVariants : [String(owner)];
+    const q = query(collection(db, 'planner_items'), where('ownerId', 'in', variants));
+    unsubscribeListener = onSnapshot(
+      q,
+      { includeMetadataChanges: true },
+      (snapshot) => {
+        retryCount = 0;
+        if (!snapshot.metadata.fromCache) serverSeen = true;
+        if (!serverSeen && (hadCache || snapshot.empty)) {
+          // Offline cold start: keep the device cache on screen.
+          setShared(owner, { loading: false });
+          return;
+        }
+        // Only the pending/synced flags changed: the items themselves are the same, so skip the re-render.
+        if (receivedSnapshot && snapshot.docChanges({ includeMetadataChanges: false }).length === 0) return;
+        receivedSnapshot = true;
+        const fetched: PlannerItem[] = snapshot.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Omit<PlannerItem, 'id'>),
+        }));
+        // Server data with this device's unsynced changes on top.
+        setShared(owner, { items: overlay(fetched, s.queue, COL), loading: false, error: null }, true);
+      },
+      (err) => {
+        console.warn('Firestore items subscription notice:', err);
+        setShared(owner, { error: 'Could not sync right now. Showing what\'s saved on this device; changes will sync later.', loading: false });
+        if (!cancelled && retryCount < 5) {
+          retryCount++;
+          const delay = Math.min(1000 * retryCount, 4000);
+          retryTimer = setTimeout(() => {
+            if (unsubscribeListener) unsubscribeListener();
+            subscribe();
+          }, delay);
+        }
+      },
+    );
+  }
+
+  const stopWaiting = whenSignedIn(() => subscribe());
+
+  return () => {
+    cancelled = true;
+    if (hasWindowEvents && window.removeEventListener) window.removeEventListener('align_items_updated', handleUpdate);
+    stopWaiting();
+    if (retryTimer) clearTimeout(retryTimer);
+    if (unsubscribeListener) unsubscribeListener();
+  };
+}
+
+/** A screen starts using `owner`'s items; the first one starts syncing, the last one to leave stops it. */
+function retain(owner: string) {
+  const s = sharedFor(owner);
+  s.users += 1;
+  if (!s.stop) s.stop = startSync(owner);
+  return () => {
+    s.users -= 1;
+    if (s.users === 0 && s.stop) {
+      s.stop();
+      s.stop = null;
+    }
+  };
+}
+
+function restartSync(owner: string) {
+  const s = sharedFor(owner);
+  if (s.stop) s.stop();
+  s.stop = s.users > 0 ? startSync(owner) : null;
+}
+
 export function usePlannerItems(phone: string | null) {
   const owner = phone || 'guest';
   const { queue } = useOutbox(owner);
-  // Latest unconfirmed writes, for layering on top of whatever the server sends.
-  const queueRef = useRef(queue);
-  const [items, setItems] = useState<PlannerItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const refresh = useCallback(() => {
-    setLoading(true);
-    setRefreshKey((k) => k + 1);
-  }, []);
-
-  useEffect(() => {
-    const currentPhone: string = phone || 'guest';
-    const phoneVariants = getPhoneVariants(currentPhone);
-
-    let cancelled = false;
-    let receivedSnapshot = false;
-    // Until the server has answered once, snapshots come from Firestore's in-memory cache, which is empty after
-    // a cold start offline. Don't let that wipe the items cached on the device.
-    let serverSeen = false;
-    let hadCache = false;
-    let unsubscribeListener: (() => void) | null = null;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    let retryCount = 0;
-    setLoading(true);
-
-    const handleUpdate = () => {
-      getItem(itemsCacheKey(currentPhone)).then((raw) => {
-        const cached = parseCachedItems(raw);
-        if (!cancelled && cached.length > 0) {
-          setItems(cached);
-        }
-      });
-    };
-
-    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-      if (typeof window.addEventListener === 'function') window.addEventListener('align_items_updated', handleUpdate);
-    }
-
-    (async () => {
-      const cached = parseCachedItems(await getItem(itemsCacheKey(currentPhone)));
-      if (!cancelled && !receivedSnapshot && cached.length > 0) {
-        hadCache = true;
-        setItems(overlay(cached, queueRef.current, COL));
-        setLoading(false);
-      }
-    })();
-
-    function subscribe() {
-      if (cancelled) return;
-      const variants = phoneVariants.length > 0 ? phoneVariants : [String(currentPhone)];
-      const q = query(collection(db, 'planner_items'), where('ownerId', 'in', variants));
-      unsubscribeListener = onSnapshot(
-        q,
-        { includeMetadataChanges: true },
-        (snapshot) => {
-          retryCount = 0;
-          if (!snapshot.metadata.fromCache) serverSeen = true;
-          if (!serverSeen && (hadCache || snapshot.empty)) {
-            // Offline cold start: keep the device cache on screen.
-            setLoading(false);
-            return;
-          }
-          receivedSnapshot = true;
-          setError(null);
-          const fetched: PlannerItem[] = snapshot.docs.map((d) => ({
-            id: d.id,
-            ...(d.data() as Omit<PlannerItem, 'id'>),
-          }));
-          // Server data with this device's unsynced changes on top.
-          const combined = overlay(fetched, queueRef.current, COL);
-          void setItem(itemsCacheKey(currentPhone), JSON.stringify(combined));
-          setItems(combined);
-          setLoading(false);
-        },
-        (err) => {
-          console.warn('Firestore items subscription notice:', err);
-          setError('Could not sync right now. Showing what\'s saved on this device; changes will sync later.');
-          setLoading(false);
-          if (!cancelled && retryCount < 5) {
-            retryCount++;
-            const delay = Math.min(1000 * retryCount, 4000);
-            retryTimer = setTimeout(() => {
-              if (unsubscribeListener) unsubscribeListener();
-              subscribe();
-            }, delay);
-          }
-        },
-      );
-    }
-
-    const stopWaiting = whenSignedIn(() => subscribe());
-
-    return () => {
-      cancelled = true;
-      if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
-        if (typeof window !== 'undefined' && window.removeEventListener) window.removeEventListener('align_items_updated', handleUpdate);
-      }
-      stopWaiting();
-      if (retryTimer) clearTimeout(retryTimer);
-      if (unsubscribeListener) unsubscribeListener();
-    };
-  }, [phone, refreshKey]);
-
-  // The queue is shared by every screen, and it may finish loading after the device cache: keep pending changes
-  // (including ones made from another screen's copy of this hook) layered on top.
-  useEffect(() => {
-    queueRef.current = queue;
-    if (queue.length) setItems((prev) => overlay(prev, queue, COL));
-  }, [queue]);
-
-  const persistCache = useCallback(
-    async (next: PlannerItem[]) => {
-      const effectiveKey = phone || 'guest';
-      await setItem(itemsCacheKey(effectiveKey), JSON.stringify(next));
-    },
-    [phone],
+  const { items, loading, error } = useSyncExternalStore(
+    useCallback((cb: () => void) => {
+      const s = sharedFor(owner);
+      s.listeners.add(cb);
+      return () => { s.listeners.delete(cb); };
+    }, [owner]),
+    () => sharedFor(owner).snapshot,
+    () => sharedFor(owner).snapshot,
   );
+
+  useEffect(() => retain(owner), [owner]);
+
+  // The queue may finish loading after the device cache: keep pending changes layered on top.
+  useEffect(() => {
+    const s = sharedFor(owner);
+    if (s.queue === queue) return; // another screen already applied this queue
+    s.queue = queue;
+    if (queue.length) setShared(owner, { items: overlay(s.items, queue, COL) });
+  }, [owner, queue]);
+
+  const refresh = useCallback(() => restartSync(owner), [owner]);
+  /** Optimistic change: applied to every screen at once and saved to the device shortly after. */
+  const setItems = useCallback(
+    (update: (prev: PlannerItem[]) => PlannerItem[]) => setShared(owner, { items: update(sharedFor(owner).items) }, true),
+    [owner],
+  );
+  const setError = useCallback((e: string | null) => setShared(owner, { error: e }), [owner]);
 
   const toggleDone = useCallback(
     async (id: string, currentDone: boolean) => {
@@ -176,12 +241,11 @@ export function usePlannerItems(phone: string | null) {
       triggerHaptic(currentDone ? 'light' : 'success');
       setItems((prev) => {
         const updated = prev.map((item) => (item.id === id ? { ...item, done: !currentDone } : item));
-        void persistCache(updated);
         return updated;
       });
       await pushOp(owner, { kind: 'update', col: COL, id, patch: { done: !currentDone } });
     },
-    [persistCache, owner],
+    [setItems, owner],
   );
 
   const deleteItem = useCallback(
@@ -190,12 +254,11 @@ export function usePlannerItems(phone: string | null) {
       triggerHaptic('medium');
       setItems((prev) => {
         const updated = prev.filter((item) => item.id !== id);
-        void persistCache(updated);
         return updated;
       });
       await pushOp(owner, { kind: 'delete', col: COL, id });
     },
-    [persistCache, owner],
+    [setItems, owner],
   );
 
   const updateItem = useCallback(
@@ -203,12 +266,11 @@ export function usePlannerItems(phone: string | null) {
       triggerHaptic('success');
       setItems((prev) => {
         const updated = prev.map((item) => (item.id === id ? { ...item, ...patch } : item));
-        void persistCache(updated);
         return updated;
       });
       await pushOp(owner, { kind: 'update', col: COL, id, patch: patch as Record<string, unknown> });
     },
-    [persistCache, owner]
+    [setItems, owner]
   );
 
   const addSubtask = useCallback(
@@ -219,7 +281,6 @@ export function usePlannerItems(phone: string | null) {
           const subtasks = [...(item.subtasks || []), { title, done: false }];
           return { ...item, subtasks };
         });
-        void persistCache(updated);
         
         // Also fire off update to Firestore
         const nextItem = updated.find(i => i.id === taskId);
@@ -228,7 +289,7 @@ export function usePlannerItems(phone: string | null) {
         return updated;
       });
     },
-    [persistCache, owner]
+    [setItems, owner]
   );
 
   const toggleSubtask = useCallback(
@@ -240,7 +301,6 @@ export function usePlannerItems(phone: string | null) {
           subtasks[subtaskIdx] = { ...subtasks[subtaskIdx], done: !subtasks[subtaskIdx].done };
           return { ...item, subtasks };
         });
-        void persistCache(updated);
         
         const nextItem = updated.find(i => i.id === taskId);
         if (nextItem) void pushOp(owner, { kind: 'update', col: COL, id: taskId, patch: { subtasks: nextItem.subtasks } });
@@ -248,7 +308,7 @@ export function usePlannerItems(phone: string | null) {
         return updated;
       });
     },
-    [persistCache, owner]
+    [setItems, owner]
   );
 
   const deleteSubtask = useCallback(
@@ -259,7 +319,6 @@ export function usePlannerItems(phone: string | null) {
           const subtasks = (item.subtasks || []).filter((_, i) => i !== subtaskIdx);
           return { ...item, subtasks };
         });
-        void persistCache(updated);
         
         const nextItem = updated.find(i => i.id === taskId);
         if (nextItem) void pushOp(owner, { kind: 'update', col: COL, id: taskId, patch: { subtasks: nextItem.subtasks } });
@@ -267,7 +326,7 @@ export function usePlannerItems(phone: string | null) {
         return updated;
       });
     },
-    [persistCache, owner]
+    [setItems, owner]
   );
 
   const _saveNewItem = useCallback(
@@ -292,7 +351,6 @@ export function usePlannerItems(phone: string | null) {
 
       setItems((prev) => {
         const updated = [localItem, ...prev];
-        void persistCache(updated);
         return updated;
       });
 
@@ -300,7 +358,7 @@ export function usePlannerItems(phone: string | null) {
       void _omit;
       await pushOp(owner, { kind: 'set', col: COL, id, data: { ...data, createdAt: SERVER_TIMESTAMP } });
     },
-    [phone, persistCache, owner],
+    [phone, setItems, setError, owner],
   );
 
   /** Adds many transactions under ids chosen by the caller (statement import), skipping none. */
@@ -313,12 +371,11 @@ export function usePlannerItems(phone: string | null) {
       const ids = new Set(local.map((it) => it.id));
       setItems((prev) => {
         const updated = [...local, ...prev.filter((p) => !ids.has(p.id))];
-        void persistCache(updated);
         return updated;
       });
       await pushOps(owner, local.map(({ id, ...data }) => ({ kind: 'set' as const, col: COL, id, data: { ...data, createdAt: SERVER_TIMESTAMP } })));
     },
-    [phone, persistCache, owner],
+    [phone, setItems, owner],
   );
 
   const addTask = useCallback(
@@ -395,26 +452,24 @@ export function usePlannerItems(phone: string | null) {
           history = [...(item.progressHistory || []), { value: next, at: nowIso }];
           return { ...item, current: next, progressHistory: history };
         });
-        void persistCache(updated);
         return updated;
       });
 
       // Full values rather than arrayUnion, so the queued write can be stored and replayed.
       await pushOp(owner, { kind: 'update', col: COL, id, patch: { current: next, progressHistory: history } });
     },
-    [persistCache, owner]
+    [setItems, owner]
   );
 
   const saveSplit = useCallback(
     async (id: string, splits: PlannerSplit[]) => {
       setItems((prev) => {
         const updated = prev.map((item) => (item.id === id ? { ...item, splits } : item));
-        void persistCache(updated);
         return updated;
       });
       await pushOp(owner, { kind: 'update', col: COL, id, patch: { splits } });
     },
-    [persistCache, owner]
+    [setItems, owner]
   );
 
   const toggleSplit = useCallback(
@@ -439,27 +494,9 @@ export function usePlannerItems(phone: string | null) {
     }
   }, [items, phone, _saveNewItem]);
 
-  const settleUpWith = useCallback(async (personName: string) => {
-    triggerHaptic('medium');
-    const toUpdate = items.filter(
-      (item) => item.type === 'expense' && item.splits?.some((s) => s.name === personName && !s.settled)
-    );
-    const ids = new Set(toUpdate.map(i => i.id));
-    setItems(prev => {
-      const updated = prev.map(item => ids.has(item.id)
-        ? { ...item, splits: (item.splits ?? []).map(s => (s.name === personName ? { ...s, settled: true } : s)) }
-        : item);
-      void persistCache(updated);
-      return updated;
-    });
-    for (const item of toUpdate) {
-      const newSplits = (item.splits ?? []).map((s) => (s.name === personName ? { ...s, settled: true } : s));
-      await pushOp(owner, { kind: 'update', col: COL, id: item.id, patch: { splits: newSplits } });
-    }
-  }, [items, owner, persistCache]);
 
   return { 
-    items, settleUpWith, 
+    items,
     loading, error, refresh,
     toggleDone, 
     deleteItem,

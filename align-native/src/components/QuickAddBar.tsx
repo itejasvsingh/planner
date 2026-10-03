@@ -3,7 +3,8 @@ import { auth } from '@/lib/firebase';
 import { Mic, Sparkles, X } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { expandQuickAdd, useQuickAddCollapsed } from '@/lib/quick-add-state';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, LayoutAnimation, Platform, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, LayoutAnimation, Platform, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 

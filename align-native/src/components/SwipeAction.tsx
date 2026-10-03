@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
-import { Animated, View, StyleSheet, Text } from 'react-native';
+import { Animated, View, StyleSheet } from 'react-native';
+import { Text } from '@/components/ui/text';
 import Swipeable from 'react-native-gesture-handler/Swipeable';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius } from '@/constants/theme';

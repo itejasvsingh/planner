@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/components/ui/text';
 import { Check, Plus, Search, X } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius } from '@/constants/theme';

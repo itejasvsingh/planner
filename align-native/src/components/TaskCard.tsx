@@ -1,4 +1,5 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Check, Clock, AlertCircle, Bell, ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
 import { type PlannerItem } from '@/lib/planner-item';

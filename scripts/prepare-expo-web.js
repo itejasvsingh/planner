@@ -99,6 +99,11 @@ const pwaHeadSnippet = `
       -webkit-user-select: none;
       font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
       overflow: hidden;
+      /* Scrolling only: no pinch zoom (Android Chrome) or double-tap zoom and its tap delay */
+      touch-action: pan-x pan-y;
+      overscroll-behavior: none;
+      -webkit-text-size-adjust: 100%;
+      text-size-adjust: 100%;
     }
     #root {
       position: absolute;
@@ -157,6 +162,13 @@ const pwaHeadSnippet = `
       to { transform: translateY(0); opacity: 1; }
     }
   </style>
+
+  <script>
+    // iOS Safari ignores user-scalable=no: stop pinch zoom so the app stays put
+    ['gesturestart', 'gesturechange'].forEach(function (t) {
+      document.addEventListener(t, function (e) { e.preventDefault(); }, { passive: false });
+    });
+  </script>
 
   <script>
     // iOS standalone bottom-gap workaround (see .ios-gap-fix above)
@@ -290,7 +302,8 @@ function processHtmlFile(sourcePath, targetPath) {
   // Replace viewport with complete iOS cover attributes
   content = content.replace(
     /<meta name="viewport"[^>]*>/,
-    '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />'
+    // An app, not a document: no pinch/double-tap zoom, and iOS doesn't zoom in when a text box is focused.
+    '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />'
   );
 
   // Inject PWA snippet before </head> if not present

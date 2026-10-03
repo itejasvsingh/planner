@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { CalendarDays, Clock } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';

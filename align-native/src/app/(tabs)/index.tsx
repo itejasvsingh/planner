@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Check, Plus, Undo2 } from 'lucide-react-native';
 import { Skeleton } from '@/components/ui/skeleton';

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, Alert, Platform, ScrollView } from 'react-native';
+import { View, StyleSheet, Switch, Alert, Platform, ScrollView } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Stack, useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';

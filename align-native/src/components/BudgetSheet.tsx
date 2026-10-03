@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/components/ui/text';
 import { X } from 'lucide-react-native';
 import { Pressable } from '@/components/ui/pressable';
 import { useTheme } from '@/hooks/use-theme';

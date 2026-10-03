@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CloudOff, RefreshCw, UserRound } from 'lucide-react-native';

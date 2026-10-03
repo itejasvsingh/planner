@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, RefreshControl, TextInput } from 'react-native';
+import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { ArrowDownLeft, ArrowUpRight, FileUp, Plus, Search, Tags, Target, Wallet, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Switch, ScrollView, Alert, Linking, Platform, LayoutAnimation, UIManager } from 'react-native';
+import { View, StyleSheet, Switch, ScrollView, Alert, Linking, Platform, LayoutAnimation, UIManager } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import * as Clipboard from 'expo-clipboard';
 import { MessageCircle, Sparkles, Clock, Zap, ChevronRight, Bell, Check, Copy, Repeat } from 'lucide-react-native';

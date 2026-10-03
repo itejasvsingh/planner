@@ -35,6 +35,8 @@ function setup({ phone = 'test-owner' } = {}) {
     useCallback: fn => fn,
     useEffect: () => {},
     useRef: current => ({ current }),
+    // the hook reads one shared store; a plain read is enough here
+    useSyncExternalStore: (_subscribe, get) => get(),
   };
   const source = fs.readFileSync(path.join(__dirname, '../align-native/src/lib/use-planner-items.ts'), 'utf8');
   const code = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
@@ -58,11 +60,11 @@ function setup({ phone = 'test-owner' } = {}) {
       throw new Error(`Unexpected dependency: ${name}`);
     },
   });
-  return { hook: exports.usePlannerItems(phone), ops, states, cache };
+  return { hook: exports.usePlannerItems(phone), items: () => exports.usePlannerItems(phone).items, ops, states, cache };
 }
 
 test('a new task shows at once and is queued under a device-made id', async () => {
-  const { hook, ops, states, cache } = setup();
+  const { hook, items, ops, cache } = setup();
   await hook.addTask({ title: 'Read', dueDate: '2026-09-14', reminderTime: null });
   assert.equal(ops.length, 1);
   assert.equal(ops[0].kind, 'set');
@@ -72,7 +74,9 @@ test('a new task shows at once and is queued under a device-made id', async () =
   assert.equal(ops[0].data.type, 'task');
   assert.equal(ops[0].data.id, undefined);
   assert.equal(ops[0].data.createdAt, '__server_timestamp__');
-  assert.equal(states[0][0].id, 'local-1');
+  assert.equal(items()[0].id, 'local-1', 'on screen at once');
+  // saved to the device shortly after (batched)
+  await new Promise(r => setTimeout(r, 450));
   assert.equal(JSON.parse(cache.get('test-owner'))[0].title, 'Read');
 });
 

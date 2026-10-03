@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
-import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/ui/text';
 import * as Clipboard from 'expo-clipboard';
 import { Check, Copy, ExternalLink, Mail } from 'lucide-react-native';
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { Text, TextInput } from '@/components/ui/text';
 import { ChevronLeft, EyeOff, Plus, Trash2, X } from 'lucide-react-native';
 import { Pressable } from '@/components/ui/pressable';
 import SegmentedControl from '@/components/SegmentedControl';

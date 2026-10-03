@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Modal, TextInput, KeyboardAvoidingView, Platform, Animated, Switch, ScrollView } from 'react-native';
+import { View, StyleSheet, Modal, KeyboardAvoidingView, Platform, Animated, Switch, ScrollView } from 'react-native';
+import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Calendar, Wallet, Target, X, Plus, Trash2, CheckCircle2, Circle } from 'lucide-react-native';
 
@@ -252,7 +253,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
             </View>
           )}
 
-          <ScrollView style={{ maxHeight: '80%' }} contentContainerStyle={styles.form} showsVerticalScrollIndicator={false}>
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={styles.form} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <TextInput
               accessibilityLabel="Title"
               style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement, fontSize: 18 }]}
@@ -401,16 +402,16 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
             )}
             {!!formError && <Text accessibilityRole="alert" style={{ color: theme.red, fontSize: 14 }}>{formError}</Text>}
 
-            {/* Save Button */}
-            <Pressable 
-              style={({ pressed }) => [styles.saveBtn, { backgroundColor: theme.accentFill, opacity: pressed ? 0.8 : 1 }]}
-              accessibilityRole="button"
-              disabled={saving}
-              onPress={handleSave}
-            >
-              <Text style={[styles.saveBtnText, { color: theme.onAccent }]}>{saving ? 'Saving…' : initialItem ? 'Save changes' : `Create ${activeTab}`}</Text>
-            </Pressable>
           </ScrollView>
+          {/* Save: always visible below the form */}
+          <Pressable 
+            style={({ pressed }) => [styles.saveBtn, { backgroundColor: theme.accentFill, opacity: pressed ? 0.8 : 1 }]}
+            accessibilityRole="button"
+            disabled={saving}
+            onPress={handleSave}
+          >
+            <Text style={[styles.saveBtnText, { color: theme.onAccent }]}>{saving ? 'Saving…' : initialItem ? 'Save changes' : `Create ${activeTab}`}</Text>
+          </Pressable>
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>
@@ -429,8 +430,8 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    padding: 24,
-    paddingBottom: 48,
+    padding: 18,
+    paddingBottom: 28,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
@@ -441,10 +442,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
   },
   title: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '700',
     letterSpacing: -0.5,
   },
@@ -459,7 +460,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderRadius: 12,
     padding: 3,
-    marginBottom: 24,
+    marginBottom: 14,
   },
   tabButton: {
     flex: 1,
@@ -476,10 +477,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   form: {
-    gap: 16,
+    gap: 12,
+    paddingBottom: 4,
   },
   input: {
-    padding: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     borderRadius: 12,
     borderWidth: 1,
   },

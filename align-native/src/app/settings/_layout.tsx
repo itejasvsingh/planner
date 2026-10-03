@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Animated, Platform, Pressable, Text, useWindowDimensions } from 'react-native';
+import { Animated, Platform, Pressable, useWindowDimensions } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { Stack, useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';

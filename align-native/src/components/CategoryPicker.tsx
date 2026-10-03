@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { useRef, useState } from 'react';
+import { ScrollView, StyleSheet } from 'react-native';
+import { Text } from '@/components/ui/text';
 import { Pencil } from 'lucide-react-native';
 import { Pressable } from '@/components/ui/pressable';
 import { CategoryManagerSheet } from '@/components/CategoryManager';
@@ -16,13 +17,15 @@ export default function CategoryPicker({ kind, value, onChange }: { kind: Catego
   const c = useTheme();
   const { config } = useCategoryConfig();
   const [managing, setManaging] = useState(false);
+  const row = useRef<ScrollView>(null);
+  const scrolled = useRef(false);
 
   const list = categoriesFor(kind, config);
   const current = value ? resolveCategory(value, kind, config) : null;
   const shown = current && !list.some(cat => cat.id === current.id) ? [...list, current] : list;
 
   return (
-    <View style={styles.wrap}>
+    <ScrollView ref={row} horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.wrap}>
       {shown.map(cat => {
         const selected = current?.id === cat.id;
         const Icon = cat.icon;
@@ -32,6 +35,12 @@ export default function CategoryPicker({ kind, value, onChange }: { kind: Catego
             accessibilityRole="button"
             accessibilityState={{ selected }}
             onPress={() => onChange(cat.name)}
+            // When editing, bring the current category into view once
+            onLayout={selected ? (e) => {
+              if (scrolled.current) return;
+              scrolled.current = true;
+              row.current?.scrollTo({ x: Math.max(0, e.nativeEvent.layout.x - 24), animated: false });
+            } : undefined}
             style={[styles.chip, selected ? { backgroundColor: c.accentFill, borderColor: c.accentFill } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}
           >
             <Icon size={15} color={selected ? c.onAccent : tintColors(cat.tint, c.isDark).fg} />
@@ -49,11 +58,11 @@ export default function CategoryPicker({ kind, value, onChange }: { kind: Catego
         <Text style={{ color: c.accent, fontWeight: '700', fontSize: 14 }}>Edit</Text>
       </Pressable>
       <CategoryManagerSheet visible={managing} onClose={() => setManaging(false)} kind={kind} />
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 9, borderRadius: Radius.pill, borderWidth: 1 },
+  wrap: { flexDirection: 'row', gap: 8, paddingRight: 4 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.pill, borderWidth: 1 },
 });
