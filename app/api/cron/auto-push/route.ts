@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
+import { hasValidSecret } from '../../../../lib/apiAuth';
 import { runTaskRolloverForUser, runTaskRolloverForAllUsers } from '../../../../lib/taskRollover';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
-    const cronSecret = req.headers.get('x-vercel-cron-secret') || new URL(req.url).searchParams.get('secret');
-    if (cronSecret !== process.env.CRON_SECRET) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!hasValidSecret(req, [process.env.CRON_SECRET])) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     try {
         const { searchParams } = new URL(req.url);
