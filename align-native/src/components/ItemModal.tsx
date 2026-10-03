@@ -233,7 +233,8 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
     <Modal visible={visible} transparent animationType="fade" onRequestClose={() => !saving && onClose()}>
       <KeyboardAvoidingView 
         style={[styles.overlay, { justifyContent: 'flex-end' }]} 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        // Android resizes the window for the keyboard itself; shifting again made the whole sheet jump
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <Pressable style={StyleSheet.absoluteFill} onPress={() => !saving && onClose()} />
         
@@ -261,7 +262,6 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
               placeholderTextColor={theme.textSecondary}
               value={title}
               onChangeText={setTitle}
-              autoFocus={!initialItem}
             />
 
             {activeTab === 'expense' && (

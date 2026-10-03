@@ -124,7 +124,8 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     return (
         <Modal visible={visible} animationType="slide" transparent>
             <KeyboardAvoidingView 
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                // Android resizes the window for the keyboard itself; shifting again made the whole sheet jump
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}
             >
                 <View style={{ backgroundColor: c.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, paddingBottom: 32, maxHeight: '92%' }}>
@@ -149,13 +150,13 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                                 <Text style={[Type.displayLg, { fontSize: 28, color: type === 'income' ? c.income : (type === 'transfer' ? c.textSecondary : c.text), marginRight: 4 }]}>₹</Text>
                                 <TextInput 
+                                    accessibilityLabel="Amount"
                                     value={amount}
                                     onChangeText={setAmount}
                                     keyboardType="decimal-pad"
                                     placeholder="0"
                                     placeholderTextColor={c.textTertiary}
-                                    style={[Type.displayLg, { fontSize: 28, color: type === 'income' ? c.income : (type === 'transfer' ? c.textSecondary : c.text), minWidth: 60, width: 160, textAlign: 'left' }]}
-                                    autoFocus={!item}
+                                    style={[Type.displayLg, { fontSize: 28, color: type === 'income' ? c.income : (type === 'transfer' ? c.textSecondary : c.text), width: Math.max(44, (amount || '0').length * 18 + 14), textAlign: 'center', padding: 0, marginRight: 22 }]}
                                 />
                             </View>
                         </View>
