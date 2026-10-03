@@ -1,7 +1,8 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { AppState, Platform } from 'react-native';
 import { collection, deleteDoc, doc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { getItem, setItem } from '@/lib/storage';
 import { drain, enqueue, withTimeout, SERVER_TIMESTAMP, type DocData, type OutboxOp, type WriteResult } from '@/lib/outbox-core';
 
@@ -145,6 +146,9 @@ export async function flush(owner: string) {
   if (s.flushing || !s.snapshot.queue.length) return;
   if (s.retry) clearTimeout(s.retry);
   s.retry = null;
+  // Not signed in yet (the app opens before Firebase restores the session): wait, or Firestore would refuse
+  // the writes and they would be dropped. Signing in triggers a flush.
+  if (!auth.currentUser) return;
   // The browser already knows it has no connection: show "Offline" now instead of after a write times out.
   if (browserOffline()) {
     if (s.snapshot.online !== false) update(owner, { online: false });
@@ -182,6 +186,7 @@ function wireTriggers() {
   if (wired) return;
   wired = true;
   AppState.addEventListener('change', st => { if (st === 'active') flushAll(); });
+  onAuthStateChanged(auth, user => { if (user) flushAll(); });
   if (Platform.OS === 'web' && typeof window !== 'undefined') {
     window.addEventListener('online', flushAll);
     window.addEventListener('offline', flushAll);

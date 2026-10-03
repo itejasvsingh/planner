@@ -1,6 +1,6 @@
 import { getApp, getApps, initializeApp } from 'firebase/app';
 import { connectFirestoreEmulator, getFirestore, initializeFirestore, type Firestore } from 'firebase/firestore';
-import { connectAuthEmulator, getAuth, initializeAuth, type Auth } from 'firebase/auth';
+import { connectAuthEmulator, getAuth, initializeAuth, onAuthStateChanged, type Auth } from 'firebase/auth';
 // @ts-ignore
 import { getReactNativePersistence } from 'firebase/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -48,3 +48,25 @@ if (EMULATOR) {
   connectFirestoreEmulator(db, EMULATOR, 8080);
 }
 
+
+/**
+ * Runs `start` once a signed-in user is restored (straight away if there is one) and returns a stop function
+ * that also stops whatever `start` returned. The app opens before Firebase restores the session (see
+ * phone-context), and Firestore refuses requests until then.
+ */
+export function whenSignedIn(start: () => (() => void) | void): () => void {
+  let stop: (() => void) | void | null = null;
+  if (auth.currentUser) {
+    stop = start();
+    return () => { if (stop) stop(); };
+  }
+  const unsubscribe = onAuthStateChanged(auth, (user) => {
+    if (!user || stop !== null) return;
+    unsubscribe();
+    stop = start() || undefined;
+  });
+  return () => {
+    unsubscribe();
+    if (stop) stop();
+  };
+}

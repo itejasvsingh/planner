@@ -1,7 +1,7 @@
 import { collection, doc, onSnapshot, query, where } from 'firebase/firestore';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { db } from '@/lib/firebase';
+import { db, whenSignedIn } from '@/lib/firebase';
 import { type PlannerItem, type PlannerSplit } from '@/lib/planner-item';
 import { getItem, itemsCacheKey, setItem } from '@/lib/storage';
 import { triggerHaptic } from '@/lib/haptics';
@@ -142,13 +142,14 @@ export function usePlannerItems(phone: string | null) {
       );
     }
 
-    subscribe();
+    const stopWaiting = whenSignedIn(() => subscribe());
 
     return () => {
       cancelled = true;
       if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
         if (typeof window !== 'undefined' && window.removeEventListener) window.removeEventListener('align_items_updated', handleUpdate);
       }
+      stopWaiting();
       if (retryTimer) clearTimeout(retryTimer);
       if (unsubscribeListener) unsubscribeListener();
     };
@@ -514,10 +515,11 @@ export function useBudgetLimits(phone: string | null) {
       );
     }
 
-    subscribe();
+    const stopWaiting = whenSignedIn(() => subscribe());
 
     return () => {
       cancelled = true;
+      stopWaiting();
       if (retryTimer) clearTimeout(retryTimer);
       if (unsubscribeListener) unsubscribeListener();
     };

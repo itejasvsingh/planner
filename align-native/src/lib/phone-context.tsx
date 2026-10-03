@@ -7,6 +7,8 @@ import { isValidPhone, normalizePhone } from '@/lib/phone';
 import { getItem, PHONE_KEY, removeItem, setItem } from '@/lib/storage';
 
 const API_BASE = Platform.OS === 'web' ? '' : process.env.EXPO_PUBLIC_API_URL || '';
+// The number from the last verified sign-in on this device (set only from the token's phone claim).
+const VERIFIED_PHONE_KEY = 'align_verified_phone';
 
 type Result = { ok: true } | { ok: false; message: string };
 
@@ -66,11 +68,14 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       verified = typeof claim === 'string' ? claim : null;
     } catch {
       // Offline with an expired token: the number saved at sign-in still identifies this user's data.
-      verified = await getItem(PHONE_KEY);
+      verified = await getItem(VERIFIED_PHONE_KEY);
     }
     if (verified) {
       await setItem(PHONE_KEY, verified);
+      await setItem(VERIFIED_PHONE_KEY, verified);
       setLastPhone(verified);
+    } else {
+      await removeItem(VERIFIED_PHONE_KEY);
     }
     setPhone(verified);
     setNeedsPhoneSetup(!verified);
@@ -78,8 +83,19 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    let authKnown = false;
     void getItem(PHONE_KEY).then((p) => !cancelled && p && setLastPhone(p));
+    // Signed in on this device before: open straight away and confirm in the background. Confirming needs
+    // Firebase to restore the session and often refresh the token over the network, which held the splash
+    // screen. Data access is still decided by the server's rules; if the session is gone, applyUser(null)
+    // below sends the user to the login screen.
+    void getItem(VERIFIED_PHONE_KEY).then((p) => {
+      if (cancelled || authKnown || !p) return;
+      setPhone(p);
+      setReady(true);
+    });
     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      authKnown = true;
       void applyUser(user).finally(() => !cancelled && setReady(true));
     });
     return () => {
@@ -126,6 +142,7 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       console.warn('Sign-out notice:', e);
     }
     await removeItem(PHONE_KEY);
+    await removeItem(VERIFIED_PHONE_KEY);
     setPhone(null);
     setFirebaseUser(null);
     setNeedsPhoneSetup(false);

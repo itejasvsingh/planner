@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, whenSignedIn } from '@/lib/firebase';
 import { usePhone } from '@/lib/phone-context';
 import { getItem, setItem } from '@/lib/storage';
 import type { CategoryConfig } from '@/lib/categories';
@@ -39,14 +39,16 @@ function retain(phone: string) {
     if (!raw || e.config !== EMPTY) return;
     try { publish(phone, JSON.parse(raw)); } catch { /* ignore a corrupt cache */ }
   });
-  e.unsubscribe = onSnapshot(
-    doc(db, 'planner_settings', `preferences_${phone}`),
-    snap => {
-      const next = (snap.exists() && (snap.data()?.[FIELD] as CategoryConfig)) || EMPTY;
-      publish(phone, next);
-      void setItem(cacheKey(phone), JSON.stringify(next));
-    },
-    err => console.warn('Category config subscription notice:', err),
+  e.unsubscribe = whenSignedIn(() =>
+    onSnapshot(
+      doc(db, 'planner_settings', `preferences_${phone}`),
+      snap => {
+        const next = (snap.exists() && (snap.data()?.[FIELD] as CategoryConfig)) || EMPTY;
+        publish(phone, next);
+        void setItem(cacheKey(phone), JSON.stringify(next));
+      },
+      err => console.warn('Category config subscription notice:', err),
+    ),
   );
 }
 
