@@ -138,16 +138,16 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}
             >
-                <View style={{ backgroundColor: c.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 18, paddingBottom: 28, maxHeight: '94%', width: '100%', maxWidth: 560, alignSelf: 'center' }}>
+                <View style={{ backgroundColor: c.background, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 16, paddingBottom: 32, maxHeight: '92%' }}>
                     
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                         <Text style={[Type.title, { color: c.text }]}>{item ? 'Edit Transaction' : 'New Transaction'}</Text>
                         <Pressable onPress={onClose} style={{ width: 32, height: 32, alignItems: 'center', justifyContent: 'center', backgroundColor: c.backgroundMuted, borderRadius: Radius.pill }}>
                             <X color={c.textSecondary} size={18} />
                         </Pressable>
                     </View>
 
-                    <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 14, paddingBottom: 4 }}>
+                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 16 }}>
                         <SegmentedControl 
                             tabs={['Expense', 'Income', 'Transfer']} 
                             activeTab={type === 'expense' ? 'Expense' : (type === 'transfer' ? 'Transfer' : 'Income')} 
@@ -155,17 +155,17 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                         />
 
                         {/* Huge Amount Input */}
-                        <View style={{ alignItems: 'center' }}>
+                        <View style={{ alignItems: 'center', paddingVertical: 4 }}>
+                            <Text style={[Type.caption, { color: c.textTertiary, marginBottom: 4 }]}>Amount</Text>
                             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Text style={[Type.displayLg, { color: type === 'income' ? c.income : (type === 'transfer' ? c.textSecondary : c.text), marginRight: 4 }]}>₹</Text>
+                                <Text style={[Type.displayLg, { fontSize: 28, color: type === 'income' ? c.income : (type === 'transfer' ? c.textSecondary : c.text), marginRight: 4 }]}>₹</Text>
                                 <TextInput 
-                                    accessibilityLabel="Amount"
                                     value={amount}
                                     onChangeText={setAmount}
                                     keyboardType="decimal-pad"
                                     placeholder="0"
                                     placeholderTextColor={c.textTertiary}
-                                    style={[Type.displayLg, { color: type === 'income' ? c.income : (type === 'transfer' ? c.textSecondary : c.text), minWidth: 60, width: 160, textAlign: 'left' }]}
+                                    style={[Type.displayLg, { fontSize: 28, color: type === 'income' ? c.income : (type === 'transfer' ? c.textSecondary : c.text), minWidth: 60, width: 160, textAlign: 'left' }]}
                                     autoFocus={!item}
                                 />
                             </View>
@@ -185,7 +185,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                 }}
                                 placeholder="What was this for?"
                                 placeholderTextColor={c.textTertiary}
-                                style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, color: c.text, paddingHorizontal: 14, paddingVertical: 12, borderRadius: Radius.md, fontSize: 16 }}
+                                style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, color: c.text, paddingHorizontal: 14, paddingVertical: 11, borderRadius: Radius.md, fontSize: 16 }}
                             />
                             {!item && type !== 'transfer' && visibleSuggestions.length > 0 ? (
                                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -264,19 +264,17 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                             </View>
                         )}
                         
-                    </ScrollView>
+                        {/* Actions */}
 
-                        {/* Actions: always visible below the form */}
-
-                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 10 }}>
                             {item && (
-                                <Pressable onPress={handleDelete} style={{ flex: 1, backgroundColor: c.expenseSoft, padding: 16, borderRadius: Radius.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+                                <Pressable onPress={handleDelete} style={{ flex: 1, backgroundColor: c.expenseSoft, padding: 14, borderRadius: Radius.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
                                     <Trash2 color={c.expense} size={18} />
                                 </Pressable>
                             )}
                             <Pressable 
                                 onPress={handleSave} 
-                                style={{ flex: item ? 3 : 1, backgroundColor: canSave ? c.accentFill : c.backgroundMuted, padding: 16, borderRadius: Radius.md, alignItems: 'center' }}
+                                style={{ flex: item ? 3 : 1, backgroundColor: canSave ? c.accentFill : c.backgroundMuted, padding: 14, borderRadius: Radius.md, alignItems: 'center' }}
                                 disabled={!canSave}
                             >
                                 <Text style={[Type.label, { color: canSave ? c.onAccent : c.textTertiary, fontWeight: '700', fontSize: 15 }]}>
@@ -284,6 +282,8 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                 </Text>
                             </Pressable>
                         </View>
+
+                    </ScrollView>
                 </View>
             </KeyboardAvoidingView>
         </Modal>
