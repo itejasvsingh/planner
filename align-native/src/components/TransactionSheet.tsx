@@ -7,20 +7,40 @@ import { useState, useEffect } from 'react';
 import SegmentedControl from './SegmentedControl';
 import { DEFAULT_CATEGORY, kindForType, resolveCategory, type CategoryKind } from '@/lib/categories';
 import CategoryPicker from './CategoryPicker';
+import { DatePick } from './form/QuickPick';
 import { useCategoryConfig } from '@/lib/use-category-config';
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const dateToKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const keyToDate = (k: string) => {
+    const [y, m, d] = (k || dateToKey(new Date())).split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+};
+const formatClock = (hhmm: string) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    return `${h % 12 || 12}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
+};
+const SOURCE_NAME: Record<string, string> = { sms: 'SMS', email: 'email', gmail: 'Gmail', statement: 'a statement' };
+
+/** A merchant you used recently, for one-tap filling when adding. */
+export type MerchantSuggestion = { title: string; category: string; type: string };
 
 interface TransactionSheetProps {
     visible: boolean;
     onClose: () => void;
     item: any | null; // null means adding a new item
+    /** Recent merchants, most used first (adding only). */
+    suggestions?: MerchantSuggestion[];
     onSave: (updates: any) => Promise<void>;
     onDelete?: (id: string) => Promise<void>;
 }
 
-export default function TransactionSheet({ visible, onClose, item, onSave, onDelete }: TransactionSheetProps) {
+export default function TransactionSheet({ visible, onClose, item, onSave, onDelete, suggestions = [] }: TransactionSheetProps) {
     const { isDark } = useTheme();
     const c = isDark ? Colors.dark : Colors.light;
-    const { config: categoryConfig } = useCategoryConfig();
+    const { config: categoryConfig, merchantCategory } = useCategoryConfig();
+    // Once you pick a category yourself, typing or suggestions don't change it
+    const [categoryTouched, setCategoryTouched] = useState(false);
 
     const [type, setType] = useState('expense');
     const [title, setTitle] = useState('');
@@ -33,14 +53,22 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [paidByYou, setPaidByYou] = useState(true);
     const [yourShareStr, setYourShareStr] = useState('');
 
+    // Recent places for this type, narrowed as you type (hidden once the title matches one exactly)
+    const typed = title.trim().toLowerCase();
+    const visibleSuggestions = suggestions
+        .filter(sg => kindForType(sg.type) === type)
+        .filter(sg => !typed || (sg.title.toLowerCase().includes(typed) && sg.title.toLowerCase() !== typed))
+        .slice(0, 6);
+
     useEffect(() => {
         if (visible) {
+            setCategoryTouched(!!item);
             if (item) {
                 setType(kindForType(item.type));
                 setTitle(item.title || '');
                 setAmount(item.amount ? String(item.amount) : '');
                 setCategory(resolveCategory(item.category, kindForType(item.type), categoryConfig).name);
-                setDate(item.date || new Date().toISOString().split('T')[0]);
+                setDate(item.date || dateToKey(new Date()));
                 setIsRecurring(!!item.isRecurring);
                 setIsSplit(!!item.split);
                 if (item.split) {
@@ -53,7 +81,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                 setTitle('');
                 setAmount('');
                 setCategory(DEFAULT_CATEGORY.expense);
-                setDate(new Date().toISOString().split('T')[0]);
+                setDate(dateToKey(new Date()));
                 setIsRecurring(false);
                 setIsSplit(false);
                 setSplitWith('');
@@ -147,32 +175,56 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                             </View>
                         </View>
 
-                        {/* Title & Date Row */}
-                        <View style={{ flexDirection: 'row', gap: 12 }}>
-                            <View style={{ flex: 2 }}>
-                                <Text style={[Type.label, { color: c.textSecondary, marginBottom: 8 }]}>Title</Text>
-                                <TextInput 
-                                    value={title}
-                                    onChangeText={setTitle}
-                                    placeholder="What was this for?"
-                                    placeholderTextColor={c.textTertiary}
-                                    style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, color: c.text, padding: 14, borderRadius: Radius.md, fontSize: 16 }}
-                                />
-                            </View>
-                            <View style={{ flex: 1.5 }}>
-                                <Text style={[Type.label, { color: c.textSecondary, marginBottom: 8 }]}>Date</Text>
-                                <TextInput 
-                                    value={date}
-                                    onChangeText={setDate}
-                                    style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, color: c.text, padding: 14, borderRadius: Radius.md, fontSize: 16 }}
-                                />
-                            </View>
+                        {/* Title, with your recent merchants one tap away when adding */}
+                        <View style={{ gap: 8 }}>
+                            <Text style={[Type.label, { color: c.textSecondary }]}>Title</Text>
+                            <TextInput
+                                accessibilityLabel="Title"
+                                value={title}
+                                onChangeText={(t) => {
+                                    setTitle(t);
+                                    // A merchant you've categorised before brings its category along
+                                    const mine = merchantCategory(t);
+                                    if (mine && !categoryTouched) setCategory(mine);
+                                }}
+                                placeholder="What was this for?"
+                                placeholderTextColor={c.textTertiary}
+                                style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, color: c.text, padding: 14, borderRadius: Radius.md, fontSize: 16 }}
+                            />
+                            {!item && type !== 'transfer' && visibleSuggestions.length > 0 ? (
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                    {visibleSuggestions.map(sg => (
+                                        <Pressable
+                                            key={sg.title}
+                                            accessibilityRole="button"
+                                            accessibilityLabel={`Use ${sg.title}`}
+                                            onPress={() => {
+                                                setTitle(sg.title);
+                                                if (!categoryTouched) setCategory(merchantCategory(sg.title) || sg.category);
+                                            }}
+                                            style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: Radius.pill, backgroundColor: c.backgroundMuted }}
+                                        >
+                                            <Text style={{ color: c.text, fontSize: 13, fontWeight: '600' }}>{sg.title}</Text>
+                                        </Pressable>
+                                    ))}
+                                </View>
+                            ) : null}
+                        </View>
+
+                        <View style={{ gap: 8 }}>
+                            <Text style={[Type.label, { color: c.textSecondary }]}>Date</Text>
+                            <DatePick value={keyToDate(date)} onChange={d => setDate(dateToKey(d))} mode="past" />
+                            {item?.autoDetected ? (
+                                <Text style={{ color: c.textTertiary, fontSize: 12 }}>
+                                    {[item.time ? `Recorded at ${formatClock(item.time)}` : 'Recorded automatically', SOURCE_NAME[item.source] ? `from ${SOURCE_NAME[item.source]}` : '', item.ref ? `· ref ${item.ref}` : ''].filter(Boolean).join(' ')}
+                                </Text>
+                            ) : null}
                         </View>
 
                         {/* Category Selector */}
                         <View>
                             <Text style={[Type.label, { color: c.textSecondary, marginBottom: 8 }]}>Category</Text>
-                            <CategoryPicker kind={kindForType(type)} value={category} onChange={setCategory} />
+                            <CategoryPicker kind={kindForType(type)} value={category} onChange={(v) => { setCategory(v); setCategoryTouched(true); }} />
                         </View>
 
                         

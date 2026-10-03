@@ -9,7 +9,8 @@ import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems, useBudgetLimits } from '@/lib/use-planner-items';
 import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import TransactionSheet from '@/components/TransactionSheet';
+import TransactionSheet, { type MerchantSuggestion } from '@/components/TransactionSheet';
+import CycleStepper, { cycleName } from '@/components/finance/CycleStepper';
 import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 import { kindForType, resolveCategory, tintColors } from '@/lib/categories';
@@ -77,10 +78,12 @@ export default function FinanceScreen() {
     const nameOf = (i: { category?: string; type?: string }) => resolveCategory(i.category, kindForType(i.type), categoryConfig).name;
     const payday = limits?.payday || 1;
     
-    // Current salary cycle, in local dates
-    const { start: cycleStart, end: cycleEnd, startKey: cycleStartStr, endKey: cycleEndStr } = cycleRange(payday);
+    // The salary cycle on screen (0 = current, -1 = the one before), shared by Overview and Analysis
+    const [offset, setOffset] = useState(0);
+    const inProgress = offset === 0;
+    const { start: cycleStart, end: cycleEnd, startKey: cycleStartStr, endKey: cycleEndStr } = cycleRange(payday, offset);
 
-    // Filter only finance items for the CURRENT CYCLE
+    // Finance items in the cycle on screen
     const financeItems = items.filter(i => {
         if (i.type !== 'expense' && i.type !== 'income' && i.type !== 'deposit' && i.type !== 'transfer') return false;
         const d = i.date || '1970-01-01';
@@ -113,8 +116,33 @@ export default function FinanceScreen() {
     const balance = totalEarned - totalSpent;
     const monthlyBudget = Number(limits?.[MONTHLY_BUDGET_KEY]) || 0;
     const budget = monthlyBudget > 0 ? summarizeBudget(monthlyBudget, totalSpent, cycleEnd) : null;
+    const periodName = cycleName(payday, offset);
+    // "last cycle" / "in August 2026", for sentences about a past cycle
+    const inPeriod = offset === -1 ? 'last cycle' : `in ${periodName}`;
 
-    // Any filter searches all of history; otherwise the list shows the current cycle.
+    // Places you've paid recently, most used first, for one-tap filling in the add sheet
+    const suggestSince = cycleRange(payday, -3).startKey;
+    const suggestions = useMemo<MerchantSuggestion[]>(() => {
+        const since = suggestSince;
+        const seen = new Map<string, MerchantSuggestion & { n: number; last: string }>();
+        for (const i of items) {
+            if (!isMoney(i) || i.type === 'transfer' || !i.title?.trim() || (i.date || '') < since) continue;
+            const key = `${kindForType(i.type)}|${i.title.trim().toLowerCase()}`;
+            const prev = seen.get(key);
+            const latest = !prev || (i.date || '') >= prev.last;
+            seen.set(key, {
+                title: latest ? i.title.trim() : prev!.title,
+                category: latest ? nameOf(i) : prev!.category,
+                type: i.type || 'expense',
+                n: (prev?.n || 0) + 1,
+                last: latest ? i.date || '' : prev!.last,
+            });
+        }
+        return [...seen.values()].sort((a, b) => b.n - a.n || b.last.localeCompare(a.last)).slice(0, 20);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [items, categoryConfig, suggestSince]);
+
+    // Any filter searches all of history; otherwise the list shows the cycle on screen.
     const filtering = query.trim() !== '' || typeFilter !== 'all' || categoryFilter !== null;
     const listItems = useMemo(() => {
         if (!filtering) return financeItems;
@@ -207,9 +235,12 @@ export default function FinanceScreen() {
                             items={items}
                             payday={payday}
                             config={categoryConfig}
+                            offset={offset}
+                            onOffsetChange={setOffset}
                             onSelectCategory={name => { setCategoryFilter(name); setTypeFilter('expense'); setView('Overview'); }}
                         />
                     ) : (<>
+                    <CycleStepper payday={payday} offset={offset} onChange={setOffset} />
                     {/* Budget / balance card */}
                     <Pressable
                         accessibilityRole="button"
@@ -220,7 +251,7 @@ export default function FinanceScreen() {
                         {budget ? (
                             <>
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <Text style={[styles.heroLabel, { color: c.onHero }]}>{budget.left >= 0 ? 'Left to spend' : 'Over budget by'}</Text>
+                                    <Text style={[styles.heroLabel, { color: c.onHero }]}>{budget.left < 0 ? 'Over budget by' : inProgress ? 'Left to spend' : `Saved ${inPeriod}`}</Text>
                                     <Text style={[styles.heroLabel, { color: c.onHero }]}>Budget {formatMoney(budget.budget)}</Text>
                                 </View>
                                 <Text style={[styles.heroAmount, { color: c.onHero }]} numberOfLines={1} adjustsFontSizeToFit>
@@ -230,22 +261,22 @@ export default function FinanceScreen() {
                                     <View style={{ width: `${Math.round(Math.min(1, budget.used) * 100)}%`, height: '100%', backgroundColor: c.heroBar, borderRadius: Radius.pill }} />
                                 </View>
                                 <Text style={[styles.heroNote, { color: c.onHero }]}>
-                                    {budget.status === 'over'
+                                    {budget.status === 'over' || !inProgress
                                         ? `${formatMoney(budget.spent)} spent of ${formatMoney(budget.budget)}`
                                         : `${Math.round(budget.used * 100)}% used · ${formatMoney(budget.perDay)}/day for ${budget.daysLeft} ${budget.daysLeft === 1 ? 'day' : 'days'}`}
                                 </Text>
                             </>
                         ) : (
                             <>
-                                <Text style={[styles.heroLabel, { color: c.onHero }]}>Left this cycle</Text>
+                                <Text style={[styles.heroLabel, { color: c.onHero }]}>{inProgress ? 'Left this cycle' : balance >= 0 ? `Saved ${inPeriod}` : `Overspent ${inPeriod}`}</Text>
                                 <Text style={[styles.heroAmount, { color: c.onHero }]} numberOfLines={1} adjustsFontSizeToFit>
-                                    {formatMoney(balance)}
+                                    {formatMoney(inProgress ? balance : Math.abs(balance))}
                                 </Text>
                                 <View style={[styles.heroTrack, { backgroundColor: c.onHeroOverlay }]}>
                                     <View style={{ width: `${Math.round(spentShare * 100)}%`, height: '100%', backgroundColor: c.heroBar, borderRadius: Radius.pill }} />
                                 </View>
                                 <Text style={[styles.heroNote, { color: c.onHero }]}>
-                                    {totalEarned > 0 ? `${Math.round(spentShare * 100)}% of income spent` : 'No income logged this cycle'}
+                                    {totalEarned > 0 ? `${Math.round(spentShare * 100)}% of income spent` : `No income logged ${inProgress ? 'this cycle' : 'in this period'}`}
                                 </Text>
                             </>
                         )}
@@ -328,7 +359,7 @@ export default function FinanceScreen() {
 
                     {/* Transactions */}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                        <Text style={[styles.sectionHeader, { color: c.textTertiary }]}>{filtering ? 'All-time results' : 'Transactions this cycle'}</Text>
+                        <Text style={[styles.sectionHeader, { color: c.textTertiary }]}>{filtering ? 'All-time results' : inProgress ? 'Transactions this cycle' : `Transactions · ${periodName}`}</Text>
                         {categoryTotals.length === 0 && (
                             <Pressable accessibilityRole="button" onPress={() => setCategoriesOpen(true)} hitSlop={8}>
                                 <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Edit categories</Text>
@@ -448,6 +479,7 @@ export default function FinanceScreen() {
                 onClose={() => setIsSheetVisible(false)}
                 onSave={handleSave}
                 onDelete={deleteItem}
+                suggestions={suggestions}
             />
         </>
     );

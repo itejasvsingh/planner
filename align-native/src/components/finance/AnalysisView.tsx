@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { ArrowDownRight, ArrowUpRight, ChevronLeft, ChevronRight, Lightbulb, Minus, TrendingDown, TrendingUp } from 'lucide-react-native';
+import { ArrowDownRight, ArrowUpRight, Lightbulb, Minus, TrendingDown, TrendingUp } from 'lucide-react-native';
 import { Pressable } from '@/components/ui/pressable';
+import CycleStepper from './CycleStepper';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Shadow, Type } from '@/constants/theme';
 import { kindForType, resolveCategory, tintColors, type CategoryConfig } from '@/lib/categories';
@@ -121,15 +122,19 @@ export default function AnalysisView({
   items,
   payday,
   config,
+  offset,
+  onOffsetChange,
   onSelectCategory,
 }: {
   items: Txn[];
   payday: number;
   config: CategoryConfig;
+  /** Which salary cycle: 0 is the current one, -1 the one before. Shared with Overview. */
+  offset: number;
+  onOffsetChange: (offset: number) => void;
   onSelectCategory: (name: string) => void;
 }) {
   const c = useTheme();
-  const [offset, setOffset] = useState(0);
 
   const data = useMemo(() => {
     const moneyItems = items.filter(isMoney);
@@ -161,26 +166,13 @@ export default function AnalysisView({
   }, [items, payday, offset, config]);
 
   const { cycle, summary, prevSummary, cats, changes, daily, insights, trend, weekdays, top, inProgress, elapsed } = data;
-  const lastDay = new Date(cycle.end.getFullYear(), cycle.end.getMonth(), cycle.end.getDate() - 1);
   const spentPct = prevSummary.spent > 0 ? (summary.spent - prevSummary.spent) / prevSummary.spent : null;
   const avgPerDay = data.pace.perDay;
   const hasData = data.current.length > 0;
 
   return (
     <View style={{ gap: 4 }}>
-      {/* Period stepper */}
-      <View style={[styles.stepper, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Previous cycle" disabled={offset <= -23} onPress={() => setOffset(o => o - 1)} style={styles.stepBtn}>
-          <ChevronLeft color={c.text} size={20} />
-        </Pressable>
-        <View style={{ alignItems: 'center', flex: 1 }}>
-          <Text style={{ color: c.text, fontWeight: '700', fontSize: 15 }}>{inProgress ? 'This cycle' : offset === -1 ? 'Last cycle' : cycle.start.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</Text>
-          <Text style={{ color: c.textSecondary, fontSize: 12, marginTop: 1 }}>{short(cycle.start)} – {short(lastDay)}{inProgress ? ` · day ${elapsed} of ${cycle.days}` : ''}</Text>
-        </View>
-        <Pressable accessibilityRole="button" accessibilityLabel="Next cycle" disabled={offset >= 0} onPress={() => setOffset(o => Math.min(0, o + 1))} style={[styles.stepBtn, { opacity: offset >= 0 ? 0.3 : 1 }]}>
-          <ChevronRight color={c.text} size={20} />
-        </Pressable>
-      </View>
+      <CycleStepper payday={payday} offset={offset} onChange={onOffsetChange} />
 
       {/* Summary tiles */}
       <View style={styles.tiles}>
@@ -345,8 +337,6 @@ export default function AnalysisView({
 }
 
 const styles = StyleSheet.create({
-  stepper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: Radius.lg, paddingVertical: 8, paddingHorizontal: 6, marginBottom: 8 },
-  stepBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tile: { flexBasis: '47%', flexGrow: 1, borderWidth: 1, borderRadius: Radius.lg, padding: 14, gap: 4 },
   tileLabel: { fontSize: 12, fontWeight: '600' },

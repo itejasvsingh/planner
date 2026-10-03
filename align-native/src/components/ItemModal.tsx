@@ -6,8 +6,8 @@ import { Calendar, Wallet, Target, X, Plus, Trash2, CheckCircle2, Circle } from 
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems } from '@/lib/use-planner-items';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { formatDateKey, parseDateKey, timeToMinutes } from '@/lib/dates';
+import { DatePick, TimePick } from '@/components/form/QuickPick';
+import { timeToMinutes } from '@/lib/dates';
 import { type PlannerItem, type PlannerSubtask } from '@/lib/planner-item';
 import { resolveCategory } from '@/lib/categories';
 import CategoryPicker from '@/components/CategoryPicker';
@@ -32,8 +32,6 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
   const [activeTab, setActiveTab] = useState<TabType>(defaultType);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
   
   // Form State
   const [title, setTitle] = useState('');
@@ -63,8 +61,6 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
     if (visible) {
       setFormError('');
       setNewSubtask('');
-      setShowDatePicker(false);
-      setShowTimePicker(false);
       if (initialItem) {
         // Edit Mode
         const typeStr = initialItem.type || 'task';
@@ -384,21 +380,25 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
               </>
             )}
 
-            {/* DateTime Section */}
+            {/* Date and reminder: one tap for the usual answers */}
+            <Text style={{ color: theme.textSecondary, fontSize: 13, fontWeight: '600' }}>{activeTab === 'goal' ? 'Target date' : activeTab === 'task' ? 'When' : 'Date'}</Text>
+            <DatePick value={selectedDate} onChange={setSelectedDate} mode={activeTab === 'expense' ? 'past' : 'future'} />
             {activeTab === 'task' && (
-              <View style={[styles.row, { marginTop: 12, alignItems: 'center' }]}>
-                <Text style={{ color: theme.text, fontSize: 16, flex: 1 }}>Remind Me</Text>
-                <Switch value={isTimeEnabled} onValueChange={setIsTimeEnabled} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
-              </View>
+              <>
+                <Text style={{ color: theme.textSecondary, fontSize: 13, fontWeight: '600', marginTop: 4 }}>Remind me</Text>
+                <TimePick
+                  value={isTimeEnabled ? `${String(selectedTime.getHours()).padStart(2, '0')}:${String(selectedTime.getMinutes()).padStart(2, '0')}` : null}
+                  onChange={(t) => {
+                    if (!t) return setIsTimeEnabled(false);
+                    const [h, m] = t.split(':').map(Number);
+                    const next = new Date(selectedTime);
+                    next.setHours(h, m, 0, 0);
+                    setSelectedTime(next);
+                    setIsTimeEnabled(true);
+                  }}
+                />
+              </>
             )}
-            
-            <Text style={{ color: theme.textSecondary, fontSize: 13, fontWeight: '600' }}>{activeTab === 'goal' ? 'Target date' : 'Date'}</Text>
-            {Platform.OS === 'web' ? (
-              <input aria-label="Date" type="date" value={formatDateKey(selectedDate)} onChange={event => { if (event.target.value) setSelectedDate(parseDateKey(event.target.value)); }} style={{ padding: 13, borderRadius: 12, border: `1px solid ${theme.border}`, background: theme.backgroundElement, color: theme.text, font: 'inherit', minHeight: 46, boxSizing: 'border-box', width: '100%' }} />
-            ) : <><Pressable accessibilityRole="button" onPress={() => setShowDatePicker(true)} style={[styles.input, { borderColor: theme.border, backgroundColor: theme.backgroundElement }]}><Text style={{ color: theme.text }}>{selectedDate.toLocaleDateString()}</Text></Pressable>{showDatePicker && <DateTimePicker value={selectedDate} mode="date" onChange={(_, date) => { setShowDatePicker(Platform.OS === 'ios'); if (date) setSelectedDate(date); }} />}</>}
-            {activeTab === 'task' && isTimeEnabled && (Platform.OS === 'web' ?
-              <input aria-label="Reminder time" type="time" value={`${String(selectedTime.getHours()).padStart(2, '0')}:${String(selectedTime.getMinutes()).padStart(2, '0')}`} onChange={event => { if (!event.target.value) return; const [h, m] = event.target.value.split(':').map(Number); const next = new Date(selectedTime); next.setHours(h, m); setSelectedTime(next); }} style={{ padding: 13, borderRadius: 12, border: `1px solid ${theme.border}`, background: theme.backgroundElement, color: theme.text, font: 'inherit', minHeight: 46, boxSizing: 'border-box', width: '100%' }} /> :
-              <><Pressable accessibilityRole="button" onPress={() => setShowTimePicker(true)} style={[styles.input, { borderColor: theme.border, backgroundColor: theme.backgroundElement }]}><Text style={{ color: theme.text }}>{selectedTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text></Pressable>{showTimePicker && <DateTimePicker value={selectedTime} mode="time" onChange={(_, time) => { setShowTimePicker(Platform.OS === 'ios'); if (time) setSelectedTime(time); }} />}</>)}
             {!!formError && <Text accessibilityRole="alert" style={{ color: theme.red, fontSize: 14 }}>{formError}</Text>}
 
             {/* Save Button */}
