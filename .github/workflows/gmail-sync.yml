@@ -19,5 +19,10 @@ jobs:
       - name: Sync connected Gmail accounts
         env:
           GMAIL_SYNC_SECRET: ${{ secrets.GMAIL_SYNC_SECRET }}
+        # The response is only counts ({"users":1,"checked":1}) or an error message, safe for the public log.
         run: |
-          curl -fsS --max-time 90 -X POST -H "x-sync-secret: $GMAIL_SYNC_SECRET" https://alignplanner.vercel.app/api/gmail/sync-all
+          if [ -z "$GMAIL_SYNC_SECRET" ]; then echo "::error::The GMAIL_SYNC_SECRET repository secret is empty or missing"; exit 1; fi
+          code=$(curl -sS --max-time 90 -o body.txt -w '%{http_code}' -X POST -H "x-sync-secret: $GMAIL_SYNC_SECRET" https://alignplanner.vercel.app/api/gmail/sync-all) || true
+          echo "HTTP $code"; head -c 300 body.txt; echo
+          if [ "$code" = "401" ]; then echo "::error::GMAIL_SYNC_SECRET in GitHub doesn't match the one in Vercel"; fi
+          [ "$code" = "200" ]
