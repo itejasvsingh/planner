@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db } from '../../../../lib/firebase';
 import { consumeRateLimit } from '../../../../lib/rateLimit';
 import { parseTransactionSms, guessCategory, type ParsedTransaction } from '../../../../lib/smsParse';
-import { alertWindow } from '../../../../lib/emailAlert';
+import { alertWindow, parseBankEmail } from '../../../../lib/emailAlert';
 import { recordTransaction } from '../../../../lib/recordTransaction';
 
 export const dynamic = 'force-dynamic';
@@ -74,7 +74,7 @@ export async function POST(req: Request) {
   const source: 'sms' | 'email' = body.source === 'email' ? 'email' : 'sms';
   const raw = typeof body.text === 'string' ? body.text.trim().slice(0, 8000) : '';
   // Emails wrap the transaction in greetings and disclaimers; keep just the transaction sentences.
-  const text = source === 'email' ? alertWindow(raw) || '' : raw;
+  const text = source === 'email' ? alertWindow(raw) || raw.slice(0, 1500) : raw;
 
   if (token.length < 20) return NextResponse.json({ status: 'error', message: 'Missing or invalid token' }, { status: 401 });
   if (!raw) return NextResponse.json({ status: 'error', message: 'No message text' }, { status: 400 });
@@ -92,7 +92,7 @@ export async function POST(req: Request) {
   const phone = link.exists ? String(link.data()?.phone || '') : '';
   if (!phone) return NextResponse.json({ status: 'error', message: 'Unknown token. Create a new one in Align Settings.' }, { status: 401 });
 
-  let tx = text ? parseTransactionSms(text) : null;
+  let tx = source === 'email' ? parseBankEmail(raw) : text ? parseTransactionSms(text) : null;
   // Emails never go to the AI fallback (see /privacy); only SMS text does.
   if (!tx && text && source === 'sms' && /(?:rs\.?|inr|₹)\s*[\d,]/i.test(text) && /debit|credit|spent|paid|sent|received/i.test(text)) {
     tx = await parseWithGemini(text);

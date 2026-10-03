@@ -107,7 +107,8 @@ test('sync adds bank alerts once, skips what SMS already recorded, and ignores p
   assert.match(google.queries[0], /^from:\(.*slice\.bank\.in.*\) \{debited .*\} after:\d+ -in:spam -in:trash$/);
   assert.match(google.queries[1], / before:\d+ /, 'then the history');
   assert.ok(Number(google.queries[1].match(/after:(\d+)/)[1]) <= (Date.now() - 89 * DAY) / 1000, 'history goes back ~90 days');
-  assert.deepEqual(google.fetched, ['g3', 'g2', 'g1'], 'recent emails first, then the history newest first');
+  assert.deepEqual([...google.fetched].sort(), ['g1', 'g2', 'g3'], 'each email read once');
+  assert.equal(google.fetched[2], 'g1', 'recent emails first, the oldest last');
 
   const items = (await db.collection('planner_items').where('ownerId', '==', PHONE).get()).docs.map(d => d.data());
   const card = items.find(i => i.amount === 3250);

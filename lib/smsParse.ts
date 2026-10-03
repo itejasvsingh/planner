@@ -54,7 +54,7 @@ function parseAmount(text: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-function cleanMerchant(raw: string): string {
+export function cleanMerchant(raw: string): string {
   let s = raw
     .replace(/@[\w.-]+/g, '') // VPA handle suffix
     .replace(/\b(?:upi|imps|neft|rtgs|pos|ecom|ref|on|via|using|txn|a\/c|ac)\b.*$/i, '')
@@ -114,7 +114,7 @@ function parseRef(text: string): string | null {
   return m ? m[1] : null;
 }
 
-function parseDate(text: string): string | null {
+export function parseDate(text: string): string | null {
   const months: Record<string, number> = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
   const pad = (n: number) => String(n).padStart(2, '0');
   const fullYear = (y: number) => (y < 100 ? 2000 + y : y);
@@ -128,6 +128,15 @@ function parseDate(text: string): string | null {
     const d = +m[1], y = fullYear(+m[3]);
     if (d >= 1 && d <= 31) return `${y}-${pad(months[m[2].toLowerCase()])}-${pad(d)}`;
   }
+  // Month first, as many card emails write it: "Sep 29, 2026", "October 2 2026"
+  m = text.match(/\b([A-Za-z]{3})[a-z]*\.? (\d{1,2})(?:st|nd|rd|th)?,? (\d{4})\b/);
+  if (m && months[m[1].toLowerCase()]) {
+    const d = +m[2];
+    if (d >= 1 && d <= 31) return `${m[3]}-${pad(months[m[1].toLowerCase()])}-${pad(d)}`;
+  }
+  // ISO "2026-10-02"
+  m = text.match(/\b(20\d{2})-(\d{2})-(\d{2})\b/);
+  if (m && +m[2] >= 1 && +m[2] <= 12 && +m[3] >= 1 && +m[3] <= 31) return `${m[1]}-${m[2]}-${m[3]}`;
   return null;
 }
 

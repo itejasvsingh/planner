@@ -1,7 +1,10 @@
+import { cleanMerchant, guessCategory, parseDate, parseTransactionSms, type ParsedTransaction } from './smsParse';
+
 /**
- * Bank alert emails carry the transaction in one or two sentences surrounded by greetings, disclaimers
- * ("never share your OTP") and offers that would make the SMS rules reject the whole message. This picks
- * out the transaction part so it can go through the same parser as an SMS. Pure (no imports) for tests.
+ * Reads bank and card alert emails from any bank. They state the transaction in a sentence ("₹20 debited
+ * from your account…"), in labelled rows ("Amount | ₹20", "To | NAME", "RRN | 6275…"), or both, surrounded
+ * by greetings, disclaimers ("never share your OTP") and offers that would make the SMS rules reject the
+ * whole message. Only imports the SMS parser (tests load both).
  */
 
 const AMOUNT = /(?:rs\.?|inr|₹)\s*[\d,]+(?:\.\d{1,2})?|[\d,]+(?:\.\d{1,2})?\s*(?:rs\.?|inr|₹)|\b(?:debited|credited)\s+(?:by|with|for)\s+[\d,]+(?:\.\d{1,2})?/i;
@@ -32,4 +35,104 @@ export function alertWindow(text: string): string | null {
     picked.push(next);
   }
   return picked.join(' ').slice(0, 500);
+}
+
+// ---------------------------------------------------------------- labelled rows
+
+type Fields = { amount?: number; date?: string; payee?: string; payer?: string; ref?: string };
+
+const ROWS: [keyof Fields, RegExp][] = [
+  ['ref', /^(?:upi\s+)?(?:rrn|utr(?:\s*no\.?)?|ref(?:erence)?(?:\s*(?:no\.?|number|id))?|transaction\s*(?:id|ref(?:erence)?(?:\s*no\.?)?)|txn\s*(?:id|ref(?:\s*no\.?)?))\b\s*[:#-]?\s*(.+)$/i],
+  ['amount', /^(?:transaction\s+|txn\s+|debit(?:ed)?\s+|credit(?:ed)?\s+)?(?:amount|amt)(?:\s*\([^)]*\))?\b\s*[:-]?\s*(.+)$/i],
+  ['date', /^(?:transaction\s+|txn\s+)?date(?:\s*(?:&|and)\s*time)?\b\s*[:-]?\s*(.+)$/i],
+  ['payee', /^(?:to|paid\s+to|payee(?:\s+name)?|beneficiary(?:\s+name)?|merchant(?:\s+name)?|sent\s+to|transferred\s+to|recipient|at|info)\b\s*[:-]?\s*(.+)$/i],
+  ['payer', /^(?:from|received\s+from|sender(?:\s+name)?|remitter(?:\s+name)?|paid\s+by|credited\s+by)\b\s*[:-]?\s*(.+)$/i],
+];
+
+/** Labelled rows anywhere in the email, one per line ("Amount ₹20.00", "To ISTHARA PARKS", "RRN 6275…"). */
+export function alertFields(text: string): Fields {
+  const f: Fields = {};
+  for (const raw of text.split('\n')) {
+    const line = raw.replace(/\s+/g, ' ').trim();
+    if (!line || line.length > 120) continue;
+    for (const [key, re] of ROWS) {
+      if (f[key] !== undefined) continue;
+      const m = line.match(re);
+      if (!m) continue;
+      const value = m[1].trim();
+      if (key === 'amount') {
+        const a = value.match(/(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)/i);
+        const n = a ? parseFloat(a[1].replace(/,/g, '')) : NaN;
+        if (n > 0) f.amount = n;
+      } else if (key === 'date') {
+        const d = parseDate(value);
+        if (d) f.date = d;
+      } else if (key === 'ref') {
+        const r = value.match(/\b([A-Za-z0-9]*\d[A-Za-z0-9]{5,})\b/);
+        if (r) f.ref = r[1];
+      } else if (!/^(?:your|my|the|a\/c|ac\b|account|xx|\*|\d)/i.test(value)) {
+        f[key] = value.slice(0, 60);
+      }
+      break;
+    }
+  }
+  return f;
+}
+
+// Not a completed transaction, even if amounts and "credit" appear (statements, OTPs, reminders, offers).
+const NOT_A_TRANSACTION = /\botp\b|one[- ]time password|statement (?:is|for)|e-?statement|is due|due date|payment reminder|minimum (?:amount )?due|\boffer\b|pre-?approved|\bdeclined\b|\bfailed\b|\bunsuccessful\b/i;
+const DEBIT_VERB = /\b(?:debited|spent|paid|sent|withdrawn|deducted|purchase|used for a? ?transaction|thank you for using)\b/i;
+const CREDIT_VERB = /\b(?:credited|received|deposited|refunded|refund|cashback)\b/i;
+
+/** Money out or in, from whichever verb comes first ("credit card" is not a credit). */
+function direction(text: string): 'expense' | 'income' | null {
+  const t = text.replace(/credit\s*card/gi, 'card');
+  let d = t.search(DEBIT_VERB);
+  let c = t.search(CREDIT_VERB);
+  if (d < 0 && c < 0) {
+    // "A debit transaction has been made…"
+    d = t.search(/\bdebit\b/i);
+    c = t.search(/\bcredit\b/i);
+  }
+  if (d < 0 && c < 0) return null;
+  if (c < 0 || (d >= 0 && d < c)) return 'expense';
+  return 'income';
+}
+
+const GENERIC_NAME = /^(?:card \/ upi payment|money received)$/i;
+
+/**
+ * The transaction in a bank or card alert email, from any bank, or null. The sentence reader runs first; the
+ * labelled rows fill in what it couldn't (payee, reference, date) or stand in when the email has no sentence.
+ */
+export function parseBankEmail(text: string): ParsedTransaction | null {
+  const subject = text.split('\n')[0] || '';
+  const window = alertWindow(text);
+  const fromSentence = window ? parseTransactionSms(window) : null;
+  const fields = alertFields(text);
+
+  let type = fromSentence?.type ?? null;
+  let amount = fromSentence?.amount ?? null;
+  if (!fromSentence) {
+    // Rows only: needs an amount, a direction and something that ties it to a payment.
+    if (NOT_A_TRANSACTION.test(subject) || NOT_A_TRANSACTION.test(text.slice(0, 600))) return null;
+    if (!fields.amount || !(fields.ref || fields.payee || fields.payer)) return null;
+    type = direction(text);
+    amount = fields.amount;
+    if (!type) return null;
+  }
+
+  const named = type === 'expense' ? fields.payee : fields.payer;
+  let merchant = fromSentence?.merchant || '';
+  if ((!merchant || GENERIC_NAME.test(merchant)) && named) merchant = cleanMerchant(named);
+  if (!merchant) merchant = type === 'expense' ? 'Card / UPI payment' : 'Money received';
+
+  return {
+    type: type!,
+    amount: amount!,
+    merchant,
+    category: guessCategory(`${merchant} ${text.slice(0, 1500)}`, type!),
+    ref: fromSentence?.ref || fields.ref || null,
+    date: fromSentence?.date || fields.date || null,
+  };
 }

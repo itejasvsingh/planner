@@ -42,7 +42,9 @@ export type PlannerItem = {
   progressHistory?: { value: number; at: string }[];
   
   /** Set when the item was recorded automatically (e.g. from a bank SMS). */
-  source?: 'sms' | 'email' | string;
+  source?: 'sms' | 'email' | 'gmail' | 'statement' | string;
+  /** Bank reference (UPI RRN / UTR) when known; lets the same payment from SMS, email and statements match. */
+  ref?: string | null;
   autoDetected?: boolean;
 
   createdAt?: any;

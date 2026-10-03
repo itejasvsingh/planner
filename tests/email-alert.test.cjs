@@ -4,15 +4,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const ts = require('typescript');
 
-function load(file) {
+function load(file, deps = {}) {
   const src = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
   const out = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
   const mod = { exports: {} };
-  new Function('module', 'exports', out)(mod, mod.exports);
+  new Function('module', 'exports', 'require', out)(mod, mod.exports, name => deps[name]);
   return mod.exports;
 }
-const { alertWindow } = load('lib/emailAlert.ts');
-const { parseTransactionSms } = load('lib/smsParse.ts');
+const sms = load('lib/smsParse.ts');
+const { alertWindow, parseBankEmail } = load('lib/emailAlert.ts', { './smsParse': sms });
+const { parseTransactionSms } = sms;
 const parse = body => { const w = alertWindow(body); return w ? parseTransactionSms(w) : null; };
 
 // Bodies modelled on real Indian bank alert emails (subject line first, as the Gmail script sends them).
@@ -100,4 +101,50 @@ Best,
 Team slice`;
   const c = parse(credit);
   assert.deepEqual([c.type, c.amount, c.merchant, c.ref, c.date], ['income', 1500, 'Rahul Kumar Sharma', '627512340000', '2026-10-03']);
+});
+
+// Any bank: the general reader (sentence first, labelled rows to fill gaps or stand in).
+const brief = t => t && [t.type, t.amount, t.merchant, t.ref, t.date];
+
+test('table-only alert with a "debit transaction" and labelled rows', () => {
+  const kotakLike = `Transaction alert
+Dear Customer,
+A debit transaction has been made from your account XX5678.
+Amount INR 1,250.00
+Date 30 Sep 2026
+Merchant Name BIGBASKET
+Reference No 427511112222`;
+  assert.deepEqual(brief(parseBankEmail(kotakLike)), ['expense', 1250, 'Bigbasket', '427511112222', '2026-09-30']);
+});
+
+test('UPI credit with "Received from" row and month-first date', () => {
+  const upi = `You received money
+₹2,000 credited to your account.
+Received from PRIYA NAIR
+UPI Ref No 627598765432
+Date & Time Oct 3, 2026 09:15 AM`;
+  assert.deepEqual(brief(parseBankEmail(upi)), ['income', 2000, 'Priya Nair', '627598765432', '2026-10-03']);
+});
+
+test('sentence emails still work and gain the reference from a row', () => {
+  const hdfcCard = `Alert : Update on your HDFC Bank Credit Card
+Dear Card Member,
+Thank you for using your HDFC Bank Credit Card ending 4321 for Rs 1,180.00 at IRCTC on 18-09-2026 14:22:11.
+Transaction ID 82736455112`;
+  const t = parseBankEmail(hdfcCard);
+  assert.deepEqual([t.type, t.amount, t.ref, t.date], ['expense', 1180, '82736455112', '2026-09-18']);
+  assert.match(t.merchant, /irctc/i);
+  const icici = parseBankEmail(`Card alert
+Your ICICI Bank Credit Card XX9876 has been used for a transaction of INR 3,250.00 on Sep 29, 2026 at 11:02:33. Info: AMAZON PAY IN.`);
+  assert.deepEqual([icici.type, icici.amount, icici.date], ['expense', 3250, '2026-09-29']);
+});
+
+test('statements, OTPs, reminders and offers are not transactions, whatever the bank', () => {
+  assert.equal(parseBankEmail(`Your credit card statement for September
+Total Amount Due INR 12,000.00
+Minimum Amount Due INR 600.00
+Payment Due Date 15 Oct 2026`), null);
+  assert.equal(parseBankEmail('OTP for your transaction\n482913 is your OTP for a transaction of Rs 999 at FLIPKART. Do not share it.'), null);
+  assert.equal(parseBankEmail('Exclusive offer\nGet ₹500 cashback credited on your next purchase. Limited period offer.\nAmount ₹500\nReference No OFFER2026X1'), null);
+  assert.equal(parseBankEmail('Payment reminder\nYour EMI of ₹4,500 is due on 5 Oct 2026.\nAmount ₹4,500\nReference No 4271001'), null);
 });

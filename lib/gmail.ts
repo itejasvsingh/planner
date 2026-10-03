@@ -3,8 +3,7 @@ import { db, FieldValue } from './firebase';
 import { open, seal } from './secretBox';
 import { BANK_DOMAINS } from './bankSenders';
 import { bankQuery, messageText, type GmailMessage } from './gmailMessage';
-import { alertWindow } from './emailAlert';
-import { parseTransactionSms } from './smsParse';
+import { parseBankEmail } from './emailAlert';
 import { recordTransaction } from './recordTransaction';
 
 /**
@@ -227,7 +226,7 @@ function explain(message: string) {
 }
 
 /** Bump when alert parsing improves: the next check re-reads the last 90 days once (recording is idempotent). */
-const PARSER_VERSION = 2;
+const PARSER_VERSION = 3;
 
 /**
  * Reads bank alert emails for one user and records their transactions, within Gmail's per-minute quota:
@@ -252,7 +251,8 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
       patch.parserVersion = PARSER_VERSION;
       patch.syncedThrough = link.syncedThrough || runStart;
       // The "new emails" pass covers the last two days before the cursor; history covers the rest.
-      patch.backfillUntil = Number(link.syncedThrough || runStart) - OVERLAP_SEC * 1000;
+      // Same whole second the "new" pass starts from (Gmail: after: is inclusive, before: exclusive).
+      patch.backfillUntil = (Math.floor(Number(link.syncedThrough || runStart) / 1000) - OVERLAP_SEC) * 1000;
       patch.backfillFrom = runStart - BACKFILL_DAYS * DAY_MS;
     }
     t.update(ref, patch);
@@ -281,8 +281,7 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
         const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=full`);
         const at = Number(msg.internalDate || Date.now());
         dates[batch.indexOf(id)] = at;
-        const window = alertWindow(messageText(msg).text);
-        const tx = window ? parseTransactionSms(window) : null;
+        const tx = parseBankEmail(messageText(msg).text);
         if (!tx) return;
         const outcome = await recordTransaction(phone, tx, { source: 'gmail', dedupText: `gmail:${id}`, date: tx.date || istDate(at) });
         if (outcome === 'added') added++;

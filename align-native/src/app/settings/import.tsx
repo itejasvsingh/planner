@@ -157,6 +157,7 @@ export default function ImportStatementScreen() {
           tags: [category],
           splits: [],
           source: 'statement',
+          ref: r.ref,
           autoDetected: true,
         };
       }),
