@@ -401,9 +401,28 @@ export async function bankChoices(phone: string) {
   };
 }
 
+// Bank detection: searches only (5 quota units each, nothing is read), so several can run at once.
+const DETECT_GROUP = 8;
+const DETECT_WIDTH = 6;
+
+/** `fn` over `items`, `width` at a time, results in the same order. */
+async function mapLimit<T, R>(items: T[], width: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(width, items.length) }, worker));
+  return out;
+}
+
 /**
- * Which listed banks have sent this person a transaction email in the last six months: one Gmail search per
- * bank (5 quota units each, nothing is read). Used to pre-tick the bank picker.
+ * Which listed banks have sent this person a transaction email in the last six months, in two parallel
+ * rounds: banks searched in groups of eight first (most groups have no hits and are ruled out at once), then
+ * one search per bank only inside the groups that did. About a dozen searches instead of one per bank.
  */
 export async function detectBanks(phone: string, deadline: number): Promise<string[] | null> {
   const ref = links().doc(phone);
@@ -415,17 +434,30 @@ export async function detectBanks(phone: string, deadline: number): Promise<stri
     return null;
   }
   const after = (Date.now() - DETECT_DAYS * DAY_MS) / 1000;
-  const found: string[] = [];
-  for (const bank of BANKS) {
-    if (Date.now() > deadline) break;
-    try {
-      const page = await gmail<{ messages?: unknown[] }>(token, `/messages?q=${encodeURIComponent(bankQuery(bank.senders, { after }))}&maxResults=1`);
-      if (page.messages?.length) found.push(bank.id);
-    } catch (e) {
-      if (e instanceof GmailThrottled) break;
-      throw e;
-    }
-    await new Promise((res) => setTimeout(res, 150));
+  const any = async (senders: string[]) => {
+    if (Date.now() > deadline) return false;
+    const page = await gmail<{ messages?: unknown[] }>(
+      token,
+      `/messages?q=${encodeURIComponent(bankQuery(senders, { after }))}&maxResults=1&fields=messages(id)`,
+    );
+    return !!page.messages?.length;
+  };
+
+  // "Any other .bank.in bank" matches every .bank.in address (slice's too), so it's never "found".
+  const banks = BANKS.filter((b) => b.id !== 'otherbankin');
+  const groups: (typeof banks)[] = [];
+  for (let i = 0; i < banks.length; i += DETECT_GROUP) groups.push(banks.slice(i, i + DETECT_GROUP));
+
+  let found: string[] = [];
+  try {
+    const groupHit = await mapLimit(groups, DETECT_WIDTH, (g) => any(g.flatMap((b) => b.senders)));
+    const candidates = groups.filter((_, i) => groupHit[i]).flat();
+    const bankHit = await mapLimit(candidates, DETECT_WIDTH, (b) => any(b.senders));
+    found = candidates.filter((_, i) => bankHit[i]).map((b) => b.id);
+  } catch (e) {
+    if (!(e instanceof GmailThrottled)) throw e;
+    // Gmail asked to slow down: keep what was already known rather than nothing.
+    found = Array.isArray(link.detectedBanks) ? link.detectedBanks : [];
   }
   await ref.update({ detectedBanks: found });
   return found;

@@ -48,7 +48,7 @@ global.fetch = async (url, opts = {}) => {
     const before = Number((q.match(/before:(\d+)/) || [])[1] || Infinity);
     const senders = ((q.match(/from:\(([^)]*)\)/) || [])[1] || '').split(' OR ');
     const fromOk = m => senders.some(sd => m.from === sd || m.from.endsWith(`@${sd}`) || m.from.endsWith(`.${sd}`));
-    const hits = mailbox.filter(m => fromOk(m) && Number(m.internalDate) / 1000 > after && Number(m.internalDate) / 1000 < before);
+    const hits = mailbox.filter(m => fromOk(m) && Number(m.internalDate) / 1000 >= after && Number(m.internalDate) / 1000 < before);
     return json({ messages: hits.reverse().map(m => ({ id: m.id })) }); // newest first, like Gmail
   }
   const m = u.match(/\/messages\/(\w+)\?format=full$/);
@@ -227,8 +227,15 @@ test('bank picker: finds the banks in Gmail, reads only the chosen ones, and cat
   const P4 = '919876500013';
   await gmail.finishConnect('code6', new URL(await gmail.startConnect(P4, 'web')).searchParams.get('state'));
 
+  const searchesBefore = google.queries.length;
+  const fetchedBefore = google.fetched.length;
+  const started = Date.now();
   const detected = await gmail.detectBanks(P4, Date.now() + 20000);
-  assert.deepEqual(detected.sort(), ['hdfc', 'icici'], 'one search per bank, nothing read');
+  assert.deepEqual(detected.sort(), ['hdfc', 'icici']);
+  const searches = google.queries.length - searchesBefore;
+  assert.ok(searches <= 13, `grouped first, then per bank only where there was a hit (${searches} searches, not ~30)`);
+  assert.equal(google.fetched.length, fetchedBefore, 'no emails read');
+  assert.ok(Date.now() - started < 3000, 'searches run in parallel');
   const choices = await gmail.bankChoices(P4);
   assert.equal(choices.selected, null, 'nothing chosen yet: every bank is searched');
   assert.ok(choices.banks.some(b => b.id === 'slice'));

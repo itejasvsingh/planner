@@ -34,7 +34,7 @@ global.fetch = async (url, opts = {}) => {
     const after = Number((q.match(/after:(\d+)/) || [])[1] || 0);
     const before = Number((q.match(/before:(\d+)/) || [])[1] || Infinity);
     const senders = ((q.match(/from:\(([^)]*)\)/) || [])[1] || '').split(' OR ');
-    const hits = mailbox.filter(x => senders.some(s => x.from.endsWith(`@${s}`)) && Number(x.internalDate) / 1000 > after && Number(x.internalDate) / 1000 < before);
+    const hits = mailbox.filter(x => senders.some(s => x.from.endsWith(`@${s}`)) && Number(x.internalDate) / 1000 >= after && Number(x.internalDate) / 1000 < before);
     return json({ messages: hits.reverse().map(x => ({ id: x.id })) });
   }
   const mm = u.match(/\/messages\/(\w+)\?format=full$/);
