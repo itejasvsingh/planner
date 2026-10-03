@@ -43,8 +43,9 @@ test('HTML-only bank emails become readable text; attachments are skipped', () =
 });
 
 test('the Gmail search reads only bank senders after the last check', () => {
-  const q = bankQuery(['hdfcbank.net', 'slice.bank.in'], 1790000000.7);
-  assert.equal(q, 'from:(hdfcbank.net OR slice.bank.in) after:1790000000 -in:spam -in:trash');
+  const q = bankQuery(['hdfcbank.net', 'slice.bank.in'], { after: 1790000000.7 });
+  assert.equal(q, 'from:(hdfcbank.net OR slice.bank.in) {debited credited spent debit credit transaction txn withdrawn paid received} after:1790000000 -in:spam -in:trash');
+  assert.match(bankQuery(['x.in'], { after: 1, before: 99.2 }), / after:1 before:100 -in:spam/);
 });
 
 test('server and Gmail-script sender lists match (slice included)', () => {

@@ -42,8 +42,12 @@ global.fetch = async (url, opts = {}) => {
     return json({ error: { code: 403, message: 'Gmail API has not been used in project 817744322906 before or it is disabled.', status: 'PERMISSION_DENIED' } }, 403);
   }
   if (u.startsWith('https://gmail.googleapis.com/gmail/v1/users/me/messages?')) {
-    google.queries.push(new URL(u).searchParams.get('q'));
-    return json({ messages: [...mailbox].reverse().map(m => ({ id: m.id })) }); // newest first, like Gmail
+    const q = new URL(u).searchParams.get('q');
+    google.queries.push(q);
+    const after = Number((q.match(/after:(\d+)/) || [])[1] || 0);
+    const before = Number((q.match(/before:(\d+)/) || [])[1] || Infinity);
+    const hits = mailbox.filter(m => Number(m.internalDate) / 1000 > after && Number(m.internalDate) / 1000 < before);
+    return json({ messages: hits.reverse().map(m => ({ id: m.id })) }); // newest first, like Gmail
   }
   const m = u.match(/\/messages\/(\w+)\?format=full$/);
   if (m && ++google.gets > google.throttleAfter) {
@@ -100,9 +104,10 @@ test('sync adds bank alerts once, skips what SMS already recorded, and ignores p
 
   const first = await gmail.syncGmail(PHONE, Date.now() + 20000);
   assert.deepEqual(first, { status: 'ok', added: 1, checked: 3 });
-  assert.match(google.queries[0], /^from:\(.*slice\.bank\.in.*\) after:\d+ -in:spam -in:trash$/);
-  assert.ok(Number(google.queries[0].match(/after:(\d+)/)[1]) <= (Date.now() - 89 * DAY) / 1000, 'first sync looks back ~90 days');
-  assert.deepEqual(google.fetched, ['g1', 'g2', 'g3'], 'oldest first');
+  assert.match(google.queries[0], /^from:\(.*slice\.bank\.in.*\) \{debited .*\} after:\d+ -in:spam -in:trash$/);
+  assert.match(google.queries[1], / before:\d+ /, 'then the history');
+  assert.ok(Number(google.queries[1].match(/after:(\d+)/)[1]) <= (Date.now() - 89 * DAY) / 1000, 'history goes back ~90 days');
+  assert.deepEqual(google.fetched, ['g3', 'g2', 'g1'], 'recent emails first, then the history newest first');
 
   const items = (await db.collection('planner_items').where('ownerId', '==', PHONE).get()).docs.map(d => d.data());
   const card = items.find(i => i.amount === 3250);
@@ -112,9 +117,12 @@ test('sync adds bank alerts once, skips what SMS already recorded, and ignores p
   assert.equal(items.filter(i => i.amount === 250).length, 1, 'UPI payment not doubled');
   assert.equal(items.length, 2);
 
+  const before = google.queries.length;
   const second = await gmail.syncGmail(PHONE, Date.now() + 20000);
   assert.equal(second.added, 0);
-  assert.ok(Number(google.queries[1].match(/after:(\d+)/)[1]) > (Date.now() - 3 * DAY) / 1000, 'later syncs start near the last one');
+  assert.equal(second.message, undefined, 'history finished in the first check');
+  assert.equal(google.queries.length, before + 1, 'later checks only look for new emails');
+  assert.ok(Number(google.queries[before].match(/after:(\d+)/)[1]) > (Date.now() - 3 * DAY) / 1000, 'later checks start near the last one');
   const status = await gmail.linkStatus(PHONE);
   assert.equal(status.added, 1);
   assert.ok(status.lastSyncAt > Date.now() - 60000);

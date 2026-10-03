@@ -62,11 +62,25 @@ function cleanMerchant(raw: string): string {
     .replace(/\s+/g, ' ')
     .trim();
   s = s.replace(/^(?:mr|mrs|ms)\.?\s+/i, '');
+  s = s.replace(/\s+(?:private limited|pvt\.? ?ltd\.?|limited|ltd\.?)$/i, '');
   if (!s) return '';
+  // ALL-CAPS bank text → "Isthara Parks"
+  if (s === s.toUpperCase()) s = s.toLowerCase();
   return s.length > 40 ? s.slice(0, 40).trim() : s.replace(/\b\w/g, (ch) => ch.toUpperCase());
 }
 
+// Email alerts laid out as a table ("To | ISTHARA PARKS PRIVATE LIMITED", "RRN | 6275…") read as
+// "To ISTHARA PARKS PRIVATE LIMITED RRN 6275…" once flattened: an upper-case name followed by the next label.
+const NEXT_LABEL = String.raw`(?=\s+(?:RRN|UTR|Ref(?:erence)?|UPI|Txn|Transaction|Date|Amount|Account|A\/c|Best|Regards|Thank)\b|\s*$)`;
+const LABELLED_TO = new RegExp(String.raw`\bTo\s*:?\s+([A-Z][A-Z0-9&.'-]*(?:\s+[A-Z0-9&.'-]+){0,6}?)` + NEXT_LABEL);
+const LABELLED_FROM = new RegExp(String.raw`\bFrom\s*:?\s+([A-Z][A-Z0-9&.'-]*(?:\s+[A-Z0-9&.'-]+){0,6}?)` + NEXT_LABEL);
+
 function parseMerchant(text: string, type: 'expense' | 'income'): string {
+  const labelled = text.match(type === 'expense' ? LABELLED_TO : LABELLED_FROM);
+  if (labelled) {
+    const name = cleanMerchant(labelled[1]);
+    if (name && !/^(?:your|a\/c|ac|account|xx)/i.test(name)) return name;
+  }
   const patterns: RegExp[] =
     type === 'expense'
       ? [
@@ -93,6 +107,7 @@ function parseMerchant(text: string, type: 'expense' | 'income'): string {
 function parseRef(text: string): string | null {
   const m =
     text.match(/\b(?:upi\s*)?ref(?:erence)?\.?\s*(?:no\.?|number|id)?\s*(?:is\s*)?[:.\-]?\s*(\d{6,})/i) ||
+    text.match(/\b(?:rrn|utr)\b\s*(?:no\.?|number)?\s*[:.\-]?\s*(\d{6,})/i) ||
     // must contain a digit, so "transaction reference" isn't read as an id
     text.match(/\b(?:txn|transaction)\s*(?:id|no\.?)?\s*[:.\-]?\s*((?=[A-Z0-9]*\d)[A-Z0-9]{8,})/i) ||
     text.match(/\bimps\s*(?:ref)?\s*[:.\-]?\s*(\d{6,})/i);

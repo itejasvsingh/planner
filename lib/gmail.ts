@@ -24,7 +24,7 @@ const OVERLAP_SEC = 2 * 24 * 3600; // re-read the last two days each run; record
 // Google projects created after May 2026 get 6,000 Gmail quota units per user per minute, and reading a
 // message costs 20 (Google also throttles below that in practice). One read about every half second is
 // ~2,400 units a minute; a long backfill continues over the next checks.
-const MAX_MESSAGES_PER_RUN = 60;
+const MAX_MESSAGES_PER_RUN = 80;
 const READ_WIDTH = 1;
 const READ_PAUSE_MS = 450;
 // Checks for one user don't overlap (app open, "Check now" and the 15-minute job share the quota).
@@ -226,10 +226,16 @@ function explain(message: string) {
   return `Could not check Gmail just now (${message.slice(0, 120)}). It will try again shortly.`;
 }
 
+/** Bump when alert parsing improves: the next check re-reads the last 90 days once (recording is idempotent). */
+const PARSER_VERSION = 2;
+
 /**
- * Reads new bank emails for one user and records their transactions. The first run looks back 90 days;
- * later runs start two days before the newest email already read. Oldest first, so a run cut short by the
- * deadline picks up where it stopped.
+ * Reads bank alert emails for one user and records their transactions, within Gmail's per-minute quota:
+ * 1. new emails since the last check (oldest first), every time;
+ * 2. the 90-day history, newest first, so recent transactions appear at once; it continues over the next
+ *    checks until it reaches 90 days back.
+ * Progress only moves past an unbroken run of emails that were read, so a check cut short (deadline or
+ * Gmail asking to slow down) loses nothing.
  */
 export async function syncGmail(phone: string, deadline: number): Promise<SyncResult> {
   const runStart = Date.now();
@@ -240,12 +246,21 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
     if (!snap.exists || !link) return { state: 'not_connected' as const };
     if (link.status !== 'connected') return { state: 'reconnect' as const };
     if (Number(link.syncingSince || 0) > runStart - RUN_LOCK_MS) return { state: 'busy' as const };
-    t.update(ref, { syncingSince: runStart });
-    return { state: 'go' as const, link };
+    const patch: Record<string, unknown> = { syncingSince: runStart };
+    if (link.parserVersion !== PARSER_VERSION) {
+      // First check, or parsing improved: (re)read the last 90 days, newest first.
+      patch.parserVersion = PARSER_VERSION;
+      patch.syncedThrough = link.syncedThrough || runStart;
+      // The "new emails" pass covers the last two days before the cursor; history covers the rest.
+      patch.backfillUntil = Number(link.syncedThrough || runStart) - OVERLAP_SEC * 1000;
+      patch.backfillFrom = runStart - BACKFILL_DAYS * DAY_MS;
+    }
+    t.update(ref, patch);
+    return { state: 'go' as const, link: { ...link, ...patch } };
   });
   if (claim.state === 'not_connected' || claim.state === 'reconnect') return { status: claim.state, added: 0, checked: 0 };
   if (claim.state === 'busy') return { status: 'ok', added: 0, checked: 0, message: 'Already checking Gmail. New transactions will appear in a minute.' };
-  const link = claim.link;
+  const link = claim.link as Record<string, any>;
 
   try {
     const token = await accessToken(open(link.token));
@@ -254,47 +269,77 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
       return { status: 'reconnect', added: 0, checked: 0 };
     }
 
-    const afterSec = link.syncedThrough ? Number(link.syncedThrough) / 1000 - OVERLAP_SEC : (Date.now() - BACKFILL_DAYS * DAY_MS) / 1000;
-    const q = bankQuery(BANK_DOMAINS, afterSec);
-    const ids: string[] = [];
-    let pageToken: string | undefined;
-    do {
-      const page = await gmail<{ messages?: { id: string }[]; nextPageToken?: string }>(
-        token,
-        `/messages?q=${encodeURIComponent(q)}&maxResults=500${pageToken ? `&pageToken=${pageToken}` : ''}`,
-      );
-      ids.push(...(page.messages || []).map((m) => m.id));
-      pageToken = page.nextPageToken;
-    } while (pageToken && ids.length < 2000);
-
-    // Gmail lists newest first; read oldest first.
-    const batch = ids.reverse().slice(0, MAX_MESSAGES_PER_RUN);
+    let budget = MAX_MESSAGES_PER_RUN;
     let added = 0;
-    const dates = new Array<number>(batch.length).fill(0);
-    const { done, throttled } = await pool(batch, READ_WIDTH, deadline, async (id) => {
-      const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=full`);
-      const at = Number(msg.internalDate || Date.now());
-      dates[batch.indexOf(id)] = at;
-      const window = alertWindow(messageText(msg).text);
-      const tx = window ? parseTransactionSms(window) : null;
-      if (!tx) return;
-      const outcome = await recordTransaction(phone, tx, { source: 'gmail', dedupText: `gmail:${id}`, date: tx.date || istDate(at) });
-      if (outcome === 'added') added++;
-    });
+    let checked = 0;
+    let throttled = false;
 
-    // Everything up to this run's start was read, or only up to the newest email of the unbroken run of
-    // emails read from the oldest (the next check continues from there).
-    const finished = ids.length <= MAX_MESSAGES_PER_RUN && done === batch.length;
-    const newest = Math.max(Number(link.syncedThrough || 0), ...dates.slice(0, done));
-    const message = throttled ? 'Gmail asked Align to slow down, so the rest will be added in the next check (within 15 minutes).' : undefined;
+    const read = async (ids: string[]) => {
+      const batch = ids.slice(0, budget);
+      const dates = new Array<number>(batch.length).fill(0);
+      const result = await pool(batch, READ_WIDTH, deadline, async (id) => {
+        const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=full`);
+        const at = Number(msg.internalDate || Date.now());
+        dates[batch.indexOf(id)] = at;
+        const window = alertWindow(messageText(msg).text);
+        const tx = window ? parseTransactionSms(window) : null;
+        if (!tx) return;
+        const outcome = await recordTransaction(phone, tx, { source: 'gmail', dedupText: `gmail:${id}`, date: tx.date || istDate(at) });
+        if (outcome === 'added') added++;
+      });
+      budget -= result.done;
+      checked += result.done;
+      throttled = throttled || result.throttled;
+      return { done: result.done, all: result.done === ids.length, dates: dates.slice(0, result.done) };
+    };
+
+    const list = async (q: string, max: number) => {
+      const ids: string[] = [];
+      let pageToken: string | undefined;
+      do {
+        const page = await gmail<{ messages?: { id: string }[]; nextPageToken?: string }>(
+          token,
+          `/messages?q=${encodeURIComponent(q)}&maxResults=100${pageToken ? `&pageToken=${pageToken}` : ''}`,
+        );
+        ids.push(...(page.messages || []).map((m) => m.id));
+        pageToken = page.nextPageToken;
+      } while (pageToken && ids.length < max);
+      return { ids, complete: !pageToken };
+    };
+
+    const patch: Record<string, unknown> = {};
+
+    // 1. New since the last check, oldest first.
+    const fresh = await list(bankQuery(BANK_DOMAINS, { after: Number(link.syncedThrough) / 1000 - OVERLAP_SEC }), 1000);
+    const forward = await read(fresh.ids.reverse());
+    patch.syncedThrough = forward.all && fresh.complete ? runStart : Math.max(Number(link.syncedThrough), ...forward.dates);
+
+    // 2. History, newest first.
+    let backfillUntil: number | null = link.backfillUntil ? Number(link.backfillUntil) : null;
+    if (backfillUntil && budget > 0 && !throttled && Date.now() < deadline) {
+      const old = await list(bankQuery(BANK_DOMAINS, { after: Number(link.backfillFrom) / 1000, before: backfillUntil / 1000 }), budget);
+      const back = await read(old.ids);
+      if (back.all && old.complete) backfillUntil = null;
+      // Re-reads the oldest email of this run next time (same second), which is harmless.
+      else if (back.dates.length) backfillUntil = Math.min(...back.dates) + 1000;
+    }
+    patch.backfillUntil = backfillUntil;
+
+    const notes: string[] = [];
+    if (throttled) notes.push('Gmail asked Align to slow down; it continues in the next check.');
+    if (backfillUntil) {
+      const upTo = new Date(backfillUntil).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' });
+      notes.push(`Still reading older bank emails (done back to ${upTo}); the rest is added over the next checks.`);
+    }
+    const message = notes.join(' ') || undefined;
     await ref.update({
+      ...patch,
       lastSyncAt: Date.now(),
-      syncedThrough: finished ? runStart : newest || link.syncedThrough || null,
       added: FieldValue.increment(added),
-      lastError: message || null,
+      lastError: throttled ? notes[0] : null,
       syncingSince: null,
     });
-    return { status: 'ok', added, checked: done, ...(message ? { message } : {}) };
+    return { status: 'ok', added, checked, ...(message ? { message } : {}) };
   } catch (e) {
     const message = (e as Error).message;
     console.warn('Gmail sync failed for a user:', message);

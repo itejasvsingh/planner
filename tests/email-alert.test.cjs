@@ -75,3 +75,29 @@ test('emails that are not completed transactions are ignored', () => {
   assert.equal(parse('Get Rs 500 cashback on your next purchase! Limited period offer.'), null);
   assert.equal(parse('Welcome to net banking. Your profile was updated.'), null);
 });
+
+// slice (noreply@slice.bank.in): the details sit in a table, flattened to "To NAME" / "RRN number" lines.
+test('slice bank emails: amount, merchant from the "To" row, RRN and date', () => {
+  const debit = `₹20 debited from your slice bank account
+Hi Tejasv,
+₹20 debited from your slice bank account xx8002 via UPI.
+Transaction date 02-Oct-26
+To ISTHARA PARKS PRIVATE LIMITED
+RRN 627574346774
+Best,
+Team slice
+If you did not make this transaction, call us. Never share your OTP or PIN with anyone.`;
+  const d = parse(debit);
+  assert.deepEqual([d.type, d.amount, d.merchant, d.ref, d.date], ['expense', 20, 'Isthara Parks', '627574346774', '2026-10-02']);
+
+  const credit = `₹1,500 credited to your slice bank account
+Hi Tejasv,
+₹1,500 credited to your slice bank account xx8002 via UPI.
+Transaction date 03-Oct-26
+From RAHUL KUMAR SHARMA
+RRN 627512340000
+Best,
+Team slice`;
+  const c = parse(credit);
+  assert.deepEqual([c.type, c.amount, c.merchant, c.ref, c.date], ['income', 1500, 'Rahul Kumar Sharma', '627512340000', '2026-10-03']);
+});

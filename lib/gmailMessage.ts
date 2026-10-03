@@ -45,7 +45,11 @@ export function messageText(msg: GmailMessage): { subject: string; text: string 
   return { subject, text: `${subject}\n${body}`.slice(0, 8000) };
 }
 
-/** Gmail search for messages from the given sender domains received after `afterSec` (Unix seconds). */
-export function bankQuery(domains: string[], afterSec: number) {
-  return `from:(${domains.join(' OR ')}) after:${Math.floor(afterSec)} -in:spam -in:trash`;
+// Words every transaction alert contains; leaves out offers and newsletters, which would use up the quota.
+const ALERT_WORDS = '{debited credited spent debit credit transaction txn withdrawn paid received}';
+
+/** Gmail search for transaction alerts from the given sender domains in a time window (Unix seconds). */
+export function bankQuery(domains: string[], window: { after: number; before?: number }) {
+  const before = window.before ? ` before:${Math.ceil(window.before)}` : '';
+  return `from:(${domains.join(' OR ')}) ${ALERT_WORDS} after:${Math.floor(window.after)}${before} -in:spam -in:trash`;
 }
