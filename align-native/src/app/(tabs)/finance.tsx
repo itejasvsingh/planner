@@ -44,6 +44,16 @@ function formatDateHeader(dateStr: string) {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: d.getFullYear() !== today.getFullYear() ? 'numeric' : undefined });
 }
 
+/** "13:06" → "1:06 PM" */
+function formatTime(hhmm?: string | null) {
+    const m = /^(\d{2}):(\d{2})$/.exec(hhmm || '');
+    if (!m) return '';
+    const h = Number(m[1]);
+    return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+const SOURCE_LABEL: Record<string, string> = { sms: 'SMS', email: 'Email', gmail: 'Email', statement: 'Statement' };
+
 export default function FinanceScreen() {
     const { phone } = usePhone();
     const theme = useTheme();
@@ -123,7 +133,8 @@ export default function FinanceScreen() {
     // Group transactions by date
     const groupedTransactions = useMemo(() => {
         const groups: Record<string, any[]> = {};
-        const sorted = [...listItems].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+        // Newest first, by date and then time (transactions without a time last within their day)
+        const sorted = [...listItems].sort((a, b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`));
         
         sorted.forEach(item => {
             const date = item.date || 'Unknown';
@@ -394,7 +405,9 @@ export default function FinanceScreen() {
                                                 </View>
                                                 <View style={{ flex: 1 }}>
                                                     <Text style={[Type.body, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>{item.title}</Text>
-                                                    <Text style={[Type.caption, { color: c.textTertiary, marginTop: 2 }]}>{category.name}{item.autoDetected ? ' · Auto from SMS' : ''}</Text>
+                                                    <Text style={[Type.caption, { color: c.textTertiary, marginTop: 2 }]} numberOfLines={1}>
+                                                        {[category.name, formatTime(item.time), item.autoDetected ? SOURCE_LABEL[item.source] || 'Auto' : ''].filter(Boolean).join(' · ')}
+                                                    </Text>
                                                 </View>
                                                 <Text style={[Type.body, { color: isIncome ? c.income : (isTransfer ? c.textSecondary : c.text), fontWeight: '700', fontVariant: ['tabular-nums'] }]}>
                                                     {isTransfer ? '' : (isIncome ? '+' : '−')}{formatMoney(Number(item.amount) || 0)}

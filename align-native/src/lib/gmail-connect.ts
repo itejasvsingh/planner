@@ -26,6 +26,12 @@ export const gmailStatus = () => call<GmailStatus>('/api/gmail/status');
 export const gmailSyncNow = () => call<{ status: string; added: number; checked: number; message?: string }>('/api/gmail/sync', { method: 'POST' });
 export const gmailDisconnect = () => call<{ connected: false }>('/api/gmail/disconnect', { method: 'POST' });
 
+export type BankChoices = { banks: { id: string; name: string }[]; selected: string[] | null; detected: string[] | null; extra: string[] };
+export const gmailBanks = () => call<BankChoices>('/api/gmail/banks');
+export const gmailDetectBanks = () => call<{ detected: string[] }>('/api/gmail/banks/detect', { method: 'POST' });
+export const gmailSaveBanks = (banks: string[], extra: string[]) =>
+  call<{ ok: true; banks: string[]; extra: string[]; rereading: boolean }>('/api/gmail/banks', { method: 'POST', body: JSON.stringify({ banks, extra }) });
+
 /**
  * Opens Google's consent screen. On the web the page navigates away and Google sends it back to
  * /settings/gmail?gmail=…; in the app an auth browser opens and closes on the align:// redirect.

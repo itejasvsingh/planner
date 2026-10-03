@@ -5,7 +5,7 @@ import { db } from '../../../../lib/firebase';
 import { consumeRateLimit } from '../../../../lib/rateLimit';
 import { parseTransactionSms, guessCategory, type ParsedTransaction } from '../../../../lib/smsParse';
 import { alertWindow, parseBankEmail } from '../../../../lib/emailAlert';
-import { recordTransaction } from '../../../../lib/recordTransaction';
+import { istParts, recordTransaction } from '../../../../lib/recordTransaction';
 
 export const dynamic = 'force-dynamic';
 
@@ -52,6 +52,7 @@ SMS: """${text.slice(0, 600)}"""`;
       category: guessCategory(`${merchant} ${text}`, out.type),
       ref: out.ref ? String(out.ref) : null,
       date: /^\d{4}-\d{2}-\d{2}$/.test(out.date || '') ? out.date : null,
+      time: null,
     };
   } catch (e) {
     console.warn('SMS Gemini fallback failed:', (e as Error).message);
@@ -104,7 +105,9 @@ export async function POST(req: Request) {
   }
 
   const date = tx.date || sentDate(body.date) || todayIST();
-  const outcome = await recordTransaction(phone, tx, { source, dedupText: text, date });
+  // When the SMS/email arrived (the app sends it for older SMS), used if the text has no time
+  const arrivedMs = typeof body.date === 'string' && sentDate(body.date) ? new Date(body.date).getTime() : Date.now();
+  const outcome = await recordTransaction(phone, tx, { source, dedupText: text, date, time: istParts(arrivedMs).time });
   const created = outcome === 'added';
 
   const label = `₹${tx.amount.toLocaleString('en-IN')} ${tx.type === 'expense' ? 'to' : 'from'} ${tx.merchant}`;

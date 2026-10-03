@@ -12,6 +12,8 @@ export type ParsedTransaction = {
   ref: string | null;
   /** YYYY-MM-DD if the message carries a date, else null (caller uses "today"). */
   date: string | null;
+  /** HH:MM (24-hour) if the message carries a time, else null (caller uses when it arrived). */
+  time: string | null;
 };
 
 const AMOUNT = /(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d{1,2})?)/i;
@@ -140,6 +142,22 @@ export function parseDate(text: string): string | null {
   return null;
 }
 
+/** "14:22:11", "9:15 AM", "09.15 pm" → "14:22" / "09:15" / "21:15". */
+export function parseTime(text: string): string | null {
+  const m = String(text || '').match(/\b([01]?\d|2[0-3])[:.]([0-5]\d)(?::[0-5]\d)?\s*(am|pm|a\.m\.|p\.m\.)?(?![\d.])/i);
+  if (!m) return null;
+  let h = +m[1];
+  const mer = m[3]?.toLowerCase().replace(/\./g, '');
+  if (mer) {
+    if (h < 1 || h > 12) return null;
+    if (mer === 'pm' && h < 12) h += 12;
+    if (mer === 'am' && h === 12) h = 0;
+  } else if (!/:/.test(m[0])) {
+    return null; // "09.15" without am/pm is more likely an amount than a time
+  }
+  return `${String(h).padStart(2, '0')}:${m[2]}`;
+}
+
 export function guessCategory(text: string, type: 'expense' | 'income'): string {
   if (type === 'income') {
     if (/salary|payroll/i.test(text)) return 'Salary';
@@ -173,5 +191,6 @@ export function parseTransactionSms(text: string): ParsedTransaction | null {
     category: guessCategory(`${merchant} ${t}`, type),
     ref: parseRef(t),
     date: parseDate(t),
+    time: parseTime(t),
   };
 }

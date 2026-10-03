@@ -1,4 +1,4 @@
-import { cleanMerchant, guessCategory, parseDate, parseTransactionSms, type ParsedTransaction } from './smsParse';
+import { cleanMerchant, guessCategory, parseDate, parseTime, parseTransactionSms, type ParsedTransaction } from './smsParse';
 
 /**
  * Reads bank and card alert emails from any bank. They state the transaction in a sentence ("₹20 debited
@@ -39,12 +39,13 @@ export function alertWindow(text: string): string | null {
 
 // ---------------------------------------------------------------- labelled rows
 
-type Fields = { amount?: number; date?: string; payee?: string; payer?: string; ref?: string };
+type Fields = { amount?: number; date?: string; time?: string; payee?: string; payer?: string; ref?: string };
 
 const ROWS: [keyof Fields, RegExp][] = [
   ['ref', /^(?:upi\s+)?(?:rrn|utr(?:\s*no\.?)?|ref(?:erence)?(?:\s*(?:no\.?|number|id))?|transaction\s*(?:id|ref(?:erence)?(?:\s*no\.?)?)|txn\s*(?:id|ref(?:\s*no\.?)?))\b\s*[:#-]?\s*(.+)$/i],
   ['amount', /^(?:transaction\s+|txn\s+|debit(?:ed)?\s+|credit(?:ed)?\s+)?(?:amount|amt)(?:\s*\([^)]*\))?\b\s*[:-]?\s*(.+)$/i],
   ['date', /^(?:transaction\s+|txn\s+)?date(?:\s*(?:&|and)\s*time)?\b\s*[:-]?\s*(.+)$/i],
+  ['time', /^(?:transaction\s+|txn\s+)?time\b\s*[:-]?\s*(.+)$/i],
   ['payee', /^(?:to|paid\s+to|payee(?:\s+name)?|beneficiary(?:\s+name)?|merchant(?:\s+name)?|sent\s+to|transferred\s+to|recipient|at|info)\b\s*[:-]?\s*(.+)$/i],
   ['payer', /^(?:from|received\s+from|sender(?:\s+name)?|remitter(?:\s+name)?|paid\s+by|credited\s+by)\b\s*[:-]?\s*(.+)$/i],
 ];
@@ -67,6 +68,11 @@ export function alertFields(text: string): Fields {
       } else if (key === 'date') {
         const d = parseDate(value);
         if (d) f.date = d;
+        const t = parseTime(value);
+        if (t && !f.time) f.time = t;
+      } else if (key === 'time') {
+        const t = parseTime(value);
+        if (t) f.time = t;
       } else if (key === 'ref') {
         const r = value.match(/\b([A-Za-z0-9]*\d[A-Za-z0-9]{5,})\b/);
         if (r) f.ref = r[1];
@@ -134,5 +140,6 @@ export function parseBankEmail(text: string): ParsedTransaction | null {
     category: guessCategory(`${merchant} ${text.slice(0, 1500)}`, type!),
     ref: fromSentence?.ref || fields.ref || null,
     date: fromSentence?.date || fields.date || null,
+    time: fromSentence?.time || fields.time || null,
   };
 }

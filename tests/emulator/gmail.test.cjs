@@ -17,9 +17,9 @@ const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
 const google = { scope: `openid email ${GMAIL_SCOPE}`, revoked: [], refreshFails: false, apiDisabled: false, throttleAfter: Infinity, gets: 0, queries: [], fetched: [] };
 const mailbox = [
-  { id: 'g1', internalDate: String(Date.now() - 3 * DAY), payload: { mimeType: 'text/plain', headers: [{ name: 'Subject', value: 'UPI txn' }], body: { data: b64('Dear Customer, Rs.250.00 has been debited from account **1234 to VPA zomato@hdfcbank ZOMATO on 01-10-26. Your UPI transaction reference number is 427512345678. Never share your OTP.') } } },
-  { id: 'g2', internalDate: String(Date.now() - 2 * DAY), payload: { mimeType: 'text/html', headers: [{ name: 'Subject', value: 'Card alert' }], body: { data: b64('<p>Dear Customer,</p><p>Your ICICI Bank Credit Card XX9876 has been used for a transaction of INR 3,250.00 on Sep 29, 2026 at 11:02:33. Info: AMAZON PAY IN.</p>') } } },
-  { id: 'g3', internalDate: String(Date.now() - 1 * DAY), payload: { mimeType: 'text/plain', headers: [{ name: 'Subject', value: 'Offer' }], body: { data: b64('Get Rs 500 cashback on your next purchase! Limited period offer.') } } },
+  { id: 'g1', from: 'alerts@hdfcbank.net', internalDate: String(Date.now() - 3 * DAY), payload: { mimeType: 'text/plain', headers: [{ name: 'Subject', value: 'UPI txn' }], body: { data: b64('Dear Customer, Rs.250.00 has been debited from account **1234 to VPA zomato@hdfcbank ZOMATO on 01-10-26. Your UPI transaction reference number is 427512345678. Never share your OTP.') } } },
+  { id: 'g2', from: 'credit_cards@icicibank.com', internalDate: String(Date.now() - 2 * DAY), payload: { mimeType: 'text/html', headers: [{ name: 'Subject', value: 'Card alert' }], body: { data: b64('<p>Dear Customer,</p><p>Your ICICI Bank Credit Card XX9876 has been used for a transaction of INR 3,250.00 on Sep 29, 2026 at 11:02:33. Info: AMAZON PAY IN.</p>') } } },
+  { id: 'g3', from: 'offers@hdfcbank.net', internalDate: String(Date.now() - 1 * DAY), payload: { mimeType: 'text/plain', headers: [{ name: 'Subject', value: 'Offer' }], body: { data: b64('Get Rs 500 cashback on your next purchase! Limited period offer.') } } },
 ];
 
 const realFetch = global.fetch;
@@ -46,7 +46,9 @@ global.fetch = async (url, opts = {}) => {
     google.queries.push(q);
     const after = Number((q.match(/after:(\d+)/) || [])[1] || 0);
     const before = Number((q.match(/before:(\d+)/) || [])[1] || Infinity);
-    const hits = mailbox.filter(m => Number(m.internalDate) / 1000 > after && Number(m.internalDate) / 1000 < before);
+    const senders = ((q.match(/from:\(([^)]*)\)/) || [])[1] || '').split(' OR ');
+    const fromOk = m => senders.some(sd => m.from === sd || m.from.endsWith(`@${sd}`) || m.from.endsWith(`.${sd}`));
+    const hits = mailbox.filter(m => fromOk(m) && Number(m.internalDate) / 1000 > after && Number(m.internalDate) / 1000 < before);
     return json({ messages: hits.reverse().map(m => ({ id: m.id })) }); // newest first, like Gmail
   }
   const m = u.match(/\/messages\/(\w+)\?format=full$/);
@@ -113,6 +115,7 @@ test('sync adds bank alerts once, skips what SMS already recorded, and ignores p
   const items = (await db.collection('planner_items').where('ownerId', '==', PHONE).get()).docs.map(d => d.data());
   const card = items.find(i => i.amount === 3250);
   assert.equal(card.source, 'gmail');
+  assert.equal(card.time, '11:02', 'time from the alert text');
   assert.equal(card.type, 'expense');
   assert.equal(card.category, 'Shopping');
   assert.equal(items.filter(i => i.amount === 250).length, 1, 'UPI payment not doubled');
@@ -197,6 +200,10 @@ test('when Gmail says slow down, what was read is kept and the next check contin
   assert.equal(second.message, undefined);
   const total = (await db.collection('planner_items').where('ownerId', '==', P2).get()).size;
   assert.equal(total, 2, 'UPI alert + card alert, each once');
+  const upi = (await db.collection('planner_items').where('ownerId', '==', P2).where('amount', '==', 250).get()).docs[0].data();
+  const arrived = new Date(Number(mailbox[0].internalDate) + 5.5 * 3600 * 1000).toISOString().slice(11, 16);
+  assert.equal(upi.time, arrived, 'no time in the alert: when the email arrived (India time)');
+  assert.equal(upi.ref, '427512345678', 'reference stored for matching');
   assert.ok(total > afterFirst);
   assert.equal((await gmail.linkStatus(P2)).lastError, null);
 });
@@ -211,4 +218,33 @@ test('two checks for the same person never run at once (they share Gmail\'s per-
   assert.equal(google.gets, 3, 'each email read once');
   const after = await gmail.syncGmail(P3, Date.now() + 10000);
   assert.doesNotMatch(after.message || '', /Already checking/, 'the lock is released when a check ends');
+});
+
+test('bank picker: finds the banks in Gmail, reads only the chosen ones, and catches up when one is added', async () => {
+  const P4 = '919876500013';
+  await gmail.finishConnect('code6', new URL(await gmail.startConnect(P4, 'web')).searchParams.get('state'));
+
+  const detected = await gmail.detectBanks(P4, Date.now() + 20000);
+  assert.deepEqual(detected.sort(), ['hdfc', 'icici'], 'one search per bank, nothing read');
+  const choices = await gmail.bankChoices(P4);
+  assert.equal(choices.selected, null, 'nothing chosen yet: every bank is searched');
+  assert.ok(choices.banks.some(b => b.id === 'slice'));
+
+  const saved = await gmail.saveBankChoices(P4, ['hdfc', 'not-a-bank'], ['alerts@mynewbank.in', 'not an email']);
+  assert.deepEqual([saved.banks, saved.extra], [['hdfc'], ['alerts@mynewbank.in']]);
+  google.fetched = [];
+  await gmail.syncGmail(P4, Date.now() + 20000);
+  assert.ok(!google.fetched.includes('g2'), 'the ICICI email is not read: ICICI was not chosen');
+  const q = google.queries[google.queries.length - 1];
+  assert.match(q, /hdfcbank\.net/);
+  assert.match(q, /mynewbank\.in/);
+  assert.doesNotMatch(q, /icicibank/);
+  let items = (await db.collection('planner_items').where('ownerId', '==', P4).get()).docs.map(d => d.data());
+  assert.deepEqual(items.map(i => i.amount), [250]);
+
+  const more = await gmail.saveBankChoices(P4, ['hdfc', 'icici'], ['alerts@mynewbank.in']);
+  assert.equal(more.rereading, true, 'adding a bank re-reads the history');
+  await gmail.syncGmail(P4, Date.now() + 20000);
+  items = (await db.collection('planner_items').where('ownerId', '==', P4).get()).docs.map(d => d.data());
+  assert.deepEqual(items.map(i => i.amount).sort((a, b) => a - b), [250, 3250], 'the ICICI card spend now, nothing doubled');
 });

@@ -1,10 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { db, FieldValue } from './firebase';
 import { open, seal } from './secretBox';
-import { BANK_DOMAINS } from './bankSenders';
+import { BANKS, normalizeSender, sendersFor } from './bankSenders';
 import { bankQuery, messageText, type GmailMessage } from './gmailMessage';
 import { parseBankEmail } from './emailAlert';
-import { recordTransaction } from './recordTransaction';
+import { istParts, recordTransaction } from './recordTransaction';
 
 /**
  * Connected Gmail (read-only). The user grants access once; Align keeps the refresh token encrypted in
@@ -48,11 +48,6 @@ function oauthClient() {
     throw new GmailConfigError('GOOGLE_OAUTH_CLIENT_ID in Vercel doesn’t look like a Google client ID (it should end in .apps.googleusercontent.com).');
   }
   return { id, secret };
-}
-
-function istDate(ms: number) {
-  const d = new Date(ms + 5.5 * 3600 * 1000);
-  return d.toISOString().slice(0, 10);
 }
 
 /** Google's consent page for this user; `state` ties the answer back to their number. */
@@ -283,7 +278,8 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
         dates[batch.indexOf(id)] = at;
         const tx = parseBankEmail(messageText(msg).text);
         if (!tx) return;
-        const outcome = await recordTransaction(phone, tx, { source: 'gmail', dedupText: `gmail:${id}`, date: tx.date || istDate(at) });
+        const arrived = istParts(at);
+        const outcome = await recordTransaction(phone, tx, { source: 'gmail', dedupText: `gmail:${id}`, date: tx.date || arrived.date, time: arrived.time });
         if (outcome === 'added') added++;
       });
       budget -= result.done;
@@ -307,16 +303,18 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
     };
 
     const patch: Record<string, unknown> = {};
+    // Only the banks and cards this person chose (all of them until they choose)
+    const senders = sendersFor(link.banks, link.extraSenders);
 
     // 1. New since the last check, oldest first.
-    const fresh = await list(bankQuery(BANK_DOMAINS, { after: Number(link.syncedThrough) / 1000 - OVERLAP_SEC }), 1000);
+    const fresh = await list(bankQuery(senders, { after: Number(link.syncedThrough) / 1000 - OVERLAP_SEC }), 1000);
     const forward = await read(fresh.ids.reverse());
     patch.syncedThrough = forward.all && fresh.complete ? runStart : Math.max(Number(link.syncedThrough), ...forward.dates);
 
     // 2. History, newest first.
     let backfillUntil: number | null = link.backfillUntil ? Number(link.backfillUntil) : null;
     if (backfillUntil && budget > 0 && !throttled && Date.now() < deadline) {
-      const old = await list(bankQuery(BANK_DOMAINS, { after: Number(link.backfillFrom) / 1000, before: backfillUntil / 1000 }), budget);
+      const old = await list(bankQuery(senders, { after: Number(link.backfillFrom) / 1000, before: backfillUntil / 1000 }), budget);
       const back = await read(old.ids);
       if (back.all && old.complete) backfillUntil = null;
       // Re-reads the oldest email of this run next time (same second), which is harmless.
@@ -346,6 +344,75 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
     await ref.update({ lastSyncAt: Date.now(), lastError: explained, syncingSince: null }).catch(() => {});
     return { status: 'error', added: 0, checked: 0, message: explained };
   }
+}
+
+// ---------------------------------------------------------------- which banks to read
+
+const DETECT_DAYS = 180;
+const MAX_EXTRA_SENDERS = 10;
+
+export async function bankChoices(phone: string) {
+  const d = (await links().doc(phone).get()).data();
+  return {
+    banks: BANKS.map(({ id, name }) => ({ id, name })),
+    selected: Array.isArray(d?.banks) ? (d!.banks as string[]) : null,
+    detected: Array.isArray(d?.detectedBanks) ? (d!.detectedBanks as string[]) : null,
+    extra: Array.isArray(d?.extraSenders) ? (d!.extraSenders as string[]) : [],
+  };
+}
+
+/**
+ * Which listed banks have sent this person a transaction email in the last six months: one Gmail search per
+ * bank (5 quota units each, nothing is read). Used to pre-tick the bank picker.
+ */
+export async function detectBanks(phone: string, deadline: number): Promise<string[] | null> {
+  const ref = links().doc(phone);
+  const link = (await ref.get()).data();
+  if (!link || link.status !== 'connected') return null;
+  const token = await accessToken(open(link.token));
+  if (token === 'revoked') {
+    await ref.update({ status: 'reconnect', lastError: 'Gmail access was removed. Connect Gmail again.' });
+    return null;
+  }
+  const after = (Date.now() - DETECT_DAYS * DAY_MS) / 1000;
+  const found: string[] = [];
+  for (const bank of BANKS) {
+    if (Date.now() > deadline) break;
+    try {
+      const page = await gmail<{ messages?: unknown[] }>(token, `/messages?q=${encodeURIComponent(bankQuery(bank.senders, { after }))}&maxResults=1`);
+      if (page.messages?.length) found.push(bank.id);
+    } catch (e) {
+      if (e instanceof GmailThrottled) break;
+      throw e;
+    }
+    await new Promise((res) => setTimeout(res, 150));
+  }
+  await ref.update({ detectedBanks: found });
+  return found;
+}
+
+/**
+ * Saves the banks/cards to read and any extra sender addresses. Adding a bank (or an address) after the
+ * history was read re-reads the last 90 days once so its older emails are included; dedupe keeps that safe.
+ */
+export async function saveBankChoices(phone: string, banks: unknown, extra: unknown) {
+  const ids = Array.isArray(banks) ? [...new Set(banks.map(String).filter((id) => BANKS.some((b) => b.id === id)))] : [];
+  const senders = Array.isArray(extra) ? [...new Set(extra.map((x) => normalizeSender(String(x))).filter((x): x is string => !!x))].slice(0, MAX_EXTRA_SENDERS) : [];
+  const ref = links().doc(phone);
+  return db.runTransaction(async (t) => {
+    const snap = await t.get(ref);
+    const link = snap.data();
+    if (!snap.exists || !link) return { ok: false as const };
+    const before = new Set(sendersFor(link.banks, link.extraSenders));
+    const added = sendersFor(ids, senders).some((s) => !before.has(s));
+    const patch: Record<string, unknown> = { banks: ids, extraSenders: senders };
+    if (added && link.syncedThrough) {
+      patch.backfillFrom = Date.now() - BACKFILL_DAYS * DAY_MS;
+      patch.backfillUntil = (Math.floor(Number(link.syncedThrough) / 1000) - OVERLAP_SEC) * 1000;
+    }
+    t.update(ref, patch);
+    return { ok: true as const, banks: ids, extra: senders, rereading: added };
+  });
 }
 
 /** Every connected user, least recently checked first, within the time budget. */

@@ -4,17 +4,18 @@
  * (tests/gmail-script.test.cjs).
  */
 
-/** Senders the script reads. Users can add their bank's domain at the top of the script. */
+/** Senders the script reads (every bank Align knows; mirrors lib/bankSenders.ts). Users can add theirs at the top of the script. */
 export const BANK_DOMAINS = [
-  'hdfcbank.net', 'hdfcbank.com', 'icicibank.com', 'axisbank.com', 'sbi.co.in', 'sbicard.com', 'kotak.com',
-  'yesbank.in', 'idfcfirstbank.com', 'indusind.com', 'aubank.in', 'federalbank.co.in', 'bankofbaroda.co.in',
-  'bobcard.co.in', 'pnb.co.in', 'canarabank.com', 'unionbankofindia.co.in', 'rblbank.com', 'sc.com',
-  'hsbc.co.in', 'americanexpress.com', 'getonecard.app', 'idbibank.co.in', 'bandhanbank.com', 'iob.in',
-  'indianbank.in', 'dbs.com', 'citi.com',
-  // slice (card and savings account)
-  'sliceit.com', 'slice.bank.in',
-  // RBI moved Indian banks to .bank.in addresses; Gmail's from:bank.in matches any of them
-  'bank.in',
+  'slice.bank.in', 'sliceit.com', 'hdfcbank.net', 'hdfcbank.com', 'hdfcbank.bank.in', 'hdfc.bank.in',
+  'icicibank.com', 'icicibank.bank.in', 'icici.bank.in', 'sbi.co.in', 'sbi.bank.in', 'sbicard.com',
+  'axisbank.com', 'axisbank.bank.in', 'axis.bank.in', 'kotak.com', 'kotak.bank.in', 'yesbank.in',
+  'yesbank.bank.in', 'idfcfirstbank.com', 'idfcfirst.bank.in', 'indusind.com', 'indusind.bank.in',
+  'aubank.in', 'au.bank.in', 'federalbank.co.in', 'federalbank.bank.in', 'bankofbaroda.co.in',
+  'bobcard.co.in', 'bankofbaroda.bank.in', 'pnb.co.in', 'pnb.bank.in', 'canarabank.com',
+  'canarabank.bank.in', 'unionbankofindia.co.in', 'unionbankofindia.bank.in', 'bankofindia.co.in',
+  'bankofindia.bank.in', 'idbibank.co.in', 'idbi.bank.in', 'rblbank.com', 'rbl.bank.in', 'bandhanbank.com',
+  'bandhan.bank.in', 'iob.in', 'iob.bank.in', 'indianbank.in', 'indianbank.bank.in', 'sc.com', 'hsbc.co.in',
+  'citi.com', 'dbs.com', 'americanexpress.com', 'getonecard.app', 'jupiter.money', 'fi.money', 'bank.in',
 ];
 
 export function gmailScript(link: string) {

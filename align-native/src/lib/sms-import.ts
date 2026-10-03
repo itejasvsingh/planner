@@ -74,7 +74,8 @@ export async function enableAndroidAutoImport(phone: string, days = 30): Promise
       const r = await fetch(smsEndpoint(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, text: m.text }),
+        // the SMS's own time, so older messages get their real date and time
+        body: JSON.stringify({ token, text: m.text, date: m.date ? new Date(m.date).toISOString() : undefined }),
       });
       const data = await r.json().catch(() => ({}));
       if (data.status === 'added') imported++;

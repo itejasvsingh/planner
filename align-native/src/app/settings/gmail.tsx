@@ -6,7 +6,8 @@ import { AlertTriangle, Check, Mail, RefreshCw } from 'lucide-react-native';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius } from '@/constants/theme';
 import { triggerHaptic } from '@/lib/haptics';
-import { connectGmail, gmailDisconnect, gmailStatus, gmailSyncNow, type GmailStatus } from '@/lib/gmail-connect';
+import { connectGmail, gmailBanks, gmailDisconnect, gmailStatus, gmailSyncNow, type GmailStatus } from '@/lib/gmail-connect';
+import BankPicker from '@/components/BankPicker';
 
 type Theme = ReturnType<typeof useTheme>;
 const PRIVACY_URL = 'https://alignplanner.vercel.app/privacy';
@@ -65,6 +66,18 @@ export default function GmailScreen() {
   const [busy, setBusy] = useState<'connect' | 'sync' | 'disconnect' | null>(null);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [confirmOff, setConfirmOff] = useState(false);
+  // Bank picker: opens with detection right after connecting, or from "Change"
+  const [picking, setPicking] = useState<null | 'after-connect' | 'change'>(null);
+  const [bankSummary, setBankSummary] = useState<string | null>(null);
+
+  const loadBanks = useCallback(async () => {
+    try {
+      const d = await gmailBanks();
+      const names = d.banks.filter((b) => d.selected?.includes(b.id)).map((b) => b.name);
+      const all = [...names, ...d.extra];
+      setBankSummary(d.selected === null ? 'All banks (not chosen yet)' : all.length ? all.join(', ') : 'None chosen');
+    } catch { /* shown when the picker opens */ }
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -94,14 +107,32 @@ export default function GmailScreen() {
   }, [load]);
 
   const afterConnect = useCallback((outcome: string) => {
-    setNote(OUTCOME[outcome] || OUTCOME.failed);
     if (outcome === 'connected') {
       triggerHaptic('success');
-      void syncNow(true);
+      setNote({ ok: true, text: 'Gmail connected. Choose the banks and cards to read; Align has looked for the ones that email you.' });
+      setPicking('after-connect');
+      void load();
     } else {
+      setNote(OUTCOME[outcome] || OUTCOME.failed);
       void load();
     }
-  }, [load, syncNow]);
+  }, [load]);
+
+  const banksSaved = useCallback((rereading: boolean) => {
+    const first = picking === 'after-connect';
+    setPicking(null);
+    void loadBanks();
+    if (first || rereading) {
+      setNote({ ok: true, text: first ? 'Saved. Reading your bank emails from the last 90 days, newest first…' : 'Saved. Reading the new bank’s emails from the last 90 days…' });
+      void syncNow(true);
+    } else {
+      setNote({ ok: true, text: 'Saved.' });
+    }
+  }, [picking, loadBanks, syncNow]);
+
+  useEffect(() => {
+    if (status?.connected) void loadBanks();
+  }, [status?.connected, loadBanks]);
 
   useEffect(() => {
     void load();
@@ -183,6 +214,18 @@ export default function GmailScreen() {
             <Text style={[styles.label, { color: c.textSecondary }]}>Added from Gmail</Text>
             <Text style={[styles.value, { color: c.text }]}>{connected.added} transaction{connected.added === 1 ? '' : 's'}</Text>
           </View>
+          {picking ? (
+            <View style={[styles.pickerBox, { borderColor: c.border }]}>
+              <BankPicker autoDetect={picking === 'after-connect'} onSaved={banksSaved} />
+            </View>
+          ) : (
+            <View style={styles.row}>
+              <Text style={[styles.label, { color: c.textSecondary }]}>Banks and cards</Text>
+              <Pressable accessibilityRole="button" accessibilityLabel="Change banks and cards" onPress={() => setPicking('change')} style={{ flexShrink: 1 }}>
+                <Text style={[styles.value, { color: c.accent }]} numberOfLines={2}>{bankSummary ?? '…'} · Change</Text>
+              </Pressable>
+            </View>
+          )}
           {connected.lastError && connected.status === 'connected' ? (
             <Text style={{ color: c.textTertiary, fontSize: 13 }}>{connected.lastError}</Text>
           ) : null}
@@ -251,4 +294,5 @@ const styles = StyleSheet.create({
   btn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: Radius.md },
   btnText: { fontSize: 15, fontWeight: '700' },
   link: { alignItems: 'center', paddingVertical: 10 },
+  pickerBox: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12 },
 });

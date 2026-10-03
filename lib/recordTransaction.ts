@@ -8,6 +8,12 @@ const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 // Sources that add transactions automatically; one payment often reaches several of them.
 const AUTOMATIC = ['sms', 'email', 'gmail', 'statement'];
 
+/** Date (YYYY-MM-DD) and time (HH:MM) in India for a moment. */
+export function istParts(ms: number) {
+  const iso = new Date(ms + 5.5 * 3600 * 1000).toISOString();
+  return { date: iso.slice(0, 10), time: iso.slice(11, 16) };
+}
+
 function shiftDate(date: string, days: number) {
   const d = new Date(`${date}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
@@ -44,7 +50,8 @@ async function recordedElsewhere(phone: string, tx: ParsedTransaction, date: str
 export async function recordTransaction(
   phone: string,
   tx: ParsedTransaction,
-  opts: { source: Channel; dedupText: string; date: string },
+  /** `time`: when the message arrived (HH:MM, India), used if the text has no time. */
+  opts: { source: Channel; dedupText: string; date: string; time?: string | null },
 ): Promise<'added' | 'duplicate'> {
   const dedupKey = tx.ref ? `ref_${tx.ref}` : `txt_${sha256(opts.dedupText.replace(/\s+/g, ' ').toLowerCase()).slice(0, 24)}`;
   const ref = db.collection('planner_items').doc(`auto_${sha256(`${phone}_${dedupKey}`).slice(0, 28)}`);
@@ -60,6 +67,7 @@ export async function recordTransaction(
       amount: tx.amount,
       date: opts.date,
       dueDate: opts.date,
+      time: tx.time || opts.time || null,
       category: tx.category,
       tags: [tx.category],
       splits: [],

@@ -148,3 +148,26 @@ Payment Due Date 15 Oct 2026`), null);
   assert.equal(parseBankEmail('Exclusive offer\nGet ₹500 cashback credited on your next purchase. Limited period offer.\nAmount ₹500\nReference No OFFER2026X1'), null);
   assert.equal(parseBankEmail('Payment reminder\nYour EMI of ₹4,500 is due on 5 Oct 2026.\nAmount ₹4,500\nReference No 4271001'), null);
 });
+
+test('transaction time: from the alert when it has one', () => {
+  const { parseTime } = sms;
+  assert.equal(parseTime('on 18-09-2026 14:22:11.'), '14:22');
+  assert.equal(parseTime('Oct 3, 2026 09:15 AM'), '09:15');
+  assert.equal(parseTime('at 1:06 pm'), '13:06');
+  assert.equal(parseTime('12:30 AM'), '00:30');
+  assert.equal(parseTime('30.09.2026'), null, 'a dotted date is not a time');
+  assert.equal(parseTime('Rs 09.15 debited'), null, 'nor is an amount');
+  assert.equal(parseTime('no time here'), null);
+
+  const card = parseBankEmail(`Card alert
+Thank you for using your HDFC Bank Credit Card ending 4321 for Rs 1,180.00 at IRCTC on 18-09-2026 14:22:11.`);
+  assert.equal(card.time, '14:22');
+  const upi = parseBankEmail(`You received money
+₹2,000 credited to your account.
+Received from PRIYA NAIR
+UPI Ref No 627598765432
+Date & Time Oct 3, 2026 09:15 AM`);
+  assert.equal(upi.time, '09:15');
+  const slice = parseBankEmail('₹20 debited from your slice bank account xx8002 via UPI.\nTransaction date 02-Oct-26\nTo ISTHARA PARKS PRIVATE LIMITED\nRRN 627574346774');
+  assert.equal(slice.time, null, 'no time in the text: Gmail uses when the email arrived');
+});
