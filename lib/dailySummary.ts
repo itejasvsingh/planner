@@ -135,8 +135,9 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
     const prefData = prefSnap?.exists ? prefSnap.data() : null;
     const sessionData = sessionSnap?.exists ? sessionSnap.data() : null;
 
-    const isSummaryEnabled = prefData?.dailySummaryEnabled !== false && sessionData?.dailySummaryEnabled !== false;
-    const isAutoPushEnabled = prefData?.autoPushEnabled !== false && sessionData?.autoPushEnabled !== false;
+    // Off unless turned on, as the app's switches show them
+    const isSummaryEnabled = (prefData?.dailySummaryEnabled ?? sessionData?.dailySummaryEnabled) === true;
+    const isAutoPushEnabled = (prefData?.autoPushEnabled ?? sessionData?.autoPushEnabled) === true;
 
     // If daily summary is disabled by user and not forced (card bill reminders the user asked for still go out):
     if (!isSummaryEnabled && !options?.force) {

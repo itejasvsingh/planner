@@ -1,4 +1,5 @@
 import NotificationsManager from '@/components/NotificationsManager';
+import TaskRollover from '@/components/TaskRollover';
 import QuickAddBar from '@/components/QuickAddBar';
 import { Colors, TabBarHeight, tabBarBottomPadding } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -115,6 +116,7 @@ export default function TabsLayout() {
       </Tabs>
       <QuickAddBar />
       <NotificationsManager />
+      <TaskRollover />
     </>
   );
 }

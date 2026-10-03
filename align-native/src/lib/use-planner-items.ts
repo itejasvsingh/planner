@@ -361,6 +361,17 @@ export function usePlannerItems(phone: string | null) {
     [phone, setItems, setError, owner],
   );
 
+  /** Moves tasks to a new day in one go (auto-push of overdue tasks); quiet, no haptics. */
+  const moveTasks = useCallback(
+    async (moves: { id: string; from: string }[], toDate: string) => {
+      if (!moves.length) return;
+      const byId = new Map(moves.map((m) => [m.id, m.from]));
+      setItems((prev) => prev.map((item) => (byId.has(item.id) ? { ...item, dueDate: toDate, rolledOverFrom: byId.get(item.id) } : item)));
+      await pushOps(owner, moves.map((m) => ({ kind: 'update' as const, col: COL, id: m.id, patch: { dueDate: toDate, rolledOverFrom: m.from } })));
+    },
+    [setItems, owner],
+  );
+
   /** Adds many transactions under ids chosen by the caller (statement import), skipping none. */
   const importItems = useCallback(
     async (list: (Omit<PlannerItem, 'createdAt' | 'ownerId'> & { id: string })[]) => {
@@ -505,7 +516,7 @@ export function usePlannerItems(phone: string | null) {
     toggleSubtask,
     deleteSubtask,
     addTask, 
-    addItem, addExpense, addGoal, importItems,
+    addItem, addExpense, addGoal, importItems, moveTasks,
     updateGoalProgress,
     saveSplit,
     toggleSplit

@@ -82,18 +82,17 @@ export function DatePick({ value, onChange, mode }: { value: Date; onChange: (d:
   );
 }
 
-const TIMES: [string, number, number][] = [['9 AM', 9, 0], ['1 PM', 13, 0], ['6 PM', 18, 0], ['9 PM', 21, 0]];
 
 /** Reminder time: none, a few common times, or any time. `value` is "HH:MM" or null. */
 export function TimePick({ value, onChange }: { value: string | null; onChange: (t: string | null) => void }) {
   const c = useTheme();
   const [picking, setPicking] = useState(false);
-  const preset = TIMES.find(([, h, m]) => value === `${pad(h)}:${pad(m)}`);
-  const custom = !!value && !preset;
+  // No reminder, or a time you choose yourself (shown on the chip once set; tap it to change)
+  const custom = !!value;
   const customLabel = custom ? (() => {
     const [h, m] = value!.split(':').map(Number);
     return `${h % 12 || 12}:${pad(m)} ${h < 12 ? 'AM' : 'PM'}`;
-  })() : 'Other time';
+  })() : 'Set time';
   const asDate = () => {
     const d = new Date();
     if (value) {
@@ -107,14 +106,11 @@ export function TimePick({ value, onChange }: { value: string | null; onChange: 
   return (
     <View style={styles.row}>
       <Chip label="No reminder" on={!value} onPress={() => onChange(null)} />
-      {TIMES.map(([label, h, m]) => (
-        <Chip key={label} label={label} on={value === `${pad(h)}:${pad(m)}`} onPress={() => onChange(`${pad(h)}:${pad(m)}`)} />
-      ))}
       {Platform.OS === 'web' ? (
         <label style={{ position: 'relative', display: 'flex' }}>
           <Chip label={customLabel} on={custom} onPress={() => {}} icon={icon} />
           <input
-            aria-label="Other time"
+            aria-label="Set reminder time"
             type="time"
             value={value || ''}
             onChange={(e) => e.target.value && onChange(e.target.value)}

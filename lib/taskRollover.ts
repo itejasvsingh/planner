@@ -47,7 +47,8 @@ export async function runTaskRolloverForUser(userPhone: string, options?: { forc
     const prefData = prefSnap?.exists ? prefSnap.data() : null;
     const sessionData = sessionSnap?.exists ? sessionSnap.data() : null;
 
-    const isAutoPushEnabled = prefData?.autoPushEnabled !== false && sessionData?.autoPushEnabled !== false;
+    // Off unless turned on (Settings → Notifications → Auto-push tasks), as the app shows it
+    const isAutoPushEnabled = (prefData?.autoPushEnabled ?? sessionData?.autoPushEnabled) === true;
 
     if (!isAutoPushEnabled && !options?.force) {
         console.log(`⏭️ Rollover skipped for ${targetPhone}: auto-push rollover is disabled by user.`);

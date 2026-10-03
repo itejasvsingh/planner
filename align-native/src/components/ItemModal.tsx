@@ -253,7 +253,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
             </View>
           )}
 
-          <ScrollView style={{ maxHeight: '80%' }} contentContainerStyle={styles.form} showsVerticalScrollIndicator={false}>
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={styles.form} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
             <TextInput
               accessibilityLabel="Title"
               style={[styles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.backgroundElement, fontSize: 18 }]}
@@ -402,16 +402,16 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
             )}
             {!!formError && <Text accessibilityRole="alert" style={{ color: theme.red, fontSize: 14 }}>{formError}</Text>}
 
-            {/* Save Button */}
-            <Pressable 
-              style={({ pressed }) => [styles.saveBtn, { backgroundColor: theme.accentFill, opacity: pressed ? 0.8 : 1 }]}
-              accessibilityRole="button"
-              disabled={saving}
-              onPress={handleSave}
-            >
-              <Text style={[styles.saveBtnText, { color: theme.onAccent }]}>{saving ? 'Saving…' : initialItem ? 'Save changes' : `Create ${activeTab}`}</Text>
-            </Pressable>
           </ScrollView>
+          {/* Save: always visible below the form */}
+          <Pressable 
+            style={({ pressed }) => [styles.saveBtn, { backgroundColor: theme.accentFill, opacity: pressed ? 0.8 : 1 }]}
+            accessibilityRole="button"
+            disabled={saving}
+            onPress={handleSave}
+          >
+            <Text style={[styles.saveBtnText, { color: theme.onAccent }]}>{saving ? 'Saving…' : initialItem ? 'Save changes' : `Create ${activeTab}`}</Text>
+          </Pressable>
         </Animated.View>
       </KeyboardAvoidingView>
     </Modal>

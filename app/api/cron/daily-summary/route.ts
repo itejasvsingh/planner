@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '../../../../lib/firebase';
 import { runDailySummaryForUser } from '../../../../lib/dailySummary';
+import { hasCronSecret } from '../../../../lib/cronAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,10 +11,8 @@ export async function GET(req: Request) {
         const targetPhone = searchParams.get('phone');
         const force = searchParams.get('force') === 'true';
 
-        const providedSecret = req.headers.get('x-vercel-cron-secret') || searchParams.get('secret');
-        
-        const isCronSecretValid = providedSecret === process.env.CRON_SECRET;
-        const isTestSecretValid = providedSecret === process.env.TEST_SUMMARY_SECRET;
+        const isCronSecretValid = hasCronSecret(req);
+        const isTestSecretValid = hasCronSecret(req, process.env.TEST_SUMMARY_SECRET);
 
         if (targetPhone) {
             if (!isCronSecretValid && !isTestSecretValid) {

@@ -136,7 +136,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                         </Pressable>
                     </View>
 
-                    <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 16 }}>
+                    <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 16, paddingBottom: 4 }}>
                         <SegmentedControl 
                             tabs={['Expense', 'Income', 'Transfer']} 
                             activeTab={type === 'expense' ? 'Expense' : (type === 'transfer' ? 'Transfer' : 'Income')} 
@@ -235,26 +235,26 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                             </View>
                         )}
                         
-                        {/* Actions */}
-
-                        <View style={{ flexDirection: 'row', gap: 12, marginTop: 10 }}>
-                            {item && (
-                                <Pressable onPress={handleDelete} style={{ flex: 1, backgroundColor: c.expenseSoft, padding: 14, borderRadius: Radius.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
-                                    <Trash2 color={c.expense} size={18} />
-                                </Pressable>
-                            )}
-                            <Pressable 
-                                onPress={handleSave} 
-                                style={{ flex: item ? 3 : 1, backgroundColor: canSave ? c.accentFill : c.backgroundMuted, padding: 14, borderRadius: Radius.md, alignItems: 'center' }}
-                                disabled={!canSave}
-                            >
-                                <Text style={[Type.label, { color: canSave ? c.onAccent : c.textTertiary, fontWeight: '700', fontSize: 15 }]}>
-                                    {item ? 'Save Changes' : 'Add Transaction'}
-                                </Text>
-                            </Pressable>
-                        </View>
-
                     </ScrollView>
+
+                    {/* Actions: always visible below the form */}
+
+                    <View style={{ flexDirection: 'row', gap: 12, marginTop: 10 }}>
+                        {item && (
+                            <Pressable onPress={handleDelete} style={{ flex: 1, backgroundColor: c.expenseSoft, padding: 14, borderRadius: Radius.md, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 8 }}>
+                                <Trash2 color={c.expense} size={18} />
+                            </Pressable>
+                        )}
+                        <Pressable 
+                            onPress={handleSave} 
+                            style={{ flex: item ? 3 : 1, backgroundColor: canSave ? c.accentFill : c.backgroundMuted, padding: 14, borderRadius: Radius.md, alignItems: 'center' }}
+                            disabled={!canSave}
+                        >
+                            <Text style={[Type.label, { color: canSave ? c.onAccent : c.textTertiary, fontWeight: '700', fontSize: 15 }]}>
+                                {item ? 'Save Changes' : 'Add Transaction'}
+                            </Text>
+                        </Pressable>
+                    </View>
                 </View>
             </KeyboardAvoidingView>
         </Modal>

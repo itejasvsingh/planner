@@ -154,7 +154,7 @@ export default function NotificationsSettingsScreen() {
             </View>
           </View>
           <Text style={[styles.footerText, { color: theme.textSecondary }]}>
-            Automatically push undone tasks to the next day.
+            Undone tasks from earlier days move to today, as soon as the day changes.
           </Text>
         </View>
       </ScrollView>
