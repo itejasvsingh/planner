@@ -508,7 +508,13 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
         if ((window.scrollY || window.scrollX) && !(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))) window.scrollTo(0, 0);
       }
       fit();
+      // Re-check after layout settles: when the app opens from the offline cache this script can run before
+      // iOS reports the safe-area inset (it reads 0), and nothing else would trigger another check.
+      document.addEventListener('DOMContentLoaded', fit);
+      window.addEventListener('load', function() { fit(); setTimeout(fit, 250); setTimeout(fit, 1000); });
+      window.addEventListener('pageshow', fit);
       window.addEventListener('resize', fit);
+      if (window.visualViewport) window.visualViewport.addEventListener('resize', fit);
       window.addEventListener('orientationchange', function() { setTimeout(fit, 300); });
       document.addEventListener('visibilitychange', fit);
       window.addEventListener('scroll', unscroll, { passive: true });
