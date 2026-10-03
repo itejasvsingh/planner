@@ -8,6 +8,8 @@ import SegmentedControl from './SegmentedControl';
 import { DEFAULT_CATEGORY, kindForType, resolveCategory, type CategoryKind } from '@/lib/categories';
 import CategoryPicker from './CategoryPicker';
 import { DatePick } from './form/QuickPick';
+import SplitSection from './SplitSection';
+import { buildSplit, draftFrom, emptyDraft, splitOf, type SplitDraft } from '@/lib/splits';
 import { useCategoryConfig } from '@/lib/use-category-config';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -31,11 +33,13 @@ interface TransactionSheetProps {
     item: any | null; // null means adding a new item
     /** Recent merchants, most used first (adding only). */
     suggestions?: MerchantSuggestion[];
+    /** Friends you've split with, most recent first. */
+    friends?: string[];
     onSave: (updates: any) => Promise<void>;
     onDelete?: (id: string) => Promise<void>;
 }
 
-export default function TransactionSheet({ visible, onClose, item, onSave, onDelete, suggestions = [] }: TransactionSheetProps) {
+export default function TransactionSheet({ visible, onClose, item, onSave, onDelete, suggestions = [], friends = [] }: TransactionSheetProps) {
     const { isDark } = useTheme();
     const c = isDark ? Colors.dark : Colors.light;
     const { config: categoryConfig, merchantCategory } = useCategoryConfig();
@@ -49,9 +53,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
         const [date, setDate] = useState('');
     const [isRecurring, setIsRecurring] = useState(false);
     const [isSplit, setIsSplit] = useState(false);
-    const [splitWith, setSplitWith] = useState('');
-    const [paidByYou, setPaidByYou] = useState(true);
-    const [yourShareStr, setYourShareStr] = useState('');
+    const [splitDraft, setSplitDraft] = useState<SplitDraft>(emptyDraft);
 
     // Recent places for this type, narrowed as you type (hidden once the title matches one exactly)
     const typed = title.trim().toLowerCase();
@@ -66,16 +68,14 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
             if (item) {
                 setType(kindForType(item.type));
                 setTitle(item.title || '');
-                setAmount(item.amount ? String(item.amount) : '');
+                const split = splitOf(item);
+                // A split expense keeps your share as its amount; the form edits the whole bill.
+                setAmount(split ? String(split.total) : item.amount ? String(item.amount) : '');
                 setCategory(resolveCategory(item.category, kindForType(item.type), categoryConfig).name);
                 setDate(item.date || dateToKey(new Date()));
                 setIsRecurring(!!item.isRecurring);
-                setIsSplit(!!item.split);
-                if (item.split) {
-                    setSplitWith(item.split.splitWith || '');
-                    setPaidByYou(item.split.paidBy === 'you');
-                    setYourShareStr(String(item.split.yourShare || 0));
-                }
+                setIsSplit(!!split);
+                setSplitDraft(split ? draftFrom(split) : emptyDraft());
             } else {
                 setType('expense');
                 setTitle('');
@@ -84,9 +84,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                 setDate(dateToKey(new Date()));
                 setIsRecurring(false);
                 setIsSplit(false);
-                setSplitWith('');
-                setPaidByYou(true);
-                setYourShareStr('');
+                setSplitDraft(emptyDraft());
             }
         }
         // Category config is read only when the sheet opens; re-running on a background sync would reset the form.
@@ -100,30 +98,27 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
         }
     }, [type, item]);
 
+    const splitInvalid = isSplit && type === 'expense' && !!buildSplit(parseFloat(amount) || 0, splitDraft).error;
+    const canSave = !!amount && !!title && !splitInvalid;
+
     const handleSave = async () => {
         if (!amount || !title) return; // Basic validation
         
         const finalAmount = parseFloat(amount) || 0;
-        let splitData = null;
-        if (isSplit && splitWith) {
-            splitData = {
-                totalAmount: finalAmount,
-                splitWith,
-                yourShare: parseFloat(yourShareStr) || (finalAmount / 2),
-                paidBy: paidByYou ? 'you' : 'them',
-                settled: false
-            };
-        }
-        
+        const splitting = isSplit && type === 'expense';
+        const built = splitting ? buildSplit(finalAmount, splitDraft, item ? splitOf(item) : null) : null;
+        if (built?.error) return; // shown under the split
+
         await onSave({
             type,
             title,
-            amount: isSplit ? (parseFloat(yourShareStr) || (finalAmount / 2)) : finalAmount,
+            amount: built?.split ? built.split.yourShare : finalAmount,
             category,
             date,
             isRecurring,
             ...(isRecurring ? { recurringFrequency: 'monthly' } : {}),
-            ...(splitData ? { split: splitData } : {})
+            // Turning a split off clears it, including older shapes
+            ...(built?.split ? { split: built.split, splits: [] } : item && splitOf(item) ? { split: null, splits: [] } : {}),
         });
         onClose();
     };
@@ -248,10 +243,13 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                 {/* Split Toggle */}
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <View>
-                                        <Text style={[Type.body, { color: c.text, fontWeight: '600' }]}>Split with Friends</Text>
-                                        <Text style={[Type.caption, { color: c.textTertiary }]}>Track who owes what</Text>
+                                        <Text style={[Type.body, { color: c.text, fontWeight: '600' }]}>Split with friends</Text>
+                                        <Text style={[Type.caption, { color: c.textTertiary }]}>Share the bill; only your part counts as spent</Text>
                                     </View>
                                     <Pressable 
+                                        accessibilityRole="switch"
+                                        accessibilityLabel="Split with friends"
+                                        accessibilityState={{ checked: isSplit }}
                                         onPress={() => setIsSplit(!isSplit)}
                                         style={{ width: 50, height: 30, borderRadius: 15, backgroundColor: isSplit ? c.accentFill : c.backgroundMuted, padding: 2, justifyContent: 'center', alignItems: isSplit ? 'flex-end' : 'flex-start' }}
                                     >
@@ -259,42 +257,8 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                     </Pressable>
                                 </View>
 
-                                {/* Split Details */}
                                 {isSplit && (
-                                    <View style={{ marginTop: 8, gap: 12, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 16 }}>
-                                        <TextInput 
-                                            value={splitWith}
-                                            onChangeText={setSplitWith}
-                                            placeholder="Friend's Name"
-                                            placeholderTextColor={c.textTertiary}
-                                            style={{ backgroundColor: c.backgroundMuted, color: c.text, padding: 12, borderRadius: Radius.md }}
-                                        />
-                                        <View style={{ flexDirection: 'row', gap: 12 }}>
-                                            <Pressable 
-                                                onPress={() => setPaidByYou(true)}
-                                                style={{ flex: 1, padding: 12, borderRadius: Radius.md, backgroundColor: paidByYou ? c.accentFill : c.backgroundMuted, alignItems: 'center' }}
-                                            >
-                                                <Text style={[Type.caption, { color: paidByYou ? c.onAccent : c.textSecondary, fontWeight: '700' }]}>You Paid</Text>
-                                            </Pressable>
-                                            <Pressable 
-                                                onPress={() => setPaidByYou(false)}
-                                                style={{ flex: 1, padding: 12, borderRadius: Radius.md, backgroundColor: !paidByYou ? c.accentFill : c.backgroundMuted, alignItems: 'center' }}
-                                            >
-                                                <Text style={[Type.caption, { color: !paidByYou ? c.onAccent : c.textSecondary, fontWeight: '700' }]}>They Paid</Text>
-                                            </Pressable>
-                                        </View>
-                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                            <Text style={[Type.caption, { color: c.textSecondary, flex: 1 }]}>Your Share Amount:</Text>
-                                            <TextInput 
-                                                value={yourShareStr}
-                                                onChangeText={setYourShareStr}
-                                                placeholder={amount ? String(parseFloat(amount) / 2) : "0.00"}
-                                                keyboardType="decimal-pad"
-                                                placeholderTextColor={c.textTertiary}
-                                                style={{ backgroundColor: c.backgroundMuted, color: c.text, padding: 12, borderRadius: Radius.md, flex: 1 }}
-                                            />
-                                        </View>
-                                    </View>
+                                    <SplitSection total={parseFloat(amount) || 0} draft={splitDraft} onChange={setSplitDraft} recent={friends} />
                                 )}
                             </View>
                         )}
@@ -309,10 +273,10 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                             )}
                             <Pressable 
                                 onPress={handleSave} 
-                                style={{ flex: item ? 3 : 1, backgroundColor: (amount && title) ? c.accentFill : c.backgroundMuted, padding: 16, borderRadius: Radius.md, alignItems: 'center' }}
-                                disabled={!amount || !title}
+                                style={{ flex: item ? 3 : 1, backgroundColor: canSave ? c.accentFill : c.backgroundMuted, padding: 16, borderRadius: Radius.md, alignItems: 'center' }}
+                                disabled={!canSave}
                             >
-                                <Text style={[Type.label, { color: (amount && title) ? c.onAccent : c.textTertiary, fontWeight: '700', fontSize: 15 }]}>
+                                <Text style={[Type.label, { color: canSave ? c.onAccent : c.textTertiary, fontWeight: '700', fontSize: 15 }]}>
                                     {item ? 'Save Changes' : 'Add Transaction'}
                                 </Text>
                             </Pressable>

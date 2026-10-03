@@ -11,6 +11,15 @@ import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import TransactionSheet, { type MerchantSuggestion } from '@/components/TransactionSheet';
 import CycleStepper, { cycleName } from '@/components/finance/CycleStepper';
+import FriendsCard from '@/components/finance/FriendsCard';
+import { friendBalances, recentFriends, settleUpPatches, splitOf } from '@/lib/splits';
+
+/** "Split with Rahul" / "Split with 3" for a transaction row. */
+function splitLabel(item: any) {
+    const s = splitOf(item);
+    if (!s) return '';
+    return s.people.length === 1 ? `Split with ${s.people[0].name}` : `Split with ${s.people.length}`;
+}
 import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 import { kindForType, resolveCategory, tintColors } from '@/lib/categories';
@@ -141,6 +150,13 @@ export default function FinanceScreen() {
         return [...seen.values()].sort((a, b) => b.n - a.n || b.last.localeCompare(a.last)).slice(0, 20);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [items, categoryConfig, suggestSince]);
+
+    // Splitwise-style balances with friends, across all time
+    const balances = useMemo(() => friendBalances(items), [items]);
+    const friends = useMemo(() => recentFriends(items), [items]);
+    const settleUp = (name: string) => {
+        for (const p of settleUpPatches(items, name)) void updateItem(p.id, { split: p.split });
+    };
 
     // Any filter searches all of history; otherwise the list shows the cycle on screen.
     const filtering = query.trim() !== '' || typeFilter !== 'all' || categoryFilter !== null;
@@ -357,6 +373,8 @@ export default function FinanceScreen() {
                         </>
                     )}
 
+                    {!filtering && <FriendsCard balances={balances} onSettle={settleUp} />}
+
                     {/* Transactions */}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
                         <Text style={[styles.sectionHeader, { color: c.textTertiary }]}>{filtering ? 'All-time results' : inProgress ? 'Transactions this cycle' : `Transactions · ${periodName}`}</Text>
@@ -441,7 +459,7 @@ export default function FinanceScreen() {
                                                 <View style={{ flex: 1 }}>
                                                     <Text style={[Type.body, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>{item.title}</Text>
                                                     <Text style={[Type.caption, { color: c.textTertiary, marginTop: 2 }]} numberOfLines={1}>
-                                                        {[category.name, formatTime(item.time), item.autoDetected ? SOURCE_LABEL[item.source] || 'Auto' : ''].filter(Boolean).join(' · ')}
+                                                        {[category.name, splitLabel(item), formatTime(item.time), item.autoDetected ? SOURCE_LABEL[item.source] || 'Auto' : ''].filter(Boolean).join(' · ')}
                                                     </Text>
                                                 </View>
                                                 <Text style={[Type.body, { color: isIncome ? c.income : (isTransfer ? c.textSecondary : c.text), fontWeight: '700', fontVariant: ['tabular-nums'] }]}>
@@ -480,6 +498,7 @@ export default function FinanceScreen() {
                 onSave={handleSave}
                 onDelete={deleteItem}
                 suggestions={suggestions}
+                friends={friends}
             />
         </>
     );

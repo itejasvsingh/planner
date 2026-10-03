@@ -29,8 +29,13 @@ function shiftDate(date: string, days: number) {
  */
 async function recordedElsewhere(phone: string, tx: ParsedTransaction, date: string, source: Channel) {
   for (const d of [date, shiftDate(date, -1), shiftDate(date, 1)]) {
-    const same = await db.collection('planner_items').where('ownerId', '==', phone).where('date', '==', d).where('amount', '==', tx.amount).limit(10).get();
-    for (const doc of same.docs) {
+    const onDay = db.collection('planner_items').where('ownerId', '==', phone).where('date', '==', d);
+    // A payment split with friends keeps only your share as its amount; the bank amount is the split's total.
+    const [same, split] = await Promise.all([
+      onDay.where('amount', '==', tx.amount).limit(10).get(),
+      onDay.where('split.total', '==', tx.amount).limit(10).get(),
+    ]);
+    for (const doc of [...same.docs, ...split.docs]) {
       const x = doc.data();
       if (x.type !== tx.type || !AUTOMATIC.includes(x.source) || x.source === source) continue;
       if (tx.ref && x.ref && String(x.ref) !== tx.ref) continue;

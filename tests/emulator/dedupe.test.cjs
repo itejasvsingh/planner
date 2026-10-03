@@ -67,3 +67,13 @@ test('a merchant you categorised keeps that category on new transactions from an
   const latest = (await db.collection('planner_items').where('ownerId', '==', P).where('amount', '==', 70).get()).docs[0].data();
   assert.equal(latest.category, 'Groceries');
 });
+
+test('a payment you split with friends is still recognised when the same debit arrives again', async () => {
+  const P = '919800000007';
+  assert.equal(await recordTransaction(P, tx({ amount: 1200 }), { source: 'sms', dedupText: 'dinner 1200', date: '2026-10-02' }), 'added');
+  const [doc] = (await db.collection('planner_items').where('ownerId', '==', P).get()).docs;
+  // The user splits it three ways in the app: amount becomes their share
+  await doc.ref.update({ amount: 400, split: { total: 1200, paidBy: 'you', method: 'equal', yourShare: 400, people: [{ name: 'A', share: 400 }, { name: 'B', share: 400 }] } });
+  assert.equal(await recordTransaction(P, tx({ amount: 1200, ref: '999988887777' }), { source: 'gmail', dedupText: 'gmail:split', date: '2026-10-02' }), 'duplicate');
+  assert.equal(await count(P), 1);
+});

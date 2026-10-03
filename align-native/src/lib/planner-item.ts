@@ -1,3 +1,5 @@
+import type { ExpenseSplit } from './splits';
+
 export type PlannerSubtask = {
   done?: boolean;
   title?: string;
@@ -30,6 +32,8 @@ export type PlannerItem = {
   category?: string;
   tags?: string[];
   splits?: PlannerSplit[];
+  /** Shared with friends; `amount` is then your share. See lib/splits.ts. */
+  split?: ExpenseSplit | null;
   isRecurring?: boolean;
   recurringFrequency?: 'monthly' | 'weekly' | 'yearly';
   recurringParentId?: string;
