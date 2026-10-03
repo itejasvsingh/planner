@@ -33,6 +33,17 @@ const KINDS: { label: string; kind: CategoryKind }[] = [
 
 type Editing = { mode: 'new' } | { mode: 'edit'; category: Category } | { mode: 'remove'; category: Category };
 
+/** Merchant rules follow a category that is renamed or merged; rules for a deleted one are dropped. */
+function remapRules(merchants: Record<string, string> | undefined, from: string, to: string | null) {
+  if (!merchants) return merchants;
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(merchants)) {
+    if (v !== from) out[k] = v;
+    else if (to) out[k] = to;
+  }
+  return out;
+}
+
 /**
  * Add, rename, re-icon, hide and delete/merge categories. Renames and deletes also rewrite the affected
  * transactions and budget limits so nothing is left pointing at a name that no longer exists.
@@ -134,7 +145,10 @@ export default function CategoryManager({
         } else {
           next.custom = next.custom!.map(cc => (cc.id === cat.id ? { ...cc, name: trimmed, iconKey } : cc));
         }
-        if (trimmed !== cat.name) moveTransactions(cat, trimmed);
+        if (trimmed !== cat.name) {
+          moveTransactions(cat, trimmed);
+          next.merchants = remapRules(next.merchants, cat.name, trimmed);
+        }
       }
       background(saveConfig(next));
       triggerHaptic('success');
@@ -162,6 +176,8 @@ export default function CategoryManager({
       const next: CategoryConfig = cat.builtin
         ? withHidden(config, cat.id, true)
         : { ...config, custom: (config.custom || []).filter(cc => cc.id !== cat.id), hidden: (config.hidden || []).filter(h => h !== cat.id), shown: (config.shown || []).filter(h => h !== cat.id) };
+      // Merged: its merchants now go to the target. Deleted without a target: forget them.
+      if (target || !cat.builtin) next.merchants = remapRules(config.merchants, cat.name, target);
       background(saveConfig(next));
       triggerHaptic('success');
       setEditing(null);

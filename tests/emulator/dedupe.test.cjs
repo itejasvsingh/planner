@@ -52,3 +52,18 @@ test('a transaction typed in by hand is not treated as an automatic duplicate (s
   await db.collection('planner_items').doc('manual1').set({ ownerId: P, type: 'expense', amount: 20, date: '2026-10-02', title: 'Tea' });
   assert.equal(await recordTransaction(P, tx(), { source: 'sms', dedupText: 'Rs 20', date: '2026-10-02' }), 'added');
 });
+
+test('a merchant you categorised keeps that category on new transactions from any source', async () => {
+  const P = '919800000006';
+  await db.collection('planner_settings').doc(`preferences_${P}`).set({ expenseCategories: { merchants: { 'isthara parks': 'Food & Dining' } } });
+  await recordTransaction(P, tx({ merchant: 'Isthara Parks', category: 'Other', ref: '627574346774' }), { source: 'gmail', dedupText: 'g', date: '2026-10-02' });
+  await recordTransaction(P, tx({ merchant: 'ISTHARA PARKS PRIVATE LIMITED', category: 'Other', amount: 45 }), { source: 'sms', dedupText: 's', date: '2026-10-04' });
+  await recordTransaction(P, tx({ merchant: 'Zomato', category: 'Food & Dining', amount: 300 }), { source: 'sms', dedupText: 'z', date: '2026-10-04' });
+  const got = (await db.collection('planner_items').where('ownerId', '==', P).get()).docs.map(d => d.data()).sort((a, b) => a.amount - b.amount);
+  assert.deepEqual(got.map(i => [i.amount, i.category, i.tags[0]]), [[20, 'Food & Dining', 'Food & Dining'], [45, 'Food & Dining', 'Food & Dining'], [300, 'Food & Dining', 'Food & Dining']]);
+  // changing it again moves future ones
+  await db.collection('planner_settings').doc(`preferences_${P}`).set({ expenseCategories: { merchants: { 'isthara parks': 'Groceries' } } });
+  await recordTransaction(P, tx({ merchant: 'Isthara Parks', category: 'Other', amount: 70 }), { source: 'gmail', dedupText: 'g2', date: '2026-10-06' });
+  const latest = (await db.collection('planner_items').where('ownerId', '==', P).where('amount', '==', 70).get()).docs[0].data();
+  assert.equal(latest.category, 'Groceries');
+});

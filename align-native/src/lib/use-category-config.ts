@@ -5,6 +5,7 @@ import { usePhone } from '@/lib/phone-context';
 import { getItem, setItem } from '@/lib/storage';
 import type { CategoryConfig } from '@/lib/categories';
 import { pushOp } from '@/lib/outbox';
+import { merchantKey } from '@/lib/merchant-key';
 
 /** Field inside planner_settings/preferences_<phone>. */
 const FIELD = 'expenseCategories';
@@ -94,5 +95,22 @@ export function useCategoryConfig() {
     await pushOp(key, { kind: 'set', col: 'planner_settings', id: `preferences_${key}`, data: { [FIELD]: clean }, mergeFields: [FIELD] });
   }, [key]);
 
-  return { config, saveConfig };
+  /**
+   * Remembers the category the user gave a merchant ("Isthara Parks → Food & Dining"); future transactions
+   * from it get that category until the user changes one again.
+   */
+  const learnMerchant = useCallback(async (merchant: string | null | undefined, category: string) => {
+    const k = merchantKey(merchant);
+    const current = entryFor(key).config;
+    if (!k || !category || current.merchants?.[k] === category) return;
+    await saveConfig({ ...current, merchants: { ...(current.merchants || {}), [k]: category } });
+  }, [key, saveConfig]);
+
+  /** The category the user set for this merchant, if any. */
+  const merchantCategory = useCallback((merchant: string | null | undefined) => {
+    const k = merchantKey(merchant);
+    return (k && config.merchants?.[k]) || null;
+  }, [config]);
+
+  return { config, saveConfig, learnMerchant, merchantCategory };
 }

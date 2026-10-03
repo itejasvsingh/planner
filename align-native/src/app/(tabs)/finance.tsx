@@ -67,7 +67,7 @@ export default function FinanceScreen() {
     // Filter only finance items
     
     const { budgetLimits: limits, saveBudgets } = useBudgetLimits(phone);
-    const { config: categoryConfig } = useCategoryConfig();
+    const { config: categoryConfig, learnMerchant } = useCategoryConfig();
     const [budgetOpen, setBudgetOpen] = useState(false);
     const [categoriesOpen, setCategoriesOpen] = useState(false);
     const [view, setView] = useState<'Overview' | 'Analysis'>('Overview');
@@ -160,6 +160,10 @@ export default function FinanceScreen() {
 
     const handleSave = async (updates: any) => {
         if (editingItem) {
+            // Changing a transaction's category teaches Align that merchant's category for next time.
+            if (updates.category && updates.category !== editingItem.category && (updates.title || editingItem.title)) {
+                void learnMerchant(updates.title || editingItem.title, updates.category);
+            }
             await updateItem(editingItem.id, updates);
         } else {
             await addItem(updates); // addExpense handles ID in hook usually, but we spread

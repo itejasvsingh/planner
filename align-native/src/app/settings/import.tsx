@@ -66,7 +66,7 @@ export default function ImportStatementScreen() {
   const insets = useSafeAreaInsets();
   const { phone } = usePhone();
   const { items, importItems } = usePlannerItems(phone);
-  const { config } = useCategoryConfig();
+  const { config, merchantCategory } = useCategoryConfig();
 
   const [step, setStep] = useState<Step>('pick');
   const [file, setFile] = useState<PickedStatement | null>(null);
@@ -79,7 +79,8 @@ export default function ImportStatementScreen() {
   const [editing, setEditing] = useState<PlannedRow | null>(null);
   const [imported, setImported] = useState(0);
 
-  const categoryOf = (r: PlannedRow) => categories[r.id] ?? resolveCategory(r.category, r.type, config).name;
+  // Your choice here, then the category you set for this merchant before, then Align's guess.
+  const categoryOf = (r: PlannedRow) => categories[r.id] ?? merchantCategory(r.merchant) ?? resolveCategory(r.category, r.type, config).name;
 
   const read = async (f: PickedStatement, pw?: string) => {
     setStep('reading');

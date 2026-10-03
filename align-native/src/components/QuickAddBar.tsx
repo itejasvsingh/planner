@@ -11,6 +11,7 @@ import { usePhone } from '@/lib/phone-context';
 import { injectParsedItemsLocally, usePlannerItems } from '@/lib/use-planner-items';
 import { parseOffline } from '@/lib/quick-parse';
 import { todayKey } from '@/lib/dates';
+import { useCategoryConfig } from '@/lib/use-category-config';
 
 let ExpoSpeechRecognitionModule: any = null;
 let useSpeechRecognitionEvent: any = () => {};
@@ -25,6 +26,7 @@ export default function QuickAddBar() {
   const insets = useSafeAreaInsets();
   const { phone } = usePhone();
   const { addItem } = usePlannerItems(phone);
+  const { merchantCategory } = useCategoryConfig();
   const [feedback, setFeedback] = useState('');
   const [hasError, setHasError] = useState(false);
   const [text, setText] = useState('');
@@ -60,6 +62,11 @@ export default function QuickAddBar() {
     // Without the server (offline, or no API URL in this build) save a simple version on the device instead.
     const saveOffline = async (reason: string) => {
       const draft = parseOffline(textToProcess, todayKey());
+      const mine = draft.type === 'expense' ? merchantCategory(draft.title) : null;
+      if (mine && draft.type === 'expense') {
+        draft.category = mine;
+        draft.tags = [mine];
+      }
       await addItem(draft);
       setFeedback(`${reason} Saved “${draft.title}” as ${draft.type === 'expense' ? `an expense of ₹${draft.amount.toLocaleString('en-IN')}` : 'a task for today'}; edit it if needed.`);
       setText('');

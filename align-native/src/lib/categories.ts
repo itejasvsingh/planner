@@ -139,6 +139,11 @@ export type CategoryConfig = {
   renamed?: Record<string, string>;
   /** Built-in id -> icon key chosen by the user. */
   icons?: Record<string, string>;
+  /**
+   * Merchant (merchantKey) -> category name the user chose for it by changing a transaction's category.
+   * Applied to that merchant's future transactions (server: lib/merchantRules.ts) until changed again.
+   */
+  merchants?: Record<string, string>;
 };
 
 export const DEFAULT_CATEGORY: Record<CategoryKind, string> = {

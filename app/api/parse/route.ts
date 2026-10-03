@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db, FieldValue } from '../../../lib/firebase';
 import { consumeRateLimit } from '../../../lib/rateLimit';
+import { merchantRules, ruleFor } from '../../../lib/merchantRules';
 
 export const dynamic = 'force-dynamic';
 
@@ -216,7 +217,15 @@ export async function POST(req: Request) {
             }
         }
 
-        // 3. Save to Firestore
+        // 3. Save to Firestore (merchant categories the user set beat the AI's guess)
+        const rules = ownerId ? await merchantRules(ownerId).catch(() => ({})) : {};
+        for (const item of parsedItems) {
+            const mine = (item.type === 'expense' || item.type === 'income') ? ruleFor(rules, item.title) : null;
+            if (mine) {
+                item.category = mine;
+                item.tags = [mine];
+            }
+        }
         const batch = db.batch();
         const savedList: any[] = [];
 

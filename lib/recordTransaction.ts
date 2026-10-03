@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { db, FieldValue } from './firebase';
 import type { ParsedTransaction } from './smsParse';
+import { merchantRules, ruleFor } from './merchantRules';
 
 export type Channel = 'sms' | 'email' | 'gmail';
 
@@ -57,6 +58,8 @@ export async function recordTransaction(
   const ref = db.collection('planner_items').doc(`auto_${sha256(`${phone}_${dedupKey}`).slice(0, 28)}`);
 
   if (await recordedElsewhere(phone, tx, opts.date, opts.source)) return 'duplicate';
+  // The user's own category for this merchant beats the guess.
+  const category = ruleFor(await merchantRules(phone), tx.merchant) || tx.category;
 
   const created = await db.runTransaction(async (t) => {
     if ((await t.get(ref)).exists) return false;
@@ -68,8 +71,8 @@ export async function recordTransaction(
       date: opts.date,
       dueDate: opts.date,
       time: tx.time || opts.time || null,
-      category: tx.category,
-      tags: [tx.category],
+      category,
+      tags: [category],
       splits: [],
       source: opts.source,
       ref: tx.ref || null,

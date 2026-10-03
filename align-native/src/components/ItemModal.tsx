@@ -28,7 +28,7 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
   const { phone } = usePhone();
   const { addTask, addExpense, addGoal, updateItem } = usePlannerItems(phone);
   
-  const { config: categoryConfig } = useCategoryConfig();
+  const { config: categoryConfig, learnMerchant } = useCategoryConfig();
   const [activeTab, setActiveTab] = useState<TabType>(defaultType);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
@@ -168,6 +168,8 @@ export default function ItemModal({ visible, onClose, initialItem, defaultDate, 
         patch.amount = parseFloat(amount) || 0;
         patch.category = category;
         patch.tags = [category];
+        // Changing the category teaches Align this merchant's category for next time.
+        if (category !== resolveCategory(initialItem.category, 'expense', categoryConfig).name) void learnMerchant(title.trim() || initialItem.title, category);
         patch.isRecurring = isRecurring;
         patch.recurringFrequency = recurringFrequency;
       } else if (activeTab === 'goal') {
