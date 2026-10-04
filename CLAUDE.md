@@ -47,5 +47,9 @@
   (gmail_links/<phone>/bills, with `statementDate`), payments (`money_accounts/<phone>/card_payments`) and spends
   since it (transactions with `cardLast4`), and the latest "Avl Bal" per account (`money_accounts/<phone>/accounts`),
   parsed by `lib/accountParse.ts` from Gmail and SMS. `money_accounts` is server-only (catch-all rule).
+- Statement PDFs (`lib/statementAuto.ts`, step 4 of `syncGmail`, `/api/gmail/statements`): the user saves a bank's PDF
+  password (sealed with `GMAIL_TOKEN_KEY` in `gmail_links.statementPasswords.<bank>`, never returned); each sync opens
+  up to two new statement PDFs, records rows with the same doc ids as manual import (no duplicates) and the closing
+  balance. A locked file is retried only after that bank's password changes (`statementTried`).
 - Card bill reminders (`lib/cardBills.ts`) are opt-in: bills are stored server-only; Agenda tasks
   (`kind: 'card_bill'`, never auto-pushed) and WhatsApp summary lines exist only after the user says yes.

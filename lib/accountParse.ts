@@ -17,6 +17,11 @@ const CARD_LAST4 = /\bcard\b[^\n]{0,30}?(?:ending|no\.?|number)?\s*(?:in|with|:)
 
 const toNumber = (s: string) => parseFloat(s.replace(/,/g, ''));
 
+/** The account's last digits a message mentions ("A/c XX1234", "account ending 1234"). */
+export function accountLast4(text: string): string | null {
+  return text.match(ACCOUNT_LAST4)?.[1]?.slice(-4) || null;
+}
+
 /** The available balance an account alert quotes, with the account's last digits when given. */
 export function availableBalance(text: string): { balance: number; last4: string | null } | null {
   const m = text.match(BALANCE);

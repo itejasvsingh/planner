@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
-import { ArrowDownLeft, ArrowUpRight, FileUp, Plus, Search, Tags, Target, Wallet, X } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, FileUp, Plus, Search, Tags, Target, Users, Wallet, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import BudgetSheet from '@/components/BudgetSheet';
 import { MONTHLY_BUDGET_KEY, budgetStatus, categoryBudgets, summarizeBudget, type BudgetStatus } from '@/lib/budget';
@@ -82,7 +82,8 @@ export default function FinanceScreen() {
     const { config: categoryConfig, learnMerchant } = useCategoryConfig();
     const [budgetOpen, setBudgetOpen] = useState(false);
     const [categoriesOpen, setCategoriesOpen] = useState(false);
-    const [view, setView] = useState<'Overview' | 'Analysis'>('Overview');
+    type MoneyView = 'Overview' | 'Analysis' | 'Cards' | 'Split';
+    const [view, setView] = useState<MoneyView>('Overview');
     const [query, setQuery] = useState('');
     const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
     const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -139,12 +140,13 @@ export default function FinanceScreen() {
         for (const p of settleUpPatches(items, name)) void updateItem(p.id, { split: p.split });
     };
 
-    // Any filter searches all of history; otherwise the list shows the cycle on screen.
-    const filtering = query.trim() !== '' || typeFilter !== 'all' || categoryFilter !== null;
+    // The chips filter the cycle on screen; typing a search looks through all of history.
+    const searching = query.trim() !== '';
+    const filtering = searching || typeFilter !== 'all' || categoryFilter !== null;
     const listItems = useMemo(() => {
         if (!filtering) return financeItems;
         const q = query.trim().toLowerCase();
-        return items.filter(i => {
+        return (searching ? items : financeItems).filter(i => {
             if (!isMoney(i)) return false;
             if (typeFilter !== 'all' && kindForType(i.type) !== typeFilter) return false;
             if (categoryFilter && nameOf(i) !== categoryFilter) return false;
@@ -152,7 +154,7 @@ export default function FinanceScreen() {
             return true;
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filtering, financeItems, items, query, typeFilter, categoryFilter, categoryConfig]);
+    }, [filtering, searching, financeItems, items, query, typeFilter, categoryFilter, categoryConfig]);
     const listTotal = listItems.reduce((sum, i) => sum + (i.type === 'expense' ? -amountOf(i) : i.type === 'transfer' ? 0 : amountOf(i)), 0);
 
     // Group transactions by date
@@ -173,12 +175,15 @@ export default function FinanceScreen() {
     const [editingItem, setEditingItem] = useState<any>(null);
     const [isSheetVisible, setIsSheetVisible] = useState(false);
 
+    const [startSplit, setStartSplit] = useState(false);
     const openAddSheet = () => {
+        setStartSplit(false);
         setEditingItem(null);
         setIsSheetVisible(true);
     };
 
     const openEditSheet = (item: any) => {
+        setStartSplit(false);
         setEditingItem(item);
         setIsSheetVisible(true);
     };
@@ -224,10 +229,29 @@ export default function FinanceScreen() {
                 />
 
                 <View style={styles.content}>
-                    <SegmentedControl tabs={['Overview', 'Analysis']} activeTab={view} onTabChange={t => setView(t as 'Overview' | 'Analysis')} />
+                    <SegmentedControl tabs={['Overview', 'Analysis', 'Cards', 'Split']} activeTab={view} onTabChange={t => setView(t as MoneyView)} />
                     <View style={{ height: 12 }} />
 
-                    {view === 'Analysis' ? (
+                    {view === 'Cards' ? (
+                        <CardsAccounts phone={phone} showEmpty onOpenSettings={() => router.push('/settings/gmail')} />
+                    ) : view === 'Split' ? (
+                        <>
+                            <Pressable accessibilityRole="button" onPress={() => { setEditingItem(null); setStartSplit(true); setIsSheetVisible(true); }}
+                                style={[styles.splitBtn, { backgroundColor: c.accentFill }]}>
+                                <Users color={c.onAccent} size={18} />
+                                <Text style={{ color: c.onAccent, fontWeight: '700', fontSize: 15 }}>Split a bill</Text>
+                            </Pressable>
+                            <FriendsCard balances={balances} onSettle={settleUp} />
+                            {!balances.some(b => Math.round(b.net * 100) !== 0) && (
+                                <View style={[styles.empty, { borderColor: c.border, marginTop: 16 }]}>
+                                    <Users color={c.textTertiary} size={32} />
+                                    <Text style={[Type.body, { color: c.textSecondary, textAlign: 'center' }]}>
+                                        {balances.length ? 'All settled up.' : 'Split a bill with friends: choose who was there, who paid, and how to divide it.'}{'\n'}Who owes whom shows up here.
+                                    </Text>
+                                </View>
+                            )}
+                        </>
+                    ) : view === 'Analysis' ? (
                         <AnalysisView
                             items={items}
                             payday={payday}
@@ -308,9 +332,6 @@ export default function FinanceScreen() {
                         </Pressable>
                     )}
 
-                    {/* Credit cards and bank balances right now (not tied to the cycle on screen) */}
-                    {inProgress && <CardsAccounts phone={phone} />}
-
                     {/* Spending by category */}
                     {categoryTotals.length > 0 && (
                         <>
@@ -357,11 +378,9 @@ export default function FinanceScreen() {
                         </>
                     )}
 
-                    {!filtering && <FriendsCard balances={balances} onSettle={settleUp} />}
-
                     {/* Transactions */}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                        <Text style={[styles.sectionHeader, { color: c.textTertiary }]}>{filtering ? 'All-time results' : inProgress ? 'Transactions this cycle' : `Transactions · ${periodName}`}</Text>
+                        <Text style={[styles.sectionHeader, { color: c.textTertiary }]}>{searching ? 'All-time results' : inProgress ? 'Transactions this cycle' : `Transactions · ${periodName}`}</Text>
                         {categoryTotals.length === 0 && (
                             <Pressable accessibilityRole="button" onPress={() => setCategoriesOpen(true)} hitSlop={8}>
                                 <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Edit categories</Text>
@@ -392,7 +411,7 @@ export default function FinanceScreen() {
                             return (
                                 <Pressable key={f.key} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => setTypeFilter(f.key)}
                                     style={[styles.filterChip, active ? { backgroundColor: c.accentFill, borderColor: c.accentFill } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
-                                    <Text style={{ color: active ? c.onAccent : c.text, fontWeight: '600', fontSize: 13 }}>{f.label}</Text>
+                                    <Text style={{ color: active ? c.onAccent : c.text, fontWeight: '600', fontSize: 12 }}>{f.label}</Text>
                                 </Pressable>
                             );
                         })}
@@ -400,7 +419,7 @@ export default function FinanceScreen() {
                             <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${categoryFilter} filter`} onPress={() => setCategoryFilter(null)}
                                 style={[styles.filterChip, { backgroundColor: c.accentSoft, borderColor: c.accentSoft, flexDirection: 'row', gap: 6 }]}>
                                 <Tags color={c.accent} size={14} />
-                                <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>{categoryFilter}</Text>
+                                <Text style={{ color: c.accent, fontWeight: '700', fontSize: 12 }}>{categoryFilter}</Text>
                                 <X color={c.accent} size={14} />
                             </Pressable>
                         )}
@@ -482,6 +501,7 @@ export default function FinanceScreen() {
                 onSave={handleSave}
                 onDelete={deleteItem}
                 friends={friends}
+                startSplit={startSplit}
             />
         </>
     );
@@ -509,7 +529,8 @@ const styles = StyleSheet.create({
   iconBox: { width: 36, height: 36, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   search: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: 12, marginBottom: 10 },
   searchInput: { flex: 1, fontSize: 15, paddingVertical: 11 },
-  filters: { gap: 8, paddingBottom: 12 },
-  filterChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: Radius.pill, borderWidth: 1, alignItems: 'center' },
+  filters: { gap: 6, paddingBottom: 10 },
+  filterChip: { paddingHorizontal: 11, paddingVertical: 5, borderRadius: Radius.pill, borderWidth: 1, alignItems: 'center' },
+  splitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: Radius.md },
   empty: { padding: 32, alignItems: 'center', gap: 12, borderWidth: 1, borderStyle: 'dashed', borderRadius: Radius.lg },
 });

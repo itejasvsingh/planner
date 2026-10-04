@@ -31,11 +31,13 @@ interface TransactionSheetProps {
     item: any | null; // null means adding a new item
     /** Friends you've split with, most recent first. */
     friends?: string[];
+    /** Adding from Money → Split: start with "Split with friends" on. */
+    startSplit?: boolean;
     onSave: (updates: any) => Promise<void>;
     onDelete?: (id: string) => Promise<void>;
 }
 
-export default function TransactionSheet({ visible, onClose, item, onSave, onDelete, friends = [] }: TransactionSheetProps) {
+export default function TransactionSheet({ visible, onClose, item, onSave, onDelete, friends = [], startSplit = false }: TransactionSheetProps) {
     const { isDark } = useTheme();
     const c = isDark ? Colors.dark : Colors.light;
     const { config: categoryConfig, merchantCategory } = useCategoryConfig();
@@ -73,7 +75,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                 setCategory(DEFAULT_CATEGORY.expense);
                 setDate(dateToKey(new Date()));
                 setIsRecurring(false);
-                setIsSplit(false);
+                setIsSplit(startSplit);
                 setSplitDraft(emptyDraft());
             }
         }

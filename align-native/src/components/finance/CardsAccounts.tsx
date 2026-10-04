@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { CreditCard, Landmark } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
+import { Pressable } from '@/components/ui/pressable';
 import { Radius, Shadow } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { whenSignedIn } from '@/lib/firebase';
@@ -23,7 +24,7 @@ type Data = { cards: CardSummary[]; accounts: AccountBalance[] };
  * Credit cards (due date, statement, outstanding now) and bank balances found in bank emails and SMS.
  * Shows the last known numbers at once (saved on the device) and refreshes whenever Money is opened.
  */
-export default function CardsAccounts({ phone }: { phone: string | null }) {
+export default function CardsAccounts({ phone, showEmpty, onOpenSettings }: { phone: string | null; showEmpty?: boolean; onOpenSettings?: () => void }) {
   const c = useTheme();
   const [data, setData] = useState<Data | null>(null);
   const key = `align_money_accounts_${phone || 'guest'}`;
@@ -47,11 +48,30 @@ export default function CardsAccounts({ phone }: { phone: string | null }) {
     return () => { live = false; stop(); };
   }, [phone, key]));
 
-  if (!data || (!data.cards.length && !data.accounts.length)) return null;
+  const empty = !data || (!data.cards.length && !data.accounts.length);
+  if (empty && !showEmpty) return null;
+  const settingsLink = onOpenSettings ? (
+    <Pressable accessibilityRole="button" onPress={onOpenSettings} hitSlop={6} style={{ alignSelf: 'center', paddingVertical: 10 }}>
+      <Text style={{ color: c.accent, fontWeight: '700', fontSize: 14 }}>Gmail, banks & statement passwords</Text>
+    </Pressable>
+  ) : null;
+  if (empty) {
+    return (
+      <View style={[styles.empty, { borderColor: c.border }]}>
+        <CreditCard color={c.textTertiary} size={32} />
+        <Text style={{ color: c.text, fontSize: 16, fontWeight: '700', textAlign: 'center' }}>Your cards and bank balances</Text>
+        <Text style={{ color: c.textSecondary, fontSize: 13, lineHeight: 19, textAlign: 'center' }}>
+          Connect Gmail and Align finds your credit card statements (due date, amount due, what you owe now) and your
+          bank balances from alerts. Add statement passwords to read bank statement PDFs too.
+        </Text>
+        {settingsLink}
+      </View>
+    );
+  }
 
   return (
-    <View style={{ marginTop: 20 }}>
-      <Text style={[styles.header, { color: c.textTertiary }]}>Cards & accounts</Text>
+    <View>
+      <Text style={[styles.header, { color: c.textTertiary }]}>Credit cards & bills</Text>
       <View style={{ gap: 10 }}>
         {data.cards.map(card => {
           const tone = card.status === 'overdue' ? c.expense : card.status === 'paid' ? c.income : card.daysLeft <= 3 ? c.expense : c.textSecondary;
@@ -90,6 +110,7 @@ export default function CardsAccounts({ phone }: { phone: string | null }) {
             </View>
           );
         })}
+        {data.accounts.length > 0 && <Text style={[styles.header, { color: c.textTertiary, marginTop: 10, marginBottom: 0 }]}>Bank balances</Text>}
         {data.accounts.length > 0 && (
           <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border, paddingVertical: 4 }, Shadow.card]}>
             {data.accounts.map((a, i) => (
@@ -106,6 +127,7 @@ export default function CardsAccounts({ phone }: { phone: string | null }) {
           </View>
         )}
       </View>
+      {settingsLink}
     </View>
   );
 }
@@ -114,5 +136,6 @@ const styles = StyleSheet.create({
   header: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 10 },
   card: { borderRadius: Radius.lg, borderWidth: 1, padding: 14 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  empty: { padding: 28, alignItems: 'center', gap: 10, borderWidth: 1, borderStyle: 'dashed', borderRadius: Radius.lg },
   icon: { width: 34, height: 34, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
 });

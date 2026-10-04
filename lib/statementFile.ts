@@ -46,6 +46,11 @@ async function pdfText(data: Uint8Array, password?: string): Promise<{ items: Pd
   return { items: all, lines };
 }
 
+/** "Opening balance", "Closing balance", "B/F" lines state a balance; they aren't transactions. */
+function withoutBalanceLines(rows: StatementRow[]) {
+  return rows.filter((r) => !/^\s*(?:opening|closing)\s+bal(?:ance)?\b|\bbalance\s+(?:brought|carried)\s+forward\b|^\s*(?:b\/f|c\/f)\b/i.test(r.description));
+}
+
 /** Reads a statement file (PDF, XLSX, XLS, CSV or the HTML-as-.xls some banks send) into transactions. */
 export async function readStatement(buf: Buffer, password?: string): Promise<ReadResult> {
   if (buf.subarray(0, 5).toString('latin1') === '%PDF-') {
@@ -65,7 +70,7 @@ export async function readStatement(buf: Buffer, password?: string): Promise<Rea
     // Table reading handles cells that wrap; plain lines suit simple layouts. Keep whichever finds more.
     const fromTable = itemsToRows(items);
     const fromLines = linesToRows(lines);
-    const rows = fromTable.length >= fromLines.length ? fromTable : fromLines;
+    const rows = withoutBalanceLines(fromTable.length >= fromLines.length ? fromTable : fromLines);
     return rows.length ? { status: 'ok', rows, text } : { status: 'unreadable', message: 'No transactions found in this PDF.', text };
   }
 
@@ -82,5 +87,6 @@ export async function readStatement(buf: Buffer, password?: string): Promise<Rea
     const rows = tableToRows(table);
     if (rows.length > best.length) best = rows;
   }
+  best = withoutBalanceLines(best);
   return best.length ? { status: 'ok', rows: best } : { status: 'unreadable', message: 'No transactions found. Check that the file has Date, Description and amount columns.' };
 }

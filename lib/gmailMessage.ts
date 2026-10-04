@@ -60,3 +60,22 @@ export function bankQuery(domains: string[], window: { after: number; before?: n
 export function billQuery(domains: string[], afterSec: number) {
   return `from:(${domains.join(' OR ')}) {statement bill "amount due" "due date"} after:${Math.floor(afterSec)} -in:spam -in:trash`;
 }
+
+/** PDF attachments of a message (statements): inline data when Gmail included it, else an attachment id. */
+export function pdfAttachments(msg: GmailMessage): { filename: string; attachmentId?: string; data?: string; size: number }[] {
+  const out: { filename: string; attachmentId?: string; data?: string; size: number }[] = [];
+  const walk = (p?: Part) => {
+    if (!p) return;
+    if (p.filename && (/\.pdf$/i.test(p.filename) || p.mimeType === 'application/pdf') && (p.body?.attachmentId || p.body?.data)) {
+      out.push({ filename: p.filename, attachmentId: p.body.attachmentId, data: p.body.data, size: p.body.size || 0 });
+    }
+    for (const c of p.parts || []) walk(c);
+  };
+  walk(msg.payload);
+  return out;
+}
+
+/** Statement emails with a PDF from these senders since `afterSec`. */
+export function statementPdfQuery(domains: string[], afterSec: number) {
+  return `from:(${domains.join(' OR ')}) has:attachment filename:pdf {statement estatement "e-statement"} after:${Math.floor(afterSec)} -in:spam -in:trash`;
+}

@@ -10,6 +10,7 @@ import { triggerHaptic } from '@/lib/haptics';
 import { connectGmail, gmailBanks, gmailDisconnect, gmailStatus, gmailSyncNow, type GmailStatus } from '@/lib/gmail-connect';
 import BankPicker from '@/components/BankPicker';
 import CardBills from '@/components/CardBills';
+import StatementPasswords from '@/components/StatementPasswords';
 
 type Theme = ReturnType<typeof useTheme>;
 const PRIVACY_URL = 'https://alignplanner.vercel.app/privacy';
@@ -254,6 +255,7 @@ export default function GmailScreen() {
           )}
         </View>
         {connected.status === 'connected' && !picking ? <CardBills refreshKey={billsKey} /> : null}
+        {connected.status === 'connected' && !picking ? <StatementPasswords refreshKey={billsKey} /> : null}
         </>
       ) : (
         <>

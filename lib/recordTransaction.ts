@@ -3,7 +3,7 @@ import { db, FieldValue } from './firebase';
 import type { ParsedTransaction } from './smsParse';
 import { merchantRules, ruleFor } from './merchantRules';
 
-export type Channel = 'sms' | 'email' | 'gmail';
+export type Channel = 'sms' | 'email' | 'gmail' | 'statement';
 
 const sha256 = (s: string) => createHash('sha256').update(s).digest('hex');
 // Sources that add transactions automatically; one payment often reaches several of them.
@@ -58,10 +58,11 @@ export async function recordTransaction(
   tx: ParsedTransaction,
   /** `time`: when the message arrived (HH:MM, India), used if the text has no time. */
   /** `card`: the credit card it was spent on, so the card's outstanding can include it. */
-  opts: { source: Channel; dedupText: string; date: string; time?: string | null; card?: { last4: string } | null },
+  opts: { source: Channel; dedupText: string; date: string; time?: string | null; card?: { last4: string } | null; docId?: string },
 ): Promise<'added' | 'duplicate'> {
   const dedupKey = tx.ref ? `ref_${tx.ref}` : `txt_${sha256(opts.dedupText.replace(/\s+/g, ' ').toLowerCase()).slice(0, 24)}`;
-  const ref = db.collection('planner_items').doc(`auto_${sha256(`${phone}_${dedupKey}`).slice(0, 28)}`);
+  // `docId`: statement rows use the ids manual statement import gives them, so the two never double up
+  const ref = db.collection('planner_items').doc(opts.docId || `auto_${sha256(`${phone}_${dedupKey}`).slice(0, 28)}`);
 
   if (await recordedElsewhere(phone, tx, opts.date, opts.source)) return 'duplicate';
   // The user's own category for this merchant beats the guess.

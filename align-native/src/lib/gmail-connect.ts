@@ -79,3 +79,13 @@ export type CardSummary = {
 export type AccountBalance = { id: string; bankId: string; bankName: string; last4: string | null; balance: number; at: number };
 /** Credit cards (statement, due date, outstanding now) and bank balances, read from bank emails and SMS. */
 export const moneyAccounts = () => call<{ cards: CardSummary[]; accounts: AccountBalance[] }>('/api/money/accounts');
+
+export type StatementBank = {
+  id: string; name: string; hasPassword: boolean;
+  status: { state: 'ok' | 'needs_password' | 'wrong_password' | 'unreadable'; at: number; added?: number; rows?: number; from?: string; to?: string } | null;
+};
+/** Banks whose statement PDFs Align reads from Gmail, whether a password is saved, and how the last one went. */
+export const gmailStatements = () => call<{ banks: StatementBank[] }>('/api/gmail/statements');
+/** Saves a bank's statement PDF password (kept encrypted on the server, never shown again); null removes it. */
+export const gmailSetStatementPassword = (bank: string, password: string | null) =>
+  call<{ ok: true; hasPassword: boolean }>('/api/gmail/statements', { method: 'POST', body: JSON.stringify({ bank, password }) });

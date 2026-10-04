@@ -2,10 +2,12 @@ import { randomBytes } from 'node:crypto';
 import { db, FieldValue } from './firebase';
 import { open, seal } from './secretBox';
 import { BANKS, normalizeSender, sendersFor } from './bankSenders';
-import { bankQuery, billQuery, messageText, type GmailMessage } from './gmailMessage';
+import { bankQuery, billQuery, messageText, pdfAttachments, statementPdfQuery, type GmailMessage } from './gmailMessage';
+import { readStatement } from './statementFile';
+import { importStatementRows, type StatementPassword, type StatementState } from './statementAuto';
 import { isCardPaymentReceived, parseBankEmail, parseCardBill } from './emailAlert';
 import { bankForSender, ensureBillTask, markBillsPaid, saveBill } from './cardBills';
-import { availableBalance, cardPaymentAmount, creditCardOf } from './accountParse';
+import { accountLast4, availableBalance, cardPaymentAmount, creditCardOf } from './accountParse';
 import { recordCardPayment, saveBalance } from './moneyAccounts';
 import { istParts, recordTransaction } from './recordTransaction';
 
@@ -271,6 +273,7 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
     let added = 0;
     let billsFound = 0;
     const readIds = new Set<string>();
+    const withPdf = new Map<string, GmailMessage>();
     const todayKey = istParts(Date.now()).date;
 
     /** A bill or statement email: keep it, and make its reminder task if the user said yes. */
@@ -293,6 +296,8 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
         const at = Number(msg.internalDate || Date.now());
         dates[batch.indexOf(id)] = at;
         readIds.add(id);
+        // Statements are opened in step 4: keep emails with a PDF so they aren't downloaded twice
+        if (pdfAttachments(msg).length) withPdf.set(id, msg);
         const { text, from } = messageText(msg);
         // Paying the card bill isn't income (the card spends were already counted): close the reminder instead.
         const bank = bankForSender(from);
@@ -369,6 +374,62 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
       budget -= res.done;
       throttled = throttled || res.throttled;
       patch.billMsgIds = [...todo.slice(0, res.done), ...(link.billMsgIds || [])].slice(0, 100);
+    }
+
+    // 4. Statement PDFs (last ~3 months, at most two per check), opened with the password the user saved for
+    //    that bank. A file that needs a password is tried again only after its bank's password changes.
+    if (budget > 0 && !throttled && Date.now() < deadline - 10_000) {
+      const done = new Set<string>(link.statementMsgIds || []);
+      const tried: Record<string, { bank: string; v: number }> = { ...(link.statementTried || {}) };
+      const passwords: Record<string, StatementPassword> = link.statementPasswords || {};
+      const status: Record<string, StatementState> = {};
+      const found = await list(statementPdfQuery(senders, (Date.now() - 95 * DAY_MS) / 1000), 30);
+      const todo = found.ids
+        .filter((id) => !done.has(id) && !(tried[id] && (passwords[tried[id].bank]?.v || 0) === tried[id].v))
+        .slice(0, Math.min(2, budget));
+      for (const id of todo) {
+        if (Date.now() > deadline - 8_000) break;
+        // Already read this run and it had no PDF: nothing to open
+        if (readIds.has(id) && !withPdf.has(id)) { done.add(id); continue; }
+        try {
+          let msg = withPdf.get(id);
+          if (!msg) {
+            msg = await gmail<GmailMessage>(token, `/messages/${id}?format=full`);
+            budget--;
+          }
+          const { text, subject, from } = messageText(msg);
+          const bank = bankForSender(from);
+          const pdf = pdfAttachments(msg).find((a) => a.size <= 5_000_000);
+          if (!bank || !pdf) { done.add(id); continue; }
+          const data = pdf.data || (await gmail<{ data: string }>(token, `/messages/${id}/attachments/${pdf.attachmentId}`)).data;
+          const buf = Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+          const pw = passwords[bank.id];
+          let res = await readStatement(buf);
+          if (res.status === 'password' && pw) res = await readStatement(buf, open(pw.sealed));
+          const at = Number(msg.internalDate || Date.now());
+          if (res.status === 'ok') {
+            const creditCard = /credit\s*card/i.test(`${subject}\n${text}`);
+            const r = await importStatementRows(phone, res.rows, { bankId: bank.id, bankName: bank.name, at, creditCard, last4: accountLast4(text) || creditCardOf(text)?.last4 || null });
+            added += r.added;
+            status[bank.id] = { state: 'ok', at, added: r.added, rows: r.rows, from: r.from, to: r.to };
+            done.add(id);
+            delete tried[id];
+          } else if (res.status === 'password') {
+            status[bank.id] = { state: pw ? 'wrong_password' : 'needs_password', at };
+            tried[id] = { bank: bank.id, v: pw?.v || 0 };
+          } else {
+            status[bank.id] = { state: 'unreadable', at };
+            done.add(id);
+          }
+        } catch (e) {
+          if (e instanceof GmailThrottled) { throttled = true; break; }
+          console.warn('Statement PDF skipped:', (e as Error).message);
+          done.add(id);
+        }
+      }
+      patch.statementMsgIds = [...done].slice(-200);
+      patch.statementTried = tried;
+      for (const [b, st] of Object.entries(status)) patch[`statementStatus.${b}`] = st;
     }
 
     const notes: string[] = [];
