@@ -50,6 +50,7 @@ export default function PrivacyPage() {
         <ul>
           <li>only opens emails from bank and card senders (transaction alerts and statements);</li>
           <li>extracts transaction details (amount, date, merchant, reference, account type) and saves those as transactions in your Align account;</li>
+          <li>from card statements and alerts, keeps only the numbers needed to show your cards and accounts: a card&apos;s statement total, minimum due, due date and last four digits, payments made to it, and the latest available balance an account alert quotes;</li>
           <li>does not store the emails themselves, and stores your Gmail access key encrypted;</li>
           <li>never sells this data, never uses it for advertising, never uses it to train AI models, and never sends it to AI services;</li>
           <li>does not let people read it, except with your permission for support, for security investigations, or where the law requires.</li>

@@ -57,7 +57,8 @@ export async function recordTransaction(
   phone: string,
   tx: ParsedTransaction,
   /** `time`: when the message arrived (HH:MM, India), used if the text has no time. */
-  opts: { source: Channel; dedupText: string; date: string; time?: string | null },
+  /** `card`: the credit card it was spent on, so the card's outstanding can include it. */
+  opts: { source: Channel; dedupText: string; date: string; time?: string | null; card?: { last4: string } | null },
 ): Promise<'added' | 'duplicate'> {
   const dedupKey = tx.ref ? `ref_${tx.ref}` : `txt_${sha256(opts.dedupText.replace(/\s+/g, ' ').toLowerCase()).slice(0, 24)}`;
   const ref = db.collection('planner_items').doc(`auto_${sha256(`${phone}_${dedupKey}`).slice(0, 28)}`);
@@ -81,6 +82,7 @@ export async function recordTransaction(
       splits: [],
       source: opts.source,
       ref: tx.ref || null,
+      ...(opts.card ? { cardLast4: opts.card.last4 } : {}),
       autoDetected: true,
       createdAt: FieldValue.serverTimestamp(),
     });

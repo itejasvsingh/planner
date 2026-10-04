@@ -13,6 +13,7 @@ import { useTheme } from '@/hooks/use-theme';
 import TransactionSheet from '@/components/TransactionSheet';
 import CycleStepper, { cycleName } from '@/components/finance/CycleStepper';
 import FriendsCard from '@/components/finance/FriendsCard';
+import CardsAccounts from '@/components/finance/CardsAccounts';
 import { friendBalances, recentFriends, settleUpPatches, splitOf } from '@/lib/splits';
 
 /** "Split with Rahul" / "Split with 3" for a transaction row. */
@@ -306,6 +307,9 @@ export default function FinanceScreen() {
                             <Text style={{ color: c.accent, fontWeight: '700' }}>Set</Text>
                         </Pressable>
                     )}
+
+                    {/* Credit cards and bank balances right now (not tied to the cycle on screen) */}
+                    {inProgress && <CardsAccounts phone={phone} />}
 
                     {/* Spending by category */}
                     {categoryTotals.length > 0 && (

@@ -70,3 +70,12 @@ export type CardBill = { id: string; issuer: string; issuerName: string; last4: 
 export const gmailBills = () => call<{ reminders: boolean | null; bills: CardBill[] }>('/api/gmail/bills');
 export const gmailSetBillReminders = (remind: boolean) =>
   call<{ reminders: boolean; created: number }>('/api/gmail/bills', { method: 'POST', body: JSON.stringify({ remind }) });
+
+export type CardSummary = {
+  issuer: string; issuerName: string; last4: string | null; statementDate: string | null; dueDate: string;
+  totalDue: number; minDue: number | null; paidSince: number; spentSince: number; outstanding: number;
+  status: 'paid' | 'due' | 'overdue'; daysLeft: number;
+};
+export type AccountBalance = { id: string; bankId: string; bankName: string; last4: string | null; balance: number; at: number };
+/** Credit cards (statement, due date, outstanding now) and bank balances, read from bank emails and SMS. */
+export const moneyAccounts = () => call<{ cards: CardSummary[]; accounts: AccountBalance[] }>('/api/money/accounts');

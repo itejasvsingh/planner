@@ -43,5 +43,9 @@
   all of `lib/bankSenders.ts` BANKS). Alerts from any bank go through `parseBankEmail` (sentence + labelled rows);
   `recordTransaction` keeps one payment from SMS/email/Gmail/statement once (same ref, or same amount and
   direction ±1 day from another source unless both refs differ) and stores `ref` and `time`.
+- Money → Cards & accounts (`lib/moneyAccounts.ts`, `GET /api/money/accounts`): per card the latest statement
+  (gmail_links/<phone>/bills, with `statementDate`), payments (`money_accounts/<phone>/card_payments`) and spends
+  since it (transactions with `cardLast4`), and the latest "Avl Bal" per account (`money_accounts/<phone>/accounts`),
+  parsed by `lib/accountParse.ts` from Gmail and SMS. `money_accounts` is server-only (catch-all rule).
 - Card bill reminders (`lib/cardBills.ts`) are opt-in: bills are stored server-only; Agenda tasks
   (`kind: 'card_bill'`, never auto-pushed) and WhatsApp summary lines exist only after the user says yes.

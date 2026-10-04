@@ -5,6 +5,8 @@ import { BANKS, normalizeSender, sendersFor } from './bankSenders';
 import { bankQuery, billQuery, messageText, type GmailMessage } from './gmailMessage';
 import { isCardPaymentReceived, parseBankEmail, parseCardBill } from './emailAlert';
 import { bankForSender, ensureBillTask, markBillsPaid, saveBill } from './cardBills';
+import { availableBalance, cardPaymentAmount, creditCardOf } from './accountParse';
+import { recordCardPayment, saveBalance } from './moneyAccounts';
 import { istParts, recordTransaction } from './recordTransaction';
 
 /**
@@ -272,10 +274,10 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
     const todayKey = istParts(Date.now()).date;
 
     /** A bill or statement email: keep it, and make its reminder task if the user said yes. */
-    const takeBill = async (text: string, from: string) => {
+    const takeBill = async (text: string, from: string, at?: number) => {
       const bill = parseCardBill(text);
       if (!bill) return false;
-      const stored = await saveBill(phone, bill, from);
+      const stored = await saveBill(phone, bill, from, at);
       billsFound++;
       if (link.billReminders === true && stored.dueDate >= todayKey) await ensureBillTask(phone, stored);
       return true;
@@ -293,18 +295,25 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
         readIds.add(id);
         const { text, from } = messageText(msg);
         // Paying the card bill isn't income (the card spends were already counted): close the reminder instead.
+        const bank = bankForSender(from);
         if (isCardPaymentReceived(text)) {
-          const bank = bankForSender(from);
-          if (bank) await markBillsPaid(phone, bank.id);
+          if (bank) {
+            await markBillsPaid(phone, bank.id);
+            const paid = cardPaymentAmount(text);
+            if (paid) await recordCardPayment(phone, bank.id, paid, at);
+          }
           return;
         }
+        // The balance an alert quotes, kept as the account's latest balance (only the number)
+        const bal = availableBalance(text);
+        if (bal && bank) await saveBalance(phone, { bankId: bank.id, bankName: bank.name, last4: bal.last4, balance: bal.balance, at });
         const tx = parseBankEmail(text);
         if (!tx) {
-          await takeBill(text, from);
+          await takeBill(text, from, at);
           return;
         }
         const arrived = istParts(at);
-        const outcome = await recordTransaction(phone, tx, { source: 'gmail', dedupText: `gmail:${id}`, date: tx.date || arrived.date, time: arrived.time });
+        const outcome = await recordTransaction(phone, tx, { source: 'gmail', dedupText: `gmail:${id}`, date: tx.date || arrived.date, time: arrived.time, card: creditCardOf(text) });
         if (outcome === 'added') added++;
       });
       budget -= result.done;
@@ -347,15 +356,15 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
     }
     patch.backfillUntil = backfillUntil;
 
-    // 3. Card bills and statements the alert search didn't bring in (last 45 days, a few per check).
+    // 3. Card bills and statements the alert search didn't bring in (last ~3 months, a few per check).
     if (budget > 0 && !throttled && Date.now() < deadline) {
       const seen = new Set<string>([...(link.billMsgIds || []), ...readIds]);
-      const found = await list(billQuery(senders, (Date.now() - 45 * DAY_MS) / 1000), 20);
+      const found = await list(billQuery(senders, (Date.now() - 100 * DAY_MS) / 1000), 30);
       const todo = found.ids.filter((id) => !seen.has(id)).slice(0, Math.min(5, budget));
       const res = await pool(todo, READ_WIDTH, deadline, async (id) => {
         const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=full`);
         const { text, from } = messageText(msg);
-        await takeBill(text, from);
+        await takeBill(text, from, Number(msg.internalDate || Date.now()));
       });
       budget -= res.done;
       throttled = throttled || res.throttled;

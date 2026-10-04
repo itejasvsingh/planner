@@ -5,6 +5,8 @@ import { db } from '../../../../lib/firebase';
 import { consumeRateLimit } from '../../../../lib/rateLimit';
 import { parseTransactionSms, guessCategory, type ParsedTransaction } from '../../../../lib/smsParse';
 import { alertWindow, parseBankEmail } from '../../../../lib/emailAlert';
+import { availableBalance, bankFromText, creditCardOf } from '../../../../lib/accountParse';
+import { saveBalance } from '../../../../lib/moneyAccounts';
 import { istParts, recordTransaction } from '../../../../lib/recordTransaction';
 
 export const dynamic = 'force-dynamic';
@@ -107,7 +109,11 @@ export async function POST(req: Request) {
   const date = tx.date || sentDate(body.date) || todayIST();
   // When the SMS/email arrived (the app sends it for older SMS), used if the text has no time
   const arrivedMs = typeof body.date === 'string' && sentDate(body.date) ? new Date(body.date).getTime() : Date.now();
-  const outcome = await recordTransaction(phone, tx, { source, dedupText: text, date, time: istParts(arrivedMs).time });
+  // The balance the alert quotes (only the number) and the credit card it was spent on, if any
+  const bal = availableBalance(text);
+  const bank = bal ? bankFromText(text) : null;
+  if (bal && bank) await saveBalance(phone, { bankId: bank.id, bankName: bank.name, last4: bal.last4, balance: bal.balance, at: arrivedMs }).catch(() => {});
+  const outcome = await recordTransaction(phone, tx, { source, dedupText: text, date, time: istParts(arrivedMs).time, card: creditCardOf(text) });
   const created = outcome === 'added';
 
   const label = `₹${tx.amount.toLocaleString('en-IN')} ${tx.type === 'expense' ? 'to' : 'from'} ${tx.merchant}`;

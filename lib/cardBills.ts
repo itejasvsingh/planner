@@ -12,7 +12,7 @@ import { istParts } from './recordTransaction';
  * the same issuer ticks the task off.
  */
 
-export type StoredBill = CardBill & { id: string; issuer: string; issuerName: string };
+export type StoredBill = CardBill & { id: string; issuer: string; issuerName: string; statementDate?: string };
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 24);
 const billsOf = (phone: string) => db.collection('gmail_links').doc(phone).collection('bills');
@@ -23,10 +23,14 @@ export function bankForSender(from: string) {
   return BANKS.find((b) => b.id !== 'otherbankin' && b.senders.some((s) => f === s || f.endsWith(`@${s}`) || f.endsWith(`.${s}`))) || null;
 }
 
-export async function saveBill(phone: string, bill: CardBill, from: string): Promise<StoredBill> {
+/** `at`: when the statement email arrived (its date is the statement date). */
+export async function saveBill(phone: string, bill: CardBill, from: string, at?: number): Promise<StoredBill> {
   const bank = bankForSender(from);
   const issuer = bank?.id || from.split('@').pop() || 'card';
-  const stored: StoredBill = { ...bill, issuer, issuerName: bank?.name || issuer, id: sha(`${phone}|${issuer}|${bill.last4 || ''}|${bill.dueDate}`) };
+  const stored: StoredBill = {
+    ...bill, issuer, issuerName: bank?.name || issuer, id: sha(`${phone}|${issuer}|${bill.last4 || ''}|${bill.dueDate}`),
+    ...(at ? { statementDate: istParts(at).date } : {}),
+  };
   await billsOf(phone).doc(stored.id).set({ ...stored, foundAt: FieldValue.serverTimestamp() }, { merge: true });
   return stored;
 }
