@@ -410,13 +410,14 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
           const pw = passwords[slot];
           const otherPw = passwords[statementSlot(bank.id, creditCard ? 'account' : 'card')];
           let res = await readStatement(buf);
+          const locked = res.status === 'password';
           if (res.status === 'password' && pw) res = await readStatement(buf, open(pw.sealed));
           if (res.status === 'password' && otherPw) res = await readStatement(buf, open(otherPw.sealed));
           const at = Number(msg.internalDate || Date.now());
           if (res.status === 'ok') {
             const r = await importStatementRows(phone, res.rows, { bankId: bank.id, bankName: bank.name, at, creditCard, last4: accountLast4(text) || creditCardOf(text)?.last4 || null });
             added += r.added;
-            status[slot] = { state: 'ok', at, added: r.added, rows: r.rows, from: r.from, to: r.to, checked: r.checked, extras: r.extras };
+            status[slot] = { state: 'ok', at, locked, added: r.added, rows: r.rows, from: r.from, to: r.to, checked: r.checked, extras: r.extras };
             done.add(id);
             delete tried[id];
           } else if (res.status === 'password') {

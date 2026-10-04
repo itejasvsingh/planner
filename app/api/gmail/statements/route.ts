@@ -8,8 +8,8 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Statement PDFs read from Gmail, per bank and kind (bank account / credit card): whether a password is
- * saved (never the password itself) and how the last statement went. Lists the banks picked in
- * Settings → Gmail, plus any a statement came from.
+ * saved (never the password itself) and how the last statement went. Only kinds Align has actually found a
+ * statement for (or that already have a password) are listed, so it never asks for a card you don't have.
  */
 export async function GET(req: Request) {
   const user = await requestUser(req);
@@ -20,15 +20,16 @@ export async function GET(req: Request) {
   const status = (link.statementStatus || {}) as Record<string, StatementState>;
   const bankOf = (slot: string) => slot.replace(/__card$/, '');
   const ids = new Set<string>([...(link.banks || link.detected || []), ...Object.keys(status).map(bankOf), ...Object.keys(passwords).map(bankOf)]);
-  const banks = BANKS.filter((b) => ids.has(b.id) && b.id !== 'otherbankin').map((b) => ({
-    id: b.id,
-    name: b.name,
-    kinds: kindsFor(b.id).map((kind) => ({
-      kind,
-      hasPassword: !!passwords[statementSlot(b.id, kind)],
-      status: status[statementSlot(b.id, kind)] || null,
-    })),
-  }));
+  const banks = BANKS.filter((b) => ids.has(b.id) && b.id !== 'otherbankin')
+    .map((b) => ({
+      id: b.id,
+      name: b.name,
+      kinds: kindsFor(b.id)
+        .map((kind) => ({ kind, hasPassword: !!passwords[statementSlot(b.id, kind)], status: status[statementSlot(b.id, kind)] || null }))
+        // Listed once a locked statement of this kind turned up (or a password is saved); unlocked ones need nothing
+        .filter((k) => k.hasPassword || (k.status && (k.status.state !== 'ok' || k.status.locked))),
+    }))
+    .filter((b) => b.kinds.length);
   return NextResponse.json({ banks });
 }
 

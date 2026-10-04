@@ -64,7 +64,6 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
   };
 
   if (!banks) return <ActivityIndicator color={c.accent} style={{ marginTop: 16 }} />;
-  if (!banks.length) return null;
 
   return (
     <View style={[styles.box, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
@@ -73,10 +72,9 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
         <Text style={{ color: c.text, fontSize: 16, fontWeight: '700', flex: 1 }}>Statement passwords</Text>
       </View>
       <Text style={{ color: c.textSecondary, fontSize: 13, lineHeight: 19 }}>
-        Banks email statements as locked PDFs, often with one password for your bank account statement and another for
-        your credit card statement (the email usually says how it&apos;s made, e.g. part of your name + date of birth, or your
-        customer ID). Save them and Align reads each new statement by itself: transactions (no duplicates) and balance.
-        Passwords are stored encrypted and never shown again; the PDFs aren&apos;t kept.
+        {banks.length
+          ? 'Align found these locked statements in your Gmail. Add each one’s PDF password (the bank’s email usually says how it’s made, e.g. part of your name + date of birth, or your customer ID) and Align reads every new statement by itself: transactions (no duplicates) and balance. Passwords are stored encrypted and never shown again; the PDFs aren’t kept.'
+          : 'No password-protected statements found in your Gmail yet. When Align finds one (a bank account or credit card statement), it shows up here so you can add its password.'}
       </Text>
       {banks.map(b => (
         <View key={b.id} style={[styles.bank, { borderTopColor: c.border }]}>

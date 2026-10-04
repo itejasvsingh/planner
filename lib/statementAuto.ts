@@ -15,7 +15,7 @@ import { guessCategory } from './smsParse';
 
 export type StatementPassword = { sealed: string; v: number };
 export type StatementState = {
-  state: 'ok' | 'needs_password' | 'wrong_password' | 'unreadable'; at: number; added?: number; rows?: number; from?: string; to?: string;
+  state: 'ok' | 'needs_password' | 'wrong_password' | 'unreadable'; at: number; locked?: boolean; added?: number; rows?: number; from?: string; to?: string;
   /** Compared with what alerts recorded for the same account/card: those the statement doesn't have. */
   checked?: boolean; extras?: { title: string; amount: number; date: string }[];
 };

@@ -74,7 +74,7 @@ test('a wrong password says so; the right one imports the transactions and the c
   await setStatementPassword(PHONE, 'hdfc', 'TEST1234');
   await sync();
   const st = (await link().get()).data().statementStatus.hdfc;
-  assert.deepEqual([st.state, st.rows, st.added, st.from, st.to], ['ok', 4, 3, '2026-09-03', '2026-09-28']);
+  assert.deepEqual([st.state, st.locked, st.rows, st.added, st.from, st.to], ['ok', true, 4, 3, '2026-09-03', '2026-09-28']);
   assert.deepEqual([st.checked, st.extras], [true, [{ title: 'Mystery Shop', amount: 999, date: '2026-09-12' }]]);
   const all = (await items()).filter((i) => i.title !== 'Mystery Shop');
   assert.equal(all.length, 4, 'opening balance is not a transaction; rent once');
