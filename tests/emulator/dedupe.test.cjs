@@ -77,3 +77,15 @@ test('a payment you split with friends is still recognised when the same debit a
   assert.equal(await recordTransaction(P, tx({ amount: 1200, ref: '999988887777' }), { source: 'gmail', dedupText: 'gmail:split', date: '2026-10-02' }), 'duplicate');
   assert.equal(await count(P), 1);
 });
+
+test('money to family or your own account is a transfer, not spending, and stays one transaction', async () => {
+  const P = '919800000008';
+  await db.collection('planner_settings').doc(`preferences_${P}`).set({ expenseCategories: { transferMerchants: { 'sunita singh': 'Family' } } });
+  await recordTransaction(P, tx({ merchant: 'Sunita Singh', amount: 5000 }), { source: 'sms', dedupText: 'mom', date: '2026-10-02' });
+  await recordTransaction(P, tx({ merchant: 'Tejasv', amount: 20000 }), { source: 'sms', dedupText: 'self', date: '2026-10-02', text: 'Rs 20000 transferred to self a/c XX1234 via IMPS' });
+  await recordTransaction(P, tx({ merchant: 'Zomato', amount: 300 }), { source: 'sms', dedupText: 'z', date: '2026-10-02' });
+  // the Gmail alert for Mom's transfer arrives too: still one
+  assert.equal(await recordTransaction(P, tx({ merchant: 'SUNITA SINGH', amount: 5000 }), { source: 'gmail', dedupText: 'gmail:mom', date: '2026-10-02' }), 'duplicate');
+  const got = (await db.collection('planner_items').where('ownerId', '==', P).get()).docs.map(d => d.data()).sort((a, b) => a.amount - b.amount);
+  assert.deepEqual(got.map(i => [i.amount, i.type, i.category]), [[300, 'expense', 'Other'], [5000, 'transfer', 'Family'], [20000, 'transfer', 'Self Transfer']]);
+});

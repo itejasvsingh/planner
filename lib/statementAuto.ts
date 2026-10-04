@@ -18,10 +18,19 @@ export type StatementState = { state: 'ok' | 'needs_password' | 'wrong_password'
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
-/** Saves (or with null, removes) a bank's statement password. */
-export async function setStatementPassword(phone: string, bankId: string, password: string | null) {
+/**
+ * Banks often lock account statements and credit card statements with different passwords, so each has its
+ * own slot: `<bank>` for account statements, `<bank>__card` for card statements. Card-only issuers have one.
+ */
+export type StatementKind = 'account' | 'card';
+export const CARD_ONLY = new Set(['slice', 'sbicard', 'amex', 'onecard']);
+export const statementSlot = (bankId: string, kind: StatementKind) => (kind === 'card' ? `${bankId}__card` : bankId);
+export const kindsFor = (bankId: string): StatementKind[] => (CARD_ONLY.has(bankId) ? ['card'] : ['account', 'card']);
+
+/** Saves (or with null, removes) the PDF password for one kind of statement from a bank. */
+export async function setStatementPassword(phone: string, bankId: string, password: string | null, kind: StatementKind = 'account') {
   const ref = db.collection('gmail_links').doc(phone);
-  const field = `statementPasswords.${bankId}`;
+  const field = `statementPasswords.${statementSlot(bankId, kind)}`;
   if (!password) {
     await ref.update({ [field]: FieldValue.delete() });
     return;
@@ -63,7 +72,7 @@ export async function importStatementRows(
     const outcome = await recordTransaction(
       phone,
       { type: r.type, amount: r.amount, merchant, category: guessCategory(`${merchant} ${r.description}`, r.type), ref: r.ref, date: r.date, time: null },
-      { source: 'statement', dedupText: `statement:${ids[i]}`, date: r.date, docId: ids[i], card: opts.creditCard && opts.last4 ? { last4: opts.last4 } : null },
+      { source: 'statement', dedupText: `statement:${ids[i]}`, date: r.date, docId: ids[i], card: opts.creditCard && opts.last4 ? { last4: opts.last4 } : null, text: r.description },
     );
     if (outcome === 'added') added++;
   }

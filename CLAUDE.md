@@ -51,8 +51,13 @@
   hidden persist; amounts, due date and paid apply only while `forDue` matches the latest statement; `manual_*` keys
   are cards added by hand. The app's "Paid with" sets a transaction's `cardLast4`.
 - Statement PDFs (`lib/statementAuto.ts`, step 4 of `syncGmail`, `/api/gmail/statements`): the user saves a bank's PDF
-  password (sealed with `GMAIL_TOKEN_KEY` in `gmail_links.statementPasswords.<bank>`, never returned); each sync opens
+  password per kind (sealed with `GMAIL_TOKEN_KEY` in `gmail_links.statementPasswords.<bank>` for account statements,
+  `<bank>__card` for credit card statements; never returned); each sync opens
   up to two new statement PDFs, records rows with the same doc ids as manual import (no duplicates) and the closing
   balance. A locked file is retried only after that bank's password changes (`statementTried`).
+- Transfers: `expenseCategories.transferMerchants` (payee → Family / Self Transfer) and "self / own a/c" wording
+  (`SELF_TRANSFER`) make `recordTransaction` save money-out as type `transfer`, before the duplicate check.
+- Suspicious payments are found in the app (`align-native/src/lib/suspicious.ts`, pure): Money shows "payments to
+  check" and `SuspiciousWatcher` notifies once per new one; the answer is stored as the item's `review`.
 - Card bill reminders (`lib/cardBills.ts`) are opt-in: bills are stored server-only; Agenda tasks
   (`kind: 'card_bill'`, never auto-pushed) and WhatsApp summary lines exist only after the user says yes.

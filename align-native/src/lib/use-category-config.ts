@@ -99,18 +99,33 @@ export function useCategoryConfig() {
    * Remembers the category the user gave a merchant ("Isthara Parks → Food & Dining"); future transactions
    * from it get that category until the user changes one again.
    */
-  const learnMerchant = useCallback(async (merchant: string | null | undefined, category: string) => {
+  /** `type` 'transfer': money to this payee is a transfer (family, your own account), not spending. */
+  const learnMerchant = useCallback(async (merchant: string | null | undefined, category: string, type?: string) => {
     const k = merchantKey(merchant);
     const current = entryFor(key).config;
-    if (!k || !category || current.merchants?.[k] === category) return;
-    await saveConfig({ ...current, merchants: { ...(current.merchants || {}), [k]: category } });
+    if (!k || !category) return;
+    const transfer = type === 'transfer';
+    const merchants = { ...(current.merchants || {}) };
+    const transfers = { ...(current.transferMerchants || {}) };
+    if (transfer) { if (transfers[k] === category && !merchants[k]) return; transfers[k] = category; delete merchants[k]; }
+    else { if (merchants[k] === category && !transfers[k]) return; merchants[k] = category; delete transfers[k]; }
+    await saveConfig({ ...current, merchants, transferMerchants: transfers });
   }, [key, saveConfig]);
 
-  /** The category the user set for this merchant, if any. */
+  /** The category the user set for this merchant, if any (spending rules only). */
   const merchantCategory = useCallback((merchant: string | null | undefined) => {
     const k = merchantKey(merchant);
     return (k && config.merchants?.[k]) || null;
   }, [config]);
 
-  return { config, saveConfig, learnMerchant, merchantCategory };
+  /** The user's rule for this payee: a category, and whether payments to it are transfers. */
+  const merchantRule = useCallback((merchant: string | null | undefined): { category: string; transfer: boolean } | null => {
+    const k = merchantKey(merchant);
+    if (!k) return null;
+    if (config.transferMerchants?.[k]) return { category: config.transferMerchants[k], transfer: true };
+    if (config.merchants?.[k]) return { category: config.merchants[k], transfer: false };
+    return null;
+  }, [config]);
+
+  return { config, saveConfig, learnMerchant, merchantCategory, merchantRule };
 }

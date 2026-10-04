@@ -38,6 +38,7 @@ import {
   WalletCards,
   Wifi,
   Zap,
+  Users,
   type LucideIcon,
 } from 'lucide-react-native';
 
@@ -50,7 +51,7 @@ export const CATEGORY_ICONS: Record<string, LucideIcon> = {
   house: House, health: HeartPulse, pill: Pill, gym: Dumbbell, education: GraduationCap, book: BookOpen,
   movie: Clapperboard, music: Music, games: Gamepad2, gift: Gift, baby: Baby, pet: PawPrint, salon: Scissors,
   card: CreditCard, bank: Landmark, invest: TrendingUp, savings: PiggyBank, salary: Briefcase, received: HandCoins,
-  refund: Undo2, transfer: ArrowLeftRight, wallet: WalletCards, sparkles: Sparkles, tag: Tag, other: Shapes,
+  refund: Undo2, transfer: ArrowLeftRight, family: Users, wallet: WalletCards, sparkles: Sparkles, tag: Tag, other: Shapes,
 };
 
 /** Category colors: a strong icon color on a soft tile, per theme. Icons only, never body text. */
@@ -121,6 +122,7 @@ const BUILTIN: Record<CategoryKind, Builtin[]> = {
   ],
   transfer: [
     { name: 'Self Transfer', tint: 'blue', iconKey: 'transfer', aliases: ['transfer', 'own account'] },
+    { name: 'Family', tint: 'pink', iconKey: 'family', aliases: ['family', 'parents', 'mom', 'dad'] },
     { name: 'Wallet Load', tint: 'violet', iconKey: 'wallet', aliases: ['wallet', 'paytm wallet'] },
     { name: 'Savings', tint: 'green', iconKey: 'savings', aliases: ['investment', 'investments', 'sip', 'fd'] },
   ],
@@ -144,6 +146,8 @@ export type CategoryConfig = {
    * Applied to that merchant's future transactions (server: lib/merchantRules.ts) until changed again.
    */
   merchants?: Record<string, string>;
+  /** Payees whose payments are transfers, not spending (Mom → Family, your other account → Self Transfer). */
+  transferMerchants?: Record<string, string>;
 };
 
 export const DEFAULT_CATEGORY: Record<CategoryKind, string> = {

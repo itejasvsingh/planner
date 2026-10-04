@@ -123,7 +123,7 @@ export async function POST(req: Request) {
   const bal = availableBalance(text);
   const bank = bal ? bankFromText(text) || { id: 'bank', name: 'Bank account' } : null;
   if (bal && bank) await saveBalance(phone, { bankId: bank.id, bankName: bank.name, last4: bal.last4, balance: bal.balance, at: arrivedMs }).catch(() => {});
-  const outcome = await recordTransaction(phone, tx, { source, dedupText: text, date, time: istParts(arrivedMs).time, card: creditCardOf(text) });
+  const outcome = await recordTransaction(phone, tx, { source, dedupText: text, date, time: istParts(arrivedMs).time, card: creditCardOf(text), text });
   const created = outcome === 'added';
 
   const label = `₹${tx.amount.toLocaleString('en-IN')} ${tx.type === 'expense' ? 'to' : 'from'} ${tx.merchant}`;

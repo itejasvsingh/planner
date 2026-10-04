@@ -4,7 +4,7 @@ import { open, seal } from './secretBox';
 import { BANKS, normalizeSender, sendersFor } from './bankSenders';
 import { bankQuery, billQuery, messageText, pdfAttachments, statementPdfQuery, type GmailMessage } from './gmailMessage';
 import { readStatement } from './statementFile';
-import { importStatementRows, type StatementPassword, type StatementState } from './statementAuto';
+import { CARD_ONLY, importStatementRows, statementSlot, type StatementPassword, type StatementState } from './statementAuto';
 import { isCardPaymentReceived, parseBankEmail, parseCardBill } from './emailAlert';
 import { bankForSender, ensureBillTask, markBillsPaid, saveBill } from './cardBills';
 import { accountLast4, availableBalance, cardPaymentAmount, creditCardOf } from './accountParse';
@@ -318,7 +318,7 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
           return;
         }
         const arrived = istParts(at);
-        const outcome = await recordTransaction(phone, tx, { source: 'gmail', dedupText: `gmail:${id}`, date: tx.date || arrived.date, time: arrived.time, card: creditCardOf(text) });
+        const outcome = await recordTransaction(phone, tx, { source: 'gmail', dedupText: `gmail:${id}`, date: tx.date || arrived.date, time: arrived.time, card: creditCardOf(text), text });
         if (outcome === 'added') added++;
       });
       budget -= result.done;
@@ -403,22 +403,27 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
           if (!bank || !pdf) { done.add(id); continue; }
           const data = pdf.data || (await gmail<{ data: string }>(token, `/messages/${id}/attachments/${pdf.attachmentId}`)).data;
           const buf = Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
-          const pw = passwords[bank.id];
+          // Card or account statement: each has its own password (the other is tried too, in case it was
+          // saved in the wrong place)
+          const creditCard = CARD_ONLY.has(bank.id) || /credit\s*card/i.test(`${subject}\n${text}`);
+          const slot = statementSlot(bank.id, creditCard ? 'card' : 'account');
+          const pw = passwords[slot];
+          const otherPw = passwords[statementSlot(bank.id, creditCard ? 'account' : 'card')];
           let res = await readStatement(buf);
           if (res.status === 'password' && pw) res = await readStatement(buf, open(pw.sealed));
+          if (res.status === 'password' && otherPw) res = await readStatement(buf, open(otherPw.sealed));
           const at = Number(msg.internalDate || Date.now());
           if (res.status === 'ok') {
-            const creditCard = /credit\s*card/i.test(`${subject}\n${text}`);
             const r = await importStatementRows(phone, res.rows, { bankId: bank.id, bankName: bank.name, at, creditCard, last4: accountLast4(text) || creditCardOf(text)?.last4 || null });
             added += r.added;
-            status[bank.id] = { state: 'ok', at, added: r.added, rows: r.rows, from: r.from, to: r.to };
+            status[slot] = { state: 'ok', at, added: r.added, rows: r.rows, from: r.from, to: r.to };
             done.add(id);
             delete tried[id];
           } else if (res.status === 'password') {
-            status[bank.id] = { state: pw ? 'wrong_password' : 'needs_password', at };
-            tried[id] = { bank: bank.id, v: pw?.v || 0 };
+            status[slot] = { state: pw ? 'wrong_password' : 'needs_password', at };
+            tried[id] = { bank: slot, v: pw?.v || 0 };
           } else {
-            status[bank.id] = { state: 'unreadable', at };
+            status[slot] = { state: 'unreadable', at };
             done.add(id);
           }
         } catch (e) {

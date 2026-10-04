@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { db, FieldValue } from './firebase';
 import type { ParsedTransaction } from './smsParse';
-import { merchantRules, ruleFor } from './merchantRules';
+import { allMerchantRules, ruleFor, SELF_TRANSFER } from './merchantRules';
 
 export type Channel = 'sms' | 'email' | 'gmail' | 'statement';
 
@@ -27,7 +27,13 @@ function shiftDate(date: string, days: number) {
  * differ, which proves they are separate payments. Same-source items never count, so two genuine ₹20 payments
  * on one day from SMS are both kept.
  */
-async function recordedElsewhere(phone: string, tx: ParsedTransaction, date: string, source: Channel) {
+// A transfer is money moving out too: an expense later marked as a transfer is still the same payment
+const sameDirection = (a: string, b: string) => a === b || ((a === 'transfer' || b === 'transfer') && a !== 'income' && b !== 'income');
+
+/** A transaction as saved: your rules can turn an expense into a transfer. */
+type Recorded = Omit<ParsedTransaction, 'type'> & { type: ParsedTransaction['type'] | 'transfer' };
+
+async function recordedElsewhere(phone: string, tx: Recorded, date: string, source: Channel) {
   for (const d of [date, shiftDate(date, -1), shiftDate(date, 1)]) {
     const onDay = db.collection('planner_items').where('ownerId', '==', phone).where('date', '==', d);
     // A payment split with friends keeps only your share as its amount; the bank amount is the split's total.
@@ -37,7 +43,7 @@ async function recordedElsewhere(phone: string, tx: ParsedTransaction, date: str
     ]);
     for (const doc of [...same.docs, ...split.docs]) {
       const x = doc.data();
-      if (x.type !== tx.type || !AUTOMATIC.includes(x.source) || x.source === source) continue;
+      if (!sameDirection(String(x.type), tx.type) || !AUTOMATIC.includes(x.source) || x.source === source) continue;
       if (tx.ref && x.ref && String(x.ref) !== tx.ref) continue;
       return true;
     }
@@ -55,18 +61,25 @@ async function recordedElsewhere(phone: string, tx: ParsedTransaction, date: str
  */
 export async function recordTransaction(
   phone: string,
-  tx: ParsedTransaction,
+  parsed: ParsedTransaction,
   /** `time`: when the message arrived (HH:MM, India), used if the text has no time. */
   /** `card`: the credit card it was spent on, so the card's outstanding can include it. */
-  opts: { source: Channel; dedupText: string; date: string; time?: string | null; card?: { last4: string } | null; docId?: string },
+  /** `text`: the message (not stored), to recognise transfers between your own accounts. */
+  opts: { source: Channel; dedupText: string; date: string; time?: string | null; card?: { last4: string } | null; docId?: string; text?: string },
 ): Promise<'added' | 'duplicate'> {
+  let tx: Recorded = parsed;
   const dedupKey = tx.ref ? `ref_${tx.ref}` : `txt_${sha256(opts.dedupText.replace(/\s+/g, ' ').toLowerCase()).slice(0, 24)}`;
   // `docId`: statement rows use the ids manual statement import gives them, so the two never double up
   const ref = db.collection('planner_items').doc(opts.docId || `auto_${sha256(`${phone}_${dedupKey}`).slice(0, 28)}`);
 
+  // Your rules first: money to family or your own accounts is a transfer, and your category beats the guess
+  const rules = await allMerchantRules(phone);
+  const transferTo = tx.type === 'expense' ? ruleFor(rules.transfers, tx.merchant) : null;
+  if (transferTo || (tx.type !== 'income' && SELF_TRANSFER.test(`${tx.merchant} ${opts.text || ''}`))) {
+    tx = { ...tx, type: 'transfer', category: transferTo || 'Self Transfer' };
+  }
   if (await recordedElsewhere(phone, tx, opts.date, opts.source)) return 'duplicate';
-  // The user's own category for this merchant beats the guess.
-  const category = ruleFor(await merchantRules(phone), tx.merchant) || tx.category;
+  const category = tx.type === 'transfer' ? tx.category : ruleFor(rules.merchants, tx.merchant) || tx.category;
 
   const created = await db.runTransaction(async (t) => {
     if ((await t.get(ref)).exists) return false;

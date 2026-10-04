@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { FileLock2 } from 'lucide-react-native';
+import { CreditCard, FileLock2, Landmark } from 'lucide-react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius } from '@/constants/theme';
-import { gmailSetStatementPassword, gmailStatements, gmailSyncNow, type StatementBank } from '@/lib/gmail-connect';
+import { gmailSetStatementPassword, gmailStatements, gmailSyncNow, type StatementBank, type StatementKind, type StatementSlot } from '@/lib/gmail-connect';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const day = (k?: string) => {
@@ -13,25 +13,27 @@ const day = (k?: string) => {
   const [, m, d] = k.split('-').map(Number);
   return `${d} ${MONTHS[m - 1]}`;
 };
+const KIND_LABEL: Record<StatementKind, string> = { account: 'Bank account statements', card: 'Credit card statements' };
 
-function statusLine(b: StatementBank): { text: string; bad?: boolean } {
-  const s = b.status;
-  if (!s) return { text: b.hasPassword ? 'Password saved. Waiting for the next statement email.' : 'No locked statement found yet.' };
-  if (s.state === 'ok') return { text: `Read the ${day(s.from)}–${day(s.to)} statement: ${s.rows} transactions, ${s.added} new.` };
-  if (s.state === 'needs_password') return { text: 'A statement is waiting: add its PDF password to read it.', bad: true };
-  if (s.state === 'wrong_password') return { text: "The saved password didn't open the last statement. Check it and save again.", bad: true };
+function statusLine(s: StatementSlot): { text: string; bad?: boolean } {
+  const st = s.status;
+  if (!st) return { text: s.hasPassword ? 'Password saved. Waiting for the next statement email.' : 'No locked statement found yet.' };
+  if (st.state === 'ok') return { text: `Read the ${day(st.from)}–${day(st.to)} statement: ${st.rows} transactions, ${st.added} new.` };
+  if (st.state === 'needs_password') return { text: 'A statement is waiting: add its PDF password to read it.', bad: true };
+  if (st.state === 'wrong_password') return { text: "The saved password didn't open the last statement. Check it and save again.", bad: true };
   return { text: "The last statement couldn't be read (not a text PDF)." };
 }
 
 /**
- * Statement PDFs in Gmail are usually locked. Saving each bank's PDF password lets Align open new statements
- * by itself: it adds their transactions (skipping ones already in Align) and the closing balance. Passwords
- * are kept encrypted on the server and never shown again; the PDFs aren't stored.
+ * Statement PDFs in Gmail are usually locked, and a bank often uses one password for account statements and
+ * another for credit card statements. Saving them lets Align open new statements by itself: it adds their
+ * transactions (skipping ones already in Align) and the closing balance. Passwords are kept encrypted on the
+ * server and never shown again; the PDFs aren't stored.
  */
 export default function StatementPasswords({ refreshKey }: { refreshKey: number }) {
   const c = useTheme();
   const [banks, setBanks] = useState<StatementBank[] | null>(null);
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditing] = useState<string | null>(null); // "<bank>:<kind>"
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
@@ -41,11 +43,11 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
   }, []);
   useEffect(load, [load, refreshKey]);
 
-  const save = async (bank: string, password: string | null) => {
+  const save = async (bank: string, kind: StatementKind, password: string | null) => {
     setBusy(true);
     setNote('');
     try {
-      await gmailSetStatementPassword(bank, password);
+      await gmailSetStatementPassword(bank, kind, password);
       setEditing(null);
       setValue('');
       if (password) {
@@ -71,58 +73,69 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
         <Text style={{ color: c.text, fontSize: 16, fontWeight: '700', flex: 1 }}>Statement passwords</Text>
       </View>
       <Text style={{ color: c.textSecondary, fontSize: 13, lineHeight: 19 }}>
-        Banks email statements as locked PDFs. Save a bank's PDF password and Align reads each new statement by itself:
-        its transactions (no duplicates) and closing balance. Passwords are stored encrypted and never shown again; the PDFs aren't kept.
+        Banks email statements as locked PDFs, often with one password for your bank account statement and another for
+        your credit card statement (the email usually says how it&apos;s made, e.g. part of your name + date of birth, or your
+        customer ID). Save them and Align reads each new statement by itself: transactions (no duplicates) and balance.
+        Passwords are stored encrypted and never shown again; the PDFs aren&apos;t kept.
       </Text>
-      {banks.map(b => {
-        const line = statusLine(b);
-        const open = editing === b.id;
-        return (
-          <View key={b.id} style={[styles.bank, { borderTopColor: c.border }]}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ color: c.text, fontWeight: '600', fontSize: 15, flex: 1 }}>{b.name}</Text>
-              {!open && (
-                <Pressable accessibilityRole="button" accessibilityLabel={`${b.hasPassword ? 'Change' : 'Add'} ${b.name} statement password`} onPress={() => { setEditing(b.id); setValue(''); setNote(''); }} hitSlop={6}>
-                  <Text style={{ color: c.accent, fontWeight: '700' }}>{b.hasPassword ? 'Change' : 'Add password'}</Text>
-                </Pressable>
-              )}
-            </View>
-            <Text style={{ color: line.bad ? c.expense : c.textTertiary, fontSize: 12, marginTop: 2 }}>
-              {b.hasPassword ? '🔒 Saved · ' : ''}{line.text}
-            </Text>
-            {open && (
-              <View style={{ gap: 8, marginTop: 8 }}>
-                <TextInput
-                  accessibilityLabel={`${b.name} statement PDF password`}
-                  value={value}
-                  onChangeText={setValue}
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  autoComplete="off"
-                  placeholder="PDF password"
-                  placeholderTextColor={c.textTertiary}
-                  style={{ backgroundColor: c.backgroundMuted, color: c.text, paddingHorizontal: 12, paddingVertical: 10, borderRadius: Radius.md, fontSize: 16 }}
-                />
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <Pressable accessibilityRole="button" disabled={busy || !value.trim()} onPress={() => void save(b.id, value)}
-                    style={[styles.btn, { backgroundColor: value.trim() ? c.accentFill : c.backgroundMuted }]}>
-                    <Text style={{ color: value.trim() ? c.onAccent : c.textTertiary, fontWeight: '700' }}>{busy ? 'Saving…' : 'Save'}</Text>
-                  </Pressable>
-                  {b.hasPassword && (
-                    <Pressable accessibilityRole="button" disabled={busy} onPress={() => void save(b.id, null)} style={[styles.btn, { backgroundColor: c.backgroundMuted }]}>
-                      <Text style={{ color: c.expense, fontWeight: '700' }}>Remove</Text>
+      {banks.map(b => (
+        <View key={b.id} style={[styles.bank, { borderTopColor: c.border }]}>
+          <Text style={{ color: c.text, fontWeight: '700', fontSize: 15 }}>{b.name}</Text>
+          {b.kinds.map(s => {
+            const id = `${b.id}:${s.kind}`;
+            const line = statusLine(s);
+            const open = editing === id;
+            const Icon = s.kind === 'card' ? CreditCard : Landmark;
+            return (
+              <View key={id} style={{ marginTop: 8 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Icon color={c.textSecondary} size={15} />
+                  <Text style={{ color: c.text, fontSize: 14, fontWeight: '600', flex: 1 }}>{KIND_LABEL[s.kind]}</Text>
+                  {!open && (
+                    <Pressable accessibilityRole="button" accessibilityLabel={`${s.hasPassword ? 'Change' : 'Add'} ${b.name} ${KIND_LABEL[s.kind].toLowerCase()} password`}
+                      onPress={() => { setEditing(id); setValue(''); setNote(''); }} hitSlop={6}>
+                      <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>{s.hasPassword ? 'Change' : 'Add password'}</Text>
                     </Pressable>
                   )}
-                  <Pressable accessibilityRole="button" disabled={busy} onPress={() => { setEditing(null); setValue(''); }} style={[styles.btn, { backgroundColor: c.backgroundMuted }]}>
-                    <Text style={{ color: c.textSecondary, fontWeight: '600' }}>Cancel</Text>
-                  </Pressable>
                 </View>
+                <Text style={{ color: line.bad ? c.expense : c.textTertiary, fontSize: 12, marginTop: 2, marginLeft: 23 }}>
+                  {s.hasPassword ? '🔒 Saved · ' : ''}{line.text}
+                </Text>
+                {open && (
+                  <View style={{ gap: 8, marginTop: 8 }}>
+                    <TextInput
+                      accessibilityLabel={`${b.name} ${KIND_LABEL[s.kind].toLowerCase()} PDF password`}
+                      value={value}
+                      onChangeText={setValue}
+                      secureTextEntry
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                      autoComplete="off"
+                      placeholder={s.kind === 'card' ? 'Credit card statement password' : 'Account statement password'}
+                      placeholderTextColor={c.textTertiary}
+                      style={{ backgroundColor: c.backgroundMuted, color: c.text, paddingHorizontal: 12, paddingVertical: 10, borderRadius: Radius.md, fontSize: 16 }}
+                    />
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <Pressable accessibilityRole="button" disabled={busy || !value.trim()} onPress={() => void save(b.id, s.kind, value)}
+                        style={[styles.btn, { backgroundColor: value.trim() ? c.accentFill : c.backgroundMuted }]}>
+                        <Text style={{ color: value.trim() ? c.onAccent : c.textTertiary, fontWeight: '700' }}>{busy ? 'Saving…' : 'Save'}</Text>
+                      </Pressable>
+                      {s.hasPassword && (
+                        <Pressable accessibilityRole="button" disabled={busy} onPress={() => void save(b.id, s.kind, null)} style={[styles.btn, { backgroundColor: c.backgroundMuted }]}>
+                          <Text style={{ color: c.expense, fontWeight: '700' }}>Remove</Text>
+                        </Pressable>
+                      )}
+                      <Pressable accessibilityRole="button" disabled={busy} onPress={() => { setEditing(null); setValue(''); }} style={[styles.btn, { backgroundColor: c.backgroundMuted }]}>
+                        <Text style={{ color: c.textSecondary, fontWeight: '600' }}>Cancel</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-        );
-      })}
+            );
+          })}
+        </View>
+      ))}
       {!!note && <Text accessibilityLiveRegion="polite" style={{ color: c.textSecondary, fontSize: 13 }}>{note}</Text>}
     </View>
   );

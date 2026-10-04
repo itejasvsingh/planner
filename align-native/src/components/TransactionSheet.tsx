@@ -6,7 +6,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { X, Trash2 } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import SegmentedControl from './SegmentedControl';
-import { DEFAULT_CATEGORY, kindForType, resolveCategory, type CategoryKind } from '@/lib/categories';
+import { DEFAULT_CATEGORY, categoriesFor, kindForType, resolveCategory, type CategoryKind } from '@/lib/categories';
 import CategoryPicker from './CategoryPicker';
 import { DatePick } from './form/QuickPick';
 import { usePhone } from '@/lib/phone-context';
@@ -43,7 +43,7 @@ interface TransactionSheetProps {
 export default function TransactionSheet({ visible, onClose, item, onSave, onDelete, friends = [], startSplit = false }: TransactionSheetProps) {
     const { isDark } = useTheme();
     const c = isDark ? Colors.dark : Colors.light;
-    const { config: categoryConfig, merchantCategory } = useCategoryConfig();
+    const { config: categoryConfig, merchantRule } = useCategoryConfig();
     // Once you pick a category yourself, typing a known merchant doesn't change it
     const [categoryTouched, setCategoryTouched] = useState(false);
 
@@ -98,9 +98,10 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     // Update default category when type changes
     useEffect(() => {
         if (!item) {
-            setCategory(DEFAULT_CATEGORY[type as CategoryKind] ?? DEFAULT_CATEGORY.expense);
+            // Keep a category that fits the new type (e.g. one a payee rule just picked)
+            setCategory(prev => (categoriesFor(type as CategoryKind, categoryConfig).some(k => k.name === prev) ? prev : DEFAULT_CATEGORY[type as CategoryKind] ?? DEFAULT_CATEGORY.expense));
         }
-    }, [type, item]);
+    }, [type, item, categoryConfig]);
 
     const splitInvalid = isSplit && type === 'expense' && !!buildSplit(parseFloat(amount) || 0, splitDraft).error;
     const canSave = !!amount && !!title && !splitInvalid;
@@ -185,9 +186,14 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                 value={title}
                                 onChangeText={(t) => {
                                     setTitle(t);
-                                    // A merchant you've categorised before brings its category along
-                                    const mine = merchantCategory(t);
-                                    if (mine && !categoryTouched) setCategory(mine);
+                                    // A payee you've categorised before brings its category along (and Family /
+                                    // your own accounts make it a transfer)
+                                    const rule = merchantRule(t);
+                                    if (rule && !categoryTouched) {
+                                        if (!item && rule.transfer && type === 'expense') setType('transfer');
+                                        if (!item && !rule.transfer && type === 'transfer') setType('expense');
+                                        setCategory(rule.category);
+                                    }
                                 }}
                                 placeholder="What was this for?"
                                 placeholderTextColor={c.textTertiary}

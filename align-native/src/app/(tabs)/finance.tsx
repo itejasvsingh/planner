@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
-import { ArrowDownLeft, ArrowUpRight, FileUp, Plus, Search, Tags, Target, Users, Wallet, X } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, FileUp, Plus, Search, ShieldAlert, Tags, Target, Users, Wallet, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import BudgetSheet from '@/components/BudgetSheet';
 import { MONTHLY_BUDGET_KEY, budgetStatus, categoryBudgets, summarizeBudget, type BudgetStatus } from '@/lib/budget';
@@ -13,6 +13,9 @@ import { useTheme } from '@/hooks/use-theme';
 import TransactionSheet from '@/components/TransactionSheet';
 import CycleStepper, { cycleName } from '@/components/finance/CycleStepper';
 import FriendsCard from '@/components/finance/FriendsCard';
+import ReviewSheet from '@/components/finance/ReviewSheet';
+import { findSuspicious } from '@/lib/suspicious';
+import { todayKey } from '@/lib/dates';
 import CardsAccounts from '@/components/finance/CardsAccounts';
 import { friendBalances, recentFriends, settleUpPatches, splitOf } from '@/lib/splits';
 
@@ -133,6 +136,12 @@ export default function FinanceScreen() {
     const inPeriod = offset === -1 ? 'last cycle' : `in ${periodName}`;
 
 
+    // Payments that look unusual for you (last 30 days against your 90-day history)
+    const today = todayKey();
+    const flags = useMemo(() => findSuspicious(items, today), [items, today]);
+    const reported = useMemo(() => items.filter(i => i.review === 'not_me'), [items]);
+    const [reviewOpen, setReviewOpen] = useState(false);
+
     // Splitwise-style balances with friends, across all time
     const balances = useMemo(() => friendBalances(items), [items]);
     const friends = useMemo(() => recentFriends(items), [items]);
@@ -191,8 +200,10 @@ export default function FinanceScreen() {
     const handleSave = async (updates: any) => {
         if (editingItem) {
             // Changing a transaction's category teaches Align that merchant's category for next time.
-            if (updates.category && updates.category !== editingItem.category && (updates.title || editingItem.title)) {
-                void learnMerchant(updates.title || editingItem.title, updates.category);
+            // Switching it to a Transfer (family, your own account) teaches that this payee isn't spending.
+            const typeChanged = updates.type && updates.type !== editingItem.type;
+            if (updates.category && (updates.category !== editingItem.category || typeChanged) && (updates.title || editingItem.title)) {
+                void learnMerchant(updates.title || editingItem.title, updates.category, updates.type || editingItem.type);
             }
             await updateItem(editingItem.id, updates);
         } else {
@@ -261,6 +272,15 @@ export default function FinanceScreen() {
                             onSelectCategory={name => { setCategoryFilter(name); setTypeFilter('expense'); setView('Overview'); }}
                         />
                     ) : (<>
+                    {(flags.length > 0 || reported.length > 0) && (
+                        <Pressable accessibilityRole="button" onPress={() => setReviewOpen(true)} style={[styles.alert, { backgroundColor: c.expenseSoft }]}>
+                            <ShieldAlert color={c.expense} size={18} />
+                            <Text style={{ color: c.expense, fontWeight: '700', flex: 1, fontSize: 14 }}>
+                                {flags.length ? `${flags.length} payment${flags.length === 1 ? '' : 's'} to check` : `${reported.length} reported as not yours`}
+                            </Text>
+                            <Text style={{ color: c.expense, fontWeight: '700', fontSize: 13 }}>Review</Text>
+                        </Pressable>
+                    )}
                     <CycleStepper payday={payday} offset={offset} onChange={setOffset} />
                     {/* Budget / balance card */}
                     <Pressable
@@ -502,6 +522,17 @@ export default function FinanceScreen() {
                 categories={categoryBudgets(limits)}
                 onSave={saveBudgets}
             />
+            <ReviewSheet
+                visible={reviewOpen}
+                flags={flags}
+                reported={reported}
+                onClose={() => setReviewOpen(false)}
+                onReview={(item, review) => void updateItem(item.id, { review })}
+                onTransfer={(item, category) => {
+                    void updateItem(item.id, { type: 'transfer', category, tags: [category], review: 'mine' });
+                    void learnMerchant(item.title, category, 'transfer');
+                }}
+            />
             <TransactionSheet
                 visible={isSheetVisible}
                 item={editingItem}
@@ -541,6 +572,7 @@ const styles = StyleSheet.create({
   filterChip: { paddingHorizontal: 11, paddingVertical: 5, borderRadius: Radius.pill, borderWidth: 1, alignItems: 'center' },
   kindTag: { paddingHorizontal: 7, paddingVertical: 1, borderRadius: Radius.pill },
   kindTagText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2 },
+  alert: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 11, borderRadius: Radius.md, marginBottom: 10 },
   splitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: Radius.md },
   empty: { padding: 32, alignItems: 'center', gap: 12, borderWidth: 1, borderStyle: 'dashed', borderRadius: Radius.lg },
 });
