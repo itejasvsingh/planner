@@ -49,3 +49,14 @@ test('more ways banks state a balance', () => {
   assert.equal(availableBalance('Minimum balance charges of Rs 500 applied to your a/c XX1234'), null);
   assert.equal(availableBalance('Your loan outstanding balance is Rs 2,40,000'), null);
 });
+
+test('banks by sender: DCB, and any .bank.in address', () => {
+  const { bankFromSender, bankNameById } = load('../lib/bankSenders.ts');
+  assert.equal(bankFromSender('alerts@dcbbank.com').name, 'DCB Bank');
+  assert.equal(bankFromSender('estatement@dcb.bank.in').id, 'dcb');
+  assert.equal(bankFromSender('HDFC Bank <alerts@hdfcbank.bank.in>'.replace(/.*<|>/g, '')).id, 'hdfc');
+  assert.deepEqual([bankFromSender('alerts@xyz.bank.in').id, bankFromSender('alerts@xyz.bank.in').name], ['in_xyz', 'XYZ Bank']);
+  assert.equal(bankFromSender('statements@karurvysya.bank.in').name, 'Karurvysya Bank');
+  assert.equal(bankNameById('in_kvbank'), 'KV Bank');
+  assert.equal(bankFromSender('promo@shop.com'), null);
+});

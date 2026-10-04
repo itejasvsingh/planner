@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { db, FieldValue } from './firebase';
-import { BANKS } from './bankSenders';
+import { bankFromSender } from './bankSenders';
 import type { CardBill } from './emailAlert';
 import { istParts } from './recordTransaction';
 
@@ -19,8 +19,7 @@ const billsOf = (phone: string) => db.collection('gmail_links').doc(phone).colle
 
 /** The listed bank a sender address belongs to. */
 export function bankForSender(from: string) {
-  const f = from.toLowerCase();
-  return BANKS.find((b) => b.id !== 'otherbankin' && b.senders.some((s) => f === s || f.endsWith(`@${s}`) || f.endsWith(`.${s}`))) || null;
+  return bankFromSender(from);
 }
 
 /** `at`: when the statement email arrived (its date is the statement date). */

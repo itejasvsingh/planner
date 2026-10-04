@@ -15,7 +15,8 @@ export const BANK_DOMAINS = [
   'canarabank.bank.in', 'unionbankofindia.co.in', 'unionbankofindia.bank.in', 'bankofindia.co.in',
   'bankofindia.bank.in', 'idbibank.co.in', 'idbi.bank.in', 'rblbank.com', 'rbl.bank.in', 'bandhanbank.com',
   'bandhan.bank.in', 'iob.in', 'iob.bank.in', 'indianbank.in', 'indianbank.bank.in', 'sc.com', 'hsbc.co.in',
-  'citi.com', 'dbs.com', 'americanexpress.com', 'getonecard.app', 'jupiter.money', 'fi.money', 'bank.in',
+  'citi.com', 'dbs.com', 'americanexpress.com', 'getonecard.app', 'jupiter.money', 'fi.money', 'dcbbank.com',
+  'dcb.bank.in', 'dcbbank.bank.in', 'bank.in',
 ];
 
 export function gmailScript(link: string) {

@@ -133,7 +133,7 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
                   </Text>
                 </View>
                 {f.state === 'not_selected' && f.bankId ? (
-                  <Pressable accessibilityRole="button" accessibilityLabel={`Add ${f.bankName} to your banks`} disabled={finding} onPress={() => void addBank(f.bankId!)} hitSlop={6}>
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Add ${f.bankName} to your banks`} disabled={finding} onPress={() => void addBank(f.bankId!.startsWith('in_') ? 'otherbankin' : f.bankId!)} hitSlop={6}>
                     <Text style={{ color: c.accent, fontSize: 12, fontWeight: '700' }}>Add bank</Text>
                   </Pressable>
                 ) : (

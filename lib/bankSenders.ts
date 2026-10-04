@@ -37,8 +37,34 @@ export const BANKS: Bank[] = [
   { id: 'onecard', name: 'OneCard', senders: ['getonecard.app'] },
   { id: 'jupiter', name: 'Jupiter', senders: ['jupiter.money'] },
   { id: 'fi', name: 'Fi', senders: ['fi.money'] },
+  { id: 'dcb', name: 'DCB Bank', senders: ['dcbbank.com', 'dcb.bank.in', 'dcbbank.bank.in'] },
   { id: 'otherbankin', name: 'Any other Indian bank (.bank.in address)', senders: ['bank.in'] },
 ];
+
+/**
+ * The bank behind a sender address: a listed bank, or, for any other `<name>.bank.in` address (RBI's
+ * domain for Indian banks), one named after its address ("alerts@xyz.bank.in" → id "in_xyz", "XYZ Bank").
+ */
+export function bankFromSender(from: string): Bank | null {
+  const f = String(from || '').toLowerCase().trim();
+  const listed = BANKS.find((b) => b.id !== 'otherbankin' && b.senders.some((s) => f === s || f.endsWith(`@${s}`) || f.endsWith(`.${s}`)));
+  if (listed) return listed;
+  const m = f.match(/(?:@|\.)([a-z0-9-]+)\.bank\.in$/);
+  return m ? { id: `in_${m[1]}`, name: bankInName(m[1]), senders: [`${m[1]}.bank.in`] } : null;
+}
+
+/** "xyz" → "XYZ Bank", "karurvysya" → "Karurvysya Bank", "kvbank" → "KV Bank". */
+function bankInName(label: string) {
+  const core = label.replace(/-?bank$/, '') || label;
+  return `${core.length <= 4 ? core.toUpperCase() : core[0].toUpperCase() + core.slice(1)} Bank`;
+}
+
+/** A bank's display name by id, including `.bank.in` ones found by address. */
+export function bankNameById(id: string): string {
+  const listed = BANKS.find((b) => b.id === id);
+  if (listed) return listed.name;
+  return id.startsWith('in_') ? bankInName(id.slice(3)) : id;
+}
 
 export const BANK_DOMAINS = [...new Set(BANKS.flatMap((b) => b.senders))];
 

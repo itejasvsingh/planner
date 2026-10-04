@@ -57,7 +57,7 @@ const SMS_NAMES: Record<string, string[]> = {
   bob: ['Bank of Baroda', 'BOB', 'BOBCARD'], pnb: ['PNB', 'Punjab National'], canara: ['Canara'], union: ['Union Bank'],
   boi: ['Bank of India'], idbi: ['IDBI'], rbl: ['RBL'], bandhan: ['Bandhan'], iob: ['IOB'], indian: ['Indian Bank'],
   sc: ['StanChart', 'Standard Chartered'], hsbc: ['HSBC'], citi: ['Citi'], dbs: ['DBS'], amex: ['Amex', 'American Express'],
-  onecard: ['OneCard'], slice: ['slice'], jupiter: ['Jupiter'], fi: ['Fi Money'],
+  onecard: ['OneCard'], slice: ['slice'], jupiter: ['Jupiter'], fi: ['Fi Money'], dcb: ['DCB'],
 };
 
 /** The bank a message names (longest match wins, so "SBI Card" beats "SBI"). */

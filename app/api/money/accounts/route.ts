@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requestUser } from '../../../../lib/requestUser';
 import { db } from '../../../../lib/firebase';
-import { BANKS } from '../../../../lib/bankSenders';
+import { bankNameById } from '../../../../lib/bankSenders';
 import { accountBalances, cardSummaries } from '../../../../lib/moneyAccounts';
 import { statementLine, type StatementState } from '../../../../lib/statementAuto';
 
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
       const bankId = slot.replace(/__card$/, '');
       return {
         slot,
-        bankName: BANKS.find((b) => b.id === bankId)?.name || bankId,
+        bankName: bankNameById(bankId),
         kind: slot.endsWith('__card') ? 'card' : 'account',
         from: s.from || null,
         to: s.to || null,
@@ -38,7 +38,7 @@ export async function GET(req: Request) {
         state: s.state,
         msgId: s.msgId || null,
         foundAt: s.foundAt || null,
-        line: statementLine(BANKS.find((b) => b.id === bankId)?.name || bankId, slot, s),
+        line: statementLine(bankNameById(bankId), slot, s),
       };
     })
     .sort((a, b) => b.at - a.at);

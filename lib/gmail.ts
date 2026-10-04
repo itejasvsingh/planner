@@ -626,7 +626,7 @@ export async function findStatements(phone: string, days = 40): Promise<{ status
     let state: FoundStatement['state'] = 'queued';
     if (!pdf) state = 'summary';
     else if (done.has(id)) state = 'read';
-    else if (bank && !selected.has(bank.id)) state = 'not_selected';
+    else if (bank && !selected.has(bank.id) && !(bank.id.startsWith('in_') && selected.has('otherbankin'))) state = 'not_selected';
     else if (tried[id]) {
       const slot = tried[id].bank;
       state = (passwords[slot]?.v || 0) === tried[id].v ? (status[slot]?.state === 'wrong_password' ? 'wrong_password' : 'needs_password') : 'queued';

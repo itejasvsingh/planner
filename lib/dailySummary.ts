@@ -1,7 +1,7 @@
 import { db } from './firebase';
 import { cardReminderLines, cardSummaries } from './moneyAccounts';
 import { statementLine, type StatementState } from './statementAuto';
-import { BANKS } from './bankSenders';
+import { bankNameById } from './bankSenders';
 
 const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
 const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
@@ -256,7 +256,7 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
     if (fresh.length) {
         lines.push('');
         lines.push(`📄 *New statements:*`);
-        for (const [slot, s] of fresh) lines.push(`  • ${statementLine(BANKS.find((b) => b.id === slot.replace(/__card$/, ''))?.name || 'Bank', slot, s)}`);
+        for (const [slot, s] of fresh) lines.push(`  • ${statementLine(bankNameById(slot.replace(/__card$/, '')), slot, s)}`);
     }
 
     // Section D: Card bills with what's owed now (only cards with reminders on)
