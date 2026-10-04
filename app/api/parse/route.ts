@@ -3,6 +3,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db, FieldValue } from '../../../lib/firebase';
 import { consumeRateLimit } from '../../../lib/rateLimit';
 import { merchantRules, ruleFor } from '../../../lib/merchantRules';
+import { requestUser } from '../../../lib/requestUser';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,8 +21,12 @@ export async function OPTIONS() {
 
 export async function POST(req: Request) {
     try {
+        // Signed-in only, and items always go to the caller's own account (never a number from the request)
+        const user = await requestUser(req);
+        if (!user) return NextResponse.json({ error: 'Sign in first.' }, { status: 401, headers: corsHeaders() });
         const body = await req.json().catch(() => ({}));
-        const { text, phone } = body;
+        const { text } = body;
+        const phone = user.phone;
 
         if (!text || typeof text !== 'string') {
             return NextResponse.json({ error: 'Text is required' }, { status: 400, headers: corsHeaders() });

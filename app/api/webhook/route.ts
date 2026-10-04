@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse, after } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db } from '../../../lib/firebase';
@@ -10,7 +11,8 @@ const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKE
 if (!API_TOKEN) {
   console.error("FATAL: WHATSAPP_API_TOKEN or META_ACCESS_TOKEN env var is not set");
 }
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.META_VERIFY_TOKEN || "my_align_secure_token_123";
+// No built-in fallback: an old default leaked in git history
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || process.env.META_VERIFY_TOKEN || '';
 if (!VERIFY_TOKEN) {
   console.error("FATAL: WHATSAPP_VERIFY_TOKEN env var is not set");
 }
@@ -49,7 +51,20 @@ export async function GET(req: Request) {
 // ==========================================
 export async function POST(req: Request) {
     try {
-        const body = await req.json();
+        // Only Meta can post here: check the signature it makes with the app secret over the raw body.
+        // Enforced once WHATSAPP_APP_SECRET (Meta app → Settings → Basic → App secret) is set in Vercel.
+        const raw = await req.text();
+        const appSecret = (process.env.WHATSAPP_APP_SECRET || '').trim();
+        if (appSecret) {
+            const given = (req.headers.get('x-hub-signature-256') || '').replace(/^sha256=/, '');
+            const expected = createHmac('sha256', appSecret).update(raw).digest('hex');
+            const ok = given.length === expected.length && timingSafeEqual(Buffer.from(given, 'hex'), Buffer.from(expected, 'hex'));
+            if (!ok) return NextResponse.json({ error: 'Bad signature' }, { status: 401 });
+        } else {
+            console.warn('WHATSAPP_APP_SECRET is not set: WhatsApp webhook posts are not verified');
+        }
+        let body: any;
+        try { body = JSON.parse(raw); } catch { return NextResponse.json({ error: 'Bad request' }, { status: 400 }); }
 
         // Ensure this is a WhatsApp status update/message
         if (body.object !== 'whatsapp_business_account') {

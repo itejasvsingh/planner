@@ -12,11 +12,10 @@ export async function GET(req: Request) {
         const targetPhone = searchParams.get('phone');
         const force = searchParams.get('force') === 'true';
 
-        // 1. Single user test / on-demand execution (e.g., /api/cron/auto-push?phone=918130595547)
+        // 1. One person, on demand (scheduler secret only); replies with a count, never task titles
         if (targetPhone) {
-            console.log(`🚀 Executing 12 AM task rollover for single user: ${targetPhone}`);
             const result = await runTaskRolloverForUser(targetPhone, { force: true });
-            return NextResponse.json(result);
+            return NextResponse.json({ success: result.success, rolledOverCount: result.rolledOverCount });
         }
 
         // 2. Automated midnight cron mode across all users
@@ -26,7 +25,9 @@ export async function GET(req: Request) {
         return NextResponse.json({
             status: 'completed',
             timestamp: new Date().toISOString(),
-            ...result
+            // Counts only: no phone numbers or task titles in the reply
+            totalUsers: result.totalUsers,
+            rolledOver: result.results.reduce((n, r) => n + (r.rolledOverCount || 0), 0),
         });
 
     } catch (error: any) {

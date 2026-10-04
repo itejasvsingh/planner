@@ -31,7 +31,8 @@ service cloud.firestore {
       // preferences_<owner>, budgets_<owner>
       allow read, write: if settingId.matches('^(preferences|budgets)_[^_]+$') && isOwner(settingId.split('_')[1]);
       // SMS/email import keys: ingest_<sha256(key)>, data.phone is the owner. Only the server reads them.
-      allow create, update: if settingId.matches('^ingest_[0-9a-f]{64}$') && isOwner(request.resource.data.phone);
+      allow create: if settingId.matches('^ingest_[0-9a-f]{64}$') && isOwner(request.resource.data.phone);
+      allow update: if settingId.matches('^ingest_[0-9a-f]{64}$') && isOwner(resource.data.phone) && isOwner(request.resource.data.phone);
       allow delete: if settingId.matches('^ingest_[0-9a-f]{64}$') && isOwner(resource.data.phone);
     }
 

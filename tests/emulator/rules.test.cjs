@@ -77,6 +77,14 @@ test('settings: own preferences/budgets only; import keys can be made for yourse
   await assertSucceeds(deleteDoc(doc(db, `planner_settings/ingest_${'a'.repeat(64)}`)));
 });
 
+test("import keys: nobody can take over someone else's", async () => {
+  const key = `planner_settings/ingest_${'e'.repeat(64)}`;
+  await env.withSecurityRulesDisabled(async (ctx) => { await setDoc(doc(ctx.firestore(), key), { phone: BOB }); });
+  // Alice can't repoint Bob's key at herself (or at anyone)
+  await assertFails(setDoc(doc(alice(), key), { phone: ALICE }));
+  await assertFails(deleteDoc(doc(alice(), key)));
+});
+
 test('WhatsApp sessions: own only', async () => {
   const db = alice();
   await assertSucceeds(setDoc(doc(db, `user_sessions/${ALICE}`), { autoPushEnabled: true }, { merge: true }));

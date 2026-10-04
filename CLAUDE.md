@@ -63,5 +63,9 @@
   `NotificationsManager` schedules them locally); per card `remind` in card_edits, else `gmail_links.billReminders`.
 - After each statement, rows are compared with alert-recorded transactions of the same `accountLast4`/`cardLast4`;
   ones missing from the statement are stored as `statementStatus.<slot>.extras` and shown in Money → Cards.
+- Security: the repo is public. Never commit tokens or keys (the history already holds old WhatsApp/Meta tokens, a
+  Gemini key and old NUDGE/TEST_SUMMARY secrets, which must stay revoked). `/api/parse` is signed-in only and writes
+  only to the caller's own account; cron routes accept only `CRON_SECRET` and reply with counts, never personal
+  data; the WhatsApp webhook verifies Meta's `X-Hub-Signature-256` once `WHATSAPP_APP_SECRET` is set.
 - Card bill reminders (`lib/cardBills.ts`) are opt-in: bills are stored server-only; Agenda tasks
   (`kind: 'card_bill'`, never auto-pushed) and WhatsApp summary lines exist only after the user says yes.

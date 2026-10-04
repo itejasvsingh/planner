@@ -11,16 +11,18 @@ export async function GET(req: Request) {
         const targetPhone = searchParams.get('phone');
         const force = searchParams.get('force') === 'true';
 
+        // Only the scheduler's secret. (The old test secret leaked in git history and is no longer accepted;
+        // people send themselves a summary from the app, signed in, via /api/whatsapp/test-summary.)
         const isCronSecretValid = hasCronSecret(req);
-        const isTestSecretValid = hasCronSecret(req, process.env.TEST_SUMMARY_SECRET);
 
         if (targetPhone) {
-            if (!isCronSecretValid && !isTestSecretValid) {
+            if (!isCronSecretValid) {
                 return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
             }
             console.log(`🚀 Executing daily summary on-demand for single user: ${targetPhone}`);
             const result = await runDailySummaryForUser(targetPhone, { force: true });
-            return NextResponse.json(result);
+            // The message goes to the person on WhatsApp; it's never returned here
+            return NextResponse.json({ success: result.success, reason: (result as any).reason || null });
         }
 
         // Multi-user automated cron mode
@@ -58,17 +60,19 @@ export async function GET(req: Request) {
         for (const phone of phoneList) {
             try {
                 const res = await runDailySummaryForUser(phone, { force });
-                results.push({ phone, ...res });
+                results.push({ success: res.success, reason: (res as any).reason || null });
             } catch (err: any) {
                 console.error(`❌ Daily summary failed for ${phone}:`, err.message);
-                results.push({ phone, success: false, error: err.message });
+                results.push({ success: false, reason: 'error' });
             }
         }
 
         return NextResponse.json({
             status: 'completed',
             totalUsers: phoneList.length,
-            results
+            // Counts only: no phone numbers or summary text in the reply
+            sent: results.filter((r) => r.success).length,
+            skipped: results.filter((r) => !r.success).length,
         });
 
     } catch (error: any) {
