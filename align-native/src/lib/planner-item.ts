@@ -56,6 +56,8 @@ export type PlannerItem = {
   updatedAt?: string;
   /** Set when auto-push moved an overdue task to a later day: the day it was due. */
   rolledOverFrom?: string;
+  /** Last digits of the credit card it was paid with (alerts set it; "Paid with" in the form too). */
+  cardLast4?: string | null;
   bill?: { issuer: string; issuerName: string; last4: string | null; totalDue: number; minDue: number | null };
   /** When the money moved, HH:MM (24-hour, India), for transactions read from SMS, email or Gmail. */
   time?: string | null;

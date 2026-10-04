@@ -9,6 +9,9 @@ import SegmentedControl from './SegmentedControl';
 import { DEFAULT_CATEGORY, kindForType, resolveCategory, type CategoryKind } from '@/lib/categories';
 import CategoryPicker from './CategoryPicker';
 import { DatePick } from './form/QuickPick';
+import { usePhone } from '@/lib/phone-context';
+import { useCards } from '@/lib/cards-store';
+import { cardTitle } from '@/lib/card-format';
 import SplitSection from './SplitSection';
 import { buildSplit, draftFrom, emptyDraft, splitOf, type SplitDraft } from '@/lib/splits';
 import { useCategoryConfig } from '@/lib/use-category-config';
@@ -51,12 +54,21 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
         const [date, setDate] = useState('');
     const [isRecurring, setIsRecurring] = useState(false);
     const [isSplit, setIsSplit] = useState(false);
+    const [cardLast4, setCardLast4] = useState<string | null>(null);
+    const { phone } = usePhone();
+    const cardData = useCards(phone);
+    // Your cards with known last digits (the one already on this transaction stays listed)
+    const cardChoices = (cardData?.cards || [])
+        .filter(k => k.last4 && (!k.hidden || k.last4 === item?.cardLast4))
+        .filter((k, i, all) => all.findIndex(x => x.last4 === k.last4) === i)
+        .map(k => ({ key: k.key, label: cardTitle(k), last4: k.last4 as string | null }));
     const [splitDraft, setSplitDraft] = useState<SplitDraft>(emptyDraft);
 
 
     useEffect(() => {
         if (visible) {
             setCategoryTouched(!!item);
+            setCardLast4(item?.cardLast4 || null);
             if (item) {
                 setType(kindForType(item.type));
                 setTitle(item.title || '');
@@ -109,6 +121,8 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
             date,
             isRecurring,
             ...(isRecurring ? { recurringFrequency: 'monthly' } : {}),
+            // Which credit card paid (kept as-is when the choice isn't shown)
+            ...(type === 'expense' && cardChoices.length ? { cardLast4: cardLast4 || null } : {}),
             // Turning a split off clears it, including older shapes
             ...(built?.split ? { split: built.split, splits: [] } : item && splitOf(item) ? { split: null, splits: [] } : {}),
         });
@@ -196,6 +210,25 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                             <Text style={[Type.label, { color: c.textSecondary, marginBottom: 8 }]}>Category</Text>
                             <CategoryPicker kind={kindForType(type)} value={category} onChange={(v) => { setCategory(v); setCategoryTouched(true); }} />
                         </View>
+
+                        {/* Paid with a credit card: counts toward that card's outstanding */}
+                        {type === 'expense' && cardChoices.length > 0 && (
+                            <View style={{ gap: 8 }}>
+                                <Text style={[Type.label, { color: c.textSecondary }]}>Paid with</Text>
+                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                    {[{ key: '', label: 'Not a card', last4: null as string | null }, ...cardChoices].map(o => {
+                                        const on = (cardLast4 || null) === o.last4;
+                                        return (
+                                            <Pressable key={o.key} accessibilityRole="button" accessibilityState={{ selected: on }} accessibilityLabel={`Paid with ${o.label}`}
+                                                onPress={() => setCardLast4(o.last4)}
+                                                style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: Radius.pill, borderWidth: 1, borderColor: on ? c.accentFill : c.border, backgroundColor: on ? c.accentFill : c.backgroundElement }}>
+                                                <Text style={{ color: on ? c.onAccent : c.text, fontSize: 13, fontWeight: '600' }}>{o.label}</Text>
+                                            </Pressable>
+                                        );
+                                    })}
+                                </View>
+                            </View>
+                        )}
 
                         
                         {/* Advanced Features */}

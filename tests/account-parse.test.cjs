@@ -40,3 +40,12 @@ test('bank named in an SMS', () => {
   assert.equal(bankFromText('HDFC Bank: Rs 20 debited').name, 'HDFC Bank');
   assert.equal(bankFromText('Rs 20 paid via UPI'), null);
 });
+
+test('more ways banks state a balance', () => {
+  assert.deepEqual(availableBalance('Kotak: Rs 200 debited from a/c xx9012. Avbl Bal: Rs 7,800.50'), { balance: 7800.5, last4: '9012' });
+  assert.deepEqual(availableBalance('Dear Customer, balance in your A/c XX3456 is Rs.1,234.00 as on 03-10-2026'), { balance: 1234, last4: '3456' });
+  assert.deepEqual(availableBalance('SBI: Your a/c no. XXXXX4321 Bal: INR 52,000.00 as of today'), { balance: 52000, last4: '4321' });
+  assert.deepEqual(availableBalance('A/c *5555 Clr Bal Rs 900'), { balance: 900, last4: '5555' });
+  assert.equal(availableBalance('Minimum balance charges of Rs 500 applied to your a/c XX1234'), null);
+  assert.equal(availableBalance('Your loan outstanding balance is Rs 2,40,000'), null);
+});

@@ -48,7 +48,7 @@ export function messageText(msg: GmailMessage): { subject: string; text: string;
 }
 
 // Words every transaction alert contains; leaves out offers and newsletters, which would use up the quota.
-const ALERT_WORDS = '{debited credited spent debit credit transaction txn withdrawn paid received}';
+const ALERT_WORDS = '{debited credited spent debit credit transaction txn withdrawn paid received balance}';
 
 /** Gmail search for transaction alerts from the given sender domains in a time window (Unix seconds). */
 export function bankQuery(domains: string[], window: { after: number; before?: number }) {

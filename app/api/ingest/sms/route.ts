@@ -100,7 +100,17 @@ export async function POST(req: Request) {
   if (!tx && text && source === 'sms' && /(?:rs\.?|inr|₹)\s*[\d,]/i.test(text) && /debit|credit|spent|paid|sent|received/i.test(text)) {
     tx = await parseWithGemini(text);
   }
-  if (!tx) return NextResponse.json({ status: 'ignored', message: 'Not a transaction' });
+  if (!tx) {
+    // A balance update without a transaction ("Your A/c XX1234 balance is Rs 5,000"): keep just the balance
+    const onlyBal = text ? availableBalance(text) : null;
+    if (onlyBal && body.dryRun !== true) {
+      const bank = bankFromText(text) || { id: 'bank', name: 'Bank account' };
+      const at = typeof body.date === 'string' && sentDate(body.date) ? new Date(body.date).getTime() : Date.now();
+      await saveBalance(phone, { bankId: bank.id, bankName: bank.name, last4: onlyBal.last4, balance: onlyBal.balance, at }).catch(() => {});
+      return NextResponse.json({ status: 'balance', message: `Balance updated: ₹${onlyBal.balance.toLocaleString('en-IN')}` });
+    }
+    return NextResponse.json({ status: 'ignored', message: 'Not a transaction' });
+  }
   // Settings "Test" button: confirm the key works and show what would be recorded, without saving
   if (body.dryRun === true) {
     return NextResponse.json({ status: 'test', message: `Works! Would add ₹${tx.amount.toLocaleString('en-IN')} · ${tx.merchant} · ${tx.category}`, ...tx });
@@ -111,7 +121,7 @@ export async function POST(req: Request) {
   const arrivedMs = typeof body.date === 'string' && sentDate(body.date) ? new Date(body.date).getTime() : Date.now();
   // The balance the alert quotes (only the number) and the credit card it was spent on, if any
   const bal = availableBalance(text);
-  const bank = bal ? bankFromText(text) : null;
+  const bank = bal ? bankFromText(text) || { id: 'bank', name: 'Bank account' } : null;
   if (bal && bank) await saveBalance(phone, { bankId: bank.id, bankName: bank.name, last4: bal.last4, balance: bal.balance, at: arrivedMs }).catch(() => {});
   const outcome = await recordTransaction(phone, tx, { source, dedupText: text, date, time: istParts(arrivedMs).time, card: creditCardOf(text) });
   const created = outcome === 'added';

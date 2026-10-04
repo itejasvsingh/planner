@@ -233,7 +233,7 @@ export default function FinanceScreen() {
                     <View style={{ height: 12 }} />
 
                     {view === 'Cards' ? (
-                        <CardsAccounts phone={phone} showEmpty onOpenSettings={() => router.push('/settings/gmail')} />
+                        <CardsAccounts phone={phone} onOpenSettings={() => router.push('/settings/gmail')} onEditTransaction={openEditSheet} />
                     ) : view === 'Split' ? (
                         <>
                             <Pressable accessibilityRole="button" onPress={() => { setEditingItem(null); setStartSplit(true); setIsSheetVisible(true); }}

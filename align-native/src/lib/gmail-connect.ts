@@ -72,10 +72,17 @@ export const gmailSetBillReminders = (remind: boolean) =>
   call<{ reminders: boolean; created: number }>('/api/gmail/bills', { method: 'POST', body: JSON.stringify({ remind }) });
 
 export type CardSummary = {
-  issuer: string; issuerName: string; last4: string | null; statementDate: string | null; dueDate: string;
+  key: string; issuer: string; issuerName: string; last4: string | null; statementDate: string | null; dueDate: string | null;
   totalDue: number; minDue: number | null; paidSince: number; spentSince: number; outstanding: number;
-  status: 'paid' | 'due' | 'overdue'; daysLeft: number;
+  status: 'paid' | 'due' | 'overdue'; daysLeft: number | null; manual: boolean; hidden: boolean; edited: boolean;
 };
+export type CardEdit = {
+  name?: string | null; last4?: string | null; hidden?: boolean; forDue?: string | null;
+  totalDue?: number | null; minDue?: number | null; dueDate?: string | null; paid?: boolean | null;
+};
+export const editCard = (key: string, edit: CardEdit) => call<{ ok: true }>('/api/money/cards', { method: 'POST', body: JSON.stringify({ key, edit }) });
+export const addCard = (edit: CardEdit) => call<{ ok: true; key: string }>('/api/money/cards', { method: 'POST', body: JSON.stringify({ add: edit }) });
+export const removeCard = (key: string) => call<{ ok: true }>('/api/money/cards', { method: 'POST', body: JSON.stringify({ remove: key }) });
 export type AccountBalance = { id: string; bankId: string; bankName: string; last4: string | null; balance: number; at: number };
 /** Credit cards (statement, due date, outstanding now) and bank balances, read from bank emails and SMS. */
 export const moneyAccounts = () => call<{ cards: CardSummary[]; accounts: AccountBalance[] }>('/api/money/accounts');

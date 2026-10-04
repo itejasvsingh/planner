@@ -47,6 +47,9 @@
   (gmail_links/<phone>/bills, with `statementDate`), payments (`money_accounts/<phone>/card_payments`) and spends
   since it (transactions with `cardLast4`), and the latest "Avl Bal" per account (`money_accounts/<phone>/accounts`),
   parsed by `lib/accountParse.ts` from Gmail and SMS. `money_accounts` is server-only (catch-all rule).
+  The user's card changes live in `money_accounts/<phone>/card_edits/<key>` (`POST /api/money/cards`): name, last4 and
+  hidden persist; amounts, due date and paid apply only while `forDue` matches the latest statement; `manual_*` keys
+  are cards added by hand. The app's "Paid with" sets a transaction's `cardLast4`.
 - Statement PDFs (`lib/statementAuto.ts`, step 4 of `syncGmail`, `/api/gmail/statements`): the user saves a bank's PDF
   password (sealed with `GMAIL_TOKEN_KEY` in `gmail_links.statementPasswords.<bank>`, never returned); each sync opens
   up to two new statement PDFs, records rows with the same doc ids as manual import (no duplicates) and the closing

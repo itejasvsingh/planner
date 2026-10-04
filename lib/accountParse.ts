@@ -7,9 +7,10 @@ import { BANKS } from './bankSenders';
  */
 
 const AMOUNT = String.raw`(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d{1,2})?)`;
-// "Avl Bal Rs 12,345.67", "Available Balance: INR 5,000", "A/c balance is Rs.100" (but not "Avl Lmt")
+// "Avl Bal Rs 12,345.67", "Available Balance: INR 5,000", "A/c balance is Rs.100", "Avbl Bal", "Clr Bal",
+// "Bal: INR 2,000", "balance in your account is Rs 50" (but not "Avl Lmt" or "minimum balance charges")
 const BALANCE = new RegExp(
-  String.raw`\b(?:avl\.?|avail\.?|available|a\/c|account|clear|net\s+avl\.?)\s*(?:bal(?:ance)?\.?)(?:\s+is)?\s*(?::|-|=)?\s*` + AMOUNT,
+  String.raw`\b(?:(?:avl|avbl|avail|available|a\/c|account|acct|clr|clear|closing|total|ledger|net\s+avl)\.?\s*)?bal(?:ance)?\.?(?:\s+(?:in\s+(?:your\s+)?(?:a\/c|account)(?:\s+\S+)?|as\s+on\s+\S+))?(?:\s+is)?\s*(?::|-|=)?\s*` + AMOUNT,
   'i',
 );
 const ACCOUNT_LAST4 = /\b(?:a\/c|acct|account|ac)\b(?:\s*no\.?)?[^\n\d]{0,12}?(?:x+|\*+|•+|ending\s*(?:in|with)?\s*)(\d{3,4})\b/i;
@@ -28,8 +29,9 @@ export function availableBalance(text: string): { balance: number; last4: string
   if (!m) return null;
   const balance = toNumber(m[1]);
   if (!Number.isFinite(balance)) return null;
-  // A credit card's available limit isn't a bank balance
+  // A credit card's available limit, or a loan's outstanding, isn't a bank balance
   if (/credit\s*card/i.test(text) && !/\ba\/c\b|savings|current\s+a/i.test(text)) return null;
+  if (/\b(?:loan|emi|outstanding|minimum\s+balance)\b/i.test(m[0] + text.slice(Math.max(0, (m.index || 0) - 25), m.index || 0))) return null;
   return { balance, last4: text.match(ACCOUNT_LAST4)?.[1]?.slice(-4) || null };
 }
 

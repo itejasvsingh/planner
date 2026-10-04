@@ -34,11 +34,13 @@ export async function recordCardPayment(phone: string, issuer: string, amount: n
 }
 
 export type CardSummary = {
+  /** Stable id: `<issuer>_<last4>` for cards found in statements, `manual_<id>` for cards added by hand. */
+  key: string;
   issuer: string;
   issuerName: string;
   last4: string | null;
   statementDate: string | null;
-  dueDate: string;
+  dueDate: string | null;
   totalDue: number;
   minDue: number | null;
   paidSince: number;
@@ -46,35 +48,80 @@ export type CardSummary = {
   /** What you owe on the card now: statement still unpaid + new spends. */
   outstanding: number;
   status: 'paid' | 'due' | 'overdue';
-  daysLeft: number;
+  daysLeft: number | null;
+  manual: boolean;
+  hidden: boolean;
+  /** The user changed this statement's amounts or due date. */
+  edited: boolean;
+};
+
+/**
+ * The user's changes to a card (money_accounts/<phone>/card_edits/<key>). Name, last digits and hidden stay;
+ * amounts, due date and "paid" belong to one statement (`forDue`) and stop applying when a newer one arrives.
+ * Cards added by hand (`manual`) are only these fields.
+ */
+export type CardEdit = {
+  name?: string | null;
+  last4?: string | null;
+  hidden?: boolean;
+  manual?: boolean;
+  forDue?: string | null;
+  totalDue?: number | null;
+  minDue?: number | null;
+  dueDate?: string | null;
+  paid?: boolean | null;
 };
 
 const dayNum = (key: string) => Date.parse(`${key}T00:00:00Z`) / DAY;
+const r2 = (n: number) => Math.round(n * 100) / 100;
 
-/** The latest statement per card, with payments and spends since it. */
+export async function saveCardEdit(phone: string, key: string, edit: CardEdit) {
+  await root(phone).collection('card_edits').doc(key).set(edit, { merge: true });
+}
+
+export async function deleteManualCard(phone: string, key: string) {
+  if (key.startsWith('manual_')) await root(phone).collection('card_edits').doc(key).delete();
+}
+
+/** The latest statement per card (or the details entered by hand), with payments and spends since it. */
 export async function cardSummaries(phone: string, now = Date.now()): Promise<CardSummary[]> {
-  const [billSnap, paySnap] = await Promise.all([
+  const [billSnap, paySnap, editSnap] = await Promise.all([
     db.collection('gmail_links').doc(phone).collection('bills').get(),
     root(phone).collection('card_payments').get(),
+    root(phone).collection('card_edits').get(),
   ]);
-  const latest = new Map<string, StoredBill & { statementDate?: string }>();
+  const edits = new Map(editSnap.docs.map((d) => [d.id, d.data() as CardEdit]));
+  type Base = { key: string; issuer: string; issuerName: string; last4: string | null; statementDate?: string; dueDate: string | null; totalDue: number; minDue: number | null; billId?: string; manual: boolean };
+  const cards = new Map<string, Base>();
   for (const d of billSnap.docs) {
     const b = d.data() as StoredBill & { statementDate?: string };
     const key = `${b.issuer}_${b.last4 || ''}`;
-    const prev = latest.get(key);
-    if (!prev || b.dueDate > prev.dueDate) latest.set(key, b);
+    const prev = cards.get(key);
+    if (!prev || (prev.dueDate || '') < b.dueDate) {
+      cards.set(key, { key, issuer: b.issuer, issuerName: b.issuerName, last4: b.last4, statementDate: b.statementDate, dueDate: b.dueDate, totalDue: b.totalDue, minDue: b.minDue, billId: b.id, manual: false });
+    }
+  }
+  for (const [key, e] of edits) {
+    if (e.manual) cards.set(key, { key, issuer: 'manual', issuerName: e.name || 'Card', last4: e.last4 || null, dueDate: e.dueDate || null, totalDue: e.totalDue || 0, minDue: e.minDue ?? null, manual: true });
   }
   const payments = paySnap.docs.map((d) => d.data() as { issuer: string; amount: number; date: string });
   const today = istParts(now).date;
 
   const out: CardSummary[] = [];
-  for (const b of latest.values()) {
+  for (const c of cards.values()) {
+    const e = edits.get(c.key) || {};
+    // Statement-specific changes only while that statement is the latest one
+    const current = c.manual || (e.forDue != null && e.forDue === c.dueDate);
+    const dueDate = (current && e.dueDate) || c.dueDate;
+    const totalDue = current && e.totalDue != null ? e.totalDue : c.totalDue;
+    const minDue = current && e.minDue !== undefined ? e.minDue ?? null : c.minDue;
+    const last4 = e.last4 || c.last4;
     // Statements usually come ~20 days before the due date when the email date isn't known
-    const since = b.statementDate || istParts(Date.parse(`${b.dueDate}T00:00:00Z`) - 20 * DAY).date;
-    const paidSince = payments.filter((p) => p.issuer === b.issuer && p.date >= since).reduce((s, p) => s + p.amount, 0);
+    const since = c.statementDate || (dueDate ? istParts(Date.parse(`${dueDate}T00:00:00Z`) - 20 * DAY).date : istParts(now - 30 * DAY).date);
+    const paidSince = c.manual ? 0 : payments.filter((p) => p.issuer === c.issuer && p.date >= since).reduce((s, p) => s + p.amount, 0);
     let spentSince = 0;
-    if (b.last4) {
-      const snap = await db.collection('planner_items').where('ownerId', '==', phone).where('cardLast4', '==', b.last4).get();
+    if (last4) {
+      const snap = await db.collection('planner_items').where('ownerId', '==', phone).where('cardLast4', '==', last4).get();
       for (const d of snap.docs) {
         const x = d.data();
         if ((x.date || '') < since) continue;
@@ -82,28 +129,32 @@ export async function cardSummaries(phone: string, now = Date.now()): Promise<Ca
         else if (x.type === 'income') spentSince -= Number(x.amount) || 0; // refunds to the card
       }
     }
-    // A ticked-off reminder counts as paid too
-    const task = await db.collection('planner_items').doc(`bill_${b.id}`).get();
-    const paid = paidSince >= b.totalDue - 1 || task.data()?.done === true;
-    const unpaid = paid ? 0 : Math.max(0, b.totalDue - paidSince);
-    const daysLeft = dayNum(b.dueDate) - dayNum(today);
+    // Paid: the user said so for this statement, payments cover it, or the bill reminder was ticked off
+    let paid = current && e.paid != null ? e.paid : paidSince >= totalDue - 1;
+    if (!(current && e.paid != null) && !paid && c.billId) paid = (await db.collection('planner_items').doc(`bill_${c.billId}`).get()).data()?.done === true;
+    const unpaid = paid ? 0 : Math.max(0, totalDue - paidSince);
+    const daysLeft = dueDate ? dayNum(dueDate) - dayNum(today) : null;
     out.push({
-      issuer: b.issuer,
-      issuerName: b.issuerName,
-      last4: b.last4,
-      statementDate: b.statementDate || null,
-      dueDate: b.dueDate,
-      totalDue: b.totalDue,
-      minDue: b.minDue,
-      paidSince: Math.round(paidSince * 100) / 100,
-      spentSince: Math.round(Math.max(0, spentSince) * 100) / 100,
-      outstanding: Math.round((unpaid + Math.max(0, spentSince)) * 100) / 100,
-      status: paid ? 'paid' : daysLeft < 0 ? 'overdue' : 'due',
+      key: c.key,
+      issuer: c.issuer,
+      issuerName: e.name || c.issuerName,
+      last4,
+      statementDate: c.statementDate || null,
+      dueDate,
+      totalDue,
+      minDue,
+      paidSince: r2(paidSince),
+      spentSince: r2(Math.max(0, spentSince)),
+      outstanding: r2(unpaid + Math.max(0, spentSince)),
+      status: paid || totalDue <= 0 ? 'paid' : daysLeft !== null && daysLeft < 0 ? 'overdue' : 'due',
       daysLeft,
+      manual: c.manual,
+      hidden: e.hidden === true,
+      edited: !c.manual && current && (e.totalDue != null || e.minDue !== undefined || !!e.dueDate || e.paid != null),
     });
   }
-  // Unpaid soonest first, then paid
-  return out.sort((a, b) => Number(a.status === 'paid') - Number(b.status === 'paid') || a.dueDate.localeCompare(b.dueDate));
+  // Unpaid soonest first, then paid; hidden last
+  return out.sort((a, b) => Number(a.hidden) - Number(b.hidden) || Number(a.status === 'paid') - Number(b.status === 'paid') || (a.dueDate || '9').localeCompare(b.dueDate || '9'));
 }
 
 export async function accountBalances(phone: string): Promise<AccountBalance[]> {
