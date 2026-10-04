@@ -65,7 +65,8 @@ export async function recordTransaction(
   /** `time`: when the message arrived (HH:MM, India), used if the text has no time. */
   /** `card`: the credit card it was spent on, so the card's outstanding can include it. */
   /** `text`: the message (not stored), to recognise transfers between your own accounts. */
-  opts: { source: Channel; dedupText: string; date: string; time?: string | null; card?: { last4: string } | null; account?: string | null; docId?: string; text?: string },
+  /** `rules`: your payee rules, when the caller already has them (many rows at once). */
+  opts: { source: Channel; dedupText: string; date: string; time?: string | null; card?: { last4: string } | null; account?: string | null; docId?: string; text?: string; rules?: { merchants: Record<string, string>; transfers: Record<string, string> } },
 ): Promise<'added' | 'duplicate'> {
   let tx: Recorded = parsed;
   const dedupKey = tx.ref ? `ref_${tx.ref}` : `txt_${sha256(opts.dedupText.replace(/\s+/g, ' ').toLowerCase()).slice(0, 24)}`;
@@ -73,7 +74,7 @@ export async function recordTransaction(
   const ref = db.collection('planner_items').doc(opts.docId || `auto_${sha256(`${phone}_${dedupKey}`).slice(0, 28)}`);
 
   // Your rules first: money to family or your own accounts is a transfer, and your category beats the guess
-  const rules = await allMerchantRules(phone);
+  const rules = opts.rules || (await allMerchantRules(phone));
   const transferTo = tx.type === 'expense' ? ruleFor(rules.transfers, tx.merchant) : null;
   if (transferTo || (tx.type !== 'income' && SELF_TRANSFER.test(`${tx.merchant} ${opts.text || ''}`))) {
     tx = { ...tx, type: 'transfer', category: transferTo || 'Self Transfer' };

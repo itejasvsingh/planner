@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { db, FieldValue } from './firebase';
 import { seal } from './secretBox';
 import { recordTransaction } from './recordTransaction';
+import { allMerchantRules } from './merchantRules';
 import { saveBalance } from './moneyAccounts';
 import { cleanNarration, type StatementRow } from './statementParse';
 import { guessCategory } from './smsParse';
@@ -79,18 +80,22 @@ function rowIds(phone: string, rows: StatementRow[]) {
 export async function importStatementRows(
   phone: string,
   rows: StatementRow[],
-  opts: { bankId: string; bankName: string; at: number; creditCard: boolean; last4: string | null },
+  opts: { bankId: string; bankName: string; at: number; creditCard: boolean; last4: string | null; deadline?: number },
 ) {
+  const rules = await allMerchantRules(phone);
   const keep = rows.filter((r) => !(opts.creditCard && r.type === 'income' && /payment|thank you|received|autopay|neft|imps|upi/i.test(r.description)));
   const ids = rowIds(phone, keep);
   let added = 0;
+  let complete = true;
   for (let i = 0; i < keep.length; i++) {
+    // Out of time: stop here; the next check continues (rows already saved are skipped, no duplicates)
+    if (opts.deadline && Date.now() > opts.deadline) { complete = false; break; }
     const r = keep[i];
     const merchant = cleanNarration(r.description) || r.description.slice(0, 40);
     const outcome = await recordTransaction(
       phone,
       { type: r.type, amount: r.amount, merchant, category: guessCategory(`${merchant} ${r.description}`, r.type), ref: r.ref, date: r.date, time: null },
-      { source: 'statement', dedupText: `statement:${ids[i]}`, date: r.date, docId: ids[i], card: opts.creditCard && opts.last4 ? { last4: opts.last4 } : null, account: !opts.creditCard ? opts.last4 : null, text: r.description },
+      { source: 'statement', dedupText: `statement:${ids[i]}`, date: r.date, docId: ids[i], card: opts.creditCard && opts.last4 ? { last4: opts.last4 } : null, account: !opts.creditCard ? opts.last4 : null, text: r.description, rules },
     );
     if (outcome === 'added') added++;
   }
@@ -98,6 +103,7 @@ export async function importStatementRows(
   // doesn't have (a duplicate, a mistake, or another account): listed for the user to look at
   const dates = keep.map((r) => r.date).sort();
   const extras: { title: string; amount: number; date: string }[] = [];
+  if (!complete) return { added, rows: keep.length, from: dates[0], to: dates[dates.length - 1], extras, checked: false, complete };
   if (opts.last4 && dates.length) {
     const field = opts.creditCard ? 'cardLast4' : 'accountLast4';
     const snap = await db.collection('planner_items').where('ownerId', '==', phone).where(field, '==', opts.last4).get();
@@ -122,7 +128,7 @@ export async function importStatementRows(
       await saveBalance(phone, { bankId: opts.bankId, bankName: opts.bankName, last4: opts.last4, balance: last.balance, at });
     }
   }
-  return { added, rows: keep.length, from: dates[0], to: dates[dates.length - 1], extras: extras.slice(0, 10), checked: !!opts.last4 };
+  return { added, rows: keep.length, from: dates[0], to: dates[dates.length - 1], extras: extras.slice(0, 10), checked: !!opts.last4, complete };
 }
 
 export type StatementGroup = {

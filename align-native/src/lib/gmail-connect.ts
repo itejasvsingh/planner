@@ -107,4 +107,4 @@ export const gmailSetStatementPassword = (bank: string, kind: StatementKind, pas
 
 /** Reads up to six new statement PDFs now, then checks the last 90 days of statements for passwords. */
 export const gmailFindStatements = () =>
-  call<StatementLists & { status: 'ok' | 'not_connected' | 'reconnect'; added: number }>('/api/gmail/statements/find', { method: 'POST' });
+  call<StatementLists & { status: 'ok' | 'not_connected' | 'reconnect'; reading?: boolean }>('/api/gmail/statements/find', { method: 'POST' });

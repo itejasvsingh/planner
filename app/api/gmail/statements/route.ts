@@ -1,10 +1,12 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { requestUser } from '../../../../lib/requestUser';
 import { db } from '../../../../lib/firebase';
 import { BANKS, bankNameById } from '../../../../lib/bankSenders';
 import { kindsFor, setStatementPassword, statementGroups } from '../../../../lib/statementAuto';
+import { readInBackground } from '../../../../lib/statementReader';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
 /**
  * Statements found in Gmail, as two lists (bank accounts, credit cards), one row per bank: how many, whether
@@ -34,5 +36,10 @@ export async function POST(req: Request) {
   const link = await db.collection('gmail_links').doc(user.phone).get();
   if (!link.exists) return NextResponse.json({ error: 'Connect Gmail first.' }, { status: 409 });
   await setStatementPassword(user.phone, bank.id, password, kind);
-  return NextResponse.json({ ok: true, bank: bank.id, kind, hasPassword: !!password });
+  // Read the statements waiting for this password in the background; the app refreshes its lists shortly
+  if (password) {
+    const started = Date.now();
+    after(() => readInBackground(user.phone, started));
+  }
+  return NextResponse.json({ ok: true, bank: bank.id, kind, hasPassword: !!password, reading: !!password });
 }

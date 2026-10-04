@@ -416,8 +416,9 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
           if (res.status === 'password' && otherPw) res = await readStatement(buf, open(otherPw.sealed));
           const at = Number(msg.internalDate || Date.now());
           if (res.status === 'ok') {
-            const r = await importStatementRows(phone, res.rows, { bankId: bank.id, bankName: bank.name, at, creditCard, last4: accountLast4(text) || creditCardOf(text)?.last4 || null });
+            const r = await importStatementRows(phone, res.rows, { bankId: bank.id, bankName: bank.name, at, creditCard, last4: accountLast4(text) || creditCardOf(text)?.last4 || null, deadline: deadline - 3_000 });
             added += r.added;
+            if (!r.complete) break; // out of time: this statement continues next check
             status[slot] = { state: 'ok', at, msgId: id, foundAt: Date.now(), locked, added: r.added, rows: r.rows, from: r.from, to: r.to, checked: r.checked, extras: r.extras };
             done.add(id);
             delete tried[id];

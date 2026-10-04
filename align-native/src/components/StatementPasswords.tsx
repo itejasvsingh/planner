@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { CreditCard, FileLock2, Landmark, Search } from 'lucide-react-native';
 import { Text, TextInput } from '@/components/ui/text';
@@ -9,6 +9,14 @@ import {
   gmailBanks, gmailFindStatements, gmailSaveBanks, gmailSetStatementPassword, gmailStatements,
   type StatementGroup, type StatementKind, type StatementLists,
 } from '@/lib/gmail-connect';
+
+/** A dropped connection reads better than the browser's own wording ("Load failed", "Failed to fetch"). */
+const friendly = (e: unknown) => {
+  const m = (e as Error)?.message || '';
+  return /load failed|failed to fetch|network|timed? ?out|\(50[234]\)/i.test(m)
+    ? 'The connection dropped. Align keeps reading in the background; check back in a minute.'
+    : m;
+};
 
 const day = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
@@ -28,9 +36,17 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
   const [note, setNote] = useState('');
 
   const load = useCallback(() => {
-    gmailStatements().then(setLists).catch(() => setLists({ accounts: [], cards: [], searched: false }));
+    gmailStatements().then(setLists).catch(() => setLists(l => l || { accounts: [], cards: [], searched: false }));
   }, []);
   useEffect(load, [load, refreshKey]);
+
+  // While statements are read in the background, refresh the lists a couple of times
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  const refreshSoon = () => {
+    timers.current.forEach(clearTimeout);
+    timers.current = [20_000, 50_000].map(ms => setTimeout(load, ms));
+  };
 
   const find = async () => {
     setFinding(true);
@@ -40,10 +56,14 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
       if (r.status !== 'ok') setNote(r.status === 'reconnect' ? 'Connect Gmail again first.' : 'Connect Gmail first.');
       else {
         setLists(r);
-        setNote(r.added ? `${r.added} new transaction${r.added === 1 ? '' : 's'} added from statements.` : '');
+        if (r.reading) {
+          setNote('Reading new statements in the background; this list updates in about a minute.');
+          refreshSoon();
+        }
       }
     } catch (e) {
-      setNote((e as Error).message);
+      setNote(friendly(e));
+      refreshSoon();
     } finally {
       setFinding(false);
     }
@@ -58,7 +78,7 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
       const id = bankId.startsWith('in_') ? 'otherbankin' : bankId;
       if (!selected.includes(id)) await gmailSaveBanks([...selected, id], cur.extra);
     } catch (e) {
-      setNote((e as Error).message);
+      setNote(friendly(e));
     }
     await find();
   };
@@ -70,11 +90,13 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
       await gmailSetStatementPassword(bank, kind, password);
       setEditing(null);
       setValue('');
-      setNote(password ? 'Saved. Reading the statements…' : 'Password removed.');
-      if (password) await find();
-      else load();
+      load();
+      if (password) {
+        setNote('Password saved. Align is reading those statements in the background; this list updates in about a minute.');
+        refreshSoon();
+      } else setNote('Password removed.');
     } catch (e) {
-      setNote((e as Error).message);
+      setNote(friendly(e));
     } finally {
       setBusy(false);
     }
