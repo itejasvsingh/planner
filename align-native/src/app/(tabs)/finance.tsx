@@ -465,9 +465,17 @@ export default function FinanceScreen() {
                                                         {[category.name, splitLabel(item), formatTime(item.time), item.autoDetected ? SOURCE_LABEL[item.source] || 'Auto' : ''].filter(Boolean).join(' · ')}
                                                     </Text>
                                                 </View>
-                                                <Text style={[Type.body, { color: isIncome ? c.income : (isTransfer ? c.textSecondary : c.text), fontWeight: '700', fontVariant: ['tabular-nums'] }]}>
-                                                    {isTransfer ? '' : (isIncome ? '+' : '−')}{formatMoney(Number(item.amount) || 0)}
-                                                </Text>
+                                                <View style={{ alignItems: 'flex-end', gap: 3 }}>
+                                                    <Text style={[Type.body, { color: isIncome ? c.income : (isTransfer ? c.textSecondary : c.text), fontWeight: '700', fontVariant: ['tabular-nums'] }]}>
+                                                        {isTransfer ? '' : (isIncome ? '+' : '−')}{formatMoney(Number(item.amount) || 0)}
+                                                    </Text>
+                                                    {/* Kind of transaction at a glance */}
+                                                    <View style={[styles.kindTag, { backgroundColor: isIncome ? c.incomeSoft : isTransfer ? c.backgroundMuted : c.expenseSoft }]}>
+                                                        <Text style={[styles.kindTagText, { color: isIncome ? c.income : isTransfer ? c.textSecondary : c.expense }]}>
+                                                            {isIncome ? 'Income' : isTransfer ? 'Transfer' : 'Expense'}
+                                                        </Text>
+                                                    </View>
+                                                </View>
                                             </Pressable>
                                         );
                                     })}
@@ -531,6 +539,8 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 15, paddingVertical: 11 },
   filters: { gap: 6, paddingBottom: 10 },
   filterChip: { paddingHorizontal: 11, paddingVertical: 5, borderRadius: Radius.pill, borderWidth: 1, alignItems: 'center' },
+  kindTag: { paddingHorizontal: 7, paddingVertical: 1, borderRadius: Radius.pill },
+  kindTagText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2 },
   splitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: Radius.md },
   empty: { padding: 32, alignItems: 'center', gap: 12, borderWidth: 1, borderStyle: 'dashed', borderRadius: Radius.lg },
 });
