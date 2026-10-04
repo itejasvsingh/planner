@@ -120,3 +120,13 @@ test('Find statements lists the last 40 days with what happened to each, from ev
   const res = await gmail.syncGmail(PHONE, Date.now() + 20000, { statements: 6 });
   assert.equal(res.status, 'ok');
 });
+
+test('account or card statement: slice sends both now', () => {
+  const { statementKind } = jiti(path.join(__dirname, '../../lib/statementAuto.ts'));
+  assert.equal(statementKind('slice', 'Your slice credit card statement for September', ''), 'card');
+  assert.equal(statementKind('slice', 'Your slice savings account statement', ''), 'account');
+  assert.equal(statementKind('slice', 'Your monthly statement is here', 'Total amount due: Rs 2,340. Minimum amount due: Rs 200'), 'card');
+  assert.equal(statementKind('slice', 'Your monthly statement is here', 'Statement of account for your savings account XXXX1234'), 'account');
+  assert.equal(statementKind('hdfc', 'Account Statement for September', ''), 'account');
+  assert.equal(statementKind('sbicard', 'Your statement', ''), 'card');
+});

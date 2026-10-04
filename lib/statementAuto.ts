@@ -30,7 +30,26 @@ const sha = (s: string) => createHash('sha256').update(s).digest('hex');
  * own slot: `<bank>` for account statements, `<bank>__card` for card statements. Card-only issuers have one.
  */
 export type StatementKind = 'account' | 'card';
-export const CARD_ONLY = new Set(['slice', 'sbicard', 'amex', 'onecard']);
+// slice isn't here: it's a bank now (slice Small Finance Bank) and sends savings account statements too
+export const CARD_ONLY = new Set(['sbicard', 'amex', 'onecard']);
+
+/**
+ * Whether a statement email is for a bank account or a credit card: the subject decides when it says so,
+ * then the body (card words like "total amount due", account words like "savings account").
+ */
+export function statementKind(bankId: string, subject: string, text: string): StatementKind {
+  if (CARD_ONLY.has(bankId)) return 'card';
+  if (/credit\s*card|\bcard\s+(?:statement|bill)|\bcc\s+statement/i.test(subject)) return 'card';
+  if (/\baccount\b|\bsavings\b|\ba\/c\b|\bpassbook\b/i.test(subject)) return 'account';
+  const card = /credit\s*card|\bcard\s+(?:statement|bill|ending|no\.?)|total\s+amount\s+due|minimum\s+amount\s+due/i.test(text);
+  const account = /\b(?:savings|current)\s+account|account\s+statement|statement\s+of\s+account|\ba\/c\s+(?:no|statement)/i.test(text);
+  return card && !account ? 'card' : 'account';
+}
+
+/** Changes whenever either of a bank's statement passwords changes (a locked file is then tried again). */
+export function passwordVersion(passwords: Record<string, StatementPassword>, bankId: string) {
+  return (passwords[statementSlot(bankId, 'account')]?.v || 0) + (passwords[statementSlot(bankId, 'card')]?.v || 0);
+}
 export const statementSlot = (bankId: string, kind: StatementKind) => (kind === 'card' ? `${bankId}__card` : bankId);
 export const kindsFor = (bankId: string): StatementKind[] => (CARD_ONLY.has(bankId) ? ['card'] : ['account', 'card']);
 

@@ -4,7 +4,7 @@ import { open, seal } from './secretBox';
 import { BANKS, normalizeSender, sendersFor } from './bankSenders';
 import { bankQuery, billQuery, messageText, pdfAttachments, statementPdfQuery, type GmailMessage } from './gmailMessage';
 import { isLockedPdf, readStatement } from './statementFile';
-import { CARD_ONLY, importStatementRows, statementSlot, type StatementPassword, type StatementState } from './statementAuto';
+import { importStatementRows, passwordVersion, statementKind, statementSlot, type StatementPassword, type StatementState } from './statementAuto';
 import { isCardPaymentReceived, parseBankEmail, parseCardBill } from './emailAlert';
 import { bankForSender, ensureBillTask, markBillsPaid, saveBill } from './cardBills';
 import { accountLast4, availableBalance, cardPaymentAmount, creditCardOf } from './accountParse';
@@ -386,7 +386,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
       const status: Record<string, StatementState> = {};
       const found = await list(statementPdfQuery(senders, (Date.now() - 95 * DAY_MS) / 1000), 30);
       const todo = found.ids
-        .filter((id) => !done.has(id) && !(tried[id] && (passwords[tried[id].bank]?.v || 0) === tried[id].v))
+        .filter((id) => !done.has(id) && !(tried[id] && passwordVersion(passwords, tried[id].bank.replace(/__card$/, '')) === tried[id].v))
         .slice(0, Math.min(opts.statements ?? 2, budget));
       for (const id of todo) {
         if (Date.now() > deadline - 8_000) break;
@@ -406,7 +406,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
           const buf = Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
           // Card or account statement: each has its own password (the other is tried too, in case it was
           // saved in the wrong place)
-          const creditCard = CARD_ONLY.has(bank.id) || /credit\s*card/i.test(`${subject}\n${text}`);
+          const creditCard = statementKind(bank.id, subject, text) === 'card';
           const slot = statementSlot(bank.id, creditCard ? 'card' : 'account');
           const pw = passwords[slot];
           const otherPw = passwords[statementSlot(bank.id, creditCard ? 'account' : 'card')];
@@ -424,7 +424,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
             delete tried[id];
           } else if (res.status === 'password') {
             status[slot] = { state: pw ? 'wrong_password' : 'needs_password', at, msgId: id, foundAt: Date.now() };
-            tried[id] = { bank: slot, v: pw?.v || 0 };
+            tried[id] = { bank: slot, v: passwordVersion(passwords, bank.id) };
           } else {
             status[slot] = { state: 'unreadable', at, msgId: id, foundAt: Date.now() };
             done.add(id);
@@ -579,6 +579,9 @@ export async function syncAll(deadline: number) {
   return { users: users.length, checked: Object.keys(results).length };
 }
 
+/** Bump when how statements are sorted (account vs card) changes: they're checked again. */
+const INDEX_VERSION = 2;
+
 export type FoundStatement = {
   id: string;
   bankId: string;
@@ -604,7 +607,8 @@ export async function findStatements(phone: string, days = 90, deadline = Date.n
   const senders = sendersFor(null, link.extraSenders);
   const after = (Date.now() - days * DAY_MS) / 1000;
   const found = ((await gmail<{ messages?: { id: string }[] }>(token, `/messages?q=${encodeURIComponent(statementPdfQuery(senders, after))}&maxResults=100`)).messages || []).map((m) => m.id);
-  const known = new Map<string, FoundStatement>(((link.statementIndex || []) as FoundStatement[]).map((x) => [x.id, x]));
+  // Remembered answers, unless they came from an older way of sorting account vs card statements
+  const known = new Map<string, FoundStatement>(link.statementIndexVersion === INDEX_VERSION ? ((link.statementIndex || []) as FoundStatement[]).map((x) => [x.id, x]) : []);
   const out: FoundStatement[] = [];
   await pool(found, READ_WIDTH, deadline, async (id) => {
     const prev = known.get(id);
@@ -614,7 +618,7 @@ export async function findStatements(phone: string, days = 90, deadline = Date.n
     const bank = bankForSender(from);
     const pdf = pdfAttachments(msg).find((x) => x.size <= 5_000_000);
     if (!bank || !pdf) return; // not a bank statement PDF
-    const kind: 'account' | 'card' = CARD_ONLY.has(bank.id) || /credit\s*card/i.test(`${subject}\n${text}`) ? 'card' : 'account';
+    const kind = statementKind(bank.id, subject, text);
     let locked: boolean | null = null;
     try {
       const data = pdf.data || (await gmail<{ data: string }>(token, `/messages/${id}/attachments/${pdf.attachmentId}`)).data;
@@ -627,6 +631,6 @@ export async function findStatements(phone: string, days = 90, deadline = Date.n
   const statements = out.sort((a, b) => b.date - a.date);
   // Remember what was learned (newest 100), including statements this search didn't get to
   const merged = new Map<string, FoundStatement>([...known.entries(), ...statements.map((x) => [x.id, x] as const)]);
-  await ref.update({ statementIndex: [...merged.values()].sort((a, b) => b.date - a.date).slice(0, 100) });
+  await ref.update({ statementIndex: [...merged.values()].sort((a, b) => b.date - a.date).slice(0, 100), statementIndexVersion: INDEX_VERSION });
   return { status: 'ok', statements };
 }
