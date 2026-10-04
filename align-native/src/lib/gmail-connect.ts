@@ -106,7 +106,7 @@ export const gmailSetStatementPassword = (bank: string, kind: StatementKind, pas
 
 export type FoundStatement = {
   id: string; bankId: string | null; bankName: string; kind: 'account' | 'card'; subject: string; date: number; pdf: boolean;
-  state: 'read' | 'needs_password' | 'wrong_password' | 'queued' | 'summary';
+  state: 'read' | 'needs_password' | 'wrong_password' | 'queued' | 'summary' | 'not_selected';
 };
 /** Reads up to six new statement PDFs now and lists every statement/bill email of the last 40 days. */
 export const gmailFindStatements = () =>

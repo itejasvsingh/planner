@@ -586,8 +586,11 @@ export type FoundStatement = {
   subject: string;
   date: number;
   pdf: boolean;
-  /** read: transactions taken; needs_password / wrong_password: waiting; queued: read in a coming check; summary: a bill email (amounts in the email itself) */
-  state: 'read' | 'needs_password' | 'wrong_password' | 'queued' | 'summary';
+  /**
+   * read: transactions taken; needs_password / wrong_password: waiting; queued: read in a coming check;
+   * summary: a bill email (amounts in the email itself); not_selected: from a bank not ticked in Settings → Gmail
+   */
+  state: 'read' | 'needs_password' | 'wrong_password' | 'queued' | 'summary' | 'not_selected';
 };
 
 /**
@@ -600,7 +603,10 @@ export async function findStatements(phone: string, days = 40): Promise<{ status
   if (link.status !== 'connected') return { status: 'reconnect', statements: [] };
   const token = await accessToken(open(link.token));
   if (token === 'revoked') return { status: 'reconnect', statements: [] };
-  const senders = sendersFor(link.banks, link.extraSenders);
+  // Every bank and card issuer Align knows (still bank senders only), so statements from banks you haven't
+  // ticked show up too, with a way to add them
+  const senders = sendersFor(null, link.extraSenders);
+  const selected = new Set<string>(link.banks && link.banks.length ? link.banks : BANKS.map((b) => b.id));
   const after = (Date.now() - days * DAY_MS) / 1000;
   const ids = async (q: string) => ((await gmail<{ messages?: { id: string }[] }>(token, `/messages?q=${encodeURIComponent(q)}&maxResults=60`)).messages || []).map((m) => m.id);
   const [withPdf, bills] = await Promise.all([ids(statementPdfQuery(senders, after)), ids(billQuery(senders, after))]);
@@ -620,6 +626,7 @@ export async function findStatements(phone: string, days = 40): Promise<{ status
     let state: FoundStatement['state'] = 'queued';
     if (!pdf) state = 'summary';
     else if (done.has(id)) state = 'read';
+    else if (bank && !selected.has(bank.id)) state = 'not_selected';
     else if (tried[id]) {
       const slot = tried[id].bank;
       state = (passwords[slot]?.v || 0) === tried[id].v ? (status[slot]?.state === 'wrong_password' ? 'wrong_password' : 'needs_password') : 'queued';

@@ -77,5 +77,6 @@ export function pdfAttachments(msg: GmailMessage): { filename: string; attachmen
 
 /** Statement emails with a PDF from these senders since `afterSec`. */
 export function statementPdfQuery(domains: string[], afterSec: number) {
-  return `from:(${domains.join(' OR ')}) has:attachment filename:pdf {statement estatement "e-statement"} after:${Math.floor(afterSec)} -in:spam -in:trash`;
+  // Any attachment (some banks don't name the file .pdf); pdfAttachments() keeps the real PDFs
+  return `from:(${domains.join(' OR ')}) has:attachment {statement statements estatement "e-statement" "account summary" "statement of account"} after:${Math.floor(afterSec)} -in:spam -in:trash`;
 }

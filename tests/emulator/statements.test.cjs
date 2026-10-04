@@ -96,10 +96,12 @@ test('a statement already read is not read again', async () => {
   assert.equal((await items()).length, 5);
 });
 
-test('Find statements lists the last 40 days with what happened to each', async () => {
+test('Find statements lists the last 40 days with what happened to each, from every bank', async () => {
+  // A card statement from a bank that isn't ticked in Settings → Gmail (only HDFC is)
+  mailbox.push({ id: 's2', from: 'cc.statements@icicibank.com', internalDate: String(Date.now() - 86400000), payload: { mimeType: 'multipart/mixed', headers: [{ name: 'Subject', value: 'ICICI Bank Credit Card Statement' }, { name: 'From', value: 'cc.statements@icicibank.com' }], parts: [{ mimeType: 'application/octet-stream', filename: 'CCStatement', body: { attachmentId: 'att2', size: 1000 } }] } });
   const r = await gmail.findStatements(PHONE, 40);
   assert.equal(r.status, 'ok');
-  assert.deepEqual(r.statements.map((f) => [f.id, f.bankId, f.kind, f.pdf, f.state]), [['s1', 'hdfc', 'account', true, 'read']]);
+  assert.deepEqual(r.statements.map((f) => [f.id, f.bankId, f.kind, f.pdf, f.state]), [['s2', 'icici', 'card', true, 'not_selected'], ['s1', 'hdfc', 'account', true, 'read']]);
   const res = await gmail.syncGmail(PHONE, Date.now() + 20000, { statements: 6 });
   assert.equal(res.status, 'ok');
 });

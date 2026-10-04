@@ -5,7 +5,7 @@ import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius } from '@/constants/theme';
-import { gmailFindStatements, gmailSetStatementPassword, gmailStatements, gmailSyncNow, type FoundStatement, type StatementBank, type StatementKind, type StatementSlot } from '@/lib/gmail-connect';
+import { gmailBanks, gmailFindStatements, gmailSaveBanks, gmailSetStatementPassword, gmailStatements, gmailSyncNow, type FoundStatement, type StatementBank, type StatementKind, type StatementSlot } from '@/lib/gmail-connect';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const day = (k?: string) => {
@@ -39,6 +39,19 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
   const [note, setNote] = useState('');
   const [finding, setFinding] = useState(false);
   const [found, setFound] = useState<FoundStatement[] | null>(null);
+
+  // A statement from a bank you haven't ticked: add it to your banks, then read its statements
+  const addBank = async (bankId: string) => {
+    setFinding(true);
+    try {
+      const cur = await gmailBanks();
+      const selected = cur.selected && cur.selected.length ? cur.selected : cur.banks.map(b => b.id);
+      if (!selected.includes(bankId)) await gmailSaveBanks([...selected, bankId], cur.extra);
+    } catch (e) {
+      setNote((e as Error).message);
+    }
+    await find();
+  };
 
   const find = async () => {
     setFinding(true);
@@ -108,7 +121,7 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
           </Text>
           {found.map(f => {
             const tone = f.state === 'read' || f.state === 'summary' ? c.income : f.state === 'queued' ? c.textSecondary : c.expense;
-            const label = { read: 'Read ✓', summary: 'Bill amounts read ✓', queued: 'Will be read next', needs_password: 'Needs password', wrong_password: 'Password didn’t work' }[f.state];
+            const label = { read: 'Read ✓', summary: 'Bill amounts read ✓', queued: 'Will be read next', needs_password: 'Needs password', wrong_password: 'Password didn’t work', not_selected: '' }[f.state];
             return (
               <View key={f.id} style={[styles.found, { borderColor: c.border }]}>
                 <View style={{ flex: 1 }}>
@@ -119,7 +132,13 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
                     {new Date(f.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · {f.subject}
                   </Text>
                 </View>
-                <Text style={{ color: tone, fontSize: 12, fontWeight: '700' }}>{label}</Text>
+                {f.state === 'not_selected' && f.bankId ? (
+                  <Pressable accessibilityRole="button" accessibilityLabel={`Add ${f.bankName} to your banks`} disabled={finding} onPress={() => void addBank(f.bankId!)} hitSlop={6}>
+                    <Text style={{ color: c.accent, fontSize: 12, fontWeight: '700' }}>Add bank</Text>
+                  </Pressable>
+                ) : (
+                  <Text style={{ color: tone, fontSize: 12, fontWeight: '700' }}>{label}</Text>
+                )}
               </View>
             );
           })}
