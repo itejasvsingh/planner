@@ -13,6 +13,7 @@ process.env.GMAIL_TOKEN_KEY = Buffer.alloc(32, 7).toString('base64');
 
 const b64 = (b) => Buffer.from(b).toString('base64url');
 const pdf = fs.readFileSync(path.join(__dirname, '../fixtures/statement-locked.pdf'));
+const openPdf = fs.readFileSync(path.join(__dirname, '../fixtures/statement-open.pdf'));
 const mailbox = [{
   id: 's1', from: 'estatement@hdfcbank.net', internalDate: String(Date.now() - 2 * 86400000),
   payload: { mimeType: 'multipart/mixed', headers: [{ name: 'Subject', value: 'Your HDFC Bank account statement' }, { name: 'From', value: 'HDFC Bank <estatement@hdfcbank.net>' }], parts: [
@@ -35,7 +36,8 @@ global.fetch = async (url, opts = {}) => {
     // like Gmail, a domain also matches its subdomains (from:bank.in finds …@xyz.bank.in)
     return json({ messages: mailbox.filter((x) => senders.some((s) => x.from.endsWith(`@${s}`) || x.from.endsWith(`.${s}`))).map((x) => ({ id: x.id })) });
   }
-  if (/\/messages\/s1\/attachments\/att1$/.test(u)) return json({ data: b64(pdf), size: pdf.length });
+  if (/\/attachments\/att[12]$/.test(u)) return json({ data: b64(pdf), size: pdf.length });
+  if (/\/attachments\/att3$/.test(u)) return json({ data: b64(openPdf), size: openPdf.length });
   const meta = u.match(/\/messages\/(\w+)\?format=metadata/);
   if (meta) { const m = mailbox.find((x) => x.id === meta[1]); return json({ id: m.id, internalDate: m.internalDate, payload: { headers: m.payload.headers } }); }
   const mm = u.match(/\/messages\/(\w+)\?format=full$/);
@@ -102,13 +104,19 @@ test('Find statements lists the last 40 days with what happened to each, from ev
   mailbox.push({ id: 's2', from: 'cc.statements@icicibank.com', internalDate: String(Date.now() - 86400000), payload: { mimeType: 'multipart/mixed', headers: [{ name: 'Subject', value: 'ICICI Bank Credit Card Statement' }, { name: 'From', value: 'cc.statements@icicibank.com' }], parts: [{ mimeType: 'application/octet-stream', filename: 'CCStatement', body: { attachmentId: 'att2', size: 1000 } }] } });
   // and one from a bank Align doesn't list, found by its .bank.in address
   mailbox.push({ id: 's3', from: 'estatement@xyz.bank.in', internalDate: String(Date.now() - 2 * 86400000 + 1000), payload: { mimeType: 'multipart/mixed', headers: [{ name: 'Subject', value: 'Statement of Account' }, { name: 'From', value: 'estatement@xyz.bank.in' }], parts: [{ mimeType: 'application/pdf', filename: 'stmt.pdf', body: { attachmentId: 'att3', size: 1000 } }] } });
-  const r = await gmail.findStatements(PHONE, 40);
+  const r = await gmail.findStatements(PHONE, 90);
   assert.equal(r.status, 'ok');
-  assert.deepEqual(r.statements.map((f) => [f.id, f.bankId, f.bankName, f.kind, f.state]), [
-    ['s2', 'icici', 'ICICI Bank', 'card', 'not_selected'],
-    ['s3', 'in_xyz', 'XYZ Bank', 'account', 'not_selected'],
-    ['s1', 'hdfc', 'HDFC Bank', 'account', 'read'],
+  assert.deepEqual(r.statements.map((f) => [f.id, f.bankId, f.bankName, f.kind, f.locked]), [
+    ['s2', 'icici', 'ICICI Bank', 'card', true],
+    ['s3', 'in_xyz', 'XYZ Bank', 'account', false],
+    ['s1', 'hdfc', 'HDFC Bank', 'account', true],
   ]);
+  // Two lists, one row per bank: needs a password or not, password saved, bank ticked
+  const { statementGroups } = jiti(path.join(__dirname, '../../lib/statementAuto.ts'));
+  const g = statementGroups((await link().get()).data());
+  const pick = (x) => [x.bankId, x.count, x.locked, x.hasPassword, x.selected];
+  assert.deepEqual(g.accounts.map(pick), [['hdfc', 1, true, true, true], ['in_xyz', 1, false, false, false]]);
+  assert.deepEqual(g.cards.map(pick), [['icici', 1, true, false, false]]);
   const res = await gmail.syncGmail(PHONE, Date.now() + 20000, { statements: 6 });
   assert.equal(res.status, 'ok');
 });

@@ -3,7 +3,7 @@ import { db, FieldValue } from './firebase';
 import { open, seal } from './secretBox';
 import { BANKS, normalizeSender, sendersFor } from './bankSenders';
 import { bankQuery, billQuery, messageText, pdfAttachments, statementPdfQuery, type GmailMessage } from './gmailMessage';
-import { readStatement } from './statementFile';
+import { isLockedPdf, readStatement } from './statementFile';
 import { CARD_ONLY, importStatementRows, statementSlot, type StatementPassword, type StatementState } from './statementAuto';
 import { isCardPaymentReceived, parseBankEmail, parseCardBill } from './emailAlert';
 import { bankForSender, ensureBillTask, markBillsPaid, saveBill } from './cardBills';
@@ -580,58 +580,52 @@ export async function syncAll(deadline: number) {
 
 export type FoundStatement = {
   id: string;
-  bankId: string | null;
+  bankId: string;
   bankName: string;
   kind: 'account' | 'card';
-  subject: string;
   date: number;
-  pdf: boolean;
-  /**
-   * read: transactions taken; needs_password / wrong_password: waiting; queued: read in a coming check;
-   * summary: a bill email (amounts in the email itself); not_selected: from a bank not ticked in Settings → Gmail
-   */
-  state: 'read' | 'needs_password' | 'wrong_password' | 'queued' | 'summary' | 'not_selected';
+  /** The PDF asks for a password; null until Align has checked it. */
+  locked: boolean | null;
 };
 
 /**
- * Every statement and card bill email from your banks in the last `days` days, with what Align did with
- * each. Reads headers only (cheap); the files themselves are opened by syncGmail.
+ * Statement PDFs from your banks in the last `days` days (every bank Align knows, so ones you haven't
+ * ticked show up too). Each new one is opened just far enough to see whether it needs a password; the
+ * answer is remembered (gmail_links.statementIndex), so later searches only check new emails.
  */
-export async function findStatements(phone: string, days = 40): Promise<{ status: 'ok' | 'not_connected' | 'reconnect'; statements: FoundStatement[] }> {
-  const link = (await links().doc(phone).get()).data();
+export async function findStatements(phone: string, days = 90, deadline = Date.now() + 40_000): Promise<{ status: 'ok' | 'not_connected' | 'reconnect'; statements: FoundStatement[] }> {
+  const ref = links().doc(phone);
+  const link = (await ref.get()).data();
   if (!link) return { status: 'not_connected', statements: [] };
   if (link.status !== 'connected') return { status: 'reconnect', statements: [] };
   const token = await accessToken(open(link.token));
   if (token === 'revoked') return { status: 'reconnect', statements: [] };
-  // Every bank and card issuer Align knows (still bank senders only), so statements from banks you haven't
-  // ticked show up too, with a way to add them
   const senders = sendersFor(null, link.extraSenders);
-  const selected = new Set<string>(link.banks && link.banks.length ? link.banks : BANKS.map((b) => b.id));
   const after = (Date.now() - days * DAY_MS) / 1000;
-  const ids = async (q: string) => ((await gmail<{ messages?: { id: string }[] }>(token, `/messages?q=${encodeURIComponent(q)}&maxResults=60`)).messages || []).map((m) => m.id);
-  const [withPdf, bills] = await Promise.all([ids(statementPdfQuery(senders, after)), ids(billQuery(senders, after))]);
-  const pdfSet = new Set(withPdf);
-  const all = [...new Set([...withPdf, ...bills])].slice(0, 60);
-  const done = new Set<string>(link.statementMsgIds || []);
-  const tried: Record<string, { bank: string; v: number }> = link.statementTried || {};
-  const status: Record<string, StatementState> = link.statementStatus || {};
-  const passwords: Record<string, StatementPassword> = link.statementPasswords || {};
+  const found = ((await gmail<{ messages?: { id: string }[] }>(token, `/messages?q=${encodeURIComponent(statementPdfQuery(senders, after))}&maxResults=100`)).messages || []).map((m) => m.id);
+  const known = new Map<string, FoundStatement>(((link.statementIndex || []) as FoundStatement[]).map((x) => [x.id, x]));
   const out: FoundStatement[] = [];
-  await pool(all, READ_WIDTH, Date.now() + 40_000, async (id) => {
-    const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`);
-    const { subject, from } = messageText(msg);
+  await pool(found, READ_WIDTH, deadline, async (id) => {
+    const prev = known.get(id);
+    if (prev && prev.locked !== null) { out.push(prev); return; }
+    const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=full`);
+    const { subject, text, from } = messageText(msg);
     const bank = bankForSender(from);
-    const pdf = pdfSet.has(id);
-    const kind: 'account' | 'card' = (bank && CARD_ONLY.has(bank.id)) || /credit\s*card|card\s+statement|\bcc\b/i.test(subject) || !pdf ? 'card' : 'account';
-    let state: FoundStatement['state'] = 'queued';
-    if (!pdf) state = 'summary';
-    else if (done.has(id)) state = 'read';
-    else if (bank && !selected.has(bank.id) && !(bank.id.startsWith('in_') && selected.has('otherbankin'))) state = 'not_selected';
-    else if (tried[id]) {
-      const slot = tried[id].bank;
-      state = (passwords[slot]?.v || 0) === tried[id].v ? (status[slot]?.state === 'wrong_password' ? 'wrong_password' : 'needs_password') : 'queued';
+    const pdf = pdfAttachments(msg).find((x) => x.size <= 5_000_000);
+    if (!bank || !pdf) return; // not a bank statement PDF
+    const kind: 'account' | 'card' = CARD_ONLY.has(bank.id) || /credit\s*card/i.test(`${subject}\n${text}`) ? 'card' : 'account';
+    let locked: boolean | null = null;
+    try {
+      const data = pdf.data || (await gmail<{ data: string }>(token, `/messages/${id}/attachments/${pdf.attachmentId}`)).data;
+      locked = await isLockedPdf(Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64'));
+    } catch (e) {
+      if (e instanceof GmailThrottled) throw e;
     }
-    out.push({ id, bankId: bank?.id || null, bankName: bank?.name || from.split('@').pop() || 'Bank', kind, subject: subject.slice(0, 120), date: Number(msg.internalDate || 0), pdf, state });
+    out.push({ id, bankId: bank.id, bankName: bank.name, kind, date: Number(msg.internalDate || 0), locked });
   });
-  return { status: 'ok', statements: out.sort((a, b) => b.date - a.date) };
+  const statements = out.sort((a, b) => b.date - a.date);
+  // Remember what was learned (newest 100), including statements this search didn't get to
+  const merged = new Map<string, FoundStatement>([...known.entries(), ...statements.map((x) => [x.id, x] as const)]);
+  await ref.update({ statementIndex: [...merged.values()].sort((a, b) => b.date - a.date).slice(0, 100) });
+  return { status: 'ok', statements };
 }

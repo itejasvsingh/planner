@@ -66,7 +66,8 @@ export function pdfAttachments(msg: GmailMessage): { filename: string; attachmen
   const out: { filename: string; attachmentId?: string; data?: string; size: number }[] = [];
   const walk = (p?: Part) => {
     if (!p) return;
-    if (p.filename && (/\.pdf$/i.test(p.filename) || p.mimeType === 'application/pdf') && (p.body?.attachmentId || p.body?.data)) {
+    // Some banks send the PDF as a generic file without .pdf in its name; it's checked for %PDF when opened
+    if (p.filename && (/\.pdf$/i.test(p.filename) || p.mimeType === 'application/pdf' || p.mimeType === 'application/octet-stream') && (p.body?.attachmentId || p.body?.data)) {
       out.push({ filename: p.filename, attachmentId: p.body.attachmentId, data: p.body.data, size: p.body.size || 0 });
     }
     for (const c of p.parts || []) walk(c);

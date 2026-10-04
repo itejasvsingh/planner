@@ -93,21 +93,18 @@ export type StatementCheck = {
 export const moneyAccounts = () => call<{ cards: CardSummary[]; accounts: AccountBalance[]; checks?: StatementCheck[] }>('/api/money/accounts');
 
 export type StatementKind = 'account' | 'card';
-export type StatementSlot = {
-  kind: StatementKind; hasPassword: boolean;
-  status: { state: 'ok' | 'needs_password' | 'wrong_password' | 'unreadable'; at: number; added?: number; rows?: number; from?: string; to?: string } | null;
+/** Statements found in Gmail for one bank and kind (bank account / credit card). */
+export type StatementGroup = {
+  bankId: string; bankName: string; kind: StatementKind; count: number; latest: number;
+  locked: boolean | null; hasPassword: boolean; wrongPassword: boolean; selected: boolean;
 };
-export type StatementBank = { id: string; name: string; kinds: StatementSlot[] };
-/** Banks whose statement PDFs Align reads from Gmail, whether a password is saved, and how the last one went. */
-export const gmailStatements = () => call<{ banks: StatementBank[] }>('/api/gmail/statements');
+export type StatementLists = { accounts: StatementGroup[]; cards: StatementGroup[]; searched: boolean };
+/** Statements found so far, as two lists, and whether each bank's need a password. */
+export const gmailStatements = () => call<StatementLists>('/api/gmail/statements');
 /** Saves a bank's statement PDF password (kept encrypted on the server, never shown again); null removes it. */
 export const gmailSetStatementPassword = (bank: string, kind: StatementKind, password: string | null) =>
   call<{ ok: true; hasPassword: boolean }>('/api/gmail/statements', { method: 'POST', body: JSON.stringify({ bank, kind, password }) });
 
-export type FoundStatement = {
-  id: string; bankId: string | null; bankName: string; kind: 'account' | 'card'; subject: string; date: number; pdf: boolean;
-  state: 'read' | 'needs_password' | 'wrong_password' | 'queued' | 'summary' | 'not_selected';
-};
-/** Reads up to six new statement PDFs now and lists every statement/bill email of the last 40 days. */
+/** Reads up to six new statement PDFs now, then checks the last 90 days of statements for passwords. */
 export const gmailFindStatements = () =>
-  call<{ status: 'ok' | 'not_connected' | 'reconnect'; statements: FoundStatement[]; added: number; message: string | null }>('/api/gmail/statements/find', { method: 'POST' });
+  call<StatementLists & { status: 'ok' | 'not_connected' | 'reconnect'; added: number }>('/api/gmail/statements/find', { method: 'POST' });

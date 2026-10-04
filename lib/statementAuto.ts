@@ -124,3 +124,43 @@ export async function importStatementRows(
   }
   return { added, rows: keep.length, from: dates[0], to: dates[dates.length - 1], extras: extras.slice(0, 10), checked: !!opts.last4 };
 }
+
+export type StatementGroup = {
+  bankId: string;
+  bankName: string;
+  kind: StatementKind;
+  /** Statements found in the search window, and the newest one's date. */
+  count: number;
+  latest: number;
+  /** true: needs a password; false: opens without one; null: not checked yet. */
+  locked: boolean | null;
+  hasPassword: boolean;
+  /** The saved password didn't open the last one. */
+  wrongPassword: boolean;
+  /** The bank is ticked in Settings → Gmail (else its statements aren't read until it is). */
+  selected: boolean;
+};
+
+/** Statements found (gmail_links.statementIndex), one row per bank and kind, for the two lists. */
+export function statementGroups(link: Record<string, any>): { accounts: StatementGroup[]; cards: StatementGroup[] } {
+  const index = (link.statementIndex || []) as { bankId: string; bankName: string; kind: StatementKind; date: number; locked: boolean | null }[];
+  const passwords = (link.statementPasswords || {}) as Record<string, StatementPassword>;
+  const status = (link.statementStatus || {}) as Record<string, StatementState>;
+  const ticked: string[] | null = link.banks && link.banks.length ? link.banks : null;
+  const groups = new Map<string, StatementGroup>();
+  for (const s of index) {
+    const slot = statementSlot(s.bankId, s.kind);
+    const g = groups.get(slot) || {
+      bankId: s.bankId, bankName: s.bankName, kind: s.kind, count: 0, latest: 0, locked: null as boolean | null,
+      hasPassword: !!passwords[slot], wrongPassword: status[slot]?.state === 'wrong_password',
+      selected: !ticked || ticked.includes(s.bankId) || (s.bankId.startsWith('in_') && ticked.includes('otherbankin')),
+    };
+    g.count += 1;
+    g.latest = Math.max(g.latest, s.date);
+    if (s.locked === true) g.locked = true;
+    else if (s.locked === false && g.locked === null) g.locked = false;
+    groups.set(slot, g);
+  }
+  const all = [...groups.values()].sort((a, b) => Number(b.locked === true) - Number(a.locked === true) || b.latest - a.latest);
+  return { accounts: all.filter((g) => g.kind === 'account'), cards: all.filter((g) => g.kind === 'card') };
+}

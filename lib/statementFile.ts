@@ -51,6 +51,17 @@ function withoutBalanceLines(rows: StatementRow[]) {
   return rows.filter((r) => !/^\s*(?:opening|closing)\s+bal(?:ance)?\b|\bbalance\s+(?:brought|carried)\s+forward\b|^\s*(?:b\/f|c\/f)\b/i.test(r.description));
 }
 
+/** Whether a PDF needs a password to open (opens it without reading any pages). */
+export async function isLockedPdf(buf: Buffer): Promise<boolean | null> {
+  if (buf.subarray(0, 5).toString('latin1') !== '%PDF-') return null;
+  try {
+    await getDocumentProxy(new Uint8Array(buf));
+    return false;
+  } catch (e) {
+    return (e as { name?: string })?.name === 'PasswordException' ? true : null;
+  }
+}
+
 /** Reads a statement file (PDF, XLSX, XLS, CSV or the HTML-as-.xls some banks send) into transactions. */
 export async function readStatement(buf: Buffer, password?: string): Promise<ReadResult> {
   if (buf.subarray(0, 5).toString('latin1') === '%PDF-') {

@@ -2,36 +2,20 @@ import { NextResponse } from 'next/server';
 import { requestUser } from '../../../../lib/requestUser';
 import { db } from '../../../../lib/firebase';
 import { BANKS, bankNameById } from '../../../../lib/bankSenders';
-import { kindsFor, setStatementPassword, statementSlot, type StatementPassword, type StatementState } from '../../../../lib/statementAuto';
+import { kindsFor, setStatementPassword, statementGroups } from '../../../../lib/statementAuto';
 
 export const dynamic = 'force-dynamic';
 
 /**
- * Statement PDFs read from Gmail, per bank and kind (bank account / credit card): whether a password is
- * saved (never the password itself) and how the last statement went. Only kinds Align has actually found a
- * statement for (or that already have a password) are listed, so it never asks for a card you don't have.
+ * Statements found in Gmail, as two lists (bank accounts, credit cards), one row per bank: how many, whether
+ * they need a password, and whether one is saved (never the password itself).
  */
 export async function GET(req: Request) {
   const user = await requestUser(req);
   if (!user) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
   const link = (await db.collection('gmail_links').doc(user.phone).get()).data();
-  if (!link) return NextResponse.json({ banks: [] });
-  const passwords = (link.statementPasswords || {}) as Record<string, StatementPassword>;
-  const status = (link.statementStatus || {}) as Record<string, StatementState>;
-  const bankOf = (slot: string) => slot.replace(/__card$/, '');
-  const ids = new Set<string>([...(link.banks || link.detected || []), ...Object.keys(status).map(bankOf), ...Object.keys(passwords).map(bankOf)]);
-  const banks = [...ids].filter((id) => id !== 'otherbankin')
-    .map((id) => ({ id, name: bankNameById(id) }))
-    .map((b) => ({
-      id: b.id,
-      name: b.name,
-      kinds: kindsFor(b.id)
-        .map((kind) => ({ kind, hasPassword: !!passwords[statementSlot(b.id, kind)], status: status[statementSlot(b.id, kind)] || null }))
-        // Listed once a locked statement of this kind turned up (or a password is saved); unlocked ones need nothing
-        .filter((k) => k.hasPassword || (k.status && (k.status.state !== 'ok' || k.status.locked))),
-    }))
-    .filter((b) => b.kinds.length);
-  return NextResponse.json({ banks });
+  if (!link) return NextResponse.json({ accounts: [], cards: [], searched: false });
+  return NextResponse.json({ ...statementGroups(link), searched: Array.isArray(link.statementIndex) });
 }
 
 /** Body: { bank, kind: 'account' | 'card', password: string | null }. Saves the PDF password (sealed), or removes it. */
