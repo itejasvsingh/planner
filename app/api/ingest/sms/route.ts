@@ -5,7 +5,7 @@ import { db } from '../../../../lib/firebase';
 import { consumeRateLimit } from '../../../../lib/rateLimit';
 import { parseTransactionSms, guessCategory, type ParsedTransaction } from '../../../../lib/smsParse';
 import { alertWindow, parseBankEmail } from '../../../../lib/emailAlert';
-import { availableBalance, bankFromText, creditCardOf } from '../../../../lib/accountParse';
+import { accountLast4, availableBalance, bankFromText, creditCardOf } from '../../../../lib/accountParse';
 import { saveBalance } from '../../../../lib/moneyAccounts';
 import { istParts, recordTransaction } from '../../../../lib/recordTransaction';
 
@@ -123,7 +123,7 @@ export async function POST(req: Request) {
   const bal = availableBalance(text);
   const bank = bal ? bankFromText(text) || { id: 'bank', name: 'Bank account' } : null;
   if (bal && bank) await saveBalance(phone, { bankId: bank.id, bankName: bank.name, last4: bal.last4, balance: bal.balance, at: arrivedMs }).catch(() => {});
-  const outcome = await recordTransaction(phone, tx, { source, dedupText: text, date, time: istParts(arrivedMs).time, card: creditCardOf(text), text });
+  const outcome = await recordTransaction(phone, tx, { source, dedupText: text, date, time: istParts(arrivedMs).time, card: creditCardOf(text), account: accountLast4(text), text });
   const created = outcome === 'added';
 
   const label = `₹${tx.amount.toLocaleString('en-IN')} ${tx.type === 'expense' ? 'to' : 'from'} ${tx.merchant}`;

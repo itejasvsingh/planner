@@ -318,7 +318,7 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
           return;
         }
         const arrived = istParts(at);
-        const outcome = await recordTransaction(phone, tx, { source: 'gmail', dedupText: `gmail:${id}`, date: tx.date || arrived.date, time: arrived.time, card: creditCardOf(text), text });
+        const outcome = await recordTransaction(phone, tx, { source: 'gmail', dedupText: `gmail:${id}`, date: tx.date || arrived.date, time: arrived.time, card: creditCardOf(text), account: accountLast4(text), text });
         if (outcome === 'added') added++;
       });
       budget -= result.done;
@@ -416,7 +416,7 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
           if (res.status === 'ok') {
             const r = await importStatementRows(phone, res.rows, { bankId: bank.id, bankName: bank.name, at, creditCard, last4: accountLast4(text) || creditCardOf(text)?.last4 || null });
             added += r.added;
-            status[slot] = { state: 'ok', at, added: r.added, rows: r.rows, from: r.from, to: r.to };
+            status[slot] = { state: 'ok', at, added: r.added, rows: r.rows, from: r.from, to: r.to, checked: r.checked, extras: r.extras };
             done.add(id);
             delete tried[id];
           } else if (res.status === 'password') {

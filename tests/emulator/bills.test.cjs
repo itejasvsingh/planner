@@ -82,7 +82,7 @@ test('the nightly WhatsApp summary mentions the bill due in 2 days', async () =>
   assert.equal(res.success, true);
   const text = whatsapp[whatsapp.length - 1].text.body;
   assert.match(text, /💳 \*Card bills:\*/);
-  assert.match(text, /Pay HDFC Bank card ••4321 · ₹12,450\.50 — due in 2 days/);
+  assert.match(text, /HDFC Bank ••4321: ₹12,450\.50 to pay \(min ₹630\), due in 2 days/);
   assert.deepEqual(bills.billReminderLines([{ kind: 'card_bill', done: false, dueDate: '2026-10-10', title: 'X' }], '2026-10-01'), [], 'not yet: more than 3 days out');
   assert.deepEqual(bills.billReminderLines([{ kind: 'card_bill', done: false, dueDate: '2026-09-29', title: 'X' }], '2026-10-01'), ['  • X — *overdue by 2 days*']);
 });

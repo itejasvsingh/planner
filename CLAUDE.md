@@ -59,5 +59,9 @@
   (`SELF_TRANSFER`) make `recordTransaction` save money-out as type `transfer`, before the duplicate check.
 - Suspicious payments are found in the app (`align-native/src/lib/suspicious.ts`, pure): Money shows "payments to
   check" and `SuspiciousWatcher` notifies once per new one; the answer is stored as the item's `review`.
+- Card due reminders use what's owed now (`cardReminderLines` in `lib/moneyAccounts.ts` for WhatsApp; the app's
+  `NotificationsManager` schedules them locally); per card `remind` in card_edits, else `gmail_links.billReminders`.
+- After each statement, rows are compared with alert-recorded transactions of the same `accountLast4`/`cardLast4`;
+  ones missing from the statement are stored as `statementStatus.<slot>.extras` and shown in Money → Cards.
 - Card bill reminders (`lib/cardBills.ts`) are opt-in: bills are stored server-only; Agenda tasks
   (`kind: 'card_bill'`, never auto-pushed) and WhatsApp summary lines exist only after the user says yes.

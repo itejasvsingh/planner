@@ -1,13 +1,13 @@
 import { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useFocusEffect } from 'expo-router';
-import { ChevronRight, CreditCard, Landmark, Plus } from 'lucide-react-native';
+import { AlertTriangle, ChevronRight, CreditCard, Landmark, Plus, ShieldCheck } from 'lucide-react-native';
 import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Radius, Shadow } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { refreshCards, useCards } from '@/lib/cards-store';
-import { cardTitle, detailsText, dueText, inr } from '@/lib/card-format';
+import { cardTitle, detailsText, dueText, inr, shortDay } from '@/lib/card-format';
 import type { CardSummary } from '@/lib/gmail-connect';
 import CardSheet from './CardSheet';
 
@@ -37,6 +37,7 @@ export default function CardsAccounts({ phone, onOpenSettings, onEditTransaction
   const shown = cards.filter(k => showHidden || !k.hidden);
   const hiddenCount = cards.filter(k => k.hidden).length;
   const accounts = data?.accounts || [];
+  const checks = data?.checks || [];
   const sheet = (
     <CardSheet
       phone={phone}
@@ -135,6 +136,44 @@ export default function CardsAccounts({ phone, onOpenSettings, onEditTransaction
               </View>
             ))}
           </View>
+        )}
+        {checks.length > 0 && (
+          <>
+            <Text style={[styles.header, { color: c.textTertiary, marginTop: 10, marginBottom: 0 }]}>Statement checks</Text>
+            {checks.map(k => {
+              const ok = k.checked && !k.extras.length;
+              const Icon = ok ? ShieldCheck : AlertTriangle;
+              return (
+                <View key={k.slot} style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: ok ? c.border : c.expense }]}>
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <Icon color={ok ? c.income : k.checked ? c.expense : c.textTertiary} size={18} style={{ marginTop: 1 }} />
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text style={{ color: c.text, fontWeight: '700' }}>
+                        {k.bankName} · {k.kind === 'card' ? 'card' : 'account'} statement{k.from && k.to ? ` ${shortDay(k.from)} – ${shortDay(k.to)}` : ''}
+                      </Text>
+                      <Text style={{ color: c.textSecondary, fontSize: 13 }}>
+                        {k.rows} transactions{k.added ? `; ${k.added} that alerts missed are now added` : ', all already in Align'}.
+                      </Text>
+                      {!k.checked ? (
+                        <Text style={{ color: c.textTertiary, fontSize: 12 }}>Couldn&apos;t compare with alerts: the email didn&apos;t name the account&apos;s last digits.</Text>
+                      ) : k.extras.length ? (
+                        <>
+                          <Text style={{ color: c.expense, fontSize: 13, fontWeight: '600' }}>
+                            {k.extras.length} payment{k.extras.length === 1 ? '' : 's'} from alerts {k.extras.length === 1 ? "isn't" : "aren't"} on this statement. Check for a duplicate or a different account:
+                          </Text>
+                          {k.extras.map(x => (
+                            <Text key={`${x.date}${x.title}${x.amount}`} style={{ color: c.text, fontSize: 13 }}>• {x.title} · {inr(x.amount)} · {shortDay(x.date)}</Text>
+                          ))}
+                        </>
+                      ) : (
+                        <Text style={{ color: c.income, fontSize: 13, fontWeight: '600' }}>Everything Align recorded matches the statement.</Text>
+                      )}
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </>
         )}
       </View>
       {settingsLink}

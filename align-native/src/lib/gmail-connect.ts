@@ -74,10 +74,10 @@ export const gmailSetBillReminders = (remind: boolean) =>
 export type CardSummary = {
   key: string; issuer: string; issuerName: string; last4: string | null; statementDate: string | null; dueDate: string | null;
   totalDue: number; minDue: number | null; paidSince: number; spentSince: number; outstanding: number;
-  status: 'paid' | 'due' | 'overdue'; daysLeft: number | null; manual: boolean; hidden: boolean; edited: boolean;
+  status: 'paid' | 'due' | 'overdue'; daysLeft: number | null; manual: boolean; hidden: boolean; edited: boolean; remind: boolean;
 };
 export type CardEdit = {
-  name?: string | null; last4?: string | null; hidden?: boolean; forDue?: string | null;
+  name?: string | null; last4?: string | null; hidden?: boolean; remind?: boolean | null; forDue?: string | null;
   totalDue?: number | null; minDue?: number | null; dueDate?: string | null; paid?: boolean | null;
 };
 export const editCard = (key: string, edit: CardEdit) => call<{ ok: true }>('/api/money/cards', { method: 'POST', body: JSON.stringify({ key, edit }) });
@@ -85,7 +85,11 @@ export const addCard = (edit: CardEdit) => call<{ ok: true; key: string }>('/api
 export const removeCard = (key: string) => call<{ ok: true }>('/api/money/cards', { method: 'POST', body: JSON.stringify({ remove: key }) });
 export type AccountBalance = { id: string; bankId: string; bankName: string; last4: string | null; balance: number; at: number };
 /** Credit cards (statement, due date, outstanding now) and bank balances, read from bank emails and SMS. */
-export const moneyAccounts = () => call<{ cards: CardSummary[]; accounts: AccountBalance[] }>('/api/money/accounts');
+export type StatementCheck = {
+  slot: string; bankName: string; kind: 'account' | 'card'; from: string | null; to: string | null;
+  rows: number; added: number; checked: boolean; extras: { title: string; amount: number; date: string }[]; at: number;
+};
+export const moneyAccounts = () => call<{ cards: CardSummary[]; accounts: AccountBalance[]; checks?: StatementCheck[] }>('/api/money/accounts');
 
 export type StatementKind = 'account' | 'card';
 export type StatementSlot = {

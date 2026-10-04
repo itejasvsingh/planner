@@ -69,11 +69,14 @@ test('a wrong password says so; the right one imports the transactions and the c
 
   // The rent payment already came in by SMS (same UPI reference): not added twice
   await recordTransaction(PHONE, { type: 'expense', amount: 15000, merchant: 'Rent', category: 'Home & Help', ref: '624533334444', date: '2026-09-15', time: null }, { source: 'sms', dedupText: 'rent sms', date: '2026-09-15' });
+  // An alert for this account that the statement doesn't have (a duplicate or a mistake): listed by the check
+  await recordTransaction(PHONE, { type: 'expense', amount: 999, merchant: 'Mystery Shop', category: 'Shopping', ref: null, date: '2026-09-12', time: null }, { source: 'gmail', dedupText: 'gmail:mystery', date: '2026-09-12', account: '7788' });
   await setStatementPassword(PHONE, 'hdfc', 'TEST1234');
   await sync();
   const st = (await link().get()).data().statementStatus.hdfc;
   assert.deepEqual([st.state, st.rows, st.added, st.from, st.to], ['ok', 4, 3, '2026-09-03', '2026-09-28']);
-  const all = await items();
+  assert.deepEqual([st.checked, st.extras], [true, [{ title: 'Mystery Shop', amount: 999, date: '2026-09-12' }]]);
+  const all = (await items()).filter((i) => i.title !== 'Mystery Shop');
   assert.equal(all.length, 4, 'opening balance is not a transaction; rent once');
   assert.deepEqual(all.filter((i) => i.source === 'statement').map((i) => i.amount).sort((a, b) => a - b), [450, 2000, 50000]);
   const [acc] = await accountBalances(PHONE);
@@ -84,5 +87,5 @@ test('a wrong password says so; the right one imports the transactions and the c
 
 test('a statement already read is not read again', async () => {
   await sync();
-  assert.equal((await items()).length, 4);
+  assert.equal((await items()).length, 5);
 });

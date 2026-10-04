@@ -14,7 +14,11 @@ import { guessCategory } from './smsParse';
  */
 
 export type StatementPassword = { sealed: string; v: number };
-export type StatementState = { state: 'ok' | 'needs_password' | 'wrong_password' | 'unreadable'; at: number; added?: number; rows?: number; from?: string; to?: string };
+export type StatementState = {
+  state: 'ok' | 'needs_password' | 'wrong_password' | 'unreadable'; at: number; added?: number; rows?: number; from?: string; to?: string;
+  /** Compared with what alerts recorded for the same account/card: those the statement doesn't have. */
+  checked?: boolean; extras?: { title: string; amount: number; date: string }[];
+};
 
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 
@@ -72,10 +76,29 @@ export async function importStatementRows(
     const outcome = await recordTransaction(
       phone,
       { type: r.type, amount: r.amount, merchant, category: guessCategory(`${merchant} ${r.description}`, r.type), ref: r.ref, date: r.date, time: null },
-      { source: 'statement', dedupText: `statement:${ids[i]}`, date: r.date, docId: ids[i], card: opts.creditCard && opts.last4 ? { last4: opts.last4 } : null, text: r.description },
+      { source: 'statement', dedupText: `statement:${ids[i]}`, date: r.date, docId: ids[i], card: opts.creditCard && opts.last4 ? { last4: opts.last4 } : null, account: !opts.creditCard ? opts.last4 : null, text: r.description },
     );
     if (outcome === 'added') added++;
   }
+  // Check: payments alerts recorded for this account/card in the statement's period that the statement
+  // doesn't have (a duplicate, a mistake, or another account): listed for the user to look at
+  const dates = keep.map((r) => r.date).sort();
+  const extras: { title: string; amount: number; date: string }[] = [];
+  if (opts.last4 && dates.length) {
+    const field = opts.creditCard ? 'cardLast4' : 'accountLast4';
+    const snap = await db.collection('planner_items').where('ownerId', '==', phone).where(field, '==', opts.last4).get();
+    const unmatched = [...keep];
+    const day = (d: string) => Date.parse(`${d}T00:00:00Z`) / 86400000;
+    for (const d of snap.docs) {
+      const x = d.data();
+      if (x.source === 'statement' || !x.date || x.date < dates[0] || x.date > dates[dates.length - 1]) continue;
+      if (x.type !== 'expense' && x.type !== 'income' && x.type !== 'transfer') continue;
+      const i = unmatched.findIndex((r) => Math.abs(r.amount - Number(x.amount)) < 0.01 && Math.abs(day(r.date) - day(x.date)) <= 2);
+      if (i >= 0) unmatched.splice(i, 1);
+      else extras.push({ title: String(x.title || 'Payment'), amount: Number(x.amount) || 0, date: x.date });
+    }
+  }
+
   // The last row with a running balance is where the account stood at the end of the statement
   if (!opts.creditCard) {
     const withBalance = rows.filter((r) => r.balance !== null);
@@ -85,6 +108,5 @@ export async function importStatementRows(
       await saveBalance(phone, { bankId: opts.bankId, bankName: opts.bankName, last4: opts.last4, balance: last.balance, at });
     }
   }
-  const dates = keep.map((r) => r.date).sort();
-  return { added, rows: keep.length, from: dates[0], to: dates[dates.length - 1] };
+  return { added, rows: keep.length, from: dates[0], to: dates[dates.length - 1], extras: extras.slice(0, 10), checked: !!opts.last4 };
 }

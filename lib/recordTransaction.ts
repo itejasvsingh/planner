@@ -65,7 +65,7 @@ export async function recordTransaction(
   /** `time`: when the message arrived (HH:MM, India), used if the text has no time. */
   /** `card`: the credit card it was spent on, so the card's outstanding can include it. */
   /** `text`: the message (not stored), to recognise transfers between your own accounts. */
-  opts: { source: Channel; dedupText: string; date: string; time?: string | null; card?: { last4: string } | null; docId?: string; text?: string },
+  opts: { source: Channel; dedupText: string; date: string; time?: string | null; card?: { last4: string } | null; account?: string | null; docId?: string; text?: string },
 ): Promise<'added' | 'duplicate'> {
   let tx: Recorded = parsed;
   const dedupKey = tx.ref ? `ref_${tx.ref}` : `txt_${sha256(opts.dedupText.replace(/\s+/g, ' ').toLowerCase()).slice(0, 24)}`;
@@ -96,7 +96,7 @@ export async function recordTransaction(
       splits: [],
       source: opts.source,
       ref: tx.ref || null,
-      ...(opts.card ? { cardLast4: opts.card.last4 } : {}),
+      ...(opts.card ? { cardLast4: opts.card.last4 } : opts.account ? { accountLast4: opts.account } : {}),
       autoDetected: true,
       createdAt: FieldValue.serverTimestamp(),
     });

@@ -31,10 +31,10 @@ const short = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 
 /** Compact rupees for chart labels: ₹950, ₹1.2k, ₹1.4L. */
 const compact = (n: number) => (n >= 100000 ? `₹${(n / 100000).toFixed(1).replace(/\.0$/, '')}L` : n >= 1000 ? `₹${(n / 1000).toFixed(1).replace(/\.0$/, '')}k` : `₹${Math.round(n)}`);
 
-type Bar = { key: string; label: string; value: number; detail: string; muted?: boolean };
+export type Bar = { key: string; label: string; value: number; detail: string; muted?: boolean };
 
 /** Single-series bar chart: thin bars on a baseline, tap a bar for its exact value. */
-function BarChart({ bars, height = 120, avg, tickEvery = 1, wide }: { bars: Bar[]; height?: number; avg?: number; tickEvery?: number; wide?: boolean }) {
+export function BarChart({ bars, height = 120, avg, tickEvery = 1, wide }: { bars: Bar[]; height?: number; avg?: number; tickEvery?: number; wide?: boolean }) {
   const c = useTheme();
   const [selected, setSelected] = useState<number | null>(null);
   const max = Math.max(1, ...bars.map(b => b.value), avg || 0);
@@ -102,7 +102,7 @@ function Section({ title, children, right }: { title: string; children: React.Re
 }
 
 /** Change against the previous period, with an arrow so it never relies on color alone. */
-function ChangeBadge({ pct, invert }: { pct: number | null; invert?: boolean }) {
+export function ChangeBadge({ pct, invert }: { pct: number | null; invert?: boolean }) {
   const c = useTheme();
   if (pct === null || !Number.isFinite(pct)) return <Text style={[styles.badgeText, { color: c.textTertiary }]}>New</Text>;
   const rounded = Math.round(pct * 100);

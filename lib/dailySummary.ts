@@ -1,5 +1,5 @@
 import { db } from './firebase';
-import { billReminderLines } from './cardBills';
+import { cardReminderLines, cardSummaries } from './moneyAccounts';
 
 const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
 const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
@@ -248,8 +248,8 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
         lines.push(`✨ *No pending tasks for today.*`);
     }
 
-    // Section D: Card bills (only for users who said yes to bill reminders: those tasks exist only then)
-    const billLines = billReminderLines(items, todayKey);
+    // Section D: Card bills with what's owed now (only cards with reminders on)
+    const billLines = cardReminderLines(await cardSummaries(targetPhone).catch(() => []));
     if (billLines.length) {
         lines.push('');
         lines.push(`💳 *Card bills:*`);
@@ -281,12 +281,7 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
 /** Nightly card-bill reminder for someone who turned the daily summary off, once a day. */
 async function sendBillRemindersOnly(targetPhone: string, todayKey: string, sessionData: any) {
     if (sessionData?.lastBillReminderDate === todayKey) return;
-    const variants = getPhoneVariants(targetPhone);
-    const snap = await db.collection('planner_items')
-        .where('ownerId', 'in', variants.length > 0 ? variants : [targetPhone])
-        .where('kind', '==', 'card_bill')
-        .get();
-    const lines = billReminderLines(snap.docs.map((d: any) => d.data()), todayKey);
+    const lines = cardReminderLines(await cardSummaries(targetPhone).catch(() => []));
     if (!lines.length) return;
     await sendWhatsAppTextMessage(targetPhone, [`💳 *Card bill reminder*`, ...lines, `\n_Turn these off in Align → Settings → Gmail._`].join('\n'));
     await db.collection('user_sessions').doc(targetPhone).set({ lastBillReminderDate: todayKey }, { merge: true });

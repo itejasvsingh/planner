@@ -14,6 +14,7 @@ function clean(e: Record<string, unknown>): CardEdit {
   if (typeof e.name === 'string') out.name = e.name.trim().slice(0, 40) || null;
   if (e.last4 === null || (typeof e.last4 === 'string' && /^\d{4}$/.test(e.last4))) out.last4 = e.last4 as string | null;
   if (typeof e.hidden === 'boolean') out.hidden = e.hidden;
+  if (e.remind === null || typeof e.remind === 'boolean') out.remind = e.remind as boolean | null;
   if (e.forDue === null || (typeof e.forDue === 'string' && DATE.test(e.forDue))) out.forDue = e.forDue as string | null;
   if (money(e.totalDue) !== undefined) out.totalDue = money(e.totalDue);
   if (money(e.minDue) !== undefined) out.minDue = money(e.minDue);

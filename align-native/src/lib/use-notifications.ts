@@ -14,7 +14,11 @@ Notifications.setNotificationHandler({
   }),
 });
 
-export function useLocalReminders(items: PlannerItem[], enabled: boolean) {
+/**
+ * `extra`: other reminders to schedule with the tasks' (card due dates with what's owed now). When given,
+ * card-bill tasks don't notify on their own, so a bill isn't announced twice.
+ */
+export function useLocalReminders(items: PlannerItem[], enabled: boolean, extra?: Notifications.NotificationRequestInput[]) {
   useEffect(() => {
     if (!enabled) {
       Notifications.cancelAllScheduledNotificationsAsync().catch(console.warn);
@@ -32,6 +36,8 @@ export function useLocalReminders(items: PlannerItem[], enabled: boolean) {
         const toSchedule: Notifications.NotificationRequestInput[] = [];
 
         items.forEach((item) => {
+          // Card due dates come in `extra`, with the amount owed now
+          if (extra && item.kind === 'card_bill') return;
           if (item.type === 'task' && !item.done && item.dueDate && (item.reminderTime || item.dueTime)) {
             const timeStr = item.reminderTime || item.dueTime;
             const [h, m] = (timeStr as string).split(':').map(Number);
@@ -66,6 +72,10 @@ export function useLocalReminders(items: PlannerItem[], enabled: boolean) {
           }
         });
 
+        for (const req of extra || []) {
+          const t = req.trigger as { date?: Date } | null;
+          if (t?.date && t.date.getTime() > now.getTime()) toSchedule.push(req);
+        }
         for (const req of toSchedule) {
           await Notifications.scheduleNotificationAsync(req);
         }
@@ -75,5 +85,5 @@ export function useLocalReminders(items: PlannerItem[], enabled: boolean) {
     };
 
     scheduleUpcoming();
-  }, [items, enabled]);
+  }, [items, enabled, extra]);
 }

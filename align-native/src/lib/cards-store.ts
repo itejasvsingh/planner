@@ -1,13 +1,13 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { whenSignedIn } from '@/lib/firebase';
 import { getItem, setItem } from '@/lib/storage';
-import { moneyAccounts, type AccountBalance, type CardSummary } from '@/lib/gmail-connect';
+import { moneyAccounts, type AccountBalance, type CardSummary, type StatementCheck } from '@/lib/gmail-connect';
 
 /**
  * Cards and bank balances, shared by Money → Cards, the card page and the transaction form's "Paid with".
  * Shows the last known list at once (saved on the device) and refreshes from the server when asked.
  */
-export type MoneyAccounts = { cards: CardSummary[]; accounts: AccountBalance[] };
+export type MoneyAccounts = { cards: CardSummary[]; accounts: AccountBalance[]; checks?: StatementCheck[] };
 
 let data: MoneyAccounts | null = null;
 let owner: string | null = null;

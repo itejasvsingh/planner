@@ -53,6 +53,8 @@ export type CardSummary = {
   hidden: boolean;
   /** The user changed this statement's amounts or due date. */
   edited: boolean;
+  /** Due-date reminders on for this card (its own switch, else the "remind me about card bills" answer). */
+  remind: boolean;
 };
 
 /**
@@ -65,6 +67,8 @@ export type CardEdit = {
   last4?: string | null;
   hidden?: boolean;
   manual?: boolean;
+  /** Reminders for this card: true/false, or unset to follow the general answer. */
+  remind?: boolean | null;
   forDue?: string | null;
   totalDue?: number | null;
   minDue?: number | null;
@@ -85,11 +89,13 @@ export async function deleteManualCard(phone: string, key: string) {
 
 /** The latest statement per card (or the details entered by hand), with payments and spends since it. */
 export async function cardSummaries(phone: string, now = Date.now()): Promise<CardSummary[]> {
-  const [billSnap, paySnap, editSnap] = await Promise.all([
+  const [billSnap, paySnap, editSnap, linkSnap] = await Promise.all([
     db.collection('gmail_links').doc(phone).collection('bills').get(),
     root(phone).collection('card_payments').get(),
     root(phone).collection('card_edits').get(),
+    db.collection('gmail_links').doc(phone).get(),
   ]);
+  const remindAll = linkSnap.data()?.billReminders === true;
   const edits = new Map(editSnap.docs.map((d) => [d.id, d.data() as CardEdit]));
   type Base = { key: string; issuer: string; issuerName: string; last4: string | null; statementDate?: string; dueDate: string | null; totalDue: number; minDue: number | null; billId?: string; manual: boolean };
   const cards = new Map<string, Base>();
@@ -151,10 +157,29 @@ export async function cardSummaries(phone: string, now = Date.now()): Promise<Ca
       manual: c.manual,
       hidden: e.hidden === true,
       edited: !c.manual && current && (e.totalDue != null || e.minDue !== undefined || !!e.dueDate || e.paid != null),
+      remind: typeof e.remind === 'boolean' ? e.remind : remindAll,
     });
   }
   // Unpaid soonest first, then paid; hidden last
   return out.sort((a, b) => Number(a.hidden) - Number(b.hidden) || Number(a.status === 'paid') - Number(b.status === 'paid') || (a.dueDate || '9').localeCompare(b.dueDate || '9'));
+}
+
+const inrText = (n: number) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
+
+/**
+ * WhatsApp lines for cards with reminders on that are due within three days (or overdue up to a week),
+ * with what you owe now: "  • HDFC Bank ••4321: ₹8,500 to pay (min ₹600), due in 3 days".
+ */
+export function cardReminderLines(cards: CardSummary[]): string[] {
+  return cards
+    .filter((c) => c.remind && !c.hidden && c.status !== 'paid' && c.outstanding > 0 && c.daysLeft !== null && c.daysLeft <= 3 && c.daysLeft >= -7)
+    .sort((a, b) => (a.daysLeft || 0) - (b.daysLeft || 0))
+    .map((c) => {
+      const left = c.daysLeft as number;
+      const when = left < 0 ? `*overdue by ${-left} day${left === -1 ? '' : 's'}*` : left === 0 ? '*due today*' : `due in ${left} day${left === 1 ? '' : 's'}`;
+      const min = c.minDue && c.minDue < c.outstanding ? ` (min ${inrText(c.minDue)})` : '';
+      return `  • ${c.issuerName}${c.last4 ? ` ••${c.last4}` : ''}: ${inrText(c.outstanding)} to pay${min}, ${when}`;
+    });
 }
 
 export async function accountBalances(phone: string): Promise<AccountBalance[]> {

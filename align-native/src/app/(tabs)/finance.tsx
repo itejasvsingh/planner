@@ -17,6 +17,7 @@ import ReviewSheet from '@/components/finance/ReviewSheet';
 import { findSuspicious } from '@/lib/suspicious';
 import { todayKey } from '@/lib/dates';
 import CardsAccounts from '@/components/finance/CardsAccounts';
+import NinetyDayView from '@/components/finance/NinetyDayView';
 import { friendBalances, recentFriends, settleUpPatches, splitOf } from '@/lib/splits';
 
 /** "Split with Rahul" / "Split with 3" for a transaction row. */
@@ -87,6 +88,7 @@ export default function FinanceScreen() {
     const [categoriesOpen, setCategoriesOpen] = useState(false);
     type MoneyView = 'Overview' | 'Analysis' | 'Cards' | 'Split';
     const [view, setView] = useState<MoneyView>('Overview');
+    const [analysisMode, setAnalysisMode] = useState<'cycle' | '90'>('cycle');
     const [query, setQuery] = useState('');
     const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
     const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -262,7 +264,19 @@ export default function FinanceScreen() {
                                 </View>
                             )}
                         </>
-                    ) : view === 'Analysis' ? (
+                    ) : view === 'Analysis' ? (<>
+                        {/* By salary cycle, or the last 90 days at once */}
+                        <View style={[styles.modeSwitch, { backgroundColor: c.backgroundMuted }]}>
+                            {(['cycle', '90'] as const).map(m => (
+                                <Pressable key={m} accessibilityRole="button" accessibilityState={{ selected: analysisMode === m }} onPress={() => setAnalysisMode(m)}
+                                    style={[styles.modeBtn, analysisMode === m && { backgroundColor: c.backgroundElement }]}>
+                                    <Text style={{ color: analysisMode === m ? c.text : c.textSecondary, fontWeight: '700', fontSize: 13 }}>{m === 'cycle' ? 'By cycle' : 'Last 90 days'}</Text>
+                                </Pressable>
+                            ))}
+                        </View>
+                        {analysisMode === '90' ? (
+                            <NinetyDayView items={items} config={categoryConfig} onSelectCategory={name => { setCategoryFilter(name); setTypeFilter('expense'); setView('Overview'); }} />
+                        ) : (
                         <AnalysisView
                             items={items}
                             payday={payday}
@@ -271,7 +285,8 @@ export default function FinanceScreen() {
                             onOffsetChange={setOffset}
                             onSelectCategory={name => { setCategoryFilter(name); setTypeFilter('expense'); setView('Overview'); }}
                         />
-                    ) : (<>
+                        )}
+                    </>) : (<>
                     {(flags.length > 0 || reported.length > 0) && (
                         <Pressable accessibilityRole="button" onPress={() => setReviewOpen(true)} style={[styles.alert, { backgroundColor: c.expenseSoft }]}>
                             <ShieldAlert color={c.expense} size={18} />
@@ -573,6 +588,8 @@ const styles = StyleSheet.create({
   kindTag: { paddingHorizontal: 7, paddingVertical: 1, borderRadius: Radius.pill },
   kindTagText: { fontSize: 10, fontWeight: '700', letterSpacing: 0.2 },
   alert: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 11, borderRadius: Radius.md, marginBottom: 10 },
+  modeSwitch: { flexDirection: 'row', borderRadius: Radius.md, padding: 3, marginBottom: 12 },
+  modeBtn: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: Radius.sm },
   splitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: Radius.md },
   empty: { padding: 32, alignItems: 'center', gap: 12, borderWidth: 1, borderStyle: 'dashed', borderRadius: Radius.lg },
 });

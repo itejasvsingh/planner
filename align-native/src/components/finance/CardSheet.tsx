@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, CreditCard, EyeOff, Eye, Pencil, Trash2 } from 'lucide-react-native';
 import { Text, TextInput } from '@/components/ui/text';
@@ -207,6 +207,21 @@ export default function CardSheet({ phone, card, visible, onClose, onEditTransac
                       {busy ? 'Saving…' : card.status === 'paid' ? 'Mark as not paid' : 'Mark this bill paid'}
                     </Text>
                   </Pressable>
+                )}
+                {card.dueDate && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: c.text, fontWeight: '600' }}>Remind me before it&apos;s due</Text>
+                      <Text style={{ color: c.textTertiary, fontSize: 12 }}>3 days before and on the day, with what you owe then (app and WhatsApp)</Text>
+                    </View>
+                    <Switch
+                      accessibilityLabel="Remind me before it's due"
+                      value={card.remind}
+                      disabled={busy}
+                      onValueChange={v => void run(() => editCard(card.key, { remind: v }))}
+                      trackColor={{ false: c.backgroundMuted, true: c.accentFill }}
+                    />
+                  </View>
                 )}
                 {!!error && <Text accessibilityRole="alert" style={{ color: c.expense, marginTop: 8 }}>{error}</Text>}
               </View>
