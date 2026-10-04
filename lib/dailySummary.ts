@@ -1,5 +1,7 @@
 import { db } from './firebase';
 import { cardReminderLines, cardSummaries } from './moneyAccounts';
+import { statementLine, type StatementState } from './statementAuto';
+import { BANKS } from './bankSenders';
 
 const API_TOKEN = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
 const PHONE_ID = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
@@ -246,6 +248,15 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
         lines.push(`🎉 *Fantastic! All scheduled tasks for today were completed!*`);
     } else {
         lines.push(`✨ *No pending tasks for today.*`);
+    }
+
+    // Section C2: statements Align found in the last day
+    const link = (await db.collection('gmail_links').doc(targetPhone).get().catch(() => null))?.data();
+    const fresh = Object.entries((link?.statementStatus || {}) as Record<string, StatementState>).filter(([, s]) => (s.foundAt || 0) > Date.now() - 86400000);
+    if (fresh.length) {
+        lines.push('');
+        lines.push(`📄 *New statements:*`);
+        for (const [slot, s] of fresh) lines.push(`  • ${statementLine(BANKS.find((b) => b.id === slot.replace(/__card$/, ''))?.name || 'Bank', slot, s)}`);
     }
 
     // Section D: Card bills with what's owed now (only cards with reminders on)

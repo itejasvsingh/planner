@@ -15,7 +15,9 @@ import { guessCategory } from './smsParse';
 
 export type StatementPassword = { sealed: string; v: number };
 export type StatementState = {
-  state: 'ok' | 'needs_password' | 'wrong_password' | 'unreadable'; at: number; locked?: boolean; added?: number; rows?: number; from?: string; to?: string;
+  state: 'ok' | 'needs_password' | 'wrong_password' | 'unreadable'; at: number; locked?: boolean; added?: number;
+  /** Which email, and when Align found it (for "new statement" notifications). */
+  msgId?: string; foundAt?: number; rows?: number; from?: string; to?: string;
   /** Compared with what alerts recorded for the same account/card: those the statement doesn't have. */
   checked?: boolean; extras?: { title: string; amount: number; date: string }[];
 };
@@ -40,6 +42,18 @@ export async function setStatementPassword(phone: string, bankId: string, passwo
     return;
   }
   await ref.update({ [field]: { sealed: seal(password), v: Date.now() } satisfies StatementPassword });
+}
+
+const KIND = (slot: string) => (slot.endsWith('__card') ? 'card' : 'account');
+
+/** One line about a statement Align found: what it read, or that it needs its password. */
+export function statementLine(bankName: string, slot: string, s: StatementState): string {
+  const what = `${bankName} ${KIND(slot) === 'card' ? 'credit card' : 'account'} statement`;
+  if (s.state === 'needs_password') return `${what} found: it needs its PDF password (Align → Settings → Gmail).`;
+  if (s.state === 'wrong_password') return `${what} found, but the saved password didn't open it. Check it in Align → Settings → Gmail.`;
+  if (s.state === 'unreadable') return `${what} found, but it couldn't be read.`;
+  const match = !s.checked ? '' : s.extras?.length ? ` ${s.extras.length} payment${s.extras.length === 1 ? '' : 's'} from alerts ${s.extras.length === 1 ? "isn't" : "aren't"} on it: check Money → Cards.` : ' Everything matches.';
+  return `${what} read: ${s.rows} transactions, ${s.added} new.${match}`;
 }
 
 /** Same row keys as the app's statement import (align-native/src/lib/statement-match.ts idSeeds). */

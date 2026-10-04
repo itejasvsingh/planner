@@ -37,7 +37,9 @@ export default function CardsAccounts({ phone, onOpenSettings, onEditTransaction
   const shown = cards.filter(k => showHidden || !k.hidden);
   const hiddenCount = cards.filter(k => k.hidden).length;
   const accounts = data?.accounts || [];
-  const checks = data?.checks || [];
+  const allChecks = data?.checks || [];
+  const checks = allChecks.filter(k => !k.state || k.state === 'ok');
+  const waiting = allChecks.filter(k => k.state === 'needs_password' || k.state === 'wrong_password');
   const sheet = (
     <CardSheet
       phone={phone}
@@ -137,9 +139,18 @@ export default function CardsAccounts({ phone, onOpenSettings, onEditTransaction
             ))}
           </View>
         )}
-        {checks.length > 0 && (
+        {(checks.length > 0 || waiting.length > 0) && (
           <>
             <Text style={[styles.header, { color: c.textTertiary, marginTop: 10, marginBottom: 0 }]}>Statement checks</Text>
+            {waiting.map(k => (
+              <Pressable key={k.slot} accessibilityRole="button" onPress={onOpenSettings} style={[styles.card, { backgroundColor: c.expenseSoft, borderColor: c.expenseSoft }]}>
+                <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+                  <AlertTriangle color={c.expense} size={18} />
+                  <Text style={{ color: c.text, flex: 1, fontSize: 13, fontWeight: '600' }}>{k.line}</Text>
+                  <Text style={{ color: c.expense, fontWeight: '700', fontSize: 13 }}>Add password</Text>
+                </View>
+              </Pressable>
+            ))}
             {checks.map(k => {
               const ok = k.checked && !k.extras.length;
               const Icon = ok ? ShieldCheck : AlertTriangle;

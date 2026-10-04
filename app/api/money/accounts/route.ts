@@ -3,7 +3,7 @@ import { requestUser } from '../../../../lib/requestUser';
 import { db } from '../../../../lib/firebase';
 import { BANKS } from '../../../../lib/bankSenders';
 import { accountBalances, cardSummaries } from '../../../../lib/moneyAccounts';
-import type { StatementState } from '../../../../lib/statementAuto';
+import { statementLine, type StatementState } from '../../../../lib/statementAuto';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,8 +20,8 @@ export async function GET(req: Request) {
     db.collection('gmail_links').doc(user.phone).get().then((s) => s.data()),
   ]);
   const status = (link?.statementStatus || {}) as Record<string, StatementState>;
+  // Every statement Align found (newest first): read ones are the checks; the rest wait for a password
   const checks = Object.entries(status)
-    .filter(([, s]) => s.state === 'ok')
     .map(([slot, s]) => {
       const bankId = slot.replace(/__card$/, '');
       return {
@@ -35,6 +35,10 @@ export async function GET(req: Request) {
         checked: !!s.checked,
         extras: s.extras || [],
         at: s.at,
+        state: s.state,
+        msgId: s.msgId || null,
+        foundAt: s.foundAt || null,
+        line: statementLine(BANKS.find((b) => b.id === bankId)?.name || bankId, slot, s),
       };
     })
     .sort((a, b) => b.at - a.at);

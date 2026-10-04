@@ -42,7 +42,7 @@ global.fetch = async (url, opts = {}) => {
 
 const jiti = require('jiti')(__filename);
 const gmail = jiti(path.join(__dirname, '../../lib/gmail.ts'));
-const { setStatementPassword } = jiti(path.join(__dirname, '../../lib/statementAuto.ts'));
+const { setStatementPassword, statementLine } = jiti(path.join(__dirname, '../../lib/statementAuto.ts'));
 const { recordTransaction } = jiti(path.join(__dirname, '../../lib/recordTransaction.ts'));
 const { accountBalances } = jiti(path.join(__dirname, '../../lib/moneyAccounts.ts'));
 const { db } = jiti(path.join(__dirname, '../../lib/firebase.ts'));
@@ -76,6 +76,10 @@ test('a wrong password says so; the right one imports the transactions and the c
   const st = (await link().get()).data().statementStatus.hdfc;
   assert.deepEqual([st.state, st.locked, st.rows, st.added, st.from, st.to], ['ok', true, 4, 3, '2026-09-03', '2026-09-28']);
   assert.deepEqual([st.checked, st.extras], [true, [{ title: 'Mystery Shop', amount: 999, date: '2026-09-12' }]]);
+  assert.equal(st.msgId, 's1');
+  assert.ok(st.foundAt > Date.now() - 60000, 'remembers when it was found, for the "new statement" notice');
+  assert.equal(statementLine('HDFC Bank', 'hdfc', st), "HDFC Bank account statement read: 4 transactions, 3 new. 1 payment from alerts isn't on it: check Money → Cards.");
+  assert.equal(statementLine('HDFC Bank', 'hdfc__card', { state: 'needs_password', at: 1 }), 'HDFC Bank credit card statement found: it needs its PDF password (Align → Settings → Gmail).');
   const all = (await items()).filter((i) => i.title !== 'Mystery Shop');
   assert.equal(all.length, 4, 'opening balance is not a transaction; rent once');
   assert.deepEqual(all.filter((i) => i.source === 'statement').map((i) => i.amount).sort((a, b) => a - b), [450, 2000, 50000]);

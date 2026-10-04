@@ -417,14 +417,14 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
           if (res.status === 'ok') {
             const r = await importStatementRows(phone, res.rows, { bankId: bank.id, bankName: bank.name, at, creditCard, last4: accountLast4(text) || creditCardOf(text)?.last4 || null });
             added += r.added;
-            status[slot] = { state: 'ok', at, locked, added: r.added, rows: r.rows, from: r.from, to: r.to, checked: r.checked, extras: r.extras };
+            status[slot] = { state: 'ok', at, msgId: id, foundAt: Date.now(), locked, added: r.added, rows: r.rows, from: r.from, to: r.to, checked: r.checked, extras: r.extras };
             done.add(id);
             delete tried[id];
           } else if (res.status === 'password') {
-            status[slot] = { state: pw ? 'wrong_password' : 'needs_password', at };
+            status[slot] = { state: pw ? 'wrong_password' : 'needs_password', at, msgId: id, foundAt: Date.now() };
             tried[id] = { bank: slot, v: pw?.v || 0 };
           } else {
-            status[slot] = { state: 'unreadable', at };
+            status[slot] = { state: 'unreadable', at, msgId: id, foundAt: Date.now() };
             done.add(id);
           }
         } catch (e) {

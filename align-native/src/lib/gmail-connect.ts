@@ -88,6 +88,7 @@ export type AccountBalance = { id: string; bankId: string; bankName: string; las
 export type StatementCheck = {
   slot: string; bankName: string; kind: 'account' | 'card'; from: string | null; to: string | null;
   rows: number; added: number; checked: boolean; extras: { title: string; amount: number; date: string }[]; at: number;
+  state?: 'ok' | 'needs_password' | 'wrong_password' | 'unreadable'; msgId?: string | null; foundAt?: number | null; line?: string;
 };
 export const moneyAccounts = () => call<{ cards: CardSummary[]; accounts: AccountBalance[]; checks?: StatementCheck[] }>('/api/money/accounts');
 
