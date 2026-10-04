@@ -103,3 +103,11 @@ export const gmailStatements = () => call<{ banks: StatementBank[] }>('/api/gmai
 /** Saves a bank's statement PDF password (kept encrypted on the server, never shown again); null removes it. */
 export const gmailSetStatementPassword = (bank: string, kind: StatementKind, password: string | null) =>
   call<{ ok: true; hasPassword: boolean }>('/api/gmail/statements', { method: 'POST', body: JSON.stringify({ bank, kind, password }) });
+
+export type FoundStatement = {
+  id: string; bankId: string | null; bankName: string; kind: 'account' | 'card'; subject: string; date: number; pdf: boolean;
+  state: 'read' | 'needs_password' | 'wrong_password' | 'queued' | 'summary';
+};
+/** Reads up to six new statement PDFs now and lists every statement/bill email of the last 40 days. */
+export const gmailFindStatements = () =>
+  call<{ status: 'ok' | 'not_connected' | 'reconnect'; statements: FoundStatement[]; added: number; message: string | null }>('/api/gmail/statements/find', { method: 'POST' });

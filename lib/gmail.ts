@@ -211,7 +211,7 @@ async function pool<T>(items: T[], width: number, deadline: number, fn: (item: T
 export type SyncResult = { status: 'ok' | 'reconnect' | 'not_connected' | 'error'; added: number; checked: number; bills?: number; message?: string };
 
 /** What the user (the app's owner, for setup problems) can do about a failed check. */
-function explain(message: string) {
+export function explain(message: string) {
   if (/has not been used|is disabled|SERVICE_DISABLED|accessNotConfigured/i.test(message)) {
     return 'The Gmail API is switched off for Align. In Google Cloud (planner-app): APIs & Services → Library → Gmail API → Enable, then tap Check now.';
   }
@@ -236,7 +236,8 @@ const PARSER_VERSION = 3;
  * Progress only moves past an unbroken run of emails that were read, so a check cut short (deadline or
  * Gmail asking to slow down) loses nothing.
  */
-export async function syncGmail(phone: string, deadline: number): Promise<SyncResult> {
+/** `opts.statements`: how many statement PDFs to open this time (2 by default; more when you ask to find them). */
+export async function syncGmail(phone: string, deadline: number, opts: { statements?: number } = {}): Promise<SyncResult> {
   const runStart = Date.now();
   const ref = links().doc(phone);
   const claim = await db.runTransaction(async (t) => {
@@ -386,7 +387,7 @@ export async function syncGmail(phone: string, deadline: number): Promise<SyncRe
       const found = await list(statementPdfQuery(senders, (Date.now() - 95 * DAY_MS) / 1000), 30);
       const todo = found.ids
         .filter((id) => !done.has(id) && !(tried[id] && (passwords[tried[id].bank]?.v || 0) === tried[id].v))
-        .slice(0, Math.min(2, budget));
+        .slice(0, Math.min(opts.statements ?? 2, budget));
       for (const id of todo) {
         if (Date.now() > deadline - 8_000) break;
         // Already read this run and it had no PDF: nothing to open
@@ -575,4 +576,55 @@ export async function syncAll(deadline: number) {
     results[u.phone.slice(-4)] = (await syncGmail(u.phone, deadline)).status;
   }
   return { users: users.length, checked: Object.keys(results).length };
+}
+
+export type FoundStatement = {
+  id: string;
+  bankId: string | null;
+  bankName: string;
+  kind: 'account' | 'card';
+  subject: string;
+  date: number;
+  pdf: boolean;
+  /** read: transactions taken; needs_password / wrong_password: waiting; queued: read in a coming check; summary: a bill email (amounts in the email itself) */
+  state: 'read' | 'needs_password' | 'wrong_password' | 'queued' | 'summary';
+};
+
+/**
+ * Every statement and card bill email from your banks in the last `days` days, with what Align did with
+ * each. Reads headers only (cheap); the files themselves are opened by syncGmail.
+ */
+export async function findStatements(phone: string, days = 40): Promise<{ status: 'ok' | 'not_connected' | 'reconnect'; statements: FoundStatement[] }> {
+  const link = (await links().doc(phone).get()).data();
+  if (!link) return { status: 'not_connected', statements: [] };
+  if (link.status !== 'connected') return { status: 'reconnect', statements: [] };
+  const token = await accessToken(open(link.token));
+  if (token === 'revoked') return { status: 'reconnect', statements: [] };
+  const senders = sendersFor(link.banks, link.extraSenders);
+  const after = (Date.now() - days * DAY_MS) / 1000;
+  const ids = async (q: string) => ((await gmail<{ messages?: { id: string }[] }>(token, `/messages?q=${encodeURIComponent(q)}&maxResults=60`)).messages || []).map((m) => m.id);
+  const [withPdf, bills] = await Promise.all([ids(statementPdfQuery(senders, after)), ids(billQuery(senders, after))]);
+  const pdfSet = new Set(withPdf);
+  const all = [...new Set([...withPdf, ...bills])].slice(0, 60);
+  const done = new Set<string>(link.statementMsgIds || []);
+  const tried: Record<string, { bank: string; v: number }> = link.statementTried || {};
+  const status: Record<string, StatementState> = link.statementStatus || {};
+  const passwords: Record<string, StatementPassword> = link.statementPasswords || {};
+  const out: FoundStatement[] = [];
+  await pool(all, READ_WIDTH, Date.now() + 40_000, async (id) => {
+    const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=metadata&metadataHeaders=From&metadataHeaders=Subject`);
+    const { subject, from } = messageText(msg);
+    const bank = bankForSender(from);
+    const pdf = pdfSet.has(id);
+    const kind: 'account' | 'card' = (bank && CARD_ONLY.has(bank.id)) || /credit\s*card|card\s+statement|\bcc\b/i.test(subject) || !pdf ? 'card' : 'account';
+    let state: FoundStatement['state'] = 'queued';
+    if (!pdf) state = 'summary';
+    else if (done.has(id)) state = 'read';
+    else if (tried[id]) {
+      const slot = tried[id].bank;
+      state = (passwords[slot]?.v || 0) === tried[id].v ? (status[slot]?.state === 'wrong_password' ? 'wrong_password' : 'needs_password') : 'queued';
+    }
+    out.push({ id, bankId: bank?.id || null, bankName: bank?.name || from.split('@').pop() || 'Bank', kind, subject: subject.slice(0, 120), date: Number(msg.internalDate || 0), pdf, state });
+  });
+  return { status: 'ok', statements: out.sort((a, b) => b.date - a.date) };
 }

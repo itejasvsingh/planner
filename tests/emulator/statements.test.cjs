@@ -35,6 +35,8 @@ global.fetch = async (url, opts = {}) => {
     return json({ messages: mailbox.filter((x) => senders.some((s) => x.from.endsWith(`@${s}`))).map((x) => ({ id: x.id })) });
   }
   if (/\/messages\/s1\/attachments\/att1$/.test(u)) return json({ data: b64(pdf), size: pdf.length });
+  const meta = u.match(/\/messages\/(\w+)\?format=metadata/);
+  if (meta) { const m = mailbox.find((x) => x.id === meta[1]); return json({ id: m.id, internalDate: m.internalDate, payload: { headers: m.payload.headers } }); }
   const mm = u.match(/\/messages\/(\w+)\?format=full$/);
   if (mm) return json(mailbox.find((x) => x.id === mm[1]));
   return realFetch(url, opts);
@@ -92,4 +94,12 @@ test('a wrong password says so; the right one imports the transactions and the c
 test('a statement already read is not read again', async () => {
   await sync();
   assert.equal((await items()).length, 5);
+});
+
+test('Find statements lists the last 40 days with what happened to each', async () => {
+  const r = await gmail.findStatements(PHONE, 40);
+  assert.equal(r.status, 'ok');
+  assert.deepEqual(r.statements.map((f) => [f.id, f.bankId, f.kind, f.pdf, f.state]), [['s1', 'hdfc', 'account', true, 'read']]);
+  const res = await gmail.syncGmail(PHONE, Date.now() + 20000, { statements: 6 });
+  assert.equal(res.status, 'ok');
 });

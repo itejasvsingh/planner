@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { CreditCard, FileLock2, Landmark } from 'lucide-react-native';
+import { CreditCard, FileLock2, Landmark, Search } from 'lucide-react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius } from '@/constants/theme';
-import { gmailSetStatementPassword, gmailStatements, gmailSyncNow, type StatementBank, type StatementKind, type StatementSlot } from '@/lib/gmail-connect';
+import { gmailFindStatements, gmailSetStatementPassword, gmailStatements, gmailSyncNow, type FoundStatement, type StatementBank, type StatementKind, type StatementSlot } from '@/lib/gmail-connect';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const day = (k?: string) => {
@@ -37,6 +37,26 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState('');
+  const [finding, setFinding] = useState(false);
+  const [found, setFound] = useState<FoundStatement[] | null>(null);
+
+  const find = async () => {
+    setFinding(true);
+    setNote('');
+    try {
+      const r = await gmailFindStatements();
+      if (r.status !== 'ok') setNote(r.status === 'reconnect' ? 'Connect Gmail again first.' : 'Connect Gmail first.');
+      else {
+        setFound(r.statements);
+        setNote(r.added ? `${r.added} new transaction${r.added === 1 ? '' : 's'} added from statements.` : '');
+      }
+      load();
+    } catch (e) {
+      setNote((e as Error).message);
+    } finally {
+      setFinding(false);
+    }
+  };
 
   const load = useCallback(() => {
     gmailStatements().then(r => setBanks(r.banks)).catch(() => setBanks([]));
@@ -76,6 +96,35 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
           ? 'Align found these locked statements in your Gmail. Add each one’s PDF password (the bank’s email usually says how it’s made, e.g. part of your name + date of birth, or your customer ID) and Align reads every new statement by itself: transactions (no duplicates) and balance. Passwords are stored encrypted and never shown again; the PDFs aren’t kept.'
           : 'No password-protected statements found in your Gmail yet. When Align finds one (a bank account or credit card statement), it shows up here so you can add its password.'}
       </Text>
+      <Pressable accessibilityRole="button" disabled={finding} onPress={() => void find()}
+        style={[styles.btn, { backgroundColor: c.accentSoft, flexDirection: 'row', justifyContent: 'center', gap: 8 }]}>
+        {finding ? <ActivityIndicator color={c.accent} size="small" /> : <Search color={c.accent} size={16} />}
+        <Text style={{ color: c.accent, fontWeight: '700' }}>{finding ? 'Searching Gmail…' : 'Find statements (last 40 days)'}</Text>
+      </Pressable>
+      {found && (
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: c.textSecondary, fontSize: 13, fontWeight: '600' }}>
+            {found.length ? `${found.length} statement${found.length === 1 ? '' : 's'} and bill${found.length === 1 ? '' : 's'} in the last 40 days:` : 'No statements or bills from your banks in the last 40 days.'}
+          </Text>
+          {found.map(f => {
+            const tone = f.state === 'read' || f.state === 'summary' ? c.income : f.state === 'queued' ? c.textSecondary : c.expense;
+            const label = { read: 'Read ✓', summary: 'Bill amounts read ✓', queued: 'Will be read next', needs_password: 'Needs password', wrong_password: 'Password didn’t work' }[f.state];
+            return (
+              <View key={f.id} style={[styles.found, { borderColor: c.border }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: c.text, fontSize: 13, fontWeight: '600' }} numberOfLines={1}>
+                    {f.bankName} · {f.kind === 'card' ? 'credit card' : 'account'}{f.pdf ? ' (PDF)' : ''}
+                  </Text>
+                  <Text style={{ color: c.textTertiary, fontSize: 12 }} numberOfLines={1}>
+                    {new Date(f.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · {f.subject}
+                  </Text>
+                </View>
+                <Text style={{ color: tone, fontSize: 12, fontWeight: '700' }}>{label}</Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
       {banks.map(b => (
         <View key={b.id} style={[styles.bank, { borderTopColor: c.border }]}>
           <Text style={{ color: c.text, fontWeight: '700', fontSize: 15 }}>{b.name}</Text>
@@ -143,4 +192,5 @@ const styles = StyleSheet.create({
   box: { borderWidth: 1, borderRadius: Radius.lg, padding: 16, gap: 10, marginTop: 16 },
   bank: { borderTopWidth: 1, paddingTop: 10 },
   btn: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: Radius.md, alignItems: 'center' },
+  found: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: 10, paddingVertical: 8 },
 });
