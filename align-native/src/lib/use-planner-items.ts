@@ -262,8 +262,9 @@ export function usePlannerItems(phone: string | null) {
   );
 
   const updateItem = useCallback(
-    async (id: string, patch: Partial<PlannerItem>) => {
-      triggerHaptic('success');
+    /** `quiet`: no haptic, for saves made while typing (notes). */
+    async (id: string, patch: Partial<PlannerItem>, opts?: { quiet?: boolean }) => {
+      if (!opts?.quiet) triggerHaptic('success');
       setItems((prev) => {
         const updated = prev.map((item) => (item.id === id ? { ...item, ...patch } : item));
         return updated;
@@ -334,8 +335,8 @@ export function usePlannerItems(phone: string | null) {
       const effectiveOwner = phone || 'guest';
       setError(null);
       
-      // Don't trigger haptics for generated items to avoid vibration spam
-      if (!newItem.isGeneratedRecurring) {
+      // No haptics for generated items (vibration spam) or notes (saved while you type)
+      if (!newItem.isGeneratedRecurring && newItem.type !== 'note') {
         triggerHaptic('success');
       }
       
@@ -357,6 +358,7 @@ export function usePlannerItems(phone: string | null) {
       const { id: _omit, ...data } = localItem;
       void _omit;
       await pushOp(owner, { kind: 'set', col: COL, id, data: { ...data, createdAt: SERVER_TIMESTAMP } });
+      return id;
     },
     [phone, setItems, setError, owner],
   );

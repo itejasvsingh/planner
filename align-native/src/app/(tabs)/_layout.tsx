@@ -9,7 +9,7 @@ import { triggerHaptic } from '@/lib/haptics';
 import { expandQuickAdd } from '@/lib/quick-add-state';
 import { flushPendingSms } from '@/lib/sms-import';
 import { startGmailAutoSync } from '@/lib/gmail-connect';
-import { Calendar, ListTodo, Target, Wallet } from 'lucide-react-native';
+import { Calendar, ListTodo, NotebookPen, Target, Wallet } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -112,6 +112,12 @@ export default function TabsLayout() {
           tabBarLabel: 'Goals', 
           tabBarLabelStyle: { fontWeight: '600' },
           tabBarIcon: ({ focused }) => <TabIcon Icon={Target} focused={focused} /> 
+        }} />
+        <Tabs.Screen name="notes" options={{ 
+          title: 'Notes', 
+          tabBarLabel: 'Notes', 
+          tabBarLabelStyle: { fontWeight: '600' },
+          tabBarIcon: ({ focused }) => <TabIcon Icon={NotebookPen} focused={focused} /> 
         }} />
       </Tabs>
       <QuickAddBar />

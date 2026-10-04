@@ -49,6 +49,11 @@ export type PlannerItem = {
   source?: 'sms' | 'email' | 'gmail' | 'statement' | string;
   /** 'card_bill': a credit card bill reminder task created from Gmail (see lib/cardBills.ts on the server). */
   kind?: 'card_bill' | string;
+  // Note specific (type 'note'); `title` is optional for notes
+  body?: string;
+  pinned?: boolean;
+  /** ISO time of the last edit (notes are listed newest first). */
+  updatedAt?: string;
   /** Set when auto-push moved an overdue task to a later day: the day it was due. */
   rolledOverFrom?: string;
   bill?: { issuer: string; issuerName: string; last4: string | null; totalDue: number; minDue: number | null };
