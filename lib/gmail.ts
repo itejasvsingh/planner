@@ -18,7 +18,7 @@ import { istParts, recordTransaction } from './recordTransaction';
  */
 
 export const GMAIL_SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
-const REDIRECT_URI = process.env.GMAIL_REDIRECT_URI || 'https://alignplanner.vercel.app/api/gmail/callback';
+export const REDIRECT_URI = process.env.GMAIL_REDIRECT_URI || 'https://alignplanner.vercel.app/api/gmail/callback';
 const GOOGLE_TOKEN = 'https://oauth2.googleapis.com/token';
 const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
@@ -45,7 +45,7 @@ const cleanEnv = (v?: string) => String(v || '').trim().replace(/^["']|["']$/g, 
 
 export class GmailConfigError extends Error {}
 
-function oauthClient() {
+export function oauthClient() {
   const id = cleanEnv(process.env.GOOGLE_OAUTH_CLIENT_ID);
   const secret = cleanEnv(process.env.GOOGLE_OAUTH_CLIENT_SECRET);
   if (!id || !secret) throw new GmailConfigError('Gmail sign-in is not set up yet (GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET).');

@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Check } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
-import { signInWithGoogle } from '@/lib/google-auth';
+import { finishGoogleRedirect, signInWithGoogle } from '@/lib/google-auth';
 import { normalizePhone } from '@/lib/phone';
 
 const API_BASE = Platform.OS === 'web' ? '' : process.env.EXPO_PUBLIC_API_URL || '';
@@ -90,6 +90,18 @@ export default function LoginScreen() {
     if (!res.ok) setError(res.message);
   }
 
+  // Back from Google (home-screen web app): finish signing in
+  const { google } = useLocalSearchParams<{ google?: string }>();
+  useEffect(() => {
+    if (!google || Platform.OS !== 'web') return;
+    setBusy(true);
+    void finishGoogleRedirect(String(google)).then(msg => {
+      if (msg) setError(msg);
+      setBusy(false);
+      if (typeof window !== 'undefined') window.history.replaceState(null, '', '/login');
+    });
+  }, [google]);
+
   async function handleGoogleSignIn() {
     setBusy(true);
     setError(null);
@@ -160,7 +172,7 @@ export default function LoginScreen() {
               <Pressable onPress={() => void logout()} style={styles.switchAccountBtn}>
                 <Text style={[styles.switchAccountText, { color: theme.blue }]}>Use a different account</Text>
               </Pressable>
-            ) : Platform.OS === 'web' ? (
+            ) : (
               <>
                 <View style={styles.dividerRow}>
                   <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
@@ -183,7 +195,7 @@ export default function LoginScreen() {
                   </View>
                 </Pressable>
               </>
-            ) : null}
+            )}
           </>
         ) : (
           <>

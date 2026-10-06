@@ -67,5 +67,8 @@
   Gemini key and old NUDGE/TEST_SUMMARY secrets, which must stay revoked). `/api/parse` is signed-in only and writes
   only to the caller's own account; cron routes accept only `CRON_SECRET` and reply with counts, never personal
   data; the WhatsApp webhook verifies Meta's `X-Hub-Signature-256` once `WHATSAPP_APP_SECRET` is set.
+- Google sign-in: a pop-up in browsers; in the Android app and the home-screen web app it goes through the server
+  (`lib/googleLogin.ts`, `/api/auth/google/start|finish`, sharing `/api/gmail/callback` via state `gl_…`): one-time
+  code + PKCE verifier → custom token `google_<sub>`, then the number is linked with a WhatsApp code as usual.
 - Card bill reminders (`lib/cardBills.ts`) are opt-in: bills are stored server-only; Agenda tasks
   (`kind: 'card_bill'`, never auto-pushed) and WhatsApp summary lines exist only after the user says yes.
