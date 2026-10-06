@@ -96,7 +96,17 @@ export default function LoginScreen() {
     try {
       await signInWithGoogle();
     } catch (err: any) {
-      if (err?.code !== 'auth/popup-closed-by-user') setError(err?.message || 'Could not sign in with Google.');
+      const code = String(err?.code || '');
+      if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return;
+      // Firebase's own messages are codes ("auth/unauthorized-domain"); say what to do instead
+      const plain: Record<string, string> = {
+        'auth/unauthorized-domain': 'Google sign-in isn’t switched on for this web address yet. Use “Send code on WhatsApp” for now.',
+        'auth/popup-blocked': 'Your browser blocked the Google window. Allow pop-ups for this site and try again.',
+        'auth/operation-not-supported-in-this-environment': 'Google sign-in doesn’t work in the installed web app. Open the site in your browser, or use WhatsApp.',
+        'auth/network-request-failed': 'No connection. Check your internet and try again.',
+        'auth/too-many-requests': 'Too many tries. Wait a few minutes and try again.',
+      };
+      setError(plain[code] || 'Could not sign in with Google. Try again, or use “Send code on WhatsApp”.');
     } finally {
       setBusy(false);
     }
