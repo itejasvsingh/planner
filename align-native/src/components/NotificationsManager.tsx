@@ -18,7 +18,7 @@ export default function NotificationsManager() {
   const cardReminders = useMemo(() => {
     if (!cards) return undefined;
     const out: Notifications.NotificationRequestInput[] = [];
-    for (const c of cards.cards) {
+    for (const c of Array.isArray(cards.cards) ? cards.cards : []) {
       if (!c.remind || c.hidden || c.status === 'paid' || !c.dueDate || c.outstanding <= 0) continue;
       const [y, m, d] = c.dueDate.split('-').map(Number);
       const due = new Date(y, m - 1, d, 10, 0, 0);

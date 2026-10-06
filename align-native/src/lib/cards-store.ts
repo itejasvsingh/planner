@@ -17,6 +17,8 @@ const key = (phone: string) => `align_money_accounts_${phone}`;
 
 function set(phone: string, next: MoneyAccounts) {
   if (phone !== owner) return;
+  // Only a well-formed answer replaces what's shown
+  if (!next || !Array.isArray(next.cards) || !Array.isArray(next.accounts)) return;
   data = next;
   emit();
   void setItem(key(phone), JSON.stringify(next));
