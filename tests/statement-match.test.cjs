@@ -50,3 +50,9 @@ test('each existing transaction matches at most one statement row', () => {
   const plan = planRows(rows, ['x1', 'x2'], [{ id: 'm', type: 'expense', amount: 250, date: '2026-09-05' }]);
   assert.deepEqual(plan.map(p => p.status), ['likely', 'new']);
 });
+
+test('rows you deleted in Align are not offered again', () => {
+  const rows = [row({ date: '2026-09-05' }), row({ date: '2026-09-06', amount: 99 })];
+  const plan = planRows(rows, ['auto_x', 'stmt_y'], [], ['auto_x']);
+  assert.deepEqual(plan.map(p => p.status), ['deleted', 'new']);
+});

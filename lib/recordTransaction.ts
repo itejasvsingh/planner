@@ -43,7 +43,9 @@ async function recordedElsewhere(phone: string, tx: Recorded, date: string, sour
     ]);
     for (const doc of [...same.docs, ...split.docs]) {
       const x = doc.data();
-      if (!sameDirection(String(x.type), tx.type) || !AUTOMATIC.includes(x.source) || x.source === source) continue;
+      // Deleted in the app: kept as a marker so the same payment isn't added again from any source
+      const xType = x.type === 'deleted' ? String(x.deletedType) : String(x.type);
+      if (!sameDirection(xType, tx.type) || !AUTOMATIC.includes(x.source) || x.source === source) continue;
       if (tx.ref && x.ref && String(x.ref) !== tx.ref) continue;
       return true;
     }
@@ -58,6 +60,8 @@ async function recordedElsewhere(phone: string, tx: Recorded, date: string, sour
  *   import uses), created only if missing so user edits are never overwritten;
  * - without one, `dedupText` keys the document (the message text, or the Gmail message id);
  * - either way, a matching payment already recorded from another source counts as this one.
+ * Deleting an automatic transaction in the app keeps its document as `type: 'deleted'` (see deleteItem in
+ * align-native/src/lib/use-planner-items.ts), so it blocks both checks and the payment stays deleted.
  */
 export async function recordTransaction(
   phone: string,

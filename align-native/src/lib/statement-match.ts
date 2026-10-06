@@ -15,7 +15,7 @@ export type StatementTxn = {
 
 export type ExistingItem = { id: string; type?: string; amount?: string | number; date?: string | null; dueDate?: string | null };
 
-export type MatchStatus = 'new' | 'imported' | 'likely';
+export type MatchStatus = 'new' | 'imported' | 'likely' | 'deleted';
 export type PlannedRow = StatementTxn & { id: string; status: MatchStatus; matchId?: string };
 
 /** Key for rows without a bank reference: same day, amount, direction and narration. */
@@ -50,13 +50,16 @@ const direction = (t?: string) => (t === 'expense' ? 'expense' : 'income');
  * `imported`: the exact document already exists (imported before, or recorded from the same SMS).
  * `likely`: an existing transaction has the same amount and direction within 3 days (typed in by hand, or
  * an SMS whose ref differed); left unticked so it isn't counted twice. Each existing item matches once.
+ * `deleted`: the user deleted this transaction in Align (`deletedIds`); not offered again.
  */
-export function planRows(rows: StatementTxn[], ids: string[], items: ExistingItem[]): PlannedRow[] {
+export function planRows(rows: StatementTxn[], ids: string[], items: ExistingItem[], deletedIds: string[] = []): PlannedRow[] {
+  const deleted = new Set(deletedIds);
   const byId = new Set(items.map(i => i.id));
   const pool = items.filter(i => isMoney(i.type));
   const used = new Set<string>(ids.filter(id => byId.has(id)));
   return rows.map((r, i) => {
     const id = ids[i];
+    if (deleted.has(id)) return { ...r, id, status: 'deleted' as const };
     if (byId.has(id)) return { ...r, id, status: 'imported' as const, matchId: id };
     let best: ExistingItem | null = null;
     let bestGap = Infinity;

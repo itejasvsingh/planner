@@ -66,7 +66,7 @@ export default function ImportStatementScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { phone } = usePhone();
-  const { items, importItems } = usePlannerItems(phone);
+  const { items, deletedIds, importItems } = usePlannerItems(phone);
   const { config, merchantCategory } = useCategoryConfig();
 
   const [step, setStep] = useState<Step>('pick');
@@ -98,7 +98,7 @@ export default function ImportStatementScreen() {
       return;
     }
     const ids = await statementIds(phone || 'guest', res.rows);
-    const planned = planRows(res.rows, ids, items).sort((a, b) => b.date.localeCompare(a.date));
+    const planned = planRows(res.rows, ids, items, deletedIds).sort((a, b) => b.date.localeCompare(a.date));
     setRows(planned);
     setSelected(new Set(planned.filter(r => r.status === 'new').map(r => r.id)));
     setCategories({});
@@ -128,7 +128,7 @@ export default function ImportStatementScreen() {
     });
   };
 
-  const choosable = rows.filter(r => r.status !== 'imported');
+  const choosable = rows.filter(r => r.status !== 'imported' && r.status !== 'deleted');
   const allOn = choosable.length > 0 && choosable.every(r => selected.has(r.id));
   const totals = useMemo(() => {
     let out = 0;
@@ -267,7 +267,7 @@ export default function ImportStatementScreen() {
           }
           renderItem={({ item: r, index }) => {
             const on = selected.has(r.id);
-            const done = r.status === 'imported';
+            const done = r.status === 'imported' || r.status === 'deleted';
             const cat = resolveCategory(categoryOf(r), r.type, config);
             const Icon = cat.icon;
             const first = index === 0;
@@ -289,7 +289,7 @@ export default function ImportStatementScreen() {
                     <Text style={[styles.rowTitle, { color: done ? c.textTertiary : c.text }]} numberOfLines={1}>{r.merchant}</Text>
                     <Text style={[styles.rowMeta, { color: r.status === 'likely' ? c.warning : c.textTertiary }]} numberOfLines={1}>
                       {shortDate(r.date)}
-                      {done ? ' · Already in Align' : r.status === 'likely' ? ' · Looks like one you added' : ''}
+                      {r.status === 'deleted' ? ' · You deleted this' : done ? ' · Already in Align' : r.status === 'likely' ? ' · Looks like one you added' : ''}
                     </Text>
                   </View>
                   <Text style={[styles.amount, { color: done ? c.textTertiary : r.type === 'income' ? c.income : c.text }]}>

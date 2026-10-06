@@ -57,7 +57,9 @@ type Shared = {
   items: PlannerItem[];
   loading: boolean;
   error: string | null;
-  snapshot: { items: PlannerItem[]; loading: boolean; error: string | null };
+  snapshot: { items: PlannerItem[]; loading: boolean; error: string | null; deletedIds: string[] };
+  /** Ids of automatic transactions the user deleted (kept as `type: 'deleted'` markers, never shown). */
+  deletedIds: string[];
   listeners: Set<() => void>;
   users: number;
   stop: (() => void) | null;
@@ -66,18 +68,20 @@ type Shared = {
 };
 const shared = new Map<string, Shared>();
 const PERSIST_DELAY_MS = 400;
+/** Sources that add transactions automatically (same list as lib/recordTransaction.ts). */
+const AUTO_SOURCES = ['sms', 'email', 'gmail', 'statement'];
 
 function sharedFor(owner: string): Shared {
   let s = shared.get(owner);
   if (!s) {
-    s = { items: [], loading: true, error: null, snapshot: { items: [], loading: true, error: null }, listeners: new Set(), users: 0, stop: null, queue: [], persistTimer: null };
+    s = { items: [], loading: true, error: null, snapshot: { items: [], loading: true, error: null, deletedIds: [] }, deletedIds: [], listeners: new Set(), users: 0, stop: null, queue: [], persistTimer: null };
     shared.set(owner, s);
   }
   return s;
 }
 
 function emit(s: Shared) {
-  s.snapshot = { items: s.items, loading: s.loading, error: s.error };
+  s.snapshot = { items: s.items, loading: s.loading, error: s.error, deletedIds: s.deletedIds };
   s.listeners.forEach((l) => l());
 }
 
@@ -93,7 +97,12 @@ function schedulePersist(owner: string) {
 
 function setShared(owner: string, patch: { items?: PlannerItem[]; loading?: boolean; error?: string | null }, persist = false) {
   const s = sharedFor(owner);
-  if (patch.items !== undefined) s.items = patch.items;
+  if (patch.items !== undefined) {
+    // Deleted automatic transactions stay in Firestore as markers (so imports skip them); never show them
+    const deleted = patch.items.filter((i) => i.type === 'deleted');
+    s.items = deleted.length ? patch.items.filter((i) => i.type !== 'deleted') : patch.items;
+    if (deleted.length) s.deletedIds = Array.from(new Set([...s.deletedIds, ...deleted.map((i) => i.id)]));
+  }
   if (patch.loading !== undefined) s.loading = patch.loading;
   if (patch.error !== undefined) s.error = patch.error;
   emit(s);
@@ -207,7 +216,7 @@ function restartSync(owner: string) {
 export function usePlannerItems(phone: string | null) {
   const owner = phone || 'guest';
   const { queue } = useOutbox(owner);
-  const { items, loading, error } = useSyncExternalStore(
+  const { items, loading, error, deletedIds } = useSyncExternalStore(
     useCallback((cb: () => void) => {
       const s = sharedFor(owner);
       s.listeners.add(cb);
@@ -252,10 +261,19 @@ export function usePlannerItems(phone: string | null) {
     async (id: string) => {
       LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
       triggerHaptic('medium');
+      const item = sharedFor(owner).items.find((i) => i.id === id);
+      const automatic = !!item && (item.autoDetected || AUTO_SOURCES.includes(String(item.source)));
+      if (automatic) sharedFor(owner).deletedIds = [...sharedFor(owner).deletedIds, id];
       setItems((prev) => {
         const updated = prev.filter((item) => item.id !== id);
         return updated;
       });
+      // Added automatically (SMS, email, Gmail, statement): keep a hidden marker instead of removing it, or the
+      // next sync would add the same payment again. lib/recordTransaction.ts treats markers as recorded.
+      if (automatic && item) {
+        await pushOp(owner, { kind: 'update', col: COL, id, patch: { type: 'deleted', deletedType: item.type ?? null, deletedAt: new Date().toISOString() } });
+        return;
+      }
       await pushOp(owner, { kind: 'delete', col: COL, id });
     },
     [setItems, owner],
@@ -510,6 +528,7 @@ export function usePlannerItems(phone: string | null) {
 
   return { 
     items,
+    deletedIds,
     loading, error, refresh,
     toggleDone, 
     deleteItem,

@@ -89,3 +89,21 @@ test('money to family or your own account is a transfer, not spending, and stays
   const got = (await db.collection('planner_items').where('ownerId', '==', P).get()).docs.map(d => d.data()).sort((a, b) => a.amount - b.amount);
   assert.deepEqual(got.map(i => [i.amount, i.type, i.category]), [[300, 'expense', 'Other'], [5000, 'transfer', 'Family'], [20000, 'transfer', 'Self Transfer']]);
 });
+
+test('a transaction deleted in the app is not added again by any later sync', async () => {
+  const P = '919800000009';
+  assert.equal(await recordTransaction(P, tx({ ref: '555566667777' }), { source: 'gmail', dedupText: 'gmail:del1', date: '2026-10-02' }), 'added');
+  assert.equal(await recordTransaction(P, tx({ amount: 75 }), { source: 'sms', dedupText: 'sms 75', date: '2026-10-02' }), 'added');
+  // What the app's delete does for automatic transactions (use-planner-items deleteItem)
+  for (const d of (await db.collection('planner_items').where('ownerId', '==', P).get()).docs) {
+    await d.ref.update({ type: 'deleted', deletedType: d.data().type, deletedAt: '2026-10-03T00:00:00.000Z' });
+  }
+  // same Gmail message again, the SMS for it, the statement row for it, and the 75 again by Gmail
+  assert.equal(await recordTransaction(P, tx({ ref: '555566667777' }), { source: 'gmail', dedupText: 'gmail:del1', date: '2026-10-02' }), 'duplicate');
+  assert.equal(await recordTransaction(P, tx({ ref: '555566667777' }), { source: 'sms', dedupText: 'Rs 20 ref 555566667777', date: '2026-10-02' }), 'duplicate');
+  assert.equal(await recordTransaction(P, tx(), { source: 'statement', dedupText: 'statement:x', date: '2026-10-02' }), 'duplicate');
+  assert.equal(await recordTransaction(P, tx({ amount: 75 }), { source: 'gmail', dedupText: 'gmail:75', date: '2026-10-02' }), 'duplicate');
+  assert.equal(await recordTransaction(P, tx({ amount: 75 }), { source: 'sms', dedupText: 'sms 75', date: '2026-10-02' }), 'duplicate');
+  const live = (await db.collection('planner_items').where('ownerId', '==', P).get()).docs.filter(d => d.data().type !== 'deleted');
+  assert.equal(live.length, 0);
+});

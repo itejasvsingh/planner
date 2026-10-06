@@ -25,6 +25,7 @@ function setup({ phone = 'test-owner' } = {}) {
       if (data) check(data);
       ops.push({ owner, ...op, ...(data ? { data } : {}) });
     },
+    pushOps: async (owner, list) => { for (const op of list) await outbox.pushOp(owner, op); },
   };
   const react = {
     useState: initial => {
@@ -102,4 +103,19 @@ test('edits and deletes are queued against the same doc', async () => {
   await hook.deleteItem('abc');
   assert.deepEqual(ops.map(o => [o.kind, o.id]), [['update', 'abc'], ['delete', 'abc']]);
   assert.equal(JSON.stringify(ops[0].patch), '{"done":true}');
+});
+
+test('deleting an imported transaction leaves a hidden marker so the next sync does not add it back', async () => {
+  const { hook, items, ops } = setup();
+  await hook.importItems([
+    { id: 'auto_1', type: 'expense', title: 'Zomato', amount: 250, date: '2026-10-05', source: 'gmail', autoDetected: true },
+    { id: 'manual_1', type: 'expense', title: 'Tea', amount: 20, date: '2026-10-05' },
+  ]);
+  ops.length = 0;
+  await hook.deleteItem('auto_1');
+  await hook.deleteItem('manual_1');
+  assert.deepEqual(ops.map(o => [o.kind, o.id]), [['update', 'auto_1'], ['delete', 'manual_1']]);
+  assert.equal(ops[0].patch.type, 'deleted');
+  assert.equal(ops[0].patch.deletedType, 'expense');
+  assert.equal(items().length, 0, 'both are gone from the list');
 });
