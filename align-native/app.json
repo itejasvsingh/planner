@@ -71,19 +71,19 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "3bbcf086-82d6-41f6-a682-d439a890514d"
+        "projectId": "024b5520-6feb-4795-ab83-7e7d226a5987"
       }
     },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "owner": "itejasv",
+    "owner": "itejasv-team",
     "runtimeVersion": {
       "policy": "fingerprint"
     },
     "updates": {
-      "url": "https://u.expo.dev/3bbcf086-82d6-41f6-a682-d439a890514d"
+      "url": "https://u.expo.dev/024b5520-6feb-4795-ab83-7e7d226a5987"
     }
   }
 }
