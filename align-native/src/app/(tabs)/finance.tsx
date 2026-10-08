@@ -186,6 +186,8 @@ export default function FinanceScreen() {
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [editingItem, setEditingItem] = useState<any>(null);
     const [isSheetVisible, setIsSheetVisible] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [bulkCategoryPickerVisible, setBulkCategoryPickerVisible] = useState(false);
 
     const [startSplit, setStartSplit] = useState(false);
     const openAddSheet = () => {
