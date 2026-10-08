@@ -183,6 +183,7 @@ export default function FinanceScreen() {
         return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
     }, [listItems]);
 
+    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [editingItem, setEditingItem] = useState<any>(null);
     const [isSheetVisible, setIsSheetVisible] = useState(false);
 

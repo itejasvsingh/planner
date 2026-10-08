@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
-import { Check, Plus, Undo2 } from 'lucide-react-native';
+import { Check, Plus, Undo2, Wallet, ArrowDownRight, ArrowUpRight } from 'lucide-react-native';
 import { Skeleton } from '@/components/ui/skeleton';
 import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import { useTheme } from '@/hooks/use-theme';
@@ -46,6 +46,7 @@ export default function DailyScreen() {
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(dailyDate), i)), [dailyDate]);
 
   const allDayTasks = items.filter(item => isTaskForDate(item, dateKey));
+  const dailyFinances = items.filter(item => (item.type === 'expense' || item.type === 'income') && item.date === dateKey);
   const completed = allDayTasks.filter(item => item.done).length;
   const open = allDayTasks.length - completed;
   const overdue = items.filter(item => item.type === 'task' && !item.done && item.dueDate && item.dueDate < today);
@@ -286,6 +287,34 @@ export default function DailyScreen() {
                   {anytime.map(item => renderTask(item))}
                 </>
               )}
+
+                {/* Finances Section */}
+                {dailyFinances.length > 0 && (
+                  <>
+                    <View style={{ marginTop: 24, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Wallet color={c.textTertiary} size={16} />
+                      <Text style={[styles.sectionHeader, { color: c.textTertiary, marginTop: 0 }]}>Finances</Text>
+                    </View>
+                    {dailyFinances.map(item => {
+                      const isIncome = item.type === 'income';
+                      return (
+                        <View key={item.id} style={[{ backgroundColor: c.backgroundElement, borderColor: c.border, flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 20, borderWidth: 1 }]}>
+                          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: isIncome ? c.incomeSoft : c.expenseSoft, alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
+                            {isIncome ? <ArrowUpRight color={c.income} size={20} /> : <ArrowDownRight color={c.expense} size={20} />}
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: c.text, fontWeight: '600', fontSize: 16 }}>{item.title}</Text>
+                            <Text style={{ color: c.textTertiary, fontSize: 12, marginTop: 2 }}>{item.category || 'Other'}</Text>
+                          </View>
+                          <Text style={{ color: isIncome ? c.income : c.text, fontWeight: '700', fontSize: 16 }}>
+                            {isIncome ? '+' : '-'}₹{item.amount || 0}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </>
+                )}
+
             </View>
           )}
         </View>
