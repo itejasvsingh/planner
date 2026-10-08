@@ -480,9 +480,9 @@ async function processReceiptImage(imageId: string, senderPhone: string) {
         const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
         const prompt = `You are a financial extraction assistant. Analyze this receipt image and extract the vendor name and total amount.
-        Categorize the spend into one of these tags if possible: #Dining, #Travel, #Academics, #General. If none fit perfectly, create a relevant short tag starting with #.
+        Categorize the spend into one of these exact tags if possible: Food Delivery, Cabs, Festival Shopping, Mobile Recharge, Maid/Help, UPI Transfer, Salary, or Other. Do not use hashtags. If none fit perfectly, create a relevant short tag starting with #.
         Respond ONLY with a valid, raw JSON object. Do not include markdown formatting or backticks.
-        Format: {"title": "Vendor Name", "amount": 125.50, "category": "#Dining"}`;
+        Format: {"title": "Vendor Name", "amount": 125.50, "category": "Food Delivery"}`;
 
         const imagePart = {
             inlineData: {
@@ -1481,7 +1481,7 @@ Format:
   "intent": "INTAKE" | "QUERY" | "inaudible",
   "items": [
     // If expense:
-    { "type": "expense", "title": "Vendor or item name", "amount": 100, "category": "#Dining" | "#Travel" | "#Academics" | "#General" },
+    { "type": "expense", "title": "Vendor or item name", "amount": 100, "category": "Food Delivery" | "Cabs" | "Festival Shopping" | "Mobile Recharge" | "Maid/Help" | "UPI Transfer" | "Salary" | "Other" },
     // If task:
     { "type": "task", "title": "Actionable task title", "dueDate": "YYYY-MM-DD", "dueTime": "HH:mm" | null, "category": "#Academics" | "#Work" | "#Personal" | "#Health" | "#General" }
   ],

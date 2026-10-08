@@ -139,7 +139,7 @@ export async function POST(req: Request) {
                       "dueTime": "12-hour time like 05:00 PM or null",
                       "endTime": "12-hour time or null",
                       "amount": number or null,
-                      "category": "#Category tag or null"
+                      "category": "Must be one of: Food Delivery, Cabs, Festival Shopping, Mobile Recharge, Maid/Help, Salary, UPI Transfer, or Other. Null if task."
                     }
                   ]
                 }`;
