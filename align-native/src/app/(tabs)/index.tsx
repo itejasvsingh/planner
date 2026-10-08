@@ -49,7 +49,7 @@ export default function DailyScreen() {
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(dailyDate), i)), [dailyDate]);
 
   const allDayTasks = items.filter(item => isTaskForDate(item, dateKey));
-  const dailyFinances = items.filter(item => (item.type === 'expense' || item.type === 'income') && item.date === dateKey);
+  const dailyFinances = items.filter(item => (item.type === 'expense' || item.type === 'income' || item.type === 'transfer') && item.date === dateKey);
   const completed = allDayTasks.filter(item => item.done).length;
   const open = allDayTasks.length - completed; // keep open count for tasks only
   const overdue = items.filter(item => item.type === 'task' && !item.done && item.dueDate && item.dueDate < today);

@@ -75,7 +75,14 @@ export function itemDateKey(item: PlannerItem) {
 }
 
 export function itemTime(item: PlannerItem) {
-  return item.time || item.reminderTime || item.dueTime || null;
+  let time = item.time || item.reminderTime || item.dueTime;
+  if (!time && (item.type === 'expense' || item.type === 'income' || item.type === 'transfer') && item.createdAt) {
+      try {
+          const d = new Date(item.createdAt);
+          time = d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
+      } catch (e) {}
+  }
+  return time || null;
 }
 
 export function isTaskForDate(item: PlannerItem, dateKey: string) {
