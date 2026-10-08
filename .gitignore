@@ -49,3 +49,6 @@ public/fallback-*
 # capacitor generated assets
 /cap-assets/
 
+.claude/
+.omc/
+align-native/.omc/
