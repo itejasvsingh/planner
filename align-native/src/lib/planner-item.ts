@@ -75,7 +75,7 @@ export function itemDateKey(item: PlannerItem) {
 }
 
 export function itemTime(item: PlannerItem) {
-  return item.reminderTime || item.dueTime || null;
+  return item.time || item.reminderTime || item.dueTime || null;
 }
 
 export function isTaskForDate(item: PlannerItem, dateKey: string) {

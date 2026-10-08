@@ -52,6 +52,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [amount, setAmount] = useState('');
     const [category, setCategory] = useState(DEFAULT_CATEGORY.expense);
         const [date, setDate] = useState('');
+    const [time, setTime] = useState('');
     const [isRecurring, setIsRecurring] = useState(false);
     const [isSplit, setIsSplit] = useState(false);
     const [cardLast4, setCardLast4] = useState<string | null>(null);
@@ -120,6 +121,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
             amount: built?.split ? built.split.yourShare : finalAmount,
             category,
             date,
+            time,
             isRecurring,
             ...(isRecurring ? { recurringFrequency: 'monthly' } : {}),
             // Which credit card paid (kept as-is when the choice isn't shown)

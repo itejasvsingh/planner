@@ -12,6 +12,7 @@ import { usePhone } from '@/lib/phone-context';
 import { isTaskForDate, itemTime, type PlannerItem } from '@/lib/planner-item';
 import { usePlannerItems } from '@/lib/use-planner-items';
 import ItemModal from '@/components/ItemModal';
+import TransactionSheet from '@/components/TransactionSheet';
 import TaskCard from '@/components/TaskCard';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 import SwipeAction from '@/components/SwipeAction';
@@ -24,12 +25,14 @@ export default function DailyScreen() {
   const theme = useTheme();
   const c = theme;
   const { phone } = usePhone();
-  const { items, loading, error, toggleDone, deleteItem, addItem, refresh } = usePlannerItems(phone);
+  const { items, loading, error, toggleDone, deleteItem, addItem, refresh, updateItem } = usePlannerItems(phone);
   const [refreshing, setRefreshing] = useState(false);
   if (refreshing && !loading) setRefreshing(false);
   const [dailyDate, setDailyDate] = useState(() => new Date());
   const [filter, setFilter] = useState<Filter>('All');
   const [editingItem, setEditingItem] = useState<PlannerItem | null>(null);
+  const [editingFinanceItem, setEditingFinanceItem] = useState<any>(null);
+  const [isFinanceSheetVisible, setIsFinanceSheetVisible] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [actionError, setActionError] = useState('');
   // Last task removed by swipe, kept briefly so it can be restored.
@@ -48,10 +51,11 @@ export default function DailyScreen() {
   const allDayTasks = items.filter(item => isTaskForDate(item, dateKey));
   const dailyFinances = items.filter(item => (item.type === 'expense' || item.type === 'income') && item.date === dateKey);
   const completed = allDayTasks.filter(item => item.done).length;
-  const open = allDayTasks.length - completed;
+  const open = allDayTasks.length - completed; // keep open count for tasks only
   const overdue = items.filter(item => item.type === 'task' && !item.done && item.dueDate && item.dueDate < today);
 
-  const filtered = allDayTasks.filter(item => {
+  const allDayItems = [...allDayTasks, ...dailyFinances];
+  const filtered = allDayItems.filter(item => {
     if (filter === 'Open' && item.done) return false;
     if (filter === 'Completed' && !item.done) return false;
     return true;
@@ -100,6 +104,46 @@ export default function DailyScreen() {
     } catch {
       setActionError('Could not restore the task.');
     }
+  }
+
+
+  const openFinanceEditor = (item: any) => {
+    setEditingFinanceItem(item);
+    setIsFinanceSheetVisible(true);
+  };
+
+  const handleFinanceSave = async (updates: any) => {
+    if (editingFinanceItem) {
+        await updateItem(editingFinanceItem.id, updates);
+    } else {
+        await addItem(updates);
+    }
+  };
+
+  function renderItem(item: any, hideTime = false) {
+    if (item.type === 'expense' || item.type === 'income' || item.type === 'transfer') {
+      const isIncome = item.type === 'income' || item.type === 'deposit';
+      const isTransfer = item.type === 'transfer';
+      return (
+        <Pressable 
+          key={item.id} 
+          onPress={() => openFinanceEditor(item)}
+          style={{ backgroundColor: c.backgroundElement, borderColor: c.border, flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 20, borderWidth: 1, opacity: hideTime ? 1 : 0.9, marginBottom: 8 }}
+        >
+          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: isIncome ? c.incomeSoft : (isTransfer ? c.backgroundElement : c.expenseSoft), alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
+            {isIncome ? <ArrowUpRight color={c.income} size={20} /> : <ArrowDownRight color={isTransfer ? c.textTertiary : c.expense} size={20} />}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: c.text, fontWeight: '600', fontSize: 16 }}>{item.title}</Text>
+            <Text style={{ color: c.textTertiary, fontSize: 12, marginTop: 2 }}>{item.category || 'Other'}</Text>
+          </View>
+          <Text style={{ color: isIncome ? c.income : (isTransfer ? c.textSecondary : c.text), fontWeight: '700', fontSize: 16 }}>
+            {isTransfer ? '' : (isIncome ? '+' : '-')}₹{item.amount || 0}
+          </Text>
+        </Pressable>
+      );
+    }
+    return renderTask(item, hideTime);
   }
 
   function renderTask(item: PlannerItem, hideTime = false) {
@@ -275,7 +319,7 @@ export default function DailyScreen() {
                       <Text numberOfLines={1} style={[styles.timeLabel, { color: item.done ? c.textTertiary : c.textSecondary }]}>
                         {itemTime(item)?.replace(/^0/, '')}
                       </Text>
-                      <View style={{ flex: 1 }}>{renderTask(item, true)}</View>
+                      <View style={{ flex: 1 }}>{renderItem(item, true)}</View>
                     </View>
                   ))}
                 </>
@@ -284,36 +328,11 @@ export default function DailyScreen() {
               {anytime.length > 0 && (
                 <>
                   <Text style={[styles.sectionHeader, { color: c.textTertiary }]}>Anytime</Text>
-                  {anytime.map(item => renderTask(item))}
+                  {anytime.map(item => renderItem(item))}
                 </>
               )}
 
-                {/* Finances Section */}
-                {dailyFinances.length > 0 && (
-                  <>
-                    <View style={{ marginTop: 24, marginBottom: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                      <Wallet color={c.textTertiary} size={16} />
-                      <Text style={[styles.sectionHeader, { color: c.textTertiary, marginTop: 0 }]}>Finances</Text>
-                    </View>
-                    {dailyFinances.map(item => {
-                      const isIncome = item.type === 'income';
-                      return (
-                        <View key={item.id} style={[{ backgroundColor: c.backgroundElement, borderColor: c.border, flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 20, borderWidth: 1 }]}>
-                          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: isIncome ? c.incomeSoft : c.expenseSoft, alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
-                            {isIncome ? <ArrowUpRight color={c.income} size={20} /> : <ArrowDownRight color={c.expense} size={20} />}
-                          </View>
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ color: c.text, fontWeight: '600', fontSize: 16 }}>{item.title}</Text>
-                            <Text style={{ color: c.textTertiary, fontSize: 12, marginTop: 2 }}>{item.category || 'Other'}</Text>
-                          </View>
-                          <Text style={{ color: isIncome ? c.income : c.text, fontWeight: '700', fontSize: 16 }}>
-                            {isIncome ? '+' : '-'}₹{item.amount || 0}
-                          </Text>
-                        </View>
-                      );
-                    })}
-                  </>
-                )}
+                
 
             </View>
           )}
