@@ -85,6 +85,16 @@ test("import keys: nobody can take over someone else's", async () => {
   await assertFails(deleteDoc(doc(alice(), key)));
 });
 
+test('feedback: send as yourself only; nobody reads it from the app', async () => {
+  const { serverTimestamp } = require('firebase/firestore');
+  await assertSucceeds(setDoc(doc(alice(), 'feedback/f1'), { text: 'Love it', userId: ALICE, createdAt: serverTimestamp(), platform: 'web' }));
+  await assertFails(setDoc(doc(alice(), 'feedback/f2'), { text: 'Spoof', userId: BOB, createdAt: serverTimestamp(), platform: 'web' }));
+  await assertFails(setDoc(doc(alice(), 'feedback/f3'), { text: 'x'.repeat(2001), userId: ALICE, createdAt: serverTimestamp(), platform: 'web' }));
+  await assertFails(setDoc(doc(alice(), 'feedback/f4'), { text: 'Extra', userId: ALICE, createdAt: serverTimestamp(), platform: 'web', admin: true }));
+  await assertFails(getDoc(doc(alice(), 'feedback/f1')));
+  await assertFails(setDoc(doc(signedOut(), 'feedback/f5'), { text: 'Anon', userId: 'anonymous', createdAt: serverTimestamp(), platform: 'web' }));
+});
+
 test('WhatsApp sessions: own only', async () => {
   const db = alice();
   await assertSucceeds(setDoc(doc(db, `user_sessions/${ALICE}`), { autoPushEnabled: true }, { merge: true }));

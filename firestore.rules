@@ -41,6 +41,16 @@ service cloud.firestore {
       allow read, write: if isOwner(sessionId);
     }
 
+    // Settings → Feedback: a signed-in person can send a note as themselves; nobody can read or change
+    // notes from the app (the owner reads them in the Firebase console).
+    match /feedback/{id} {
+      allow create: if isOwner(request.resource.data.userId)
+        && request.resource.data.keys().hasOnly(['text', 'userId', 'createdAt', 'platform'])
+        && request.resource.data.text is string && request.resource.data.text.size() > 0 && request.resource.data.text.size() <= 2000
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.platform is string && request.resource.data.platform.size() <= 20;
+    }
+
     // Everything else (rate_limits, auth_codes, Gmail links) is server-only.
     match /{document=**} {
       allow read, write: if false;

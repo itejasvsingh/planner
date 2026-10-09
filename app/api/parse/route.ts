@@ -139,7 +139,7 @@ export async function POST(req: Request) {
                       "dueTime": "12-hour time like 05:00 PM or null",
                       "endTime": "12-hour time or null",
                       "amount": number or null,
-                      "category": "Must be one of: Food Delivery, Cabs, Festival Shopping, Mobile Recharge, Maid/Help, Salary, UPI Transfer, or Other. Null if task."
+                      "category": "Expense: one of Food & Dining, Groceries, Transport, Shopping, Bills & Recharge, Home & Help, Health, Education, Entertainment, Gifts, Other. Income: one of Salary, Money Received, Refund, Other. (Swiggy/Zomato → Food & Dining, Uber/Ola → Transport, maid/cook → Home & Help, recharge/electricity → Bills & Recharge.) Null if task."
                     }
                   ]
                 }`;

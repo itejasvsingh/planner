@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
-import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { Modal, View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
-import { ArrowDownLeft, ArrowUpRight, FileUp, Plus, Search, ShieldAlert, Tags, Target, Users, Wallet, X } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, Check, FileUp, Plus, Search, ShieldAlert, Tags, Target, Users, Wallet, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import BudgetSheet from '@/components/BudgetSheet';
 import { MONTHLY_BUDGET_KEY, budgetStatus, categoryBudgets, summarizeBudget, type BudgetStatus } from '@/lib/budget';
@@ -14,6 +14,7 @@ import TransactionSheet from '@/components/TransactionSheet';
 import CycleStepper, { cycleName } from '@/components/finance/CycleStepper';
 import FriendsCard from '@/components/finance/FriendsCard';
 import ReviewSheet from '@/components/finance/ReviewSheet';
+import CategoryPicker from '@/components/CategoryPicker';
 import { findSuspicious } from '@/lib/suspicious';
 import { todayKey } from '@/lib/dates';
 import CardsAccounts from '@/components/finance/CardsAccounts';
@@ -188,6 +189,40 @@ export default function FinanceScreen() {
     const [isSheetVisible, setIsSheetVisible] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [bulkCategoryPickerVisible, setBulkCategoryPickerVisible] = useState(false);
+    const [bulkConfirmDelete, setBulkConfirmDelete] = useState(false);
+    const selecting = selectedIds.size > 0;
+    const toggleSelected = (id: string) => {
+        setBulkConfirmDelete(false);
+        setSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
+    const selectedItems = () => items.filter(i => selectedIds.has(i.id));
+    const clearSelection = () => { setSelectedIds(new Set()); setBulkConfirmDelete(false); setBulkCategoryPickerVisible(false); };
+    // Same as editing one by one: a new category is remembered for each payee
+    const bulkCategorize = (category: string) => {
+        for (const i of selectedItems()) {
+            if (i.type === 'transfer') continue;
+            void updateItem(i.id, { category, tags: [category] });
+            if (i.title) void learnMerchant(i.title, category, i.type);
+        }
+        clearSelection();
+    };
+    const bulkTransfer = () => {
+        for (const i of selectedItems()) {
+            if (i.type === 'income') continue;
+            void updateItem(i.id, { type: 'transfer', category: 'Self Transfer', tags: ['Self Transfer'], review: 'mine' });
+            if (i.title) void learnMerchant(i.title, 'Self Transfer', 'transfer');
+        }
+        clearSelection();
+    };
+    const bulkDelete = () => {
+        if (!bulkConfirmDelete) return setBulkConfirmDelete(true);
+        for (const id of selectedIds) void deleteItem(id);
+        clearSelection();
+    };
 
     const [startSplit, setStartSplit] = useState(false);
     const openAddSheet = () => {
@@ -487,15 +522,19 @@ export default function FinanceScreen() {
                                         return (
                                             <Pressable
                                                 key={item.id}
-                                                onPress={() => openEditSheet(item)}
+                                                // Long-press starts selecting several; while selecting, a tap adds or removes one
+                                                onPress={() => (selecting ? toggleSelected(item.id) : openEditSheet(item))}
+                                                onLongPress={() => toggleSelected(item.id)}
+                                                accessibilityState={{ selected: selectedIds.has(item.id) }}
                                                 style={({ pressed }) => [
                                                     styles.rowItem,
                                                     { opacity: pressed ? 0.7 : 1 },
+                                                    selectedIds.has(item.id) && { backgroundColor: c.accentSoft },
                                                     index !== items.length - 1 && { borderBottomWidth: 1, borderBottomColor: c.border },
                                                 ]}
                                             >
-                                                <View style={[styles.iconBox, { backgroundColor: tint.bg }]}>
-                                                    <Icon color={tint.fg} size={18} />
+                                                <View style={[styles.iconBox, { backgroundColor: selectedIds.has(item.id) ? c.accentFill : tint.bg }]}>
+                                                    {selectedIds.has(item.id) ? <Check color={c.onAccent} size={18} strokeWidth={3} /> : <Icon color={tint.fg} size={18} />}
                                                 </View>
                                                 <View style={{ flex: 1 }}>
                                                     <Text style={[Type.body, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>{item.title}</Text>
@@ -540,6 +579,32 @@ export default function FinanceScreen() {
                 categories={categoryBudgets(limits)}
                 onSave={saveBudgets}
             />
+            {selecting && (
+                <View style={[styles.bulkBar, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.raised]}>
+                    <Pressable accessibilityRole="button" accessibilityLabel="Stop selecting" onPress={clearSelection} hitSlop={8} style={styles.bulkIcon}>
+                        <X color={c.textSecondary} size={18} />
+                    </Pressable>
+                    <Text style={{ color: c.text, fontWeight: '700', flex: 1 }}>{selectedIds.size} selected</Text>
+                    <Pressable accessibilityRole="button" onPress={() => setBulkCategoryPickerVisible(true)} style={[styles.bulkBtn, { backgroundColor: c.accentSoft }]}>
+                        <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>Category</Text>
+                    </Pressable>
+                    <Pressable accessibilityRole="button" onPress={bulkTransfer} style={[styles.bulkBtn, { backgroundColor: c.backgroundMuted }]}>
+                        <Text style={{ color: c.text, fontWeight: '700', fontSize: 13 }}>Transfer</Text>
+                    </Pressable>
+                    <Pressable accessibilityRole="button" accessibilityLabel={bulkConfirmDelete ? `Tap again to delete ${selectedIds.size}` : 'Delete selected'} onPress={bulkDelete}
+                        style={[styles.bulkBtn, { backgroundColor: bulkConfirmDelete ? c.expense : c.expenseSoft }]}>
+                        <Text style={{ color: bulkConfirmDelete ? '#FFFFFF' : c.expense, fontWeight: '700', fontSize: 13 }}>{bulkConfirmDelete ? 'Delete?' : 'Delete'}</Text>
+                    </Pressable>
+                </View>
+            )}
+            <Modal visible={bulkCategoryPickerVisible} transparent animationType="fade" onRequestClose={() => setBulkCategoryPickerVisible(false)}>
+                <Pressable style={styles.bulkBackdrop} onPress={() => setBulkCategoryPickerVisible(false)}>
+                    <Pressable style={[styles.bulkSheet, { backgroundColor: c.background }]} onPress={() => {}}>
+                        <Text style={{ color: c.text, fontSize: 18, fontWeight: '800' }}>Category for {selectedIds.size} transaction{selectedIds.size === 1 ? '' : 's'}</Text>
+                        <CategoryPicker kind="expense" value="" onChange={bulkCategorize} />
+                    </Pressable>
+                </Pressable>
+            </Modal>
             <ReviewSheet
                 visible={reviewOpen}
                 flags={flags}
@@ -593,6 +658,11 @@ const styles = StyleSheet.create({
   alert: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 11, borderRadius: Radius.md, marginBottom: 10 },
   modeSwitch: { flexDirection: 'row', borderRadius: Radius.md, padding: 3, marginBottom: 12 },
   modeBtn: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: Radius.sm },
+  bulkBar: { position: 'absolute', left: 12, right: 12, bottom: 96, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderRadius: Radius.lg, borderWidth: 1 },
+  bulkIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  bulkBtn: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.pill },
+  bulkBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 },
+  bulkSheet: { borderRadius: Radius.xl, padding: 20, gap: 14, width: '100%', maxWidth: 480, alignSelf: 'center' },
   splitBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: Radius.md },
   empty: { padding: 32, alignItems: 'center', gap: 12, borderWidth: 1, borderStyle: 'dashed', borderRadius: Radius.lg },
 });

@@ -70,6 +70,8 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
         if (visible) {
             setCategoryTouched(!!item);
             setCardLast4(item?.cardLast4 || null);
+            // Keep the time the bank gave (editing must never wipe it)
+            setTime(item?.time || '');
             if (item) {
                 setType(kindForType(item.type));
                 setTitle(item.title || '');
@@ -121,7 +123,8 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
             amount: built?.split ? built.split.yourShare : finalAmount,
             category,
             date,
-            time,
+            // Only send a time when there is one: an empty value would erase the bank's time
+            ...(time ? { time } : {}),
             isRecurring,
             ...(isRecurring ? { recurringFrequency: 'monthly' } : {}),
             // Which credit card paid (kept as-is when the choice isn't shown)

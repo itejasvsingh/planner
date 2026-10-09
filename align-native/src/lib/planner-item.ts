@@ -75,14 +75,18 @@ export function itemDateKey(item: PlannerItem) {
 }
 
 export function itemTime(item: PlannerItem) {
-  let time = item.time || item.reminderTime || item.dueTime;
-  if (!time && (item.type === 'expense' || item.type === 'income' || item.type === 'transfer') && item.createdAt) {
-      try {
-          const d = new Date(item.createdAt);
-          time = d.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' });
-      } catch (e) {}
+  const time = item.time || item.reminderTime || item.dueTime;
+  if (time) return time;
+  // Older hand-added money items have no time: use when they were added. Firestore gives a Timestamp
+  // (or an ISO string offline); imported statement rows are skipped, as their add time isn't the payment time.
+  if ((item.type === 'expense' || item.type === 'income' || item.type === 'transfer') && item.createdAt && item.source !== 'statement' && !item.autoDetected) {
+    const c = item.createdAt as { toDate?: () => Date; seconds?: number } | string | number;
+    const d = typeof c === 'object' && c !== null
+      ? (typeof c.toDate === 'function' ? c.toDate() : typeof c.seconds === 'number' ? new Date(c.seconds * 1000) : null)
+      : new Date(c as string | number);
+    if (d && !Number.isNaN(d.getTime())) return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
-  return time || null;
+  return null;
 }
 
 export function isTaskForDate(item: PlannerItem, dateKey: string) {
