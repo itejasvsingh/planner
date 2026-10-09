@@ -8,9 +8,14 @@ const distDir = path.join(alignNativeDir, 'dist');
 const publicDir = path.join(rootDir, 'public');
 const webTargetDir = path.join(publicDir, '_web');
 
+// --sw-only: regenerate public/sw.js from the current public/index.html and stop (no export, no HTML changes)
+const SW_ONLY = process.argv.includes('--sw-only');
+
 console.log('--- Step 1: Exporting align-native for web ---');
 const hasAlignNodeModules = fs.existsSync(path.join(alignNativeDir, 'node_modules'));
-if (!process.env.VERCEL && hasAlignNodeModules) {
+if (SW_ONLY) {
+  console.log('Skipping export (--sw-only).');
+} else if (!process.env.VERCEL && hasAlignNodeModules) {
   try {
     execSync('EXPO_NO_TELEMETRY=1 npx expo export -p web', {
       cwd: alignNativeDir,
@@ -25,7 +30,7 @@ if (!process.env.VERCEL && hasAlignNodeModules) {
   console.log('Using pre-bundled align-native web artifacts.');
 }
 
-if (!fs.existsSync(distDir)) {
+if (!SW_ONLY && !fs.existsSync(distDir)) {
   if (!fs.existsSync(path.join(webTargetDir, 'index.html'))) {
     console.error('No web export found. Install align-native dependencies and run npm run export:web.');
     process.exit(1);
@@ -343,7 +348,7 @@ function copyHtmlFiles(dir, relativePath = '') {
     }
   }
 }
-copyHtmlFiles(distDir);
+if (!SW_ONLY) copyHtmlFiles(distDir);
 
 console.log('--- Step 4: Writing offline-capable service worker ---');
 // The app shell (HTML, the hashed JS/CSS bundles, icons) is cached so the web app and home-screen app open
@@ -384,16 +389,30 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
 
-  // Pages: latest from the network, saved copy when offline (any route falls back to the app shell).
+  // The home-screen app's update check ("/?_cb=…") always goes to the network and is never saved.
+  if (url.searchParams.has('_cb')) return;
+
+  // Pages: the latest from the network when it answers quickly; the saved copy when offline or when the
+  // network is slow (iPhones with no or weak signal can hang a request for a long time). Any route falls
+  // back to the app shell.
   if (req.mode === 'navigate') {
-    e.respondWith(
-      fetch(req)
-        .then((res) => {
-          if (res.ok) caches.open(CACHE).then((c) => c.put(req, res.clone()));
-          return res;
-        })
-        .catch(() => caches.match(req).then((hit) => hit || caches.match('/')))
-    );
+    const saved = () => caches.match(req, { ignoreSearch: true }).then((hit) => hit || caches.match('/'));
+    const net = fetch(req).then((res) => {
+      if (res.ok && !res.redirected) caches.open(CACHE).then((c) => c.put(req, res.clone()));
+      return res;
+    });
+    if (self.navigator && self.navigator.onLine === false) {
+      e.respondWith(saved().then((hit) => hit || net));
+      return;
+    }
+    e.respondWith(new Promise((resolve) => {
+      let done = false;
+      const finish = (res) => { if (!done && res) { done = true; resolve(res); } };
+      // Slow network: fall back to the saved copy after 3 s (the network answer still refreshes the cache)
+      const timer = setTimeout(() => saved().then((hit) => (hit ? finish(hit) : null)), 3000);
+      net.then((res) => { clearTimeout(timer); finish(res); })
+        .catch(() => { clearTimeout(timer); saved().then((hit) => finish(hit || Response.error())); });
+    }));
     return;
   }
 
@@ -422,6 +441,7 @@ self.addEventListener('fetch', (e) => {
 `;
 fs.writeFileSync(path.join(publicDir, 'sw.js'), swContent, 'utf8');
 console.log(`Service worker: build ${buildId}, ${precache.length} files precached`);
+if (SW_ONLY) { console.log('--- Done (--sw-only) ---'); process.exit(0); }
 
 console.log('--- Step 5: Export and sync complete! ---');
 
