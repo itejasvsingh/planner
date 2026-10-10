@@ -322,7 +322,7 @@ export default function AnalysisView({
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: c.text, fontWeight: '600', fontSize: 14 }} numberOfLines={1}>{t.title || 'Expense'}</Text>
                       <Text style={{ color: c.textTertiary, fontSize: 12, marginTop: 2 }}>
-                        {data.nameOf(t)} · {t.date ? short(new Date(`${t.date}T12:00:00`)) : ''}
+                        {data.nameOf(t)} · {t.date ? short(new Date(`${t.date}T12:00:00`)) : ''}{(t as any).cardLast4 ? ` · ${(t as any).cardLast4}` : ''}
                       </Text>
                     </View>
                     <Text style={{ color: c.text, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{money(amountOf(t))}</Text>

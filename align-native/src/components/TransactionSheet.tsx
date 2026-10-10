@@ -58,11 +58,20 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [cardLast4, setCardLast4] = useState<string | null>(null);
     const { phone } = usePhone();
     const cardData = useCards(phone);
-    // Your cards with known last digits (the one already on this transaction stays listed)
-    const cardChoices = (cardData?.cards || [])
-        .filter(k => k.last4 && (!k.hidden || k.last4 === item?.cardLast4))
-        .filter((k, i, all) => all.findIndex(x => x.last4 === k.last4) === i)
-        .map(k => ({ key: k.key, label: cardTitle(k), last4: k.last4 as string | null }));
+        // Payment methods: cards and accounts
+    const cardChoices = [
+        ...(cardData?.cards || []).filter(k => (!k.hidden || k.last4 === item?.cardLast4)),
+        ...(cardData?.accounts || []),
+    ]
+        .filter((k: any, i: number, all: any[]) => {
+            const id = k.last4 || k.issuerName || k.bankName || k.name;
+            return id && all.findIndex((x: any) => (x.last4 || x.issuerName || x.bankName || x.name) === id) === i;
+        })
+        .map((k: any) => ({
+            key: k.key || k.id,
+            label: k.last4 ? `${k.issuerName || k.bankName || k.name || 'Card'} ••${k.last4}` : (k.issuerName || k.bankName || k.name || 'Card'),
+            last4: k.last4 || k.issuerName || k.bankName || k.name || null,
+        }));
     const [splitDraft, setSplitDraft] = useState<SplitDraft>(emptyDraft);
 
 
@@ -222,7 +231,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                             <CategoryPicker kind={kindForType(type)} value={category} onChange={(v) => { setCategory(v); setCategoryTouched(true); }} />
                         </View>
 
-                        {/* Paid with a credit card: counts toward that card's outstanding */}
+                        {/* Paid with a card or account */}
                         {type === 'expense' && cardChoices.length > 0 && (
                             <View style={{ gap: 8 }}>
                                 <Text style={[Type.label, { color: c.textSecondary }]}>Paid with</Text>
