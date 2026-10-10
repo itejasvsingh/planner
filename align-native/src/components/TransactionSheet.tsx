@@ -56,6 +56,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [isRecurring, setIsRecurring] = useState(false);
     const [isSplit, setIsSplit] = useState(false);
     const [cardLast4, setCardLast4] = useState<string | null>(null);
+    const [disputed, setDisputed] = useState(false);
     const { phone } = usePhone();
     const cardData = useCards(phone);
         // Payment methods: cards and accounts
@@ -75,10 +76,14 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [splitDraft, setSplitDraft] = useState<SplitDraft>(emptyDraft);
 
 
+    const detectedSource = !!item?.autoDetected && (item.cardLast4 || item.accountLast4) ? String(item.cardLast4 || item.accountLast4) : null;
+    const detectedLabel = cardChoices.find(o => o.last4 === detectedSource || String(o.last4 || '').endsWith(detectedSource || '\0'))?.label || `••${detectedSource}`;
+
     useEffect(() => {
         if (visible) {
             setCategoryTouched(!!item);
             setCardLast4(item?.cardLast4 || null);
+            setDisputed(false);
             // Keep the time the bank gave (editing must never wipe it)
             setTime(item?.time || '');
             if (item) {
@@ -231,8 +236,20 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                             <CategoryPicker kind={kindForType(type)} value={category} onChange={(v) => { setCategory(v); setCategoryTouched(true); }} />
                         </View>
 
-                        {/* Paid with a card or account */}
-                        {type === 'expense' && cardChoices.length > 0 && (
+                        {/* Paid with: read off the bank alert; only editable if the user says it's wrong */}
+                        {type === 'expense' && detectedSource && !disputed && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[Type.label, { color: c.textSecondary }]}>Paid with</Text>
+                                    <Text style={{ color: c.text, fontSize: 15, fontWeight: '600' }}>{detectedLabel}</Text>
+                                    <Text style={[Type.caption, { color: c.textTertiary }]}>Detected from your bank alert</Text>
+                                </View>
+                                <Pressable accessibilityRole="button" accessibilityLabel="Change what this was paid with" hitSlop={8} onPress={() => setDisputed(true)}>
+                                    <Text style={{ color: c.accent, fontWeight: '700', fontSize: 14 }}>Wrong?</Text>
+                                </Pressable>
+                            </View>
+                        )}
+                        {type === 'expense' && cardChoices.length > 0 && !(detectedSource && !disputed) && (
                             <View style={{ gap: 8 }}>
                                 <Text style={[Type.label, { color: c.textSecondary }]}>Paid with</Text>
                                 <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>

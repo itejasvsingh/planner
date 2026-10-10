@@ -58,6 +58,7 @@ export type PlannerItem = {
   rolledOverFrom?: string;
   /** Last digits of the credit card it was paid with (alerts set it; "Paid with" in the form too). */
   cardLast4?: string | null;
+  accountLast4?: string | null;
   /** Your answer when Align flagged it as unusual: yours, or not (see lib/suspicious.ts). */
   review?: 'mine' | 'not_me' | null;
   bill?: { issuer: string; issuerName: string; last4: string | null; totalDue: number; minDue: number | null };
