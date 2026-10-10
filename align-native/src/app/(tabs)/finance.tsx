@@ -18,7 +18,7 @@ import ReviewSheet from '@/components/finance/ReviewSheet';
 import CategoryPicker from '@/components/CategoryPicker';
 import { findSuspicious } from '@/lib/suspicious';
 import { todayKey } from '@/lib/dates';
-import CardsAccounts, { FinancialHealthCard } from '@/components/finance/CardsAccounts';
+import CardsAccounts from '@/components/finance/CardsAccounts';
 import NinetyDayView from '@/components/finance/NinetyDayView';
 import { friendBalances, recentFriends, settleUpPatches, splitOf } from '@/lib/splits';
 
@@ -342,8 +342,7 @@ export default function FinanceScreen() {
                         </Pressable>
                     )}
                     <CycleStepper payday={payday} offset={offset} onChange={setOffset} />
-                    <FinancialHealthCard phone={phone} items={items} />
-                    {/* Budget / balance card */}
+                                        {/* Budget / balance card */}
                     <Pressable
                         accessibilityRole="button"
                         accessibilityLabel={budget ? 'Edit budget' : 'Set a monthly budget'}
