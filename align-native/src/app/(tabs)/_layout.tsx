@@ -3,6 +3,7 @@ import TaskRollover from '@/components/TaskRollover';
 import SuspiciousWatcher from '@/components/SuspiciousWatcher';
 import StatementWatcher from '@/components/StatementWatcher';
 import SyncPrompt from '@/components/SyncPrompt';
+import SideMenu from '@/components/SideMenu';
 import QuickAddBar from '@/components/QuickAddBar';
 import { Colors, TabBarHeight, tabBarBottomPadding } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -128,6 +129,7 @@ export default function TabsLayout() {
       <SuspiciousWatcher />
       <StatementWatcher />
       <SyncPrompt />
+      <SideMenu />
     </>
   );
 }

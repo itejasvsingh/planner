@@ -4,8 +4,8 @@ import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CloudOff, RefreshCw, UserRound } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
 import { usePhone } from '@/lib/phone-context';
+import { setSideMenuOpen } from '@/lib/side-menu-state';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Type } from '@/constants/theme';
 import { triggerHaptic } from '@/lib/haptics';
@@ -47,14 +47,13 @@ export function HeaderButton({
   );
 }
 
-/** Avatar button that opens the Settings screen. */
+/** Avatar button that opens the side menu. */
 function ProfileButton() {
   const c = useTheme();
-  const router = useRouter();
   const { firebaseUser } = usePhone();
   const initial = (firebaseUser?.displayName || firebaseUser?.email || '').trim().charAt(0).toUpperCase();
   return (
-    <HeaderButton label="Open settings" onPress={() => router.push('/settings')}>
+    <HeaderButton label="Open menu" onPress={() => setSideMenuOpen(true)}>
       {initial
         ? <Text style={{ color: c.text, fontSize: 16, fontWeight: '700' }}>{initial}</Text>
         : <UserRound color={c.text} size={19} />}
