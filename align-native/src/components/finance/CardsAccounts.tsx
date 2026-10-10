@@ -22,63 +22,6 @@ const when = (ms: number) => {
  * plus cards added by hand. Tap a card for its transactions and to edit it.
  */
 
-export function FinancialHealthCard({ phone, items = [] }: { phone: string | null; items?: any[] }) {
-  const c = useTheme();
-  const data = useCards(phone);
-  const baseCards = data?.cards || [];
-  const baseAccounts = data?.accounts || [];
-
-  const { cards, accounts, netWorth } = React.useMemo(() => {
-    const accs = baseAccounts.map(a => ({ ...a }));
-    const crds = baseCards.map(c => ({ ...c }));
-    let net = 0;
-    
-    items.forEach(item => {
-      if (!item.cardLast4 || !item.date) return;
-      let ts = 0;
-      try {
-        const d = new Date(item.date);
-        if (item.time) {
-          const m = /^(\d{2}):(\d{2})$/.exec(item.time);
-          if (m) d.setHours(Number(m[1]), Number(m[2]), 0, 0);
-        }
-        ts = d.getTime();
-      } catch { return; }
-      
-      const amt = Number(item.amount) || 0;
-      
-      const acc = accs.find((a: any) => (a.last4 || a.bankName || a.name) === item.cardLast4);
-      if (acc && ts > acc.at) {
-        if (item.type === 'expense') acc.balance -= amt;
-        if (item.type === 'income' || item.type === 'deposit') acc.balance += amt;
-      }
-      
-      const crd = crds.find((c: any) => (c.last4 || c.issuerName || c.name) === item.cardLast4);
-      if (crd && ts > crd.paidSince) {
-        if (item.type === 'expense') crd.outstanding = (crd.outstanding || 0) + amt;
-        if (item.type === 'income' || item.type === 'transfer' || item.type === 'deposit') crd.outstanding = Math.max(0, (crd.outstanding || 0) - amt);
-      }
-    });
-    
-    accs.forEach(a => net += a.balance);
-    crds.forEach(c => net -= (c.outstanding || 0));
-    
-    return { cards: crds, accounts: accs, netWorth: net };
-  }, [baseAccounts, baseCards, items]);
-
-  if (!accounts.length && !cards.length) return null;
-
-  return (
-    <View style={[styles.card, { backgroundColor: c.accentFill, borderColor: c.accentFill, marginBottom: 12, padding: 20, alignItems: 'center' }, Shadow.card]}>
-      <Text style={{ color: c.onAccent, fontSize: 13, fontWeight: '600', opacity: 0.9, letterSpacing: 0.5, textTransform: 'uppercase' }}>Financial Health</Text>
-      <Text style={{ color: c.onAccent, fontSize: 38, fontWeight: '800', marginTop: 8, fontVariant: ['tabular-nums'] }}>{inr(netWorth)}</Text>
-      <Text style={{ color: c.onAccent, fontSize: 13, opacity: 0.8, marginTop: 4 }}>
-        {inr(accounts.reduce((t, a) => t + a.balance, 0))} assets · {inr(cards.reduce((t, x) => t + (x.outstanding || 0), 0))} debt
-      </Text>
-    </View>
-  );
-}
-
 export default function CardsAccounts({ phone, items = [], onOpenSettings, onEditTransaction }: {
   phone: string | null;
   items?: any[];
@@ -181,7 +124,7 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
 
   return (
     <View>
-      <FinancialHealthCard phone={phone} items={items} />
+      
 
       <Text style={[styles.header, { color: c.textTertiary }]}>Credit cards & bills</Text>
       <View style={{ gap: 10 }}>
