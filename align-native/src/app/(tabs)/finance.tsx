@@ -8,6 +8,7 @@ import BudgetSheet from '@/components/BudgetSheet';
 import { MONTHLY_BUDGET_KEY, budgetStatus, categoryBudgets, summarizeBudget, type BudgetStatus } from '@/lib/budget';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems, useBudgetLimits } from '@/lib/use-planner-items';
+import { useCards } from '@/lib/cards-store';
 import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import TransactionSheet from '@/components/TransactionSheet';
@@ -81,9 +82,15 @@ export default function FinanceScreen() {
     const [refreshing, setRefreshing] = useState(false);
     if (refreshing && !loading) setRefreshing(false);
 
-    // Filter only finance items
-    
     const { budgetLimits: limits, saveBudgets } = useBudgetLimits(phone);
+    
+    const cardData = useCards(phone);
+    const cardNameMap = useMemo(() => {
+        const map = new Map<string, string>();
+        (cardData?.cards || []).forEach(c => c.last4 && map.set(c.last4, c.issuerName || c.issuer));
+        (cardData?.accounts || []).forEach(a => a.last4 && map.set(a.last4, a.bankName));
+        return map;
+    }, [cardData]);
     const { config: categoryConfig, learnMerchant } = useCategoryConfig();
     const [budgetOpen, setBudgetOpen] = useState(false);
     const [categoriesOpen, setCategoriesOpen] = useState(false);
@@ -284,7 +291,7 @@ export default function FinanceScreen() {
                     <View style={{ height: 12 }} />
 
                     {view === 'Cards' ? (
-                        <CardsAccounts phone={phone} onOpenSettings={() => router.push('/settings/gmail')} onEditTransaction={openEditSheet} />
+                        <CardsAccounts phone={phone} items={items} onOpenSettings={() => router.push('/settings/gmail')} onEditTransaction={openEditSheet} />
                     ) : view === 'Split' ? (
                         <>
                             <Pressable accessibilityRole="button" onPress={() => { setEditingItem(null); setStartSplit(true); setIsSheetVisible(true); }}
@@ -539,7 +546,7 @@ export default function FinanceScreen() {
                                                 <View style={{ flex: 1 }}>
                                                     <Text style={[Type.body, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>{item.title}</Text>
                                                     <Text style={[Type.caption, { color: c.textTertiary, marginTop: 2 }]} numberOfLines={1}>
-                                                        {[category.name, splitLabel(item), formatTime(item.time), item.autoDetected ? SOURCE_LABEL[item.source] || 'Auto' : ''].filter(Boolean).join(' · ')}
+                                                        {[category.name, splitLabel(item), item.cardLast4 ? (cardNameMap.get(item.cardLast4) || `••${item.cardLast4}`) : null, formatTime(item.time), item.autoDetected ? SOURCE_LABEL[item.source] || 'Auto' : ''].filter(Boolean).join(' · ')}
                                                     </Text>
                                                 </View>
                                                 <View style={{ alignItems: 'flex-end', gap: 3 }}>

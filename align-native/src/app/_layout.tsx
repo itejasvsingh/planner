@@ -13,6 +13,8 @@ import { PhoneProvider, usePhone } from '@/lib/phone-context';
 import LockScreen from '@/components/LockScreen';
 import { isSecurityEnabled } from '@/lib/auth';
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
 SplashScreen.preventAutoHideAsync();
 
 function RootNav() {
@@ -23,6 +25,7 @@ function RootNav() {
   
   const [securityReady, setSecurityReady] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
 
   useEffect(() => {
     isSecurityEnabled().then(enabled => {
@@ -32,26 +35,41 @@ function RootNav() {
   }, []);
 
   useEffect(() => {
-    if (!ready || !securityReady) return;
+    AsyncStorage.getItem('hasSeenOnboarding').then(val => {
+      setHasSeenOnboarding(val === 'true');
+    });
+  }, [segments]);
+
+  useEffect(() => {
+    if (!ready || !securityReady || hasSeenOnboarding === null) return;
     
     // Auth guard routing
     const inTabsGroup = segments[0] === '(tabs)';
     const inSettingsGroup = segments[0] === 'settings';
     
+    // First, handle onboarding flow
+    if (!hasSeenOnboarding && !phone) {
+      if ((segments as string[])[0] !== 'welcome' && (segments as string[])[0] !== 'onboarding') {
+        router.replace('/welcome' as any);
+      }
+      return;
+    }
+    
+    // Once onboarded, regular auth logic
     if (!phone && inTabsGroup) {
       router.replace('/login');
     } else if (phone && !inTabsGroup && !inSettingsGroup ) {
       router.replace('/(tabs)');
     }
-  }, [ready, securityReady, phone, segments]);
+  }, [ready, securityReady, phone, segments, hasSeenOnboarding]);
 
   useEffect(() => {
-    if (ready && securityReady) {
+    if (ready && securityReady && hasSeenOnboarding !== null) {
       void SplashScreen.hideAsync();
     }
-  }, [ready, securityReady]);
+  }, [ready, securityReady, hasSeenOnboarding]);
 
-  if (!ready || !securityReady) {
+  if (!ready || !securityReady || hasSeenOnboarding === null) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors[colorScheme].background }}>
         <ActivityIndicator color={Colors[colorScheme].accent} />

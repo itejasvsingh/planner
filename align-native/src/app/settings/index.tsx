@@ -27,13 +27,13 @@ function format12Hour(timeStr: string) {
 
 type Theme = ReturnType<typeof useTheme>;
 
-/** Rounded group of rows, iOS "inset grouped" style. */
+/** Flat group of rows matching the design. */
 function Group({ title, footer, children, c }: { title?: string; footer?: string; children: ReactNode; c: Theme }) {
   return (
     <View style={styles.groupWrap}>
-      {!!title && <Text style={[styles.groupTitle, { color: c.textTertiary }]}>{title}</Text>}
-      <View style={[styles.group, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>{children}</View>
-      {!!footer && <Text style={[styles.groupFooter, { color: c.textTertiary }]}>{footer}</Text>}
+      {!!title && <Text style={[styles.groupTitle, { color: c.textTertiary, marginLeft: 20 }]}>{title}</Text>}
+      <View style={[styles.group, { backgroundColor: c.background }]}>{children}</View>
+      {!!footer && <Text style={[styles.groupFooter, { color: c.textTertiary, marginLeft: 20 }]}>{footer}</Text>}
     </View>
   );
 }
@@ -56,7 +56,7 @@ function Row({
 }) {
   const content = (pressed: boolean) => (
     <View style={[styles.row, pressed && { backgroundColor: c.backgroundMuted }]}>
-      <View style={[styles.iconTile, { backgroundColor: tintColors(tint, c.isDark).bg }]}>{icon}</View>
+      <View style={{ marginLeft: 20, marginRight: 16 }}>{icon}</View>
       <View style={[styles.rowBody, !last && { borderBottomColor: c.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.rowLabel, { color: destructive ? c.red : c.text }]} numberOfLines={1}>{label}</Text>
@@ -191,25 +191,8 @@ export default function SettingsScreen() {
       contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
     >
-      <Group c={c}>
-        <View style={styles.profile}>
-          <View style={[styles.avatar, { backgroundColor: c.accentFill }]}>
-            {initial ? <Text style={[styles.avatarText, { color: c.onAccent }]}>{initial}</Text> : <Smartphone color={c.onAccent} size={24} />}
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.profileName, { color: c.text }]} numberOfLines={1}>{name}</Text>
-            <View style={styles.statusRow}>
-              <View style={[styles.statusDot, { backgroundColor: firebaseUser ? c.income : c.warning }]} />
-              <Text style={{ color: c.textSecondary, fontSize: 14 }} numberOfLines={1}>{accountLine}</Text>
-            </View>
-          </View>
-        </View>
-        {!firebaseUser && (
-          <Pressable accessibilityRole="button" onPress={signIn} style={({ pressed }) => [styles.googleRow, { borderTopColor: c.border }, pressed && { backgroundColor: c.backgroundMuted }]}>
-            <Text style={styles.googleG}>G</Text>
-            <Text style={[styles.rowLabel, { color: c.accent }]}>Sign in with Google</Text>
-          </Pressable>
-        )}
+      <Group c={c} title="Account">
+        <Row c={c} icon={<Smartphone color={c.textSecondary} size={20} />} label={name} subtitle={accountLine} onPress={() => {}} />
       </Group>
 
       <Group c={c} title="Preferences">

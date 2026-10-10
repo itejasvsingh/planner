@@ -133,22 +133,23 @@ export default function LoginScreen() {
   return (
     <View style={[styles.safe, { backgroundColor: theme.background, paddingTop: topPadding }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.center}>
-        <View style={[styles.logo, { backgroundColor: theme.accentFill }]}>
-          <Check size={36} color={theme.onAccent} strokeWidth={3.5} />
+        
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.text }]}>{linking ? 'One last step' : 'Welcome back!'}</Text>
+          <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
+            {linking
+              ? 'Verify your WhatsApp number to continue.'
+              : step === 'code' ? `Enter the code sent on WhatsApp to ${masked(phoneInput)}.` : 'Login to continue'}
+          </Text>
         </View>
 
-        <Text style={[styles.title, { color: theme.text }]}>{linking ? 'One last step' : 'align.'}</Text>
-
         {step === 'phone' ? (
-          <>
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              {linking
-                ? 'Verify your WhatsApp number to load your timeline and money. We\'ll send a code on WhatsApp.'
-                : 'Sign in with your WhatsApp number. We\'ll send you a 6-digit code on WhatsApp.'}
-            </Text>
+          <View style={styles.formContainer}>
             {linking && firebaseUser?.email ? (
               <Text style={[styles.accountBadge, { color: theme.textSecondary }]}>Signed in as {firebaseUser.email}</Text>
             ) : null}
+            
+            <Text style={[styles.inputLabel, { color: theme.text }]}>WhatsApp Number</Text>
             <TextInput
               accessibilityLabel="WhatsApp number"
               value={phoneInput}
@@ -161,12 +162,13 @@ export default function LoginScreen() {
               keyboardType="phone-pad"
               autoComplete="tel"
               autoFocus
-              textAlign="center"
-              onSubmitEditing={() => void requestCode()}
               style={inputStyle}
             />
             {error ? <Text style={[styles.error, { color: theme.red }]}>{error}</Text> : null}
-            <PrimaryButton theme={theme} label="Send code on WhatsApp" busy={busy} onPress={() => void requestCode()} />
+            
+            <View style={{ marginTop: 24 }}>
+              <PrimaryButton theme={theme} label="Login" busy={busy} onPress={() => void requestCode()} />
+            </View>
 
             {linking ? (
               <Pressable onPress={() => void logout()} style={styles.switchAccountBtn}>
@@ -176,7 +178,7 @@ export default function LoginScreen() {
               <>
                 <View style={styles.dividerRow}>
                   <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
-                  <Text style={[styles.dividerText, { color: theme.textSecondary }]}>OR</Text>
+                  <Text style={[styles.dividerText, { color: theme.textSecondary }]}>Or continue with</Text>
                   <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
                 </View>
                 <Pressable
@@ -191,17 +193,15 @@ export default function LoginScreen() {
                 >
                   <View style={styles.googleButtonContent}>
                     <Text style={styles.googleIconText}>G</Text>
-                    <Text style={[styles.googleButtonText, { color: theme.text }]}>Sign in with Google</Text>
+                    <Text style={[styles.googleButtonText, { color: theme.text }]}>Google</Text>
                   </View>
                 </Pressable>
               </>
             )}
-          </>
+          </View>
         ) : (
-          <>
-            <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-              Enter the code sent on WhatsApp to {masked(phoneInput)}.
-            </Text>
+          <View style={styles.formContainer}>
+            <Text style={[styles.inputLabel, { color: theme.text }]}>6-Digit Code</Text>
             <TextInput
               accessibilityLabel="Login code"
               value={code}
@@ -252,7 +252,7 @@ export default function LoginScreen() {
                 <Text style={[styles.switchAccountText, { color: theme.blue }]}>Change number</Text>
               </Pressable>
             </View>
-          </>
+          </View>
         )}
       </KeyboardAvoidingView>
     </View>
@@ -279,23 +279,32 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
     justifyContent: 'center',
-    alignItems: 'center',
+    paddingTop: 40,
   },
-  logo: {
-    width: 80,
-    height: 80,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
+  header: {
+    alignItems: 'flex-start',
+    width: '100%',
+    maxWidth: 340,
+    alignSelf: 'center',
+    marginBottom: 40,
   },
-  title: { fontSize: 36, fontWeight: '800', letterSpacing: -1.2, marginBottom: 8 },
+  formContainer: {
+    width: '100%',
+    maxWidth: 340,
+    alignSelf: 'center',
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    marginLeft: 4,
+  },
+  title: { fontSize: 32, fontWeight: '800', letterSpacing: -0.5, marginBottom: 8 },
   subtitle: {
     fontSize: 15,
     lineHeight: 22,
-    textAlign: 'center',
+    textAlign: 'left',
     maxWidth: 300,
-    marginBottom: 32,
   },
   accountBadge: {
     fontSize: 13,
