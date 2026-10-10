@@ -60,7 +60,7 @@ function Row({
       <View style={[styles.rowBody, !last && { borderBottomColor: c.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.rowLabel, { color: destructive ? c.red : c.text }]} numberOfLines={1}>{label}</Text>
-          {!!subtitle && <Text style={[styles.rowSubtitle, { color: c.textSecondary }]} numberOfLines={1}>{subtitle}</Text>}
+          {!!subtitle && <Text style={[styles.rowSubtitle, { color: c.textSecondary }]} numberOfLines={2}>{subtitle}</Text>}
         </View>
         {!!value && <Text style={[styles.rowValue, { color: c.textSecondary }]}>{value}</Text>}
         {trailing ?? (onPress && !destructive ? <ChevronRight color={c.textTertiary} size={18} /> : null)}

@@ -180,7 +180,7 @@ export default function AnalysisView({
         <View style={[styles.tile, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
           <Text style={[styles.tileLabel, { color: c.textSecondary }]}>Spent</Text>
           <Text style={[styles.tileValue, { color: c.text }]} numberOfLines={1} adjustsFontSizeToFit>{money(summary.spent)}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
             <ChangeBadge pct={spentPct} />
             <Text style={{ color: c.textTertiary, fontSize: 12 }}>{inProgress ? 'vs same days last cycle' : 'vs previous cycle'}</Text>
           </View>
@@ -188,7 +188,7 @@ export default function AnalysisView({
         <View style={[styles.tile, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
           <Text style={[styles.tileLabel, { color: c.textSecondary }]}>Income</Text>
           <Text style={[styles.tileValue, { color: c.text }]} numberOfLines={1} adjustsFontSizeToFit>{money(summary.income)}</Text>
-          <Text style={{ color: c.textTertiary, fontSize: 12 }}>{summary.expenseCount} expenses logged</Text>
+          <Text style={{ color: c.textTertiary, fontSize: 12 }}>Received this cycle</Text>
         </View>
         <View style={[styles.tile, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
           <Text style={[styles.tileLabel, { color: c.textSecondary }]}>{summary.net >= 0 ? 'Saved' : 'Overspent'}</Text>
