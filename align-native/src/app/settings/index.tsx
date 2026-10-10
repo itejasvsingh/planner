@@ -32,7 +32,7 @@ function Group({ title, footer, children, c }: { title?: string; footer?: string
   return (
     <View style={styles.groupWrap}>
       {!!title && <Text style={[styles.groupTitle, { color: c.textTertiary, marginLeft: 20 }]}>{title}</Text>}
-      <View style={[styles.group, { backgroundColor: c.background }]}>{children}</View>
+      <View style={[styles.group, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>{children}</View>
       {!!footer && <Text style={[styles.groupFooter, { color: c.textTertiary, marginLeft: 20 }]}>{footer}</Text>}
     </View>
   );
@@ -181,7 +181,7 @@ export default function SettingsScreen() {
 
   const maskedPhone = phone ? (phone.length > 10 ? `+${phone.slice(0, phone.length - 10)} ` : '') + `******${phone.slice(-4)}` : '';
   const name = firebaseUser?.displayName || firebaseUser?.email || maskedPhone || 'Personal Workspace';
-  const accountLine = firebaseUser?.email && maskedPhone ? maskedPhone : firebaseUser ? 'Google Account' : maskedPhone ? 'WhatsApp synced' : 'Guest';
+  const accountLine = firebaseUser?.email ? (maskedPhone || 'Google account') : maskedPhone ? 'Signed in with WhatsApp' : 'Guest';
   const initial = (firebaseUser?.displayName || firebaseUser?.email || '').trim().charAt(0).toUpperCase();
   const switchTrack = { false: c.backgroundMuted, true: c.income };
 
