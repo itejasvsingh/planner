@@ -182,23 +182,23 @@ export default function AnalysisView({
           <Text style={[styles.tileValue, { color: c.text }]} numberOfLines={1} adjustsFontSizeToFit>{money(summary.spent)}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             <ChangeBadge pct={spentPct} />
-            <Text style={{ color: c.textTertiary, fontSize: 11 }}>{inProgress ? 'vs same days last cycle' : 'vs previous cycle'}</Text>
+            <Text style={{ color: c.textTertiary, fontSize: 12 }}>{inProgress ? 'vs same days last cycle' : 'vs previous cycle'}</Text>
           </View>
         </View>
         <View style={[styles.tile, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
           <Text style={[styles.tileLabel, { color: c.textSecondary }]}>Income</Text>
           <Text style={[styles.tileValue, { color: c.text }]} numberOfLines={1} adjustsFontSizeToFit>{money(summary.income)}</Text>
-          <Text style={{ color: c.textTertiary, fontSize: 11 }}>{summary.expenseCount} expenses logged</Text>
+          <Text style={{ color: c.textTertiary, fontSize: 12 }}>{summary.expenseCount} expenses logged</Text>
         </View>
         <View style={[styles.tile, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
           <Text style={[styles.tileLabel, { color: c.textSecondary }]}>{summary.net >= 0 ? 'Saved' : 'Overspent'}</Text>
           <Text style={[styles.tileValue, { color: summary.net >= 0 ? c.text : c.expense }]} numberOfLines={1} adjustsFontSizeToFit>{money(Math.abs(summary.net))}</Text>
-          <Text style={{ color: c.textTertiary, fontSize: 11 }}>{summary.savingsRate === null ? 'No income this cycle' : `${Math.round(summary.savingsRate * 100)}% of income kept`}</Text>
+          <Text style={{ color: c.textTertiary, fontSize: 12 }}>{summary.savingsRate === null ? 'No income this cycle' : `${Math.round(summary.savingsRate * 100)}% of income kept`}</Text>
         </View>
         <View style={[styles.tile, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
           <Text style={[styles.tileLabel, { color: c.textSecondary }]}>Everyday spend</Text>
           <Text style={[styles.tileValue, { color: c.text }]} numberOfLines={1} adjustsFontSizeToFit>{money(Math.round(avgPerDay))}</Text>
-          <Text style={{ color: c.textTertiary, fontSize: 11 }}>
+          <Text style={{ color: c.textTertiary, fontSize: 12 }}>
             {inProgress && elapsed >= 3 && elapsed < cycle.days
               ? `Per day · on pace for ${money(data.pace.projected)}`
               : data.pace.recurring > 0 ? `Per day · bills ${money(data.pace.recurring)} extra` : `Per day over ${elapsed} ${elapsed === 1 ? 'day' : 'days'}`}
@@ -348,7 +348,7 @@ const styles = StyleSheet.create({
   chartReadout: { fontSize: 13, fontWeight: '600', marginBottom: 10, fontVariant: ['tabular-nums'] },
   avgLine: { position: 'absolute', left: 0, right: 0, borderTopWidth: 1, borderStyle: 'dashed' },
   baseline: { height: 1 },
-  tick: { position: 'absolute', width: 40, textAlign: 'center', fontSize: 10, fontVariant: ['tabular-nums'] },
+  tick: { position: 'absolute', width: 40, textAlign: 'center', fontSize: 11, fontVariant: ['tabular-nums'] },
   catIcon: { width: 32, height: 32, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
   track: { height: 6, borderRadius: Radius.pill, overflow: 'hidden' },
   badge: { flexDirection: 'row', alignItems: 'center', gap: 2 },

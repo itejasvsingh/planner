@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   weekLabel: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.4,
   },

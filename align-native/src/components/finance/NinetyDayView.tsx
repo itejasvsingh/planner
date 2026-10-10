@@ -26,7 +26,7 @@ export default function NinetyDayView({ items, config, onSelectCategory }: { ite
     <View style={[styles.tile, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
       <Text style={{ color: c.textSecondary, fontSize: 12, fontWeight: '600' }}>{label}</Text>
       <Text style={{ color: c.text, fontSize: 19, fontWeight: '800', fontVariant: ['tabular-nums'] }} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
-      {sub ? <Text style={{ color: c.textTertiary, fontSize: 11 }}>{sub}</Text> : null}
+      {sub ? <Text style={{ color: c.textTertiary, fontSize: 12 }}>{sub}</Text> : null}
     </View>
   );
 
@@ -97,7 +97,7 @@ export default function NinetyDayView({ items, config, onSelectCategory }: { ite
                   <View style={{ width: `${Math.round(cat.share * 100)}%`, height: '100%', backgroundColor: c.accentFill, borderRadius: Radius.pill }} />
                 </View>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                  <Text style={{ color: c.textTertiary, fontSize: 11 }}>{Math.round(cat.share * 100)}% · this month {inr(cat.last30)}</Text>
+                  <Text style={{ color: c.textTertiary, fontSize: 12 }}>{Math.round(cat.share * 100)}% · this month {inr(cat.last30)}</Text>
                   <ChangeBadge pct={cat.prev30 > 0 ? cat.changePct : cat.last30 > 0 ? null : 0} />
                 </View>
               </View>

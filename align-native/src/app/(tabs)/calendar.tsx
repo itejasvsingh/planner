@@ -224,7 +224,7 @@ const styles = StyleSheet.create({
   weekDayLabel: {
     width: '14.285714%',
     textAlign: 'center',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '700',
   },
   daysGrid: {

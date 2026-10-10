@@ -238,7 +238,7 @@ const styles = StyleSheet.create({
   heroTitle: { fontSize: 19, fontWeight: '700', textAlign: 'center' },
   body: { fontSize: 14, lineHeight: 20 },
   b: { fontWeight: '700' },
-  hint: { fontSize: 11, textAlign: 'center' },
+  hint: { fontSize: 12, textAlign: 'center' },
   card: { borderRadius: Radius.lg, borderWidth: StyleSheet.hairlineWidth, padding: 16, gap: 18 },
   step: { flexDirection: 'row', gap: 12 },
   stepNum: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },

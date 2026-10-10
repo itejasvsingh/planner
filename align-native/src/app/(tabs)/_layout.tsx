@@ -62,7 +62,7 @@ export default function TabsLayout() {
           tabBarShowLabel: true,
           tabBarLabelPosition: 'below-icon',
           tabBarLabelStyle: {
-            fontSize: 10,
+            fontSize: 11,
             marginTop: 2,
             lineHeight: 13,
           },

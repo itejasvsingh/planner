@@ -203,7 +203,7 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
                   <Text style={{ color: tone, fontSize: 13, fontWeight: '600', marginTop: 1 }}>{dueText(card)}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={{ color: c.textTertiary, fontSize: 11, fontWeight: '600' }}>Outstanding</Text>
+                  <Text style={{ color: c.textTertiary, fontSize: 12, fontWeight: '600' }}>Outstanding</Text>
                   <Text style={{ color: c.text, fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{inr(card.outstanding)}</Text>
                 </View>
                 <ChevronRight color={c.textTertiary} size={16} />
