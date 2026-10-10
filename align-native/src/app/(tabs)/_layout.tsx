@@ -8,7 +8,6 @@ import { Colors, TabBarHeight, tabBarBottomPadding } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
-import { triggerHaptic } from '@/lib/haptics';
 import { expandQuickAdd } from '@/lib/quick-add-state';
 import { flushPendingSms } from '@/lib/sms-import';
 import { startGmailAutoSync } from '@/lib/gmail-connect';
@@ -56,7 +55,7 @@ export default function TabsLayout() {
   return (
     <>
       <Tabs
-        screenListeners={{ tabPress: () => { triggerHaptic('light'); expandQuickAdd(); } }}
+        screenListeners={{ tabPress: () => expandQuickAdd() }}
         screenOptions={{
           headerShown: false,
           tabBarShowLabel: true,
@@ -105,8 +104,8 @@ export default function TabsLayout() {
           tabBarIcon: ({ focused }) => <TabIcon Icon={Calendar} focused={focused} /> 
         }} />
         <Tabs.Screen name="finance" options={{ 
-          title: 'Finance', 
-          tabBarLabel: 'Finance', 
+          title: 'Money', 
+          tabBarLabel: 'Money', 
           tabBarLabelStyle: { fontWeight: '600' },
           tabBarIcon: ({ focused }) => <TabIcon Icon={Wallet} focused={focused} /> 
         }} />

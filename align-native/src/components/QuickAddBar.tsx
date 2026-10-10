@@ -3,6 +3,7 @@ import { auth } from '@/lib/firebase';
 import { Mic, Sparkles, X } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { expandQuickAdd, useQuickAddCollapsed } from '@/lib/quick-add-state';
+import { usePathname } from 'expo-router';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, LayoutAnimation, Platform, StyleSheet, View } from 'react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
@@ -23,6 +24,7 @@ console.warn('Speech recognition explicitly disabled in this build to support Ex
 const API_BASE = Platform.OS === 'web' ? '' : process.env.EXPO_PUBLIC_API_URL;
 
 export default function QuickAddBar() {
+  const pathname = usePathname();
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { phone } = usePhone();
@@ -177,6 +179,9 @@ export default function QuickAddBar() {
   const bottomInset = Platform.OS === 'web' ? Math.max(insets.bottom, webSab) : insets.bottom;
   // Sit 8px above the tab bar (see (tabs)/_layout.tsx)
   const quickAddBottom = TabBarHeight + tabBarBottomPadding(bottomInset) + 8;
+
+  // Goals and Notes have their own + button
+  if (/^\/(goals|notes)/.test(pathname)) return null;
 
   return (
     <KeyboardAvoidingView 
