@@ -72,3 +72,8 @@
   code + PKCE verifier → custom token `google_<sub>`, then the number is linked with a WhatsApp code as usual.
 - Card bill reminders (`lib/cardBills.ts`) are opt-in: bills are stored server-only; Agenda tasks
   (`kind: 'card_bill'`, never auto-pushed) and WhatsApp summary lines exist only after the user says yes.
+- Android home-screen widget ("Align", `react-native-android-widget`, config in `align-native/app.json`): shows today's tasks and
+  the money left this cycle from a snapshot the app saves (`lib/widget-snapshot.ts`, pure; `components/WidgetSync.android.tsx`
+  refreshes it when data changes; `widget/task-handler.tsx` draws it). It is native code, so the first build is an APK to install
+  once (`android.yml` builds one when the native fingerprint changes). Web and iOS get a stub (`WidgetSync.tsx`). `main` is
+  `align-native/index` (`index.android.ts` registers the widget handler; `index.ts` is plain `expo-router/entry`).

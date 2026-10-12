@@ -66,7 +66,8 @@
         }
       ],
       "@react-native-community/datetimepicker",
-      "./plugins/with-no-release-lint"
+      "./plugins/with-no-release-lint",
+      ["react-native-android-widget", {"widgets": [{"name": "AlignToday", "label": "Align", "description": "Today's tasks and your money at a glance", "minWidth": "250dp", "minHeight": "110dp", "targetCellWidth": 4, "targetCellHeight": 2, "resizeMode": "horizontal|vertical", "updatePeriodMillis": 1800000}]}]
     ],
     "extra": {
       "router": {},
