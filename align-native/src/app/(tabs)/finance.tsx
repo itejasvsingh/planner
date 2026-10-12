@@ -383,18 +383,18 @@ export default function FinanceScreen() {
                         )}
 
                         <View style={styles.heroStats}>
-                            <View style={[styles.heroStat, { backgroundColor: c.incomeFill }]}>
-                                <View style={styles.heroStatIcon}><ArrowDownLeft color="#FFFFFF" size={16} strokeWidth={2.5} /></View>
+                            <View style={[styles.heroStat, { backgroundColor: c.backgroundElement }]}>
+                                <View style={[styles.heroStatIcon, { backgroundColor: c.incomeSoft }]}><ArrowDownLeft color={c.income} size={16} strokeWidth={2.5} /></View>
                                 <View>
-                                    <Text style={[styles.heroStatLabel, { color: '#FFFFFF' }]}>Income</Text>
-                                    <Text style={[styles.heroStatValue, { color: '#FFFFFF' }]}>{formatMoney(totalEarned)}</Text>
+                                    <Text style={[styles.heroStatLabel, { color: c.textSecondary }]}>Income</Text>
+                                    <Text style={[styles.heroStatValue, { color: c.text }]}>{formatMoney(totalEarned)}</Text>
                                 </View>
                             </View>
-                            <View style={[styles.heroStat, { backgroundColor: c.expenseFill }]}>
-                                <View style={styles.heroStatIcon}><ArrowUpRight color="#FFFFFF" size={16} strokeWidth={2.5} /></View>
+                            <View style={[styles.heroStat, { backgroundColor: c.backgroundElement }]}>
+                                <View style={[styles.heroStatIcon, { backgroundColor: c.expenseSoft }]}><ArrowUpRight color={c.expense} size={16} strokeWidth={2.5} /></View>
                                 <View>
-                                    <Text style={[styles.heroStatLabel, { color: '#FFFFFF' }]}>Spent</Text>
-                                    <Text style={[styles.heroStatValue, { color: '#FFFFFF' }]}>{formatMoney(totalSpent)}</Text>
+                                    <Text style={[styles.heroStatLabel, { color: c.textSecondary }]}>Spent</Text>
+                                    <Text style={[styles.heroStatValue, { color: c.text }]}>{formatMoney(totalSpent)}</Text>
                                 </View>
                             </View>
                         </View>
@@ -646,8 +646,8 @@ const styles = StyleSheet.create({
   heroNote: { fontSize: 12, fontWeight: '600', marginTop: 8, opacity: 0.7 },
   heroStats: { flexDirection: 'row', gap: 8, marginTop: 16 },
   heroStat: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: Radius.md },
-  heroStatIcon: { width: 32, height: 32, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.22)' },
-  heroStatLabel: { fontSize: 12, fontWeight: '600', opacity: 0.9 },
+  heroStatIcon: { width: 32, height: 32, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
+  heroStatLabel: { fontSize: 12, fontWeight: '600' },
   heroStatValue: { fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums'] },
   sectionHeader: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', marginTop: 20, marginBottom: 10 },
   dateHeader: { fontSize: 13, fontWeight: '600', marginBottom: 8, marginLeft: 2 },
