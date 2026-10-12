@@ -136,6 +136,7 @@ export default function AnalysisView({
   onSelectCategory: (name: string) => void;
 }) {
   const c = useTheme();
+  const [allInsights, setAllInsights] = useState(false);
 
   const data = useMemo(() => {
     const moneyItems = items.filter(isMoney);
@@ -175,35 +176,30 @@ export default function AnalysisView({
     <View style={{ gap: 4 }}>
       <CycleStepper payday={payday} offset={offset} onChange={onOffsetChange} />
 
-      {/* Summary tiles */}
-      <View style={styles.tiles}>
-        <View style={[styles.tile, styles.tileHero, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
-          <Text style={[styles.tileLabel, { color: c.textSecondary }]}>Spent</Text>
-          <Text style={[styles.tileValue, styles.tileValueHero, { color: c.text }]} numberOfLines={1} adjustsFontSizeToFit>{money(summary.spent)}</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
-            <ChangeBadge pct={spentPct} />
-            <Text style={{ color: c.textTertiary, fontSize: 12 }}>{inProgress ? 'vs same days last cycle' : 'vs previous cycle'}</Text>
+      {/* Headline: what you spent, how that compares, where it's heading */}
+      <View style={[styles.hero, { backgroundColor: c.heroFill, borderColor: c.border }]}>
+        <Text style={[styles.tileLabel, { color: c.onHero, opacity: 0.7 }]}>Spent this cycle</Text>
+        <Text style={[styles.heroValue, { color: c.onHero }]} numberOfLines={1} adjustsFontSizeToFit>{money(summary.spent)}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+          {prevSummary.spent > 0 && <ChangeBadge pct={spentPct} />}
+          <Text style={{ color: c.onHero, opacity: 0.7, fontSize: 13 }}>{prevSummary.spent > 0 ? (inProgress ? 'vs same days last cycle' : 'vs previous cycle') : 'Nothing earlier to compare with yet'}</Text>
+        </View>
+        {(() => { const p = inProgress && elapsed >= 3 && elapsed < cycle.days ? `On pace for ${money(data.pace.projected)} this cycle` : data.pace.recurring > 0 ? `Bills add ${money(data.pace.recurring)} more` : null; return p ? <Text style={{ color: c.onHero, opacity: 0.7, fontSize: 13 }}>{p}</Text> : null; })()}
+      </View>
+
+      {/* Income, saved, per day: one card, three columns */}
+      <View style={[styles.stats, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
+        {[
+          { label: 'Income', value: money(summary.income), sub: 'Received', color: c.text },
+          { label: summary.net >= 0 ? 'Saved' : 'Overspent', value: money(Math.abs(summary.net)), sub: summary.savingsRate === null ? 'No income yet' : `${Math.round(summary.savingsRate * 100)}% kept`, color: summary.net >= 0 ? c.income : c.expense },
+          { label: 'Per day', value: money(Math.round(avgPerDay)), sub: `over ${elapsed} ${elapsed === 1 ? 'day' : 'days'}`, color: c.text },
+        ].map((x, i) => (
+          <View key={x.label} style={[styles.stat, i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: c.border }]}>
+            <Text style={[styles.tileLabel, { color: c.textSecondary }]}>{x.label}</Text>
+            <Text style={[styles.statValue, { color: x.color }]} numberOfLines={1} adjustsFontSizeToFit>{x.value}</Text>
+            <Text style={{ color: c.textTertiary, fontSize: 12 }} numberOfLines={1}>{x.sub}</Text>
           </View>
-        </View>
-        <View style={[styles.tile, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
-          <Text style={[styles.tileLabel, { color: c.textSecondary }]}>Income</Text>
-          <Text style={[styles.tileValue, { color: c.text }]} numberOfLines={1} adjustsFontSizeToFit>{money(summary.income)}</Text>
-          <Text style={{ color: c.textTertiary, fontSize: 12 }}>Received this cycle</Text>
-        </View>
-        <View style={[styles.tile, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
-          <Text style={[styles.tileLabel, { color: c.textSecondary }]}>{summary.net >= 0 ? 'Saved' : 'Overspent'}</Text>
-          <Text style={[styles.tileValue, { color: summary.net >= 0 ? c.text : c.expense }]} numberOfLines={1} adjustsFontSizeToFit>{money(Math.abs(summary.net))}</Text>
-          <Text style={{ color: c.textTertiary, fontSize: 12 }}>{summary.savingsRate === null ? 'No income this cycle' : `${Math.round(summary.savingsRate * 100)}% of income kept`}</Text>
-        </View>
-        <View style={[styles.tile, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
-          <Text style={[styles.tileLabel, { color: c.textSecondary }]}>Everyday spend</Text>
-          <Text style={[styles.tileValue, { color: c.text }]} numberOfLines={1} adjustsFontSizeToFit>{money(Math.round(avgPerDay))}</Text>
-          <Text style={{ color: c.textTertiary, fontSize: 12 }}>
-            {inProgress && elapsed >= 3 && elapsed < cycle.days
-              ? `Per day · on pace for ${money(data.pace.projected)}`
-              : data.pace.recurring > 0 ? `Per day · bills ${money(data.pace.recurring)} extra` : `Per day over ${elapsed} ${elapsed === 1 ? 'day' : 'days'}`}
-          </Text>
-        </View>
+        ))}
       </View>
 
       {!hasData ? (
@@ -213,9 +209,9 @@ export default function AnalysisView({
       ) : (
         <>
           {insights.length > 0 && (
-            <Section title="Insights">
+            <Section title="Insights" right={insights.length > 3 ? <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setAllInsights(v => !v)}><Text style={{ color: c.accent, fontSize: 12, fontWeight: '700' }}>{allInsights ? 'Show less' : `Show all ${insights.length}`}</Text></Pressable> : undefined}>
               <View style={{ gap: 12 }}>
-                {insights.map((ins, i) => {
+                {(allInsights ? insights : insights.slice(0, 3)).map((ins, i) => {
                   const Icon = ins.tone === 'good' ? TrendingDown : ins.tone === 'bad' ? TrendingUp : Lightbulb;
                   const color = ins.tone === 'good' ? c.income : ins.tone === 'bad' ? c.expense : c.accent;
                   return (
@@ -268,7 +264,7 @@ export default function AnalysisView({
                         <Text style={{ color: c.textTertiary, fontSize: 12, flex: 1 }}>
                           {Math.round(cat.share * 100)}% · {cat.count} {cat.count === 1 ? 'expense' : 'expenses'} · avg {money(Math.round(cat.amount / cat.count))}
                         </Text>
-                        {ch && (ch.previous > 0 ? <ChangeBadge pct={ch.changePct} /> : <Text style={[styles.badgeText, { color: c.textTertiary }]}>New</Text>)}
+                        {ch && prevSummary.spent > 0 && (ch.previous > 0 ? <ChangeBadge pct={ch.changePct} /> : <Text style={[styles.badgeText, { color: c.textTertiary }]}>New</Text>)}
                       </View>
                     </View>
                   </Pressable>
@@ -277,7 +273,7 @@ export default function AnalysisView({
             </View>
           </Section>
 
-          <Section title="Last 6 cycles">
+          {trend.filter(t => t.spent > 0 || t.income > 0).length > 1 && <Section title="Last 6 cycles">
             <BarChart
               wide
               height={110}
@@ -290,7 +286,7 @@ export default function AnalysisView({
               }))}
             />
             <View style={[styles.table, { borderTopColor: c.border }]}>
-              {trend.slice(-3).reverse().map(t => (
+              {trend.slice(-3).reverse().filter(t => t.spent > 0 || t.income > 0).map(t => (
                 <View key={t.cycle.startKey} style={styles.tableRow}>
                   <Text style={{ color: c.textSecondary, fontSize: 13, flex: 1 }}>{t.cycle.start.toLocaleDateString('en-US', { month: 'long' })}</Text>
                   <Text style={{ color: c.text, fontSize: 13, fontVariant: ['tabular-nums'], width: 90, textAlign: 'right' }}>{compact(t.spent)} spent</Text>
@@ -298,7 +294,7 @@ export default function AnalysisView({
                 </View>
               ))}
             </View>
-          </Section>
+          </Section>}
 
           <Section title="By weekday">
             <BarChart
@@ -338,12 +334,12 @@ export default function AnalysisView({
 }
 
 const styles = StyleSheet.create({
-  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tile: { flexBasis: '47%', flexGrow: 1, borderWidth: 1, borderRadius: Radius.lg, padding: 14, gap: 4 },
-  tileHero: { flexBasis: '100%' },
-  tileValueHero: { fontSize: 34, letterSpacing: -0.5 },
+  hero: { borderWidth: 1, borderRadius: Radius.xl, padding: 20, gap: 6 },
+  heroValue: { fontSize: 40, fontWeight: '800', letterSpacing: -1, fontVariant: ['tabular-nums'] },
+  stats: { flexDirection: 'row', borderWidth: 1, borderRadius: Radius.lg, marginTop: 8 },
+  stat: { flex: 1, paddingVertical: 14, paddingHorizontal: 12, gap: 3 },
+  statValue: { fontSize: 18, fontWeight: '800', fontVariant: ['tabular-nums'] },
   tileLabel: { fontSize: 12, fontWeight: '600' },
-  tileValue: { fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 18, marginBottom: 8 },
   sectionHeader: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' },
   card: { borderWidth: 1, borderRadius: Radius.lg, padding: 16 },
