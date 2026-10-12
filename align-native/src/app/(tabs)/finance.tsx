@@ -32,7 +32,7 @@ import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 import { kindForType, resolveCategory, tintColors } from '@/lib/categories';
 import { useCategoryConfig } from '@/lib/use-category-config';
-import { amountOf, cycleRange, isMoney } from '@/lib/finance-analysis';
+import { amountOf, cycleRange, isCardPayment, isMoney } from '@/lib/finance-analysis';
 import SegmentedControl from '@/components/SegmentedControl';
 import CategoryManager from '@/components/CategoryManager';
 import AnalysisView from '@/components/finance/AnalysisView';
@@ -116,7 +116,7 @@ export default function FinanceScreen() {
     });
 
 
-    const expenses = financeItems.filter(i => i.type === 'expense');
+    const expenses = financeItems.filter(i => i.type === 'expense' && !isCardPayment(i));
     const incomes = financeItems.filter(i => i.type !== 'expense' && i.type !== 'transfer');
 
     const totalSpent = expenses.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);

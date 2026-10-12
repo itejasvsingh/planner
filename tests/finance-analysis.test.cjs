@@ -100,3 +100,10 @@ test('pace counts recurring bills once instead of spreading them over the days',
   assert.equal(p.recurring, 28000);
   assert.equal(p.projected, 28000 + 300 * 31);
 });
+
+test('paying a card bill is not spending, but spending on the card is', () => {
+  const rows = [exp('a', '2026-10-02', 500, 'Shopping'), exp('b', '2026-10-05', 5000, 'Card payment'), exp('c', '2026-10-06', 5000, 'Other', { title: 'HDFC Credit Card payment' }), exp('d', '2026-10-07', 200, 'Food', { title: 'Cardamom Cafe' })];
+  assert.equal(a.summarize(rows).spent, 700);
+  assert.equal(a.isMoney(rows[1]), true, 'still listed');
+  assert.equal(a.byCategory(rows, t => t.category).find(c => c.name === 'Card payment'), undefined);
+});

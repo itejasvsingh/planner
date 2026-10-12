@@ -60,9 +60,14 @@ export const amountOf = (t: Txn) => {
   const n = Number(t.amount);
   return Number.isFinite(n) ? n : 0;
 };
-export const isExpense = (t: Txn) => t.type === 'expense';
+/**
+ * Paying a credit card bill from your bank isn't spending: the card's own purchases already count. It stays in the
+ * transaction list but is left out of every total, like a transfer.
+ */
+export const isCardPayment = (t: Txn) => t.type === 'expense' && (/^card payment$/i.test(t.category || '') || /\b(?:credit\s*)?card\s*(?:bill|payment|autopay)\b|\bcc\s*payment\b/i.test(t.title || ''));
+export const isExpense = (t: Txn) => t.type === 'expense' && !isCardPayment(t);
 export const isIncome = (t: Txn) => t.type === 'income' || t.type === 'deposit';
-export const isMoney = (t: Txn) => isExpense(t) || isIncome(t) || t.type === 'transfer';
+export const isMoney = (t: Txn) => t.type === 'expense' || isIncome(t) || t.type === 'transfer';
 
 export function inRange(t: Txn, startKey: string, endKey: string): boolean {
   const d = t.date || '';

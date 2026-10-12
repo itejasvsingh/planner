@@ -177,9 +177,9 @@ export default function AnalysisView({
 
       {/* Summary tiles */}
       <View style={styles.tiles}>
-        <View style={[styles.tile, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
+        <View style={[styles.tile, styles.tileHero, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
           <Text style={[styles.tileLabel, { color: c.textSecondary }]}>Spent</Text>
-          <Text style={[styles.tileValue, { color: c.text }]} numberOfLines={1} adjustsFontSizeToFit>{money(summary.spent)}</Text>
+          <Text style={[styles.tileValue, styles.tileValueHero, { color: c.text }]} numberOfLines={1} adjustsFontSizeToFit>{money(summary.spent)}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
             <ChangeBadge pct={spentPct} />
             <Text style={{ color: c.textTertiary, fontSize: 12 }}>{inProgress ? 'vs same days last cycle' : 'vs previous cycle'}</Text>
@@ -340,6 +340,8 @@ export default function AnalysisView({
 const styles = StyleSheet.create({
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tile: { flexBasis: '47%', flexGrow: 1, borderWidth: 1, borderRadius: Radius.lg, padding: 14, gap: 4 },
+  tileHero: { flexBasis: '100%' },
+  tileValueHero: { fontSize: 34, letterSpacing: -0.5 },
   tileLabel: { fontSize: 12, fontWeight: '600' },
   tileValue: { fontSize: 22, fontWeight: '800', fontVariant: ['tabular-nums'] },
   sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 18, marginBottom: 8 },
