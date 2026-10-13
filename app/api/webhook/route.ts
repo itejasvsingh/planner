@@ -1326,7 +1326,7 @@ Extract every detected expense or reminder into the "items" array:
 - For a reminder/task:
   {
     "type": "task",
-    "title": "Concise title that says the PURPOSE: what it is plus its subject, max 70 characters (e.g., 'Submit CRM Case Study PPT on Moodle', 'Dentist appointment', 'Lecture: Product Strategy in Technology M&A (CLT Hall)'). Never paste the whole message.",
+    "title": "Concise title that says the PURPOSE: what it is plus its subject, and the venue in brackets when the message gives one, max 80 characters (e.g., 'Submit CRM Case Study PPT on Moodle', 'Dentist appointment', 'Lecture: Product Strategy in Technology M&A (CLT Hall)'). Never paste the whole message.",
     "dueDate": "YYYY-MM-DD", // A date written in the message always wins, including its year ('15th October, 2026' is '2026-10-15'); resolve relative dates like 'tomorrow', 'Monday', '07th September' relative to today (${today}, ${currentDayName}); only default to '${today}' when the message gives no date at all. Ignore phone numbers, email addresses, links and rules or warnings when picking the date and time.
     "dueTime": "HH:mm" | null, // 24-hour format e.g. '08:00', '16:30' or null if no time specified. Note: '08.00 hrs' is '08:00'. For an event this is when it STARTS.
     "reminderTime": "HH:mm" | null, // only if the message asks you to be there / mark attendance / report EARLIER than the start (e.g. 'attendance at 1:40 PM' for a 1:50 PM lecture gives '13:40'); otherwise null

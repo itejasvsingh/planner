@@ -28,7 +28,8 @@ test('forwarded lecture announcement: right day, start time, purpose and attenda
   assert.equal(a.dueDate, '2026-10-15');
   assert.equal(a.dueTime, '13:50');
   assert.equal(a.reminderTime, '13:40');
-  assert.equal(a.title, 'Lecture: Product Strategy in Technology M&A');
+  assert.equal(a.venue, 'CLT Hall');
+  assert.equal(a.title, 'Lecture: Product Strategy in Technology M&A (CLT Hall)');
 });
 
 test('day without a year that already passed means next year; month-first and plain messages', () => {

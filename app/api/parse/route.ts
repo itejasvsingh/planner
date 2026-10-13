@@ -130,7 +130,7 @@ export async function POST(req: Request) {
 
                 Parse the input into structured items (tasks, expenses, or income).
                 A date written in the input always wins, including its year ("15th October, 2026" is 2026-10-15); only use today's date when none is given.
-                For an event or announcement, make ONE task: the title says the purpose (what it is plus its subject, max 70 characters, never the whole message), dueTime is when it starts, and ignore phone numbers, emails, links and rules.
+                For an event or announcement, make ONE task: the title says the purpose (what it is plus its subject) and the venue in brackets when given, max 80 characters, never the whole message, dueTime is when it starts, and ignore phone numbers, emails, links and rules.
                 Return ONLY a JSON object:
                 {
                   "items": [

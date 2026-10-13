@@ -2,7 +2,7 @@
  * Plain-code reading of a forwarded announcement ("Date: 15th October, 2026 / Time: 1:50 PM / Topic: ..."), used when
  * the AI is unavailable so a long message still becomes one task with the right day, time and purpose.
  */
-export type Announcement = { title: string; dueDate: string | null; dueTime: string | null; reminderTime: string | null };
+export type Announcement = { title: string; venue: string | null; dueDate: string | null; dueTime: string | null; reminderTime: string | null };
 
 const MONTHS: Record<string, number> = {
   jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
@@ -56,18 +56,28 @@ function reminderIn(text: string, start: string | null): string | null {
 
 const strip = (s: string) => s.replace(/[*_~`]/g, '').replace(/\p{Extended_Pictographic}️?/gu, '').replace(/\s+/g, ' ').trim();
 
-function titleIn(text: string): string {
+/** "Venue: CLT Hall | https://maps...": just the place. */
+function venueIn(text: string): string | null {
+  const m = text.match(/^[^\S\n]*[^\w\n]*\**\s*(?:venue|location|place|where)\s*\**\s*[:\-–]\s*(.+)$/im);
+  const v = m ? strip(m[1].split('|')[0].replace(/https?:\/\/\S+/g, '')) : '';
+  return v ? v.slice(0, 40) : null;
+}
+
+function titleIn(text: string, venue: string | null): string {
   const topic = text.match(/^[^\S\n]*[^\w\n]*\**\s*(?:topic|subject|event|agenda|title)\s*\**\s*[:\-–]\s*(.+)$/im);
   const first = text.split('\n').map(strip).find(l => l.length > 2) || 'Event';
   const body = strip(topic ? topic[1] : first);
   const noun = text.match(/\b(lecture|webinar|seminar|workshop|meeting|exam|interview|session|class|viva|presentation)\b/i)?.[1];
   const label = noun && !new RegExp(noun, 'i').test(body) ? `${noun[0].toUpperCase()}${noun.slice(1).toLowerCase()}: ` : '';
-  const out = `${label}${body}`;
-  return out.length > 80 ? `${out.slice(0, 77).trimEnd()}…` : out;
+  const where = venue ? ` (${venue})` : '';
+  const room = 80 - where.length;
+  const head = `${label}${body}`;
+  return `${head.length > room ? `${head.slice(0, room - 1).trimEnd()}…` : head}${where}`;
 }
 
 export function parseAnnouncement(text: string, today: string): Announcement {
   const dueDate = dateIn(text, today);
   const dueTime = timeIn(text);
-  return { title: titleIn(text), dueDate, dueTime, reminderTime: reminderIn(text, dueTime) };
+  const venue = venueIn(text);
+  return { title: titleIn(text, venue), venue, dueDate, dueTime, reminderTime: reminderIn(text, dueTime) };
 }
