@@ -1,3 +1,4 @@
+import { parseAnnouncement } from '../../../lib/announcementParse';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse, after } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -370,6 +371,12 @@ async function generateWithGemini(
     contents: any,
     config?: { temperature?: number; maxOutputTokens?: number }
 ) {
+    // gemini-2.5 models spend output tokens on hidden thinking, which cut the JSON off; extraction needs none
+    const generationConfigFor = (modelName: string) => config ? ({
+        temperature: config.temperature ?? 0.1,
+        maxOutputTokens: config.maxOutputTokens ?? 150,
+        ...(modelName.startsWith('gemini-2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}),
+    } as any) : undefined;
     const candidateConfigs: { model: string; apiVersion?: string }[] = [
         { model: "gemini-2.5-flash" },
         { model: "gemini-2.0-flash" },
@@ -385,10 +392,7 @@ async function generateWithGemini(
             const model = genAI.getGenerativeModel(
                 { 
                     model: cachedWorkingConfig.model,
-                    generationConfig: config ? {
-                        temperature: config.temperature ?? 0.1,
-                        maxOutputTokens: config.maxOutputTokens ?? 150,
-                    } : undefined
+                    generationConfig: generationConfigFor(cachedWorkingConfig.model)
                 }, 
                 requestOptions
             );
@@ -406,10 +410,7 @@ async function generateWithGemini(
             const model = genAI.getGenerativeModel(
                 { 
                     model: item.model,
-                    generationConfig: config ? {
-                        temperature: config.temperature ?? 0.1,
-                        maxOutputTokens: config.maxOutputTokens ?? 150,
-                    } : undefined
+                    generationConfig: generationConfigFor(item.model)
                 }, 
                 requestOptions
             );
@@ -686,7 +687,7 @@ async function persistExtractedItems(
                     title: item.title,
                     dueDate: dueDate,
                     dueTime: dueTime,
-                    reminderTime: dueTime,
+                    reminderTime: normalizeTime(item.reminderTime) || dueTime,
                     endTime: null,
                     category: category,
                     tags: [category],
@@ -936,6 +937,14 @@ function parseHeuristically(text: string, today: string, now: Date) {
             intent: "QUERY",
             items: []
         };
+    }
+
+    // 2b. A long forwarded announcement with a date: one task with the right day, time and purpose
+    if (text.length > 80) {
+        const a = parseAnnouncement(text, today);
+        if (a.dueDate) {
+            return { intent: "INTAKE", items: [{ type: "task", title: a.title, dueDate: a.dueDate, dueTime: a.dueTime, reminderTime: a.reminderTime, category: "#Personal" }] };
+        }
     }
 
     // 3. Expense detection
@@ -1310,9 +1319,10 @@ Extract every detected expense or reminder into the "items" array:
 - For a reminder/task:
   {
     "type": "task",
-    "title": "Concise, actionable task/event title (e.g., 'Submit CRM Case Study PPT on Moodle', 'Dentist appointment', 'Call John')",
-    "dueDate": "YYYY-MM-DD", // Resolve relative dates like 'tomorrow', 'Monday', '07th September' relative to today (${today}, ${currentDayName}). Default to '${today}' if no date.
-    "dueTime": "HH:mm" | null, // 24-hour format e.g. '08:00', '16:30' or null if no time specified. Note: '08.00 hrs' is '08:00'.
+    "title": "Concise title that says the PURPOSE: what it is plus its subject, max 70 characters (e.g., 'Submit CRM Case Study PPT on Moodle', 'Dentist appointment', 'Lecture: Product Strategy in Technology M&A (CLT Hall)'). Never paste the whole message.",
+    "dueDate": "YYYY-MM-DD", // A date written in the message always wins, including its year ('15th October, 2026' is '2026-10-15'); resolve relative dates like 'tomorrow', 'Monday', '07th September' relative to today (${today}, ${currentDayName}); only default to '${today}' when the message gives no date at all. Ignore phone numbers, email addresses, links and rules or warnings when picking the date and time.
+    "dueTime": "HH:mm" | null, // 24-hour format e.g. '08:00', '16:30' or null if no time specified. Note: '08.00 hrs' is '08:00'. For an event this is when it STARTS.
+    "reminderTime": "HH:mm" | null, // only if the message asks you to be there / mark attendance / report EARLIER than the start (e.g. 'attendance at 1:40 PM' for a 1:50 PM lecture gives '13:40'); otherwise null
     "category": "#Academics" | "#Work" | "#Personal" | "#Health" | "#Bills" | "#Travel" | "#General"
   }
 
@@ -1334,7 +1344,7 @@ Format:
         let parsed: any = null;
         if (genAI) {
             try {
-                const result = await generateWithGemini(genAI, prompt, { temperature: 0.0, maxOutputTokens: 350 });
+                const result = await generateWithGemini(genAI, prompt, { temperature: 0.0, maxOutputTokens: 800 });
                 const responseText = result.response.text();
                 const match = responseText.match(/\{[\s\S]*\}/);
                 if (match) parsed = JSON.parse(match[0]);
