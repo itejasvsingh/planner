@@ -1,5 +1,6 @@
 import { parseAnnouncement } from '../../../lib/announcementParse';
 import { freshSession } from '../../../lib/botSession';
+import { sameTask } from '../../../lib/taskMatch';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse, after } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -699,14 +700,31 @@ async function persistExtractedItems(
                     createdAt: now.toISOString()
                 };
 
-                const docRef = db.collection('planner_items').doc();
-                savePromises.push(
-                    docRef.set(taskItem).then(() => {
-                        console.log(`✅ Saved reminder to Firebase: "${taskItem.title}" on ${dueDate} ${dueTime || ''}`);
-                    })
-                );
-                const dateFormatted = formatFriendlyDate(dueDate, dueTime);
-                confirmationLines.push(`⏰ Added reminder: *${taskItem.title}*\n📅 *${dateFormatted}*\n🏷️ ${category}`);
+                // The same thing sent again updates the open task already in the planner instead of adding a second
+                const onDay = await db.collection('planner_items').where('ownerId', '==', senderPhone).where('dueDate', '==', dueDate).get().catch(() => null);
+                const existing = onDay?.docs.find(d => {
+                    const x = d.data();
+                    return x.type === 'task' && !x.done && sameTask({ title: String(x.title || ''), dueDate: String(x.dueDate) }, { title: taskItem.title, dueDate });
+                });
+                let docRef;
+                if (existing) {
+                    docRef = existing.ref;
+                    const x = existing.data();
+                    const merged = { title: taskItem.title, dueTime: dueTime ?? x.dueTime ?? null, reminderTime: normalizeTime(item.reminderTime) || dueTime || x.reminderTime || null, updatedAt: now.toISOString() };
+                    savePromises.push(docRef.update(merged).then(() => {
+                        console.log(`🔄 Updated reminder in Firebase: "${merged.title}" on ${dueDate}`);
+                    }));
+                    Object.assign(taskItem, x, merged);
+                } else {
+                    docRef = db.collection('planner_items').doc();
+                    savePromises.push(
+                        docRef.set(taskItem).then(() => {
+                            console.log(`✅ Saved reminder to Firebase: "${taskItem.title}" on ${dueDate} ${dueTime || ''}`);
+                        })
+                    );
+                }
+                const dateFormatted = formatFriendlyDate(dueDate, taskItem.dueTime as string | null);
+                confirmationLines.push(`${existing ? '🔄 Updated reminder' : '⏰ Added reminder'}: *${taskItem.title}*\n📅 *${dateFormatted}*\n🏷️ ${category}`);
                 lastSavedDocId = docRef.id;
                 lastSavedItem = taskItem;
                 hasTask = true;
