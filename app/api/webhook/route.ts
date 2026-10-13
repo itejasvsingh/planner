@@ -1,4 +1,5 @@
 import { parseAnnouncement } from '../../../lib/announcementParse';
+import { freshSession } from '../../../lib/botSession';
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { NextResponse, after } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
@@ -1030,7 +1031,12 @@ const genAI = GEMINI_API_KEY ? new GoogleGenerativeAI(GEMINI_API_KEY) : null;
 const sessionRef = db.collection('user_sessions').doc(senderPhone);
         const sessionSnap = await sessionRef.get().catch((err) => { console.error('DB Error:', err); return null; });
 console.log('Session fetched:', !!sessionSnap);
-        const session = sessionSnap?.exists ? sessionSnap.data() : null;
+        let session = freshSession(sessionSnap?.exists ? sessionSnap.data() : null, Date.now());
+        // The item it last logged may have been deleted in the app since: then there's nothing to follow up on
+        if (session?.lastDocId) {
+            const last = await db.collection('planner_items').doc(String(session.lastDocId)).get().catch(() => null);
+            if (!last || !last.exists || last.data()?.type === 'deleted') session = { ...session, lastDocId: null, lastItem: undefined, lastBotMessage: undefined };
+        }
 
         const trimmedText = text.trim().toLowerCase();
 
@@ -1302,6 +1308,7 @@ DECISION STEP (Decide first what this message is):
    - EXPENSE: Money spent, paid, bought, or debited (past or current transaction).
    - REMINDER / TASK: A future task, deadline, appointment, meeting, flight, or to-do.
    - Note: If a message contains BOTH (e.g. "spent 200 on lunch and remind me to submit PPT on Monday 8am"), extract both into the items array!
+   - Never answer that something is "already set" or "already logged": the user may have deleted it. A message with an actionable item is always INTAKE.
    - CRITICAL: When the user forwards an announcement or assignment with a deadline, DO NOT ask if they want to add it. Immediately extract it as a task so it is added directly to their planner!
 2. "UPDATE_LAST": The user wants to adjust, reschedule, or correct the previous item (e.g., "actually make it 9am", "make it 500", "change date to tomorrow").
 3. "QUERY": The user is asking a question about their schedule, pending tasks, deadlines, reminders, expenses, budget, or financial summary.
