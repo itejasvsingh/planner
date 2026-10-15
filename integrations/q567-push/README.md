@@ -9,13 +9,13 @@ q567: a small job in the q567 project sends the data, and Align only accepts it 
 
 Redeploy. Until both exist, the feature stays off and invisible.
 
-## 2. In the q567 project: send it on a schedule
+## 2. In the q567 project: send it on a schedule (every 15 minutes; GitHub may run it a few minutes late)
 Copy `push.cjs` into the q567 repo (e.g. `scripts/push-to-align.cjs`) and add this workflow as `.github/workflows/push-to-align.yml`:
 
 ```yaml
 name: Push timetable to Align
 on:
-  schedule: [{ cron: '*/30 * * * *' }]
+  schedule: [{ cron: '*/15 * * * *' }]
   workflow_dispatch:
 jobs:
   push:

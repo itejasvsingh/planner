@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { auth } from '@/lib/firebase';
 import { getItem, setItem } from '@/lib/storage';
 import { usePhone } from '@/lib/phone-context';
 
 const API_BASE = Platform.OS === 'web' ? '' : process.env.EXPO_PUBLIC_API_URL || '';
 const CACHE_KEY = 'align_class_schedule';
+const REFRESH_MS = 10 * 60 * 1000;
 
 /** One class from your class timetable (see lib/q567.ts on the server). */
 export type ClassSlot = {
@@ -23,7 +24,8 @@ export type ClassSlot = {
 
 /**
  * Your class timetable, read-only: asked from Align's server (only the configured owner gets anything back) and
- * kept on the phone so it shows offline. `[]` when the feature is off.
+ * kept on the phone so it shows offline. `[]` when the feature is off. Refreshed when the app comes back to the
+ * front and every 10 minutes while it's open, so a cancelled class shows up without you doing anything.
  */
 export function useClassSchedule(): ClassSlot[] {
   const { phone } = usePhone();
@@ -36,7 +38,7 @@ export function useClassSchedule(): ClassSlot[] {
       if (!raw || !live) return;
       try { setClasses(JSON.parse(raw)); } catch { /* ignore a bad cache */ }
     });
-    void (async () => {
+    const refresh = async () => {
       try {
         const token = await auth.currentUser?.getIdToken();
         if (!token) return;
@@ -49,8 +51,11 @@ export function useClassSchedule(): ClassSlot[] {
       } catch {
         // offline: keep the cached timetable
       }
-    })();
-    return () => { live = false; };
+    };
+    void refresh();
+    const timer = setInterval(() => void refresh(), REFRESH_MS);
+    const sub = AppState.addEventListener('change', state => { if (state === 'active') void refresh(); });
+    return () => { live = false; clearInterval(timer); sub.remove(); };
   }, [phone]);
 
   return classes;
