@@ -72,3 +72,10 @@
   code + PKCE verifier → custom token `google_<sub>`, then the number is linked with a WhatsApp code as usual.
 - Card bill reminders (`lib/cardBills.ts`) are opt-in: bills are stored server-only; Agenda tasks
   (`kind: 'card_bill'`, never auto-pushed) and WhatsApp summary lines exist only after the user says yes.
+- Class timetable (q567 planner): pushed to Align, never read by it. A job in the q567 project posts the sheet's slots,
+  shared updates (names stripped), your elective codes and hidden sessions to `POST /api/q567/push` (bearer
+  `Q567_PUSH_SECRET`, owner number `Q567_OWNER_PHONE`; both unset = feature off). `lib/q567.ts` (pure, tested) builds the
+  classes; `sanitizeQ567Push` drops everything else, stored in server-only `q567_push`. `GET /api/q567/schedule` serves
+  only the owner; the app shows them read-only in Agenda/Calendar (`ClassesSection`), never as planner items (rollover,
+  the bot and the widget would mangle them). Setup and the q567-side job: `integrations/q567-push/README.md`. Never put
+  q567 student data (names, attendance) in this repo; per-term subjects live in `Q6_SUBJECTS`.

@@ -14,6 +14,7 @@ import { usePlannerItems } from '@/lib/use-planner-items';
 import ItemModal from '@/components/ItemModal';
 import TransactionSheet from '@/components/TransactionSheet';
 import TaskCard from '@/components/TaskCard';
+import ClassesSection from '@/components/ClassesSection';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 import SwipeAction from '@/components/SwipeAction';
 import { triggerHaptic } from '@/lib/haptics';
@@ -283,6 +284,8 @@ export default function DailyScreen() {
               {actionError || error}
             </Text>
           )}
+
+          <ClassesSection dateKey={dateKey} />
 
           {/* Tasks */}
           {loading && !items.length ? (
