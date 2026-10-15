@@ -13,6 +13,7 @@ import { type PlannerItem, isTaskForDate } from '@/lib/planner-item';
 
 import TaskCard from '@/components/TaskCard';
 import SwipeAction from '@/components/SwipeAction';
+import ClassesSection from '@/components/ClassesSection';
 import ItemModal from '@/components/ItemModal';
 import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
@@ -152,6 +153,7 @@ export default function CalendarScreen() {
             {selectedKey === today ? 'TODAY' : selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).toUpperCase()}
           </Text>
           
+          <ClassesSection dateKey={selectedKey} />
           {selectedDayItems.length === 0 ? (
             <View style={[styles.emptyAgenda, { borderColor: theme.border }]}>
               <Text style={{ color: theme.textSecondary }}>Nothing planned for this day.</Text>
