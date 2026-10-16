@@ -10,6 +10,9 @@ import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems, useBudgetLimits } from '@/lib/use-planner-items';
 import { useCards } from '@/lib/cards-store';
 import { adjustBalances } from '@/lib/account-balances';
+import { upcomingPayments } from '@/lib/upcoming';
+import { cardTitle } from '@/lib/card-format';
+import UpcomingPayments from '@/components/finance/UpcomingPayments';
 import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import TransactionSheet from '@/components/TransactionSheet';
@@ -87,9 +90,10 @@ export default function FinanceScreen() {
     
     const cardData = useCards(phone);
     // What's in your bank accounts now (same adjusted figure as Money → Cards); no trend, as balances aren't kept over time
-    const accountsInfo = useMemo(() => (cardData?.accounts?.length
-        ? { ...adjustBalances(cardData.accounts, cardData.cards || [], items), count: cardData.accounts.length, oldest: Math.min(...cardData.accounts.map(a => a.at)) }
-        : null), [cardData, items]);
+    const adjusted = useMemo(() => (cardData ? adjustBalances(cardData.accounts || [], cardData.cards || [], items) : null), [cardData, items]);
+    const accountsInfo = cardData?.accounts?.length && adjusted ? { ...adjusted, count: cardData.accounts.length, oldest: Math.min(...cardData.accounts.map(a => a.at)) } : null;
+    // Card dues use what's owed now; card reminder tasks aren't listed separately, so a card never shows twice
+    const upcoming = useMemo(() => upcomingPayments(items as any, (adjusted?.cards || []).map(k => ({ title: cardTitle(k), dueDate: k.dueDate, outstanding: k.outstanding, hidden: k.hidden, status: k.status })), new Date(), 14), [items, adjusted]);
     const cardNameMap = useMemo(() => {
         const map = new Map<string, string>();
         (cardData?.cards || []).forEach(c => c.last4 && map.set(c.last4, c.issuerName || c.issuer));
@@ -420,6 +424,8 @@ export default function FinanceScreen() {
                             <Text style={{ color: c.text, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{formatMoney(accountsInfo.totalBalance)}</Text>
                         </Pressable>
                     )}
+
+                    <UpcomingPayments rows={upcoming} />
 
                     {!budget && (
                         <Pressable
