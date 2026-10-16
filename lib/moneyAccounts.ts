@@ -205,6 +205,38 @@ export function cardReminderLines(cards: CardSummary[]): string[] {
     });
 }
 
+/**
+ * Things Align can't read from alerts that you still want in your net worth (a flat's value, a loan from a friend):
+ * money_accounts/<phone>/net_worth/<id>. Server-only like the rest.
+ */
+export type NetEntry = { id: string; name: string; kind: 'asset' | 'liability'; value: number; at: number };
+export const MAX_NET_ENTRIES = 50;
+
+export async function netEntries(phone: string): Promise<NetEntry[]> {
+  const snap = await root(phone).collection('net_worth').get();
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<NetEntry, 'id'>) })).sort((a, b) => a.at - b.at);
+}
+
+/** Adds (no id) or changes an entry; returns its id, or null when the list is full / the entry doesn't exist. */
+export async function saveNetEntry(phone: string, entry: { id?: string; name?: string; kind?: 'asset' | 'liability'; value?: number }, now = Date.now()): Promise<string | null> {
+  const col = root(phone).collection('net_worth');
+  if (entry.id) {
+    const { id, ...rest } = entry;
+    const ref = col.doc(id);
+    if (!(await ref.get()).exists) return null; // never creates a half-filled entry
+    await ref.set(rest, { merge: true });
+    return id;
+  }
+  if ((await col.count().get()).data().count >= MAX_NET_ENTRIES) return null;
+  const ref = col.doc();
+  await ref.set({ name: entry.name, kind: entry.kind, value: entry.value, at: now });
+  return ref.id;
+}
+
+export async function deleteNetEntry(phone: string, id: string) {
+  await root(phone).collection('net_worth').doc(id).delete();
+}
+
 export async function accountBalances(phone: string, now = Date.now()): Promise<AccountBalance[]> {
   const [snap, editSnap] = await Promise.all([root(phone).collection('accounts').get(), root(phone).collection('account_edits').get()]);
   const edits = new Map(editSnap.docs.map((d) => [d.id, d.data() as AccountEdit]));

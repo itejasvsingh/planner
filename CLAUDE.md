@@ -55,6 +55,9 @@
   line). `account_edits/<id>` (server-only) holds the user's `excluded` tick (left out of the bank total, in `adjustBalances` so
   Overview and Cards agree) and typed bank details (`ifsc`, `accountNumber`, `holder`, shown for copying; never log them).
   A card's optional `limit` is a `card_edits` field that stays across statements (statements don't give it).
+- Net worth (`align-native/src/lib/net-worth.ts`, Money → Overview): ticked bank balances + custom assets − card dues − custom
+  liabilities. Custom entries live in server-only `money_accounts/<phone>/net_worth/<id>` (max 50; `POST /api/money/networth`,
+  returned as `entries` by `GET /api/money/accounts`). Sharing finances with other people ("Spaces") is deliberately not built.
 - Transactions can be `bookmarked` and `excluded` ("leave out of cash flow": still listed, in no total: `isExpense`/`isIncome`
   in `finance-analysis.ts`, overview90, the WhatsApp daily summary). Account balances still count them (the money moved).
 

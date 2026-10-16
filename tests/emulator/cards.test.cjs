@@ -9,7 +9,7 @@ process.env.GCLOUD_PROJECT = 'demo-align';
 const jiti = require('jiti')(__filename);
 const { saveBill } = jiti(path.join(__dirname, '../../lib/cardBills.ts'));
 const { recordTransaction, istParts } = jiti(path.join(__dirname, '../../lib/recordTransaction.ts'));
-const { cardSummaries, accountBalances, recordCardPayment, saveBalance, saveCardEdit, saveAccountEdit } = jiti(path.join(__dirname, '../../lib/moneyAccounts.ts'));
+const { cardSummaries, accountBalances, recordCardPayment, saveBalance, saveCardEdit, saveAccountEdit, saveNetEntry, netEntries, deleteNetEntry } = jiti(path.join(__dirname, '../../lib/moneyAccounts.ts'));
 const { creditCardOf } = jiti(path.join(__dirname, '../../lib/accountParse.ts'));
 
 const DAY = 86400000;
@@ -111,4 +111,20 @@ test('a card limit stays across statements and is null until you enter one', asy
   await saveBill(P5, { totalDue: 4000, minDue: 200, dueDate: day(40), last4: '3333' }, 'cards@icicibank.com', Date.now());
   [card] = await cardSummaries(P5);
   assert.deepEqual([card.limit, card.totalDue], [150000, 4000]);
+});
+
+test('net worth entries: add, change, remove; a missing entry is not created by an edit', async () => {
+  const P6 = '919800000306';
+  const id = await saveNetEntry(P6, { name: 'Flat', kind: 'asset', value: 2500000 });
+  assert.ok(id);
+  await saveNetEntry(P6, { id, value: 2600000 });
+  let list = await netEntries(P6);
+  assert.deepEqual(list.map((e) => [e.name, e.kind, e.value]), [['Flat', 'asset', 2600000]]);
+  assert.equal(await saveNetEntry(P6, { id: 'nope', value: 1 }), null);
+  assert.equal((await netEntries(P6)).length, 1);
+  await deleteNetEntry(P6, id);
+  assert.deepEqual(await netEntries(P6), []);
+  // the list is capped
+  for (let i = 0; i < 50; i++) await saveNetEntry(P6, { name: `E${i}`, kind: 'liability', value: i });
+  assert.equal(await saveNetEntry(P6, { name: 'one too many', kind: 'asset', value: 1 }), null);
 });

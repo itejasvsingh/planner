@@ -10,7 +10,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { changeAccount, refreshCards, useCards } from '@/lib/cards-store';
 import BalanceTrend from './BalanceTrend';
 import { adjustBalances, recentForAccount } from '@/lib/account-balances';
-import { cardNumbers, cardTitle, detailsText, dueText, inr, nextStatement, shortDay } from '@/lib/card-format';
+import { cardNumbers, cardStrip, cardTitle, detailsText, dueText, inr, nextStatement, shortDay } from '@/lib/card-format';
 import type { CardSummary } from '@/lib/gmail-connect';
 import CardSheet from './CardSheet';
 
@@ -103,6 +103,34 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
       
 
       <Text style={[styles.header, { color: c.textTertiary }]}>Credit cards & bills</Text>
+      {shown.length > 0 && (
+        <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border, padding: 0, marginBottom: 12, overflow: 'hidden' }, Shadow.card]}>
+          {shown.map((card, i) => {
+            const strip = cardStrip(card);
+            const bg = strip?.tone === 'overdue' ? c.expenseSoft : c.backgroundMuted;
+            return (
+              <Pressable key={card.key} accessibilityRole="button" accessibilityLabel={`${cardTitle(card)}: outstanding ${inr(card.outstanding)}${strip ? `. ${strip.text}` : ''}`}
+                onPress={() => setOpen(card)} style={{ borderTopWidth: i ? 1 : 0, borderTopColor: c.border, padding: 12, gap: 8 }}>
+                <View style={styles.row}>
+                  <View style={[styles.icon, { backgroundColor: c.accentSoft }]}><CreditCard color={c.accent} size={16} /></View>
+                  <Text style={{ color: c.text, fontWeight: '700', fontSize: 15, flex: 1 }} numberOfLines={1}>{cardTitle(card)}</Text>
+                  <Text style={{ color: c.text, fontWeight: '800', fontSize: 15, fontVariant: ['tabular-nums'] }}>{inr(card.outstanding)}</Text>
+                </View>
+                {strip && (
+                  <View style={[styles.strip, { backgroundColor: bg }]}>
+                    {strip.tone === 'overdue' && <AlertTriangle color={c.expense} size={14} />}
+                    <Text style={{ color: strip.tone === 'overdue' ? c.expense : c.textSecondary, fontSize: 12, fontWeight: '600', flex: 1 }}>{strip.text}</Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
+          <View style={[styles.row, { padding: 12, justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: c.border }]}>
+            <Text style={{ color: c.textSecondary, fontWeight: '700', fontSize: 13 }}>Total owed</Text>
+            <Text style={{ color: c.text, fontWeight: '800', fontSize: 16, fontVariant: ['tabular-nums'] }}>{inr(shown.reduce((t, k) => t + (k.hidden ? 0 : k.outstanding), 0))}</Text>
+          </View>
+        </View>
+      )}
       <View style={{ gap: 10 }}>
         {shown.map(card => {
           const tone = card.status === 'overdue' ? c.expense : card.status === 'paid' ? c.income : card.daysLeft !== null && card.daysLeft <= 3 ? c.expense : c.textSecondary;
@@ -300,5 +328,6 @@ const styles = StyleSheet.create({
   add: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Radius.md, borderWidth: 1, borderStyle: 'dashed' },
   check: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   input: { borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
+  strip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 7, borderRadius: Radius.sm },
   icon: { width: 34, height: 34, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
 });

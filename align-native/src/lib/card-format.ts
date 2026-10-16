@@ -44,3 +44,18 @@ export function cardNumbers(card: Pick<CardSummary, 'outstanding' | 'spentSince'
   const limit = card.limit && card.limit > 0 ? card.limit : null;
   return { limit, billed, unbilled, outstanding, left: limit === null ? null : Math.max(0, limit - outstanding) };
 }
+
+/**
+ * The one-line strip under a card in the list: red when the due date has passed, grey with the date while it's coming,
+ * "Awaiting statement" when there's nothing yet. None once it's paid.
+ */
+export function cardStrip(card: Pick<CardSummary, 'status' | 'daysLeft' | 'dueDate' | 'outstanding' | 'hidden'>): { tone: 'overdue' | 'due' | 'awaiting'; text: string } | null {
+  if (card.hidden || card.status === 'paid') return null;
+  if (!card.dueDate || card.daysLeft === null) return { tone: 'awaiting', text: card.outstanding > 0 ? `Awaiting statement · about ${inr(card.outstanding)} so far` : 'Awaiting statement' };
+  const amount = inr(card.outstanding);
+  if (card.status === 'overdue') {
+    const n = -card.daysLeft;
+    return { tone: 'overdue', text: `${amount} due ${n === 0 ? 'today' : `${n} day${n === 1 ? '' : 's'} ago`}` };
+  }
+  return { tone: 'due', text: `${amount} due ${card.daysLeft === 0 ? 'today' : `on ${shortDay(card.dueDate)}`}` };
+}

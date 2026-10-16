@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requestUser } from '../../../../lib/requestUser';
 import { db } from '../../../../lib/firebase';
 import { bankNameById } from '../../../../lib/bankSenders';
-import { accountBalances, cardSummaries, saveAccountEdit, type AccountEdit } from '../../../../lib/moneyAccounts';
+import { accountBalances, cardSummaries, netEntries, saveAccountEdit, type AccountEdit } from '../../../../lib/moneyAccounts';
 import { statementLine, type StatementState } from '../../../../lib/statementAuto';
 
 export const dynamic = 'force-dynamic';
@@ -14,9 +14,10 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: Request) {
   const user = await requestUser(req);
   if (!user) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
-  const [cards, accounts, link] = await Promise.all([
+  const [cards, accounts, entries, link] = await Promise.all([
     cardSummaries(user.phone),
     accountBalances(user.phone),
+    netEntries(user.phone),
     db.collection('gmail_links').doc(user.phone).get().then((s) => s.data()),
   ]);
   const status = (link?.statementStatus || {}) as Record<string, StatementState>;
@@ -42,7 +43,7 @@ export async function GET(req: Request) {
       };
     })
     .sort((a, b) => b.at - a.at);
-  return NextResponse.json({ cards, accounts, checks });
+  return NextResponse.json({ cards, accounts, checks, entries });
 }
 
 const text = (v: unknown, re: RegExp, upper = false) => {

@@ -14,6 +14,7 @@ import { upcomingPayments } from '@/lib/upcoming';
 import { cardTitle } from '@/lib/card-format';
 import UpcomingPayments from '@/components/finance/UpcomingPayments';
 import BalanceOverview from '@/components/finance/BalanceOverview';
+import NetWorthCard from '@/components/finance/NetWorthCard';
 import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import TransactionSheet from '@/components/TransactionSheet';
@@ -460,6 +461,10 @@ export default function FinanceScreen() {
                             onOpen={() => setView('Cards')}
                         />
                     )}
+
+                    {cardData && (adjusted?.accounts.length || adjusted?.cards.length || cardData.entries?.length) ? (
+                        <NetWorthCard phone={phone} accounts={adjusted?.accounts || []} cards={adjusted?.cards || []} entries={cardData.entries} />
+                    ) : null}
 
                     <UpcomingPayments rows={upcoming} />
 

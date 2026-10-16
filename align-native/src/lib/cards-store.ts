@@ -1,13 +1,13 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { whenSignedIn } from '@/lib/firebase';
 import { getItem, setItem } from '@/lib/storage';
-import { editAccount, moneyAccounts, type AccountEdit, type AccountBalance, type CardSummary, type StatementCheck } from '@/lib/gmail-connect';
+import { addNetEntry, editAccount, editNetEntry, moneyAccounts, removeNetEntry, type AccountEdit, type AccountBalance, type NetEntry, type CardSummary, type StatementCheck } from '@/lib/gmail-connect';
 
 /**
  * Cards and bank balances, shared by Money → Cards, the card page and the transaction form's "Paid with".
  * Shows the last known list at once (saved on the device) and refreshes from the server when asked.
  */
-export type MoneyAccounts = { cards: CardSummary[]; accounts: AccountBalance[]; checks?: StatementCheck[] };
+export type MoneyAccounts = { cards: CardSummary[]; accounts: AccountBalance[]; checks?: StatementCheck[]; entries?: NetEntry[] };
 
 let data: MoneyAccounts | null = null;
 let owner: string | null = null;
@@ -66,4 +66,16 @@ export async function changeAccount(phone: string | null, id: string, edit: Acco
     set(phone, before);
     throw e;
   }
+}
+
+/** Adds, changes or removes a net worth entry, then shows the saved list. Throws the server's message if it refuses. */
+export async function changeEntry(
+  phone: string | null,
+  op: { add: { name: string; kind: 'asset' | 'liability'; value: number } } | { id: string; edit: Partial<{ name: string; kind: 'asset' | 'liability'; value: number }> } | { remove: string },
+): Promise<void> {
+  if (!phone) return;
+  if ('add' in op) await addNetEntry(op.add);
+  else if ('remove' in op) await removeNetEntry(op.remove);
+  else await editNetEntry(op.id, op.edit);
+  await refreshCards(phone);
 }

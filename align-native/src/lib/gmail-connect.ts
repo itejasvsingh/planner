@@ -97,7 +97,12 @@ export type StatementCheck = {
   rows: number; added: number; checked: boolean; extras: { title: string; amount: number; date: string }[]; at: number;
   state?: 'ok' | 'needs_password' | 'wrong_password' | 'unreadable'; msgId?: string | null; foundAt?: number | null; line?: string;
 };
-export const moneyAccounts = () => call<{ cards: CardSummary[]; accounts: AccountBalance[]; checks?: StatementCheck[] }>('/api/money/accounts');
+export type NetEntry = { id: string; name: string; kind: 'asset' | 'liability'; value: number; at?: number };
+export const moneyAccounts = () => call<{ cards: CardSummary[]; accounts: AccountBalance[]; checks?: StatementCheck[]; entries?: NetEntry[] }>('/api/money/accounts');
+/** Things you add to your net worth by hand (a flat, a loan from a friend). */
+export const addNetEntry = (e: { name: string; kind: 'asset' | 'liability'; value: number }) => call<{ ok: true; id: string }>('/api/money/networth', { method: 'POST', body: JSON.stringify({ add: e }) });
+export const editNetEntry = (id: string, edit: Partial<{ name: string; kind: 'asset' | 'liability'; value: number }>) => call<{ ok: true }>('/api/money/networth', { method: 'POST', body: JSON.stringify({ id, edit }) });
+export const removeNetEntry = (id: string) => call<{ ok: true }>('/api/money/networth', { method: 'POST', body: JSON.stringify({ remove: id }) });
 
 export type StatementKind = 'account' | 'card';
 /** Statements found in Gmail for one bank and kind (bank account / credit card). */
