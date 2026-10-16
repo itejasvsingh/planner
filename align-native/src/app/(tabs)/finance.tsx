@@ -2,17 +2,16 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Platform, Share, View, ScrollView, StyleSheet, RefreshControl, type TextInput as RNTextInput } from 'react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
-import { ArrowDownLeft, ArrowUpRight, Bookmark, Check, Download, FileUp, Landmark, Plus, Search, ShieldAlert, Tags, Target, Users, Wallet, X } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, Bookmark, CalendarClock, Check, Download, FileUp, Plus, Search, ShieldAlert, SlidersHorizontal, Tags, Users, Wallet, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import BudgetSheet from '@/components/BudgetSheet';
-import { MONTHLY_BUDGET_KEY, budgetStatus, categoryBudgets, summarizeBudget, type BudgetStatus } from '@/lib/budget';
+import { MONTHLY_BUDGET_KEY, categoryBudgets, summarizeBudget } from '@/lib/budget';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems, useBudgetLimits } from '@/lib/use-planner-items';
 import { useCards } from '@/lib/cards-store';
 import { adjustBalances } from '@/lib/account-balances';
-import { upcomingPayments } from '@/lib/upcoming';
+import { dueLabel, upcomingPayments } from '@/lib/upcoming';
 import { cardTitle } from '@/lib/card-format';
-import UpcomingPayments from '@/components/finance/UpcomingPayments';
 import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import TransactionSheet from '@/components/TransactionSheet';
@@ -102,7 +101,6 @@ export default function FinanceScreen() {
     const { config: categoryConfig, learnMerchant } = useCategoryConfig();
     const [budgetOpen, setBudgetOpen] = useState(false);
     const [categoriesOpen, setCategoriesOpen] = useState(false);
-    const [allCategories, setAllCategories] = useState(false);
     const [moreFilters, setMoreFilters] = useState(false);
     type MoneyView = 'Overview' | 'Analysis' | 'Cards' | 'Split';
     const [view, setView] = useState<MoneyView>('Overview');
@@ -151,22 +149,6 @@ export default function FinanceScreen() {
     const totalSpent = expenses.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
     const totalEarned = incomes.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
-    const categoryTotals = useMemo(() => {
-        const totals: Record<string, number> = {};
-        expenses.forEach(e => {
-            const cat = nameOf(e);
-            totals[cat] = (totals[cat] || 0) + (Number(e.amount) || 0);
-        });
-        const limitsByCat = categoryBudgets(limits);
-        for (const name of Object.keys(limitsByCat)) totals[name] = totals[name] || 0;
-        return Object.entries(totals)
-            .map(([name, amount]) => { const cat = resolveCategory(name, 'expense', categoryConfig); return { name, amount, limit: limitsByCat[name] || 0, icon: cat.icon, tint: cat.tint }; })
-            // budgeted categories first (most used first), then the biggest unbudgeted ones
-            .sort((a, b) => (b.limit ? 1 : 0) - (a.limit ? 1 : 0) || (b.limit ? b.amount / b.limit - a.amount / a.limit : b.amount - a.amount))
-            .filter((cat, i) => cat.limit > 0 || i < 6);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [expenses, limits, categoryConfig]);
-
     const balance = totalEarned - totalSpent;
     const monthlyBudget = Number(limits?.[MONTHLY_BUDGET_KEY]) || 0;
     const budget = monthlyBudget > 0 ? summarizeBudget(monthlyBudget, totalSpent, cycleEnd) : null;
@@ -207,6 +189,8 @@ export default function FinanceScreen() {
     // Counts on the "Untagged" and "No merchant" chips (this cycle)
     const untaggedCount = financeItems.filter(i => matchesFlags(i, ['untagged'])).length;
     const noMerchantCount = financeItems.filter(i => matchesFlags(i, ['nomerchant'])).length;
+    const activeFilterCount = (typeFilter !== 'all' ? 1 : 0) + flagFilters.size;
+    const filtersShown = moreFilters || activeFilterCount > 0;
     const exportCsv = async () => {
         const csv = toCsv([...listItems].sort((a, b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`)), nameOf);
         if (Platform.OS === 'web') {
@@ -243,7 +227,6 @@ export default function FinanceScreen() {
         return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]));
     }, [listItems]);
 
-    const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [editingItem, setEditingItem] = useState<any>(null);
     const [isSheetVisible, setIsSheetVisible] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -395,12 +378,8 @@ export default function FinanceScreen() {
                     )}
                     <CycleStepper plain payday={payday} offset={offset} onChange={setOffset} />
                                         {/* Budget / balance card */}
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={budget ? 'Edit budget' : 'Set a monthly budget'}
-                        onPress={() => setBudgetOpen(true)}
-                        style={[styles.hero, { backgroundColor: budget?.status === 'over' ? c.expense : c.heroFill }, Shadow.raised]}
-                    >
+                    <View style={[styles.hero, { backgroundColor: budget?.status === 'over' ? c.expense : c.heroFill }, Shadow.raised]}>
+                    <Pressable accessibilityRole="button" accessibilityLabel={budget ? 'Edit budget' : 'Set a monthly budget'} onPress={() => setBudgetOpen(true)}>
                         {budget ? (
                             <>
                                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -429,7 +408,7 @@ export default function FinanceScreen() {
                                     <View style={{ width: `${Math.round(spentShare * 100)}%`, height: '100%', backgroundColor: c.heroBar, borderRadius: Radius.pill }} />
                                 </View>
                                 <Text style={[styles.heroNote, { color: c.onHero }]}>
-                                    {totalEarned > 0 ? `${Math.round(spentShare * 100)}% of income spent` : `No income logged ${inProgress ? 'this cycle' : 'in this period'}`}
+                                    {(totalEarned > 0 ? `${Math.round(spentShare * 100)}% of income spent` : `No income logged ${inProgress ? 'this cycle' : 'in this period'}`) + ' · tap to set a budget'}
                                 </Text>
                             </>
                         )}
@@ -445,74 +424,22 @@ export default function FinanceScreen() {
                             </View>
                         </View>
                     </Pressable>
-
-                    <UpcomingPayments rows={upcoming} />
-
-                    {!budget && (
-                        <Pressable accessibilityRole="button" onPress={() => setBudgetOpen(true)} hitSlop={8} style={{ alignSelf: 'center', paddingVertical: 10 }}>
-                            <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>Set a monthly budget</Text>
-                        </Pressable>
-                    )}
-
-                    {/* Spending by category */}
-                    {categoryTotals.length > 0 && (
-                        <>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                                <Text style={[styles.sectionHeader, { color: c.textTertiary }]}>Where it went</Text>
-                                <View style={{ flexDirection: 'row', gap: 16 }}>
-                                    <Pressable accessibilityRole="button" onPress={() => setCategoriesOpen(true)} hitSlop={8}>
-                                        <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Edit categories</Text>
-                                    </Pressable>
-                                    <Pressable accessibilityRole="button" onPress={() => setBudgetOpen(true)} hitSlop={8}>
-                                        <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Limits</Text>
-                                    </Pressable>
-                                </View>
-                            </View>
-                            <View style={[styles.group, { backgroundColor: c.backgroundElement, borderColor: c.border, padding: 16, gap: 16 }, Shadow.card]}>
-                                {(allCategories ? categoryTotals : categoryTotals.slice(0, 4)).map(cat => {
-                                    const Icon = cat.icon;
-                                    const tint = tintColors(cat.tint, theme.isDark);
-                                    const share = cat.limit ? cat.amount / cat.limit : cat.amount / Math.max(totalSpent, 1);
-                                    const status: BudgetStatus | null = cat.limit ? budgetStatus(share) : null;
-                                    const barColor = status === 'over' ? c.expense : status === 'warning' ? c.warning : tint.fg;
-                                    return (
-                                        <Pressable key={cat.name} accessibilityRole="button" accessibilityLabel={`Show ${cat.name} transactions`} onPress={() => { setCategoryFilter(cat.name); setTypeFilter('expense'); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                            <View style={[styles.catIcon, { backgroundColor: tint.bg }]}>
-                                                <Icon color={tint.fg} size={16} />
-                                            </View>
-                                            <View style={{ flex: 1 }}>
-                                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 7 }}>
-                                                    <Text style={[Type.label, { color: c.text, fontWeight: '600' }]}>{cat.name}</Text>
-                                                    <Text style={[Type.label, { color: status === 'over' ? c.expense : c.textSecondary, fontVariant: ['tabular-nums'] }]}>
-                                                        {cat.limit
-                                                            ? `${formatMoney(cat.amount)} of ${formatMoney(cat.limit)}`
-                                                            : `${formatMoney(cat.amount)} · ${Math.round(share * 100)}%`}
-                                                    </Text>
-                                                </View>
-                                                <View style={[styles.catTrack, { backgroundColor: c.backgroundMuted }]}>
-                                                    <View style={{ width: `${Math.min(100, share * 100)}%`, height: '100%', backgroundColor: barColor, borderRadius: Radius.pill }} />
-                                                </View>
-                                            </View>
-                                        </Pressable>
-                                    );
-                                })}
-                                {categoryTotals.length > 4 && (
-                                    <Pressable accessibilityRole="button" onPress={() => setAllCategories(!allCategories)} hitSlop={8} style={{ alignSelf: 'center' }}>
-                                        <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>{allCategories ? 'Show fewer' : `Show all ${categoryTotals.length}`}</Text>
-                                    </Pressable>
-                                )}
-                            </View>
-                        </>
-                    )}
+                        {upcoming.length > 0 && (
+                            <Pressable accessibilityRole="button" accessibilityLabel="Next payment due. Open cards" onPress={() => setView('Cards')} style={[styles.heroNext, { borderTopColor: c.onHeroOverlay }]}>
+                                <CalendarClock color={c.onHero} size={15} />
+                                <Text style={[styles.heroLineText, { color: c.onHero, flex: 1, fontWeight: '600' }]} numberOfLines={1}>
+                                    {upcoming[0].title}{upcoming[0].amount > 0 ? ` ${formatMoney(upcoming[0].amount)}` : ''} · {dueLabel(upcoming[0].date)}{upcoming.length > 1 ? ` · +${upcoming.length - 1} more` : ''}
+                                </Text>
+                            </Pressable>
+                        )}
+                    </View>
 
                     {/* Transactions */}
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
                         <Text style={[styles.sectionHeader, { color: c.textTertiary }]}>{searching ? 'All-time results' : inProgress ? 'Transactions this cycle' : `Transactions · ${periodName}`}</Text>
-                        {categoryTotals.length === 0 && (
-                            <Pressable accessibilityRole="button" onPress={() => setCategoriesOpen(true)} hitSlop={8}>
-                                <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Edit categories</Text>
-                            </Pressable>
-                        )}
+                        <Pressable accessibilityRole="button" onPress={() => setCategoriesOpen(true)} hitSlop={8}>
+                            <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Categories</Text>
+                        </Pressable>
                     </View>
 
                     <View style={[styles.search, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
@@ -532,51 +459,49 @@ export default function FinanceScreen() {
                                 <X color={c.textTertiary} size={16} />
                             </Pressable>
                         )}
+                        <Pressable accessibilityRole="button" accessibilityLabel="Filters" accessibilityState={{ expanded: filtersShown }} hitSlop={8} onPress={() => setMoreFilters(!moreFilters)}>
+                            <SlidersHorizontal color={activeFilterCount > 0 ? c.accent : c.textTertiary} size={18} />
+                            {activeFilterCount > 0 && <View style={[styles.filterDot, { backgroundColor: c.accent }]} />}
+                        </Pressable>
                     </View>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
-                        {TYPE_FILTERS.map(f => {
-                            const active = typeFilter === f.key;
-                            return (
-                                <Pressable key={f.key} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => setTypeFilter(f.key)}
-                                    style={[styles.filterChip, active ? { backgroundColor: c.accentFill, borderColor: c.accentFill } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
-                                    <Text style={{ color: active ? c.onAccent : c.text, fontWeight: '600', fontSize: 12 }}>{f.label}</Text>
-                                </Pressable>
-                            );
-                        })}
-                        <Pressable accessibilityRole="button" accessibilityState={{ expanded: moreFilters || flagFilters.size > 0 }} onPress={() => setMoreFilters(!moreFilters)}
-                            style={[styles.filterChip, flagFilters.size > 0 ? { backgroundColor: c.accentSoft, borderColor: c.accentSoft } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
-                            <Text style={{ color: flagFilters.size > 0 ? c.accent : c.text, fontWeight: '600', fontSize: 12 }}>Filters{flagFilters.size > 0 ? ` · ${flagFilters.size}` : ''}</Text>
-                        </Pressable>
-                        {categoryFilter && (
-                            <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${categoryFilter} filter`} onPress={() => setCategoryFilter(null)}
-                                style={[styles.filterChip, { backgroundColor: c.accentSoft, borderColor: c.accentSoft, flexDirection: 'row', gap: 6 }]}>
-                                <Tags color={c.accent} size={14} />
-                                <Text style={{ color: c.accent, fontWeight: '700', fontSize: 12 }}>{categoryFilter}</Text>
-                                <X color={c.accent} size={14} />
-                            </Pressable>
-                        )}
-                        <Pressable accessibilityRole="button" accessibilityLabel="Export the listed transactions as CSV" onPress={() => void exportCsv()}
-                            style={[styles.filterChip, { backgroundColor: c.backgroundElement, borderColor: c.border, flexDirection: 'row', gap: 5 }]}>
-                            <Download color={c.text} size={13} />
-                        </Pressable>
-                    </ScrollView>
-                    {(moreFilters || flagFilters.size > 0) && (
+                    {filtersShown && (
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+                            {TYPE_FILTERS.map(f => {
+                                const active = typeFilter === f.key;
+                                return (
+                                    <Pressable key={f.key} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => setTypeFilter(f.key)}
+                                        style={[styles.filterChip, active ? { backgroundColor: c.accentFill, borderColor: c.accentFill } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+                                        <Text style={{ color: active ? c.onAccent : c.text, fontWeight: '600', fontSize: 12 }}>{f.label}</Text>
+                                    </Pressable>
+                                );
+                            })}
                             {([
-                            ['bookmarked', 'Bookmarked', 0],
-                            ['excluded', 'Left out', 0],
-                            ['untagged', 'Untagged', untaggedCount],
-                            ['nomerchant', 'No merchant', noMerchantCount],
-                        ] as [FlagFilter, string, number][]).map(([key, label, n]) => {
-                            const active = flagFilters.has(key);
-                            return (
-                                <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => toggleFlag(key)}
-                                    style={[styles.filterChip, active ? { backgroundColor: c.accentFill, borderColor: c.accentFill } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
-                                    <Text style={{ color: active ? c.onAccent : c.text, fontWeight: '600', fontSize: 12 }}>{label}{n > 0 ? ` · ${n}` : ''}</Text>
-                                </Pressable>
-                            );
-                        })}
+                                ['bookmarked', 'Bookmarked', 0],
+                                ['excluded', 'Left out', 0],
+                                ['untagged', 'Untagged', untaggedCount],
+                                ['nomerchant', 'No merchant', noMerchantCount],
+                            ] as [FlagFilter, string, number][]).map(([key, label, n]) => {
+                                const active = flagFilters.has(key);
+                                return (
+                                    <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => toggleFlag(key)}
+                                        style={[styles.filterChip, active ? { backgroundColor: c.accentFill, borderColor: c.accentFill } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+                                        <Text style={{ color: active ? c.onAccent : c.text, fontWeight: '600', fontSize: 12 }}>{label}{n > 0 ? ` · ${n}` : ''}</Text>
+                                    </Pressable>
+                                );
+                            })}
+                            <Pressable accessibilityRole="button" accessibilityLabel="Export the listed transactions as CSV" onPress={() => void exportCsv()}
+                                style={[styles.filterChip, { backgroundColor: c.backgroundElement, borderColor: c.border, flexDirection: 'row', gap: 5 }]}>
+                                <Download color={c.text} size={13} />
+                            </Pressable>
                         </ScrollView>
+                    )}
+                    {categoryFilter && (
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${categoryFilter} filter`} onPress={() => setCategoryFilter(null)}
+                            style={[styles.filterChip, { backgroundColor: c.accentSoft, borderColor: c.accentSoft, flexDirection: 'row', gap: 6, alignSelf: 'flex-start', marginBottom: 10 }]}>
+                            <Tags color={c.accent} size={14} />
+                            <Text style={{ color: c.accent, fontWeight: '700', fontSize: 12 }}>{categoryFilter}</Text>
+                            <X color={c.accent} size={14} />
+                        </Pressable>
                     )}
                     {filtering && (
                         <Text style={{ color: c.textSecondary, fontSize: 13, marginBottom: 10 }}>
@@ -637,7 +562,7 @@ export default function FinanceScreen() {
                                                     ) : (
                                                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                                                             <Pressable
-                                                                accessibilityRole="button"
+                                                                accessibilityRole="menuitem"
                                                                 accessibilityLabel={`Rename ${item.title}`}
                                                                 disabled={selecting}
                                                                 onPress={() => { setRenameText(item.title || ''); setRenamingId(item.id); }}
@@ -646,7 +571,7 @@ export default function FinanceScreen() {
                                                                 <Text style={[Type.body, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>{item.title}</Text>
                                                             </Pressable>
                                                             {item.bookmarked && (
-                                                                <Pressable accessibilityRole="button" accessibilityLabel="Remove bookmark" hitSlop={8} onPress={() => void updateItem(item.id, { bookmarked: false })}>
+                                                                <Pressable accessibilityRole="menuitem" accessibilityLabel="Remove bookmark" hitSlop={8} onPress={() => void updateItem(item.id, { bookmarked: false })}>
                                                                     <Bookmark color={c.accent} fill={c.accent} size={14} />
                                                                 </Pressable>
                                                             )}
@@ -751,6 +676,8 @@ const styles = StyleSheet.create({
   heroAmount: { fontSize: 42, fontWeight: '800', letterSpacing: -1, marginTop: 4, fontVariant: ['tabular-nums'] },
   heroTrack: { height: 6, borderRadius: Radius.pill, overflow: 'hidden', marginTop: 16 },
   heroNote: { fontSize: 12, fontWeight: '600', marginTop: 8, opacity: 0.7 },
+  heroNext: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, paddingTop: 12, borderTopWidth: 1 },
+  filterDot: { position: 'absolute', top: -2, right: -2, width: 7, height: 7, borderRadius: 4 },
   heroLine: { flexDirection: 'row', gap: 18, marginTop: 14 },
   heroLineItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   heroLineText: { fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },

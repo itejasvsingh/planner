@@ -60,3 +60,12 @@ export function upcomingPayments(items: RecurringParent[], cards: CardDue[], now
   }
   return out.sort((a, b) => a.date.localeCompare(b.date) || b.amount - a.amount);
 }
+
+/** "Today", "Tomorrow", or "Tue 20 Oct" for a YYYY-MM-DD key. */
+export function dueLabel(key: string, now: Date = new Date()): string {
+  const [y, m, d] = key.split('-').map(Number);
+  const days = Math.round((new Date(y, m - 1, d).getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 86_400_000);
+  if (days === 0) return 'Today';
+  if (days === 1) return 'Tomorrow';
+  return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
