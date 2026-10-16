@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db, FieldValue } from '../../../lib/firebase';
 import { consumeRateLimit } from '../../../lib/rateLimit';
 import { merchantRules, ruleFor } from '../../../lib/merchantRules';
 import { requestUser } from '../../../lib/requestUser';
-import { buildParsePrompt, PARSE_GENERATION_CONFIG, PARSE_MODELS } from '../../../lib/parsePrompt';
+import { buildParsePrompt } from '../../../lib/parsePrompt';
+import { generateJson } from '../../../lib/ai';
 
 export const dynamic = 'force-dynamic';
 
@@ -119,34 +119,11 @@ export async function POST(req: Request) {
 
         let parsedItems: any[] = [];
 
-        // 1. Try Gemini AI if API key is provided
-        const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || process.env.GOOGLE_GENAI_API_KEY;
-        if (apiKey) {
-            try {
-                const genAI = new GoogleGenerativeAI(apiKey);
-                const prompt = buildParsePrompt(text, today);
-
-                const candidateModels = PARSE_MODELS;
-                for (const modelName of candidateModels) {
-                    try {
-                        const model = genAI.getGenerativeModel({
-                            model: modelName,
-                            generationConfig: PARSE_GENERATION_CONFIG
-                        });
-                        const response = await model.generateContent(prompt);
-                        const rawText = response.response.text();
-                        const parsed = JSON.parse(rawText || '{}');
-                        if (Array.isArray(parsed.items) && parsed.items.length > 0) {
-                            parsedItems = parsed.items;
-                            break;
-                        }
-                    } catch (mErr: any) {
-                        console.warn(`Model ${modelName} parse failed:`, mErr?.message);
-                    }
-                }
-            } catch (aiErr) {
-                console.warn('Gemini parse failed, falling back to heuristics:', aiErr);
-            }
+        // 1. Ask the AI (Claude or Gemini, see lib/ai.ts); fall back to plain rules below if nobody answers
+        const ai = await generateJson(buildParsePrompt(text, today));
+        if (ai && Array.isArray(ai.json.items) && ai.json.items.length > 0) {
+            parsedItems = ai.json.items;
+            console.log(`parse answered by ${ai.provider} (${ai.model})`);
         }
 
         // 2. Heuristics fallback if AI parsing produced nothing

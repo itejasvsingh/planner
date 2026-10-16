@@ -70,7 +70,7 @@ export default function PrivacyPage() {
       <Section title="How it is used">
         <ul>
           <li>To run Align&apos;s features: your timeline, reminders, budgets, analysis and the WhatsApp bot.</li>
-          <li>WhatsApp messages and bank SMS that Align&apos;s own rules can&apos;t read may be processed by Google&apos;s Gemini AI to understand them. Emails and Gmail data are never sent to AI.</li>
+          <li>Text you type into quick add, WhatsApp messages and bank SMS that Align&apos;s own rules can&apos;t read may be processed by an AI service (Google&apos;s Gemini or Anthropic&apos;s Claude) to understand them. Emails and Gmail data are never sent to AI.</li>
           <li>Align does not sell your data or show ads.</li>
         </ul>
       </Section>
