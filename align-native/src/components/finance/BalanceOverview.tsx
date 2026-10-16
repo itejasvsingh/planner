@@ -15,7 +15,9 @@ const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
  * Money → Overview: what's in your bank accounts as one big number with its trend over the last weeks, and a row per
  * account to tick in or out of that total. Tap the heading for the full Cards page.
  */
-export default function BalanceOverview({ accounts, total, today, onToggle, onOpen }: {
+export default function BalanceOverview({ accounts, total, today, onToggle, onOpen, rows = true }: {
+  /** false: only the total and its trend (the page below already lists and ticks the accounts). */
+  rows?: boolean;
   accounts: AccountBalance[];
   total: number;
   today: string;
@@ -28,11 +30,11 @@ export default function BalanceOverview({ accounts, total, today, onToggle, onOp
   const [open, setOpen] = useState(false);
   return (
     <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
-      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} accessibilityLabel={`Bank accounts, ${counted} of ${accounts.length} counted. ${open ? 'Hide' : 'Show'} accounts`} onPress={() => setOpen(!open)} style={styles.head}>
+      <Pressable disabled={!rows} accessibilityRole={rows ? 'button' : 'text'} accessibilityState={{ expanded: open }} accessibilityLabel={`Bank accounts, ${counted} of ${accounts.length} counted. ${open ? 'Hide' : 'Show'} accounts`} onPress={() => setOpen(!open)} style={styles.head}>
         <Landmark color={c.textTertiary} size={14} />
         <Text style={[styles.label, { color: c.textTertiary }]}>In your bank accounts</Text>
         {accounts.length > 1 && <Text style={{ color: c.textTertiary, fontSize: 12, fontWeight: '600' }}>{counted} of {accounts.length}</Text>}
-        {open ? <ChevronUp color={c.textTertiary} size={16} /> : <ChevronDown color={c.textTertiary} size={16} />}
+        {!rows ? null : open ? <ChevronUp color={c.textTertiary} size={16} /> : <ChevronDown color={c.textTertiary} size={16} />}
       </Pressable>
       <Text accessibilityLabel={`${inr(total)} in your bank accounts`} style={[styles.big, { color: c.text }]} numberOfLines={1} adjustsFontSizeToFit>{inr(total)}</Text>
       {series.length >= 2 && (
@@ -40,7 +42,7 @@ export default function BalanceOverview({ accounts, total, today, onToggle, onOp
           <BalanceTrend history={series} height={84} hideNote />
         </View>
       )}
-      {open && <View style={{ marginTop: 12, gap: 6 }}>
+      {rows && open && <View style={{ marginTop: 12, gap: 6 }}>
         {accounts.map(a => {
           const on = !a.excluded;
           return (

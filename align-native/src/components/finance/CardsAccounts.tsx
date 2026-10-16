@@ -10,6 +10,8 @@ import { useTheme } from '@/hooks/use-theme';
 import { changeAccount, refreshCards, useCards } from '@/lib/cards-store';
 import BalanceTrend from './BalanceTrend';
 import NetWorthCard from './NetWorthCard';
+import BalanceOverview from './BalanceOverview';
+import { todayKey } from '@/lib/dates';
 import { adjustBalances, recentForAccount } from '@/lib/account-balances';
 import { cardNumbers, cardStrip, cardTitle, detailsText, dueText, inr, nextStatement, shortDay } from '@/lib/card-format';
 import type { CardSummary } from '@/lib/gmail-connect';
@@ -184,7 +186,12 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
         )}
         {addButton}
         {accounts.length > 0 && (
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 10 }}>
+          <View style={{ marginTop: 10 }}>
+            <BalanceOverview rows={false} accounts={accounts} total={accounts.reduce((t, a) => t + (a.excluded ? 0 : a.balance), 0)} today={todayKey()} onToggle={() => {}} onOpen={() => {}} />
+          </View>
+        )}
+        {accounts.length > 0 && (
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 18 }}>
             <Text style={[styles.header, { color: c.textTertiary, marginBottom: 0 }]}>Bank balances</Text>
             {accounts.length > 1 && <Text style={{ color: c.textSecondary, fontSize: 13, fontWeight: '700' }}>Total {inr(accounts.reduce((t, a) => t + (a.excluded ? 0 : a.balance), 0))}</Text>}
           </View>

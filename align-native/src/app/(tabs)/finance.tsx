@@ -8,12 +8,11 @@ import BudgetSheet from '@/components/BudgetSheet';
 import { MONTHLY_BUDGET_KEY, budgetStatus, categoryBudgets, summarizeBudget, type BudgetStatus } from '@/lib/budget';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems, useBudgetLimits } from '@/lib/use-planner-items';
-import { changeAccount, useCards } from '@/lib/cards-store';
+import { useCards } from '@/lib/cards-store';
 import { adjustBalances } from '@/lib/account-balances';
 import { upcomingPayments } from '@/lib/upcoming';
 import { cardTitle } from '@/lib/card-format';
 import UpcomingPayments from '@/components/finance/UpcomingPayments';
-import BalanceOverview from '@/components/finance/BalanceOverview';
 import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import TransactionSheet from '@/components/TransactionSheet';
@@ -90,7 +89,7 @@ export default function FinanceScreen() {
     const { budgetLimits: limits, saveBudgets } = useBudgetLimits(phone);
     
     const cardData = useCards(phone);
-    // What's in your bank accounts now (same adjusted figure as Money → Cards); no trend, as balances aren't kept over time
+    // Card dues use what is owed now (the same adjusted figures as Money → Cards)
     const adjusted = useMemo(() => (cardData ? adjustBalances(cardData.accounts || [], cardData.cards || [], items) : null), [cardData, items]);
     // Card dues use what's owed now; card reminder tasks aren't listed separately, so a card never shows twice
     const upcoming = useMemo(() => upcomingPayments(items as any, (adjusted?.cards || []).map(k => ({ title: cardTitle(k), dueDate: k.dueDate, outstanding: k.outstanding, hidden: k.hidden, status: k.status })), new Date(), 14), [items, adjusted]);
@@ -446,16 +445,6 @@ export default function FinanceScreen() {
                             </View>
                         </View>
                     </Pressable>
-
-                    {adjusted && adjusted.accounts.length > 0 && (
-                        <BalanceOverview
-                            accounts={adjusted.accounts}
-                            total={adjusted.totalBalance}
-                            today={todayKey()}
-                            onToggle={(id, excluded) => { changeAccount(phone, id, { excluded }).catch(() => { /* undone on screen */ }); }}
-                            onOpen={() => setView('Cards')}
-                        />
-                    )}
 
                     <UpcomingPayments rows={upcoming} />
 
