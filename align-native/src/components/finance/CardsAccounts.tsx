@@ -9,6 +9,7 @@ import { Radius, Shadow } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { changeAccount, refreshCards, useCards } from '@/lib/cards-store';
 import BalanceTrend from './BalanceTrend';
+import NetWorthCard from './NetWorthCard';
 import { adjustBalances, recentForAccount } from '@/lib/account-balances';
 import { cardNumbers, cardStrip, cardTitle, detailsText, dueText, inr, nextStatement, shortDay } from '@/lib/card-format';
 import type { CardSummary } from '@/lib/gmail-connect';
@@ -102,8 +103,10 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
     <View>
       
 
+      <NetWorthCard phone={phone} accounts={accounts} cards={cards} entries={data?.entries} />
+      <View style={{ height: 18 }} />
       <Text style={[styles.header, { color: c.textTertiary }]}>Credit cards & bills</Text>
-      {shown.length > 0 && (
+      {shown.length > 1 && (
         <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border, padding: 0, marginBottom: 12, overflow: 'hidden' }, Shadow.card]}>
           {shown.map((card, i) => {
             const strip = cardStrip(card);

@@ -119,7 +119,7 @@ export default function NetWorthCard({ phone, accounts, cards, entries }: {
 }
 
 const styles = StyleSheet.create({
-  card: { borderWidth: 1, borderRadius: Radius.xl, padding: 16, marginTop: 12 },
+  card: { borderWidth: 1, borderRadius: Radius.xl, padding: 16 },
   head: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   label: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', flex: 1 },
   add: { flexDirection: 'row', alignItems: 'center', gap: 3 },

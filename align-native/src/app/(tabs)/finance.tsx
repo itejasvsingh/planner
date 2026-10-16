@@ -14,7 +14,6 @@ import { upcomingPayments } from '@/lib/upcoming';
 import { cardTitle } from '@/lib/card-format';
 import UpcomingPayments from '@/components/finance/UpcomingPayments';
 import BalanceOverview from '@/components/finance/BalanceOverview';
-import NetWorthCard from '@/components/finance/NetWorthCard';
 import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import TransactionSheet from '@/components/TransactionSheet';
@@ -104,6 +103,8 @@ export default function FinanceScreen() {
     const { config: categoryConfig, learnMerchant } = useCategoryConfig();
     const [budgetOpen, setBudgetOpen] = useState(false);
     const [categoriesOpen, setCategoriesOpen] = useState(false);
+    const [allCategories, setAllCategories] = useState(false);
+    const [moreFilters, setMoreFilters] = useState(false);
     type MoneyView = 'Overview' | 'Analysis' | 'Cards' | 'Split';
     const [view, setView] = useState<MoneyView>('Overview');
     const [analysisMode, setAnalysisMode] = useState<'cycle' | '90'>('cycle');
@@ -462,21 +463,11 @@ export default function FinanceScreen() {
                         />
                     )}
 
-                    {cardData && (adjusted?.accounts.length || adjusted?.cards.length || cardData.entries?.length) ? (
-                        <NetWorthCard phone={phone} accounts={adjusted?.accounts || []} cards={adjusted?.cards || []} entries={cardData.entries} />
-                    ) : null}
-
                     <UpcomingPayments rows={upcoming} />
 
                     {!budget && (
-                        <Pressable
-                            accessibilityRole="button"
-                            onPress={() => setBudgetOpen(true)}
-                            style={[styles.setBudget, { backgroundColor: c.backgroundElement, borderColor: c.border }]}
-                        >
-                            <Target color={c.accent} size={18} />
-                            <Text style={{ color: c.text, fontWeight: '600', flex: 1 }}>Set a monthly budget</Text>
-                            <Text style={{ color: c.accent, fontWeight: '700' }}>Set</Text>
+                        <Pressable accessibilityRole="button" onPress={() => setBudgetOpen(true)} hitSlop={8} style={{ alignSelf: 'center', paddingVertical: 10 }}>
+                            <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>Set a monthly budget</Text>
                         </Pressable>
                     )}
 
@@ -495,7 +486,7 @@ export default function FinanceScreen() {
                                 </View>
                             </View>
                             <View style={[styles.group, { backgroundColor: c.backgroundElement, borderColor: c.border, padding: 16, gap: 16 }, Shadow.card]}>
-                                {categoryTotals.map(cat => {
+                                {(allCategories ? categoryTotals : categoryTotals.slice(0, 4)).map(cat => {
                                     const Icon = cat.icon;
                                     const tint = tintColors(cat.tint, theme.isDark);
                                     const share = cat.limit ? cat.amount / cat.limit : cat.amount / Math.max(totalSpent, 1);
@@ -522,6 +513,11 @@ export default function FinanceScreen() {
                                         </Pressable>
                                     );
                                 })}
+                                {categoryTotals.length > 4 && (
+                                    <Pressable accessibilityRole="button" onPress={() => setAllCategories(!allCategories)} hitSlop={8} style={{ alignSelf: 'center' }}>
+                                        <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>{allCategories ? 'Show fewer' : `Show all ${categoryTotals.length}`}</Text>
+                                    </Pressable>
+                                )}
                             </View>
                         </>
                     )}
@@ -564,7 +560,26 @@ export default function FinanceScreen() {
                                 </Pressable>
                             );
                         })}
-                        {([
+                        <Pressable accessibilityRole="button" accessibilityState={{ expanded: moreFilters || flagFilters.size > 0 }} onPress={() => setMoreFilters(!moreFilters)}
+                            style={[styles.filterChip, flagFilters.size > 0 ? { backgroundColor: c.accentSoft, borderColor: c.accentSoft } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+                            <Text style={{ color: flagFilters.size > 0 ? c.accent : c.text, fontWeight: '600', fontSize: 12 }}>Filters{flagFilters.size > 0 ? ` · ${flagFilters.size}` : ''}</Text>
+                        </Pressable>
+                        {categoryFilter && (
+                            <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${categoryFilter} filter`} onPress={() => setCategoryFilter(null)}
+                                style={[styles.filterChip, { backgroundColor: c.accentSoft, borderColor: c.accentSoft, flexDirection: 'row', gap: 6 }]}>
+                                <Tags color={c.accent} size={14} />
+                                <Text style={{ color: c.accent, fontWeight: '700', fontSize: 12 }}>{categoryFilter}</Text>
+                                <X color={c.accent} size={14} />
+                            </Pressable>
+                        )}
+                        <Pressable accessibilityRole="button" accessibilityLabel="Export the listed transactions as CSV" onPress={() => void exportCsv()}
+                            style={[styles.filterChip, { backgroundColor: c.backgroundElement, borderColor: c.border, flexDirection: 'row', gap: 5 }]}>
+                            <Download color={c.text} size={13} />
+                        </Pressable>
+                    </ScrollView>
+                    {(moreFilters || flagFilters.size > 0) && (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+                            {([
                             ['bookmarked', 'Bookmarked', 0],
                             ['excluded', 'Left out', 0],
                             ['untagged', 'Untagged', untaggedCount],
@@ -578,20 +593,8 @@ export default function FinanceScreen() {
                                 </Pressable>
                             );
                         })}
-                        {categoryFilter && (
-                            <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${categoryFilter} filter`} onPress={() => setCategoryFilter(null)}
-                                style={[styles.filterChip, { backgroundColor: c.accentSoft, borderColor: c.accentSoft, flexDirection: 'row', gap: 6 }]}>
-                                <Tags color={c.accent} size={14} />
-                                <Text style={{ color: c.accent, fontWeight: '700', fontSize: 12 }}>{categoryFilter}</Text>
-                                <X color={c.accent} size={14} />
-                            </Pressable>
-                        )}
-                        <Pressable accessibilityRole="button" accessibilityLabel="Export the listed transactions as CSV" onPress={() => void exportCsv()}
-                            style={[styles.filterChip, { backgroundColor: c.backgroundElement, borderColor: c.border, flexDirection: 'row', gap: 5 }]}>
-                            <Download color={c.text} size={13} />
-                            <Text style={{ color: c.text, fontWeight: '600', fontSize: 12 }}>Export</Text>
-                        </Pressable>
-                    </ScrollView>
+                        </ScrollView>
+                    )}
                     {filtering && (
                         <Text style={{ color: c.textSecondary, fontSize: 13, marginBottom: 10 }}>
                             {listItems.length} {listItems.length === 1 ? 'transaction' : 'transactions'} · net {listTotal < 0 ? '−' : '+'}{formatMoney(Math.abs(listTotal))}

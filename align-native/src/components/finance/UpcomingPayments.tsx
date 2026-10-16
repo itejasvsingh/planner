@@ -22,7 +22,7 @@ export default function UpcomingPayments({ rows }: { rows: Upcoming[] }) {
     <View style={{ marginTop: 16 }}>
       <Text style={[styles.header, { color: c.textTertiary }]}>Coming up</Text>
       <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
-        {rows.slice(0, 5).map((r, i) => (
+        {rows.slice(0, 3).map((r, i) => (
           <View key={r.key} style={[styles.row, { borderTopWidth: i ? 1 : 0, borderTopColor: c.border }]}>
             <View style={[styles.icon, { backgroundColor: c.backgroundMuted }]}>
               {r.kind === 'card' ? <CreditCard color={c.textSecondary} size={16} /> : <CalendarClock color={c.textSecondary} size={16} />}
