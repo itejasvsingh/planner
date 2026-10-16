@@ -31,7 +31,7 @@ export default function NinetyDayView({ items, config, onSelectCategory }: { ite
   );
 
   if (o.spent === 0 && o.income === 0 && o.transfers === 0) {
-    return <Text style={{ color: c.textSecondary, textAlign: 'center', marginTop: 24 }}>No transactions in the last 90 days yet.</Text>;
+    return <Text style={{ color: c.textSecondary, textAlign: 'center', marginTop: 24 }}>Nothing in the last 90 days yet. It fills in as you add things.</Text>;
   }
 
   return (

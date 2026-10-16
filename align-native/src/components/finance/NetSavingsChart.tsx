@@ -14,7 +14,7 @@ export default function NetSavingsChart({ points }: { points: { key: string; dat
   const c = useTheme();
   const [w, setW] = useState(0);
   const [sel, setSel] = useState<number | null>(null);
-  if (points.length < 2) return <Text style={{ color: c.textSecondary, fontSize: 13 }}>Not enough days yet.</Text>;
+  if (points.length < 2) return <Text style={{ color: c.textSecondary, fontSize: 13 }}>A few more days and this line fills in.</Text>;
 
   const lo = Math.min(0, ...points.map(p => p.net));
   const hi = Math.max(0, ...points.map(p => p.net));

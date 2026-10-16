@@ -194,7 +194,7 @@ export default function AnalysisView({
       <View style={[styles.stats, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
         {[
           { label: 'Income', value: money(summary.income), sub: 'Received', color: c.text },
-          { label: summary.net >= 0 ? 'Saved' : 'Overspent', value: money(Math.abs(summary.net)), sub: summary.savingsRate === null ? 'No income yet' : `${Math.round(summary.savingsRate * 100)}% kept`, color: summary.net >= 0 ? c.income : c.expense },
+          { label: summary.net >= 0 ? 'Saved' : 'Overspent', value: money(Math.abs(summary.net)), sub: summary.savingsRate === null ? 'No income logged yet' : `${Math.round(summary.savingsRate * 100)}% kept`, color: summary.net >= 0 ? c.income : c.expense },
           { label: 'Per day', value: money(Math.round(avgPerDay)), sub: `over ${elapsed} ${elapsed === 1 ? 'day' : 'days'}`, color: c.text },
         ].map((x, i) => (
           <View key={x.label} style={[styles.stat, i > 0 && { borderLeftWidth: StyleSheet.hairlineWidth, borderLeftColor: c.border }]}>
@@ -207,7 +207,7 @@ export default function AnalysisView({
 
       {!hasData ? (
         <View style={[styles.empty, { borderColor: c.border }]}>
-          <Text style={[Type.body, { color: c.textSecondary, textAlign: 'center' }]}>No transactions in this cycle yet.</Text>
+          <Text style={[Type.body, { color: c.textSecondary, textAlign: 'center' }]}>Nothing here yet. Add a few expenses and this page fills in.</Text>
         </View>
       ) : (
         <>

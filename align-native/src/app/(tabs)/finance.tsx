@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Modal, View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Modal, Platform, View, ScrollView, StyleSheet, RefreshControl, type TextInput as RNTextInput } from 'react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { ArrowDownLeft, ArrowUpRight, Check, FileUp, Landmark, Plus, Search, ShieldAlert, Tags, Target, Users, Wallet, X } from 'lucide-react-native';
@@ -107,6 +107,20 @@ export default function FinanceScreen() {
     const [view, setView] = useState<MoneyView>('Overview');
     const [analysisMode, setAnalysisMode] = useState<'cycle' | '90'>('cycle');
     const [query, setQuery] = useState('');
+    const searchRef = useRef<RNTextInput>(null);
+    // Web: Cmd/Ctrl+K jumps to the search box
+    useEffect(() => {
+        if (Platform.OS !== 'web') return;
+        const onKey = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                setView('Overview');
+                setTimeout(() => searchRef.current?.focus(), 60);
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, []);
     const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
     const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
     const nameOf = (i: { category?: string; type?: string }) => resolveCategory(i.category, kindForType(i.type), categoryConfig).name;
@@ -498,10 +512,11 @@ export default function FinanceScreen() {
                     <View style={[styles.search, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
                         <Search color={c.textTertiary} size={17} />
                         <TextInput
+                            ref={searchRef}
                             accessibilityLabel="Search transactions"
                             value={query}
                             onChangeText={setQuery}
-                            placeholder="Search by name, category or amount"
+                            placeholder={Platform.OS === 'web' ? 'Search by name, category or amount  (⌘K)' : 'Search by name, category or amount'}
                             placeholderTextColor={c.textTertiary}
                             style={[styles.searchInput, { color: c.text }]}
                             returnKeyType="search"
@@ -540,7 +555,7 @@ export default function FinanceScreen() {
                     {groupedTransactions.length === 0 ? (
                         <View style={[styles.empty, { borderColor: c.border }]}>
                             <Wallet color={c.textTertiary} size={32} />
-                            <Text style={[Type.body, { color: c.textSecondary, textAlign: 'center' }]}>{filtering ? 'Nothing matches these filters.' : <>No transactions yet.{'\n'}Tap + to add one, or import a bank statement.</>}</Text>
+                            <Text style={[Type.body, { color: c.textSecondary, textAlign: 'center' }]}>{filtering ? 'Nothing matches these filters. Try clearing one.' : <>A clean slate.{'\n'}Tap + to add your first one, or import a bank statement.</>}</Text>
                         </View>
                     ) : (
                         groupedTransactions.map(([date, items]) => (
