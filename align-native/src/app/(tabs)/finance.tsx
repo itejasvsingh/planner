@@ -102,6 +102,7 @@ export default function FinanceScreen() {
     const [budgetOpen, setBudgetOpen] = useState(false);
     const [categoriesOpen, setCategoriesOpen] = useState(false);
     const [moreFilters, setMoreFilters] = useState(false);
+    const [searchOpen, setSearchOpen] = useState(false);
     type MoneyView = 'Overview' | 'Analysis' | 'Cards' | 'Split';
     const [view, setView] = useState<MoneyView>('Overview');
     const [analysisMode, setAnalysisMode] = useState<'cycle' | '90'>('cycle');
@@ -114,7 +115,8 @@ export default function FinanceScreen() {
             if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
                 e.preventDefault();
                 setView('Overview');
-                setTimeout(() => searchRef.current?.focus(), 60);
+                setSearchOpen(true);
+                setTimeout(() => searchRef.current?.focus(), 150);
             }
         };
         window.addEventListener('keydown', onKey);
@@ -191,6 +193,7 @@ export default function FinanceScreen() {
     const noMerchantCount = financeItems.filter(i => matchesFlags(i, ['nomerchant'])).length;
     const activeFilterCount = (typeFilter !== 'all' ? 1 : 0) + flagFilters.size;
     const filtersShown = moreFilters || activeFilterCount > 0;
+    const searchShown = searchOpen || searching;
     const exportCsv = async () => {
         const csv = toCsv([...listItems].sort((a, b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`)), nameOf);
         if (Platform.OS === 'web') {
@@ -435,13 +438,24 @@ export default function FinanceScreen() {
                     </View>
 
                     {/* Transactions */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                        <Text style={[styles.sectionHeader, { color: c.textTertiary }]}>{searching ? 'All-time results' : inProgress ? 'Transactions this cycle' : `Transactions · ${periodName}`}</Text>
-                        <Pressable accessibilityRole="button" onPress={() => setCategoriesOpen(true)} hitSlop={8}>
-                            <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Categories</Text>
-                        </Pressable>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Text style={[styles.sectionHeader, { color: c.textTertiary, flex: 1 }]} numberOfLines={1}>{searching ? 'All-time results' : inProgress ? 'Transactions this cycle' : `Transactions · ${periodName}`}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 12 }}>
+                            <Pressable accessibilityRole="button" accessibilityLabel="Search transactions" accessibilityState={{ expanded: searchShown }} hitSlop={8}
+                                onPress={() => { if (searchShown && !searching) setSearchOpen(false); else { setSearchOpen(true); setTimeout(() => searchRef.current?.focus(), 150); } }}>
+                                <Search color={searchShown ? c.accent : c.textSecondary} size={19} />
+                            </Pressable>
+                            <Pressable accessibilityRole="button" accessibilityLabel="Filters" accessibilityState={{ expanded: filtersShown }} hitSlop={8} onPress={() => setMoreFilters(!moreFilters)}>
+                                <SlidersHorizontal color={activeFilterCount > 0 || filtersShown ? c.accent : c.textSecondary} size={19} />
+                                {activeFilterCount > 0 && <View style={[styles.filterDot, { backgroundColor: c.accent }]} />}
+                            </Pressable>
+                            <Pressable accessibilityRole="button" onPress={() => setCategoriesOpen(true)} hitSlop={8}>
+                                <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Categories</Text>
+                            </Pressable>
+                        </View>
                     </View>
 
+                    {searchShown && (
                     <View style={[styles.search, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
                         <Search color={c.textTertiary} size={17} />
                         <TextInput
@@ -455,15 +469,12 @@ export default function FinanceScreen() {
                             returnKeyType="search"
                         />
                         {query !== '' && (
-                            <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={8} onPress={() => setQuery('')}>
+                            <Pressable accessibilityRole="button" accessibilityLabel="Clear search" hitSlop={8} onPress={() => { setQuery(''); setSearchOpen(false); }}>
                                 <X color={c.textTertiary} size={16} />
                             </Pressable>
                         )}
-                        <Pressable accessibilityRole="button" accessibilityLabel="Filters" accessibilityState={{ expanded: filtersShown }} hitSlop={8} onPress={() => setMoreFilters(!moreFilters)}>
-                            <SlidersHorizontal color={activeFilterCount > 0 ? c.accent : c.textTertiary} size={18} />
-                            {activeFilterCount > 0 && <View style={[styles.filterDot, { backgroundColor: c.accent }]} />}
-                        </Pressable>
                     </View>
+                    )}
                     {filtersShown && (
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
                             {TYPE_FILTERS.map(f => {
