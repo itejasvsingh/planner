@@ -2,13 +2,14 @@ import { useMemo, useState } from 'react';
 import { Modal, View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
-import { ArrowDownLeft, ArrowUpRight, Check, FileUp, Plus, Search, ShieldAlert, Tags, Target, Users, Wallet, X } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, Check, FileUp, Landmark, Plus, Search, ShieldAlert, Tags, Target, Users, Wallet, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import BudgetSheet from '@/components/BudgetSheet';
 import { MONTHLY_BUDGET_KEY, budgetStatus, categoryBudgets, summarizeBudget, type BudgetStatus } from '@/lib/budget';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems, useBudgetLimits } from '@/lib/use-planner-items';
 import { useCards } from '@/lib/cards-store';
+import { adjustBalances } from '@/lib/account-balances';
 import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import TransactionSheet from '@/components/TransactionSheet';
@@ -85,6 +86,10 @@ export default function FinanceScreen() {
     const { budgetLimits: limits, saveBudgets } = useBudgetLimits(phone);
     
     const cardData = useCards(phone);
+    // What's in your bank accounts now (same adjusted figure as Money → Cards); no trend, as balances aren't kept over time
+    const accountsInfo = useMemo(() => (cardData?.accounts?.length
+        ? { ...adjustBalances(cardData.accounts, cardData.cards || [], items), count: cardData.accounts.length, oldest: Math.min(...cardData.accounts.map(a => a.at)) }
+        : null), [cardData, items]);
     const cardNameMap = useMemo(() => {
         const map = new Map<string, string>();
         (cardData?.cards || []).forEach(c => c.last4 && map.set(c.last4, c.issuerName || c.issuer));
@@ -399,6 +404,22 @@ export default function FinanceScreen() {
                             </View>
                         </View>
                     </Pressable>
+
+                    {accountsInfo && (
+                        <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Bank balances"
+                            onPress={() => setView('Cards')}
+                            style={[styles.setBudget, { backgroundColor: c.backgroundElement, borderColor: c.border }]}
+                        >
+                            <Landmark color={c.accent} size={18} />
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ color: c.text, fontWeight: '600' }}>In your bank accounts</Text>
+                                <Text style={{ color: c.textTertiary, fontSize: 12 }}>{accountsInfo.count} account{accountsInfo.count === 1 ? '' : 's'} · oldest balance {new Date(accountsInfo.oldest).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</Text>
+                            </View>
+                            <Text style={{ color: c.text, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{formatMoney(accountsInfo.totalBalance)}</Text>
+                        </Pressable>
+                    )}
 
                     {!budget && (
                         <Pressable

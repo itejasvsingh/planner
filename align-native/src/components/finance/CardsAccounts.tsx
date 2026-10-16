@@ -7,6 +7,7 @@ import { Pressable } from '@/components/ui/pressable';
 import { Radius, Shadow } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { refreshCards, useCards } from '@/lib/cards-store';
+import { adjustBalances, recentForAccount } from '@/lib/account-balances';
 import { cardTitle, detailsText, dueText, inr, shortDay } from '@/lib/card-format';
 import type { CardSummary } from '@/lib/gmail-connect';
 import CardSheet from './CardSheet';
@@ -40,43 +41,7 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
   const allChecks = data?.checks || [];
   
   // Realtime Sync with planner items
-  const { cards, accounts, netWorth } = React.useMemo(() => {
-    const accs = baseAccounts.map(a => ({ ...a }));
-    const crds = baseCards.map(c => ({ ...c }));
-    let net = 0;
-    
-    items.forEach(item => {
-      if (!item.cardLast4 || !item.date) return;
-      let ts = 0;
-      try {
-        const d = new Date(item.date);
-        if (item.time) {
-          const m = /^(\d{2}):(\d{2})$/.exec(item.time);
-          if (m) d.setHours(Number(m[1]), Number(m[2]), 0, 0);
-        }
-        ts = d.getTime();
-      } catch { return; }
-      
-      const amt = Number(item.amount) || 0;
-      
-      const acc = accs.find((a: any) => (a.last4 || a.bankName || a.name) === item.cardLast4);
-      if (acc && ts > acc.at) {
-        if (item.type === 'expense') acc.balance -= amt;
-        if (item.type === 'income' || item.type === 'deposit') acc.balance += amt;
-      }
-      
-      const crd = crds.find((c: any) => (c.last4 || c.issuerName || c.name) === item.cardLast4);
-      if (crd && ts > crd.paidSince) {
-        if (item.type === 'expense') crd.outstanding = (crd.outstanding || 0) + amt;
-        if (item.type === 'income' || item.type === 'transfer' || item.type === 'deposit') crd.outstanding = Math.max(0, (crd.outstanding || 0) - amt);
-      }
-    });
-    
-    accs.forEach(a => net += a.balance);
-    crds.forEach(c => net -= (c.outstanding || 0));
-    
-    return { cards: crds, accounts: accs, netWorth: net };
-  }, [baseAccounts, baseCards, items]);
+  const { cards, accounts, netWorth } = React.useMemo(() => adjustBalances(baseAccounts, baseCards, items), [baseAccounts, baseCards, items]);
 
   const shown = cards.filter(k => showHidden || !k.hidden);
   const hiddenCount = cards.filter(k => k.hidden).length;
@@ -171,17 +136,30 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
         )}
         {accounts.length > 0 && (
           <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border, paddingVertical: 4 }, Shadow.card]}>
-            {accounts.map((a, i) => (
-              <View key={a.id} style={[styles.row, { paddingVertical: 10, borderTopWidth: i ? 1 : 0, borderTopColor: c.border }]}
-                accessible accessibilityLabel={`${a.bankName} ${a.last4 || ''} balance ${inr(a.balance)} as of ${when(a.at)}`}>
-                <View style={[styles.icon, { backgroundColor: c.backgroundMuted }]}><Landmark color={c.textSecondary} size={18} /></View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: c.text, fontWeight: '600', fontSize: 15 }} numberOfLines={1}>{a.bankName}{a.last4 ? ` ••${a.last4}` : ''}</Text>
-                  <Text style={{ color: c.textTertiary, fontSize: 12 }}>Balance as of {when(a.at)}</Text>
+            {accounts.map((a, i) => {
+              const recent = recentForAccount(a, items, 3);
+              return (
+              <View key={a.id} style={{ borderTopWidth: i ? 1 : 0, borderTopColor: c.border }}>
+                <View style={[styles.row, { paddingVertical: 10 }]}
+                  accessible accessibilityLabel={`${a.bankName} ${a.last4 || ''} balance ${inr(a.balance)} as of ${when(a.at)}`}>
+                  <View style={[styles.icon, { backgroundColor: c.backgroundMuted }]}><Landmark color={c.textSecondary} size={18} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: c.text, fontWeight: '600', fontSize: 15 }} numberOfLines={1}>{a.bankName}{a.last4 ? ` ••${a.last4}` : ''}</Text>
+                    <Text style={{ color: c.textTertiary, fontSize: 12 }}>Balance as of {when(a.at)}</Text>
+                  </View>
+                  <Text style={{ color: c.text, fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{inr(a.balance)}</Text>
                 </View>
-                <Text style={{ color: c.text, fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{inr(a.balance)}</Text>
+                {recent.map((t: any) => (
+                  <View key={t.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 48, paddingBottom: 6, gap: 8 }}>
+                    <Text numberOfLines={1} style={{ color: c.textSecondary, fontSize: 13, flex: 1 }}>{t.title || (t.type === 'income' ? 'Income' : 'Payment')}</Text>
+                    <Text style={{ color: t.type === 'income' || t.type === 'deposit' ? c.income : c.textSecondary, fontSize: 13, fontVariant: ['tabular-nums'] }}>
+                      {t.type === 'income' || t.type === 'deposit' ? '+' : '−'}{inr(Number(t.amount) || 0)}
+                    </Text>
+                  </View>
+                ))}
               </View>
-            ))}
+              );
+            })}
           </View>
         )}
         {(checks.length > 0 || waiting.length > 0) && (
