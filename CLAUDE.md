@@ -50,6 +50,14 @@
   The user's card changes live in `money_accounts/<phone>/card_edits/<key>` (`POST /api/money/cards`): name, last4 and
   hidden persist; amounts, due date and paid apply only while `forDue` matches the latest statement; `manual_*` keys
   are cards added by hand. The app's "Paid with" sets a transaction's `cardLast4`.
+- Accounts (`GET/POST /api/money/accounts`): `saveBalance` also keeps one balance per day in
+  `money_accounts/<phone>/accounts/<id>/history/<YYYY-MM-DD>` (the latest that day; ~90 days returned as `history` for the trend
+  line). `account_edits/<id>` (server-only) holds the user's `excluded` tick (left out of the bank total, in `adjustBalances` so
+  Overview and Cards agree) and typed bank details (`ifsc`, `accountNumber`, `holder`, shown for copying; never log them).
+  A card's optional `limit` is a `card_edits` field that stays across statements (statements don't give it).
+- Transactions can be `bookmarked` and `excluded` ("leave out of cash flow": still listed, in no total: `isExpense`/`isIncome`
+  in `finance-analysis.ts`, overview90, the WhatsApp daily summary). Account balances still count them (the money moved).
+
 - Statement PDFs (`lib/statementAuto.ts`, step 4 of `syncGmail`, `/api/gmail/statements`): the user saves a bank's PDF
   password per kind (sealed with `GMAIL_TOKEN_KEY` in `gmail_links.statementPasswords.<bank>` for account statements,
   `<bank>__card` for credit card statements; never returned); each sync opens

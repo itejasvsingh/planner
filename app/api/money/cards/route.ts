@@ -19,6 +19,7 @@ function clean(e: Record<string, unknown>): CardEdit {
   if (money(e.totalDue) !== undefined) out.totalDue = money(e.totalDue);
   if (money(e.minDue) !== undefined) out.minDue = money(e.minDue);
   if (e.dueDate === null || (typeof e.dueDate === 'string' && DATE.test(e.dueDate))) out.dueDate = e.dueDate as string | null;
+  if (money(e.limit) !== undefined) out.limit = money(e.limit);
   if (e.paid === null || typeof e.paid === 'boolean') out.paid = e.paid as boolean | null;
   return out;
 }

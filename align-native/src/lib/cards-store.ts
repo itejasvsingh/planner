@@ -1,7 +1,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import { whenSignedIn } from '@/lib/firebase';
 import { getItem, setItem } from '@/lib/storage';
-import { moneyAccounts, type AccountBalance, type CardSummary, type StatementCheck } from '@/lib/gmail-connect';
+import { editAccount, moneyAccounts, type AccountEdit, type AccountBalance, type CardSummary, type StatementCheck } from '@/lib/gmail-connect';
 
 /**
  * Cards and bank balances, shared by Money → Cards, the card page and the transaction form's "Paid with".
@@ -53,4 +53,17 @@ export function useCards(phone: string | null): MoneyAccounts | null {
     () => (phone && owner === phone ? data : null),
     () => null,
   );
+}
+
+/** Changes one account at once on screen (a tick, or typed bank details), then saves it; undone if saving fails. */
+export async function changeAccount(phone: string | null, id: string, edit: AccountEdit): Promise<void> {
+  if (!phone || phone !== owner || !data) return;
+  const before = data;
+  set(phone, { ...before, accounts: before.accounts.map((a) => (a.id === id ? { ...a, ...edit } : a)) });
+  try {
+    await editAccount(id, edit);
+  } catch (e) {
+    set(phone, before);
+    throw e;
+  }
 }

@@ -38,7 +38,7 @@ export default function CardSheet({ phone, card, visible, onClose, onEditTransac
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirmRemove, setConfirmRemove] = useState(false);
-  const [form, setForm] = useState({ name: '', last4: '', totalDue: '', minDue: '', dueDate: null as string | null });
+  const [form, setForm] = useState({ name: '', last4: '', totalDue: '', minDue: '', limit: '', dueDate: null as string | null });
 
   useEffect(() => {
     if (!visible) return;
@@ -50,6 +50,7 @@ export default function CardSheet({ phone, card, visible, onClose, onEditTransac
       last4: card?.last4 || '',
       totalDue: card?.totalDue ? String(card.totalDue) : '',
       minDue: card?.minDue ? String(card.minDue) : '',
+      limit: card?.limit ? String(card.limit) : '',
       dueDate: card?.dueDate || null,
     });
   }, [visible, card]);
@@ -86,18 +87,20 @@ export default function CardSheet({ phone, card, visible, onClose, onEditTransac
     const totalDue = form.totalDue.trim() ? num(form.totalDue) : null;
     const minDue = form.minDue.trim() ? num(form.minDue) : null;
     if (form.totalDue.trim() && totalDue === null) return setError('Amount due: a number, e.g. 12450.50');
-    const edit: CardEdit = { name: form.name.trim() || null, last4: last4 || null, totalDue, minDue, dueDate: form.dueDate };
+    const limit = form.limit.trim() ? num(form.limit) : null;
+    if (form.limit.trim() && limit === null) return setError('Credit limit: a number, e.g. 150000');
+    const edit: CardEdit = { name: form.name.trim() || null, last4: last4 || null, totalDue, minDue, dueDate: form.dueDate, limit };
     if (!card) {
       if (!edit.name) return setError('Give the card a name, e.g. "HDFC Millennia".');
       return void run(() => addCard(edit), true);
     }
     if (card.manual) return void run(() => editCard(card.key, edit));
     // Only what changed: amounts and due date then belong to the current statement
-    const changes: CardEdit = { name: edit.name, last4: edit.last4 };
+    const changes: CardEdit = { name: edit.name, last4: edit.last4, limit };
     if (totalDue !== card.totalDue) changes.totalDue = totalDue;
     if (minDue !== card.minDue) changes.minDue = minDue;
     if (form.dueDate !== card.dueDate) changes.dueDate = form.dueDate;
-    if (Object.keys(changes).length > 2) changes.forDue = card.dueDate;
+    if (Object.keys(changes).length > 3) changes.forDue = card.dueDate;
     void run(() => editCard(card.key, changes));
   }
 
@@ -157,6 +160,7 @@ export default function CardSheet({ phone, card, visible, onClose, onEditTransac
               <Text style={{ color: c.text, fontSize: 22, fontWeight: '800' }}>{card ? 'Edit card' : 'Add a card'}</Text>
               {field('Name', form.name, v => setForm({ ...form, name: v }), { placeholder: 'e.g. HDFC Millennia', max: 40 })}
               {field('Last 4 digits', form.last4, v => setForm({ ...form, last4: v.replace(/\D/g, '') }), { placeholder: 'Links spends from alerts to this card', numeric: true, max: 4 })}
+              {field('Credit limit', form.limit, v => setForm({ ...form, limit: v }), { placeholder: 'Optional: shows what is left to spend', numeric: true })}
               {(card ? !!card.dueDate || card.manual : true) && (
                 <>
                   <Text style={{ color: c.textTertiary, fontSize: 12 }}>{card && !card.manual ? 'This statement (a new statement replaces these):' : 'Current bill:'}</Text>

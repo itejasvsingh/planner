@@ -40,7 +40,8 @@ export function adjustBalances(baseAccounts: AccountBalance[], baseCards: CardSu
       if (item.type === 'income' || item.type === 'transfer' || item.type === 'deposit') card.outstanding = Math.max(0, (card.outstanding || 0) - amt);
     }
   }
-  const totalBalance = accounts.reduce((t, a) => t + a.balance, 0);
+  // Accounts the user unticked stay listed but are left out of the total (and so of net worth)
+  const totalBalance = accounts.reduce((t, a) => t + (a.excluded ? 0 : a.balance), 0);
   const netWorth = totalBalance - cards.reduce((t, c) => t + (c.outstanding || 0), 0);
   return { accounts, cards, totalBalance, netWorth };
 }

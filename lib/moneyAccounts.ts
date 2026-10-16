@@ -15,17 +15,35 @@ const DAY = 86400000;
 const sha = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 24);
 const root = (phone: string) => db.collection('money_accounts').doc(phone);
 
-export type AccountBalance = { id: string; bankId: string; bankName: string; last4: string | null; balance: number; at: number };
+export type AccountBalance = {
+  id: string; bankId: string; bankName: string; last4: string | null; balance: number; at: number;
+  /** The user left this account out of the bank total. */
+  excluded?: boolean;
+  /** Typed in by the user (alerts only give the last digits); shown for copying. Never logged. */
+  ifsc?: string | null; accountNumber?: string | null; holder?: string | null;
+  /** One balance per day, oldest first (about the last 90 days). */
+  history?: { d: string; b: number }[];
+};
+export type AccountEdit = { excluded?: boolean; ifsc?: string | null; accountNumber?: string | null; holder?: string | null };
 
 /** Keeps the newest balance seen for an account (older messages read later don't overwrite it). */
 export async function saveBalance(phone: string, a: Omit<AccountBalance, 'id'>) {
   const id = `${a.bankId}_${a.last4 || 'account'}`;
   const ref = root(phone).collection('accounts').doc(id);
+  const date = istParts(a.at).date;
+  const dayRef = ref.collection('history').doc(date);
   await db.runTransaction(async (t) => {
-    const prev = (await t.get(ref)).data() as AccountBalance | undefined;
+    const [prevSnap, daySnap] = await Promise.all([t.get(ref), t.get(dayRef)]);
+    const prev = prevSnap.data() as AccountBalance | undefined;
+    // The day keeps its latest balance, even when a message for an older day arrives late
+    if (!daySnap.exists || (daySnap.data()?.at ?? 0) <= a.at) t.set(dayRef, { date, balance: a.balance, at: a.at });
     if (prev && prev.at > a.at) return;
     t.set(ref, { ...a, id });
   });
+}
+
+export async function saveAccountEdit(phone: string, id: string, edit: AccountEdit) {
+  await root(phone).collection('account_edits').doc(id).set(edit, { merge: true });
 }
 
 export async function recordCardPayment(phone: string, issuer: string, amount: number, at: number) {
@@ -55,6 +73,8 @@ export type CardSummary = {
   edited: boolean;
   /** Due-date reminders on for this card (its own switch, else the "remind me about card bills" answer). */
   remind: boolean;
+  /** Credit limit, typed in by the user (statements don't give it); null when unknown. */
+  limit: number | null;
 };
 
 /**
@@ -74,6 +94,8 @@ export type CardEdit = {
   minDue?: number | null;
   dueDate?: string | null;
   paid?: boolean | null;
+  /** The card's credit limit; stays across statements. */
+  limit?: number | null;
 };
 
 const dayNum = (key: string) => Date.parse(`${key}T00:00:00Z`) / DAY;
@@ -158,6 +180,7 @@ export async function cardSummaries(phone: string, now = Date.now()): Promise<Ca
       hidden: e.hidden === true,
       edited: !c.manual && current && (e.totalDue != null || e.minDue !== undefined || !!e.dueDate || e.paid != null),
       remind: typeof e.remind === 'boolean' ? e.remind : remindAll,
+      limit: e.limit ?? null,
     });
   }
   // Unpaid soonest first, then paid; hidden last
@@ -182,7 +205,16 @@ export function cardReminderLines(cards: CardSummary[]): string[] {
     });
 }
 
-export async function accountBalances(phone: string): Promise<AccountBalance[]> {
-  const snap = await root(phone).collection('accounts').get();
-  return snap.docs.map((d) => d.data() as AccountBalance).sort((a, b) => b.at - a.at);
+export async function accountBalances(phone: string, now = Date.now()): Promise<AccountBalance[]> {
+  const [snap, editSnap] = await Promise.all([root(phone).collection('accounts').get(), root(phone).collection('account_edits').get()]);
+  const edits = new Map(editSnap.docs.map((d) => [d.id, d.data() as AccountEdit]));
+  const from = istParts(now - 90 * DAY).date;
+  const out = await Promise.all(snap.docs.map(async (d) => {
+    const a = d.data() as AccountBalance;
+    const e = edits.get(d.id) || {};
+    const hist = await d.ref.collection('history').where('date', '>=', from).get();
+    const history = hist.docs.map((h) => h.data() as { date: string; balance: number }).sort((x, y) => x.date.localeCompare(y.date)).map((h) => ({ d: h.date, b: h.balance }));
+    return { ...a, excluded: e.excluded === true, ifsc: e.ifsc || null, accountNumber: e.accountNumber || null, holder: e.holder || null, history };
+  }));
+  return out.sort((a, b) => b.at - a.at);
 }

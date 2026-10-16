@@ -9,7 +9,7 @@ process.env.GCLOUD_PROJECT = 'demo-align';
 const jiti = require('jiti')(__filename);
 const { saveBill } = jiti(path.join(__dirname, '../../lib/cardBills.ts'));
 const { recordTransaction, istParts } = jiti(path.join(__dirname, '../../lib/recordTransaction.ts'));
-const { cardSummaries, accountBalances, recordCardPayment, saveBalance, saveCardEdit } = jiti(path.join(__dirname, '../../lib/moneyAccounts.ts'));
+const { cardSummaries, accountBalances, recordCardPayment, saveBalance, saveCardEdit, saveAccountEdit } = jiti(path.join(__dirname, '../../lib/moneyAccounts.ts'));
 const { creditCardOf } = jiti(path.join(__dirname, '../../lib/accountParse.ts'));
 
 const DAY = 86400000;
@@ -71,4 +71,44 @@ test('a card added by hand counts spends tagged with its last digits', async () 
   await recordTransaction(P3, { type: 'expense', amount: 300, merchant: 'Cafe', category: 'Food & Dining', ref: null, date: null }, { source: 'sms', dedupText: 'c1', date: day(-1), card: { last4: '2222' } });
   const [card] = await cardSummaries(P3);
   assert.deepEqual([card.key, card.issuerName, card.manual, card.outstanding, card.daysLeft], ['manual_abc', 'OneCard', true, 1300, 5]);
+});
+
+test('balance history: one point a day (the latest that day), late older messages fill their own day', async () => {
+  const P3 = '919800000303';
+  const t = (n, h) => Date.now() - n * DAY + h * 60000;
+  await saveBalance(P3, { bankId: 'hdfc', bankName: 'HDFC Bank', last4: '7777', balance: 1000, at: t(3, 10) });
+  await saveBalance(P3, { bankId: 'hdfc', bankName: 'HDFC Bank', last4: '7777', balance: 900, at: t(3, 20) });
+  await saveBalance(P3, { bankId: 'hdfc', bankName: 'HDFC Bank', last4: '7777', balance: 5000, at: t(2, 5) });
+  // an older day's message read late: its own day gets it, the current balance stays the newest
+  await saveBalance(P3, { bankId: 'hdfc', bankName: 'HDFC Bank', last4: '7777', balance: 1200, at: t(4, 5) });
+  // older than the same day's latest: ignored for that day
+  await saveBalance(P3, { bankId: 'hdfc', bankName: 'HDFC Bank', last4: '7777', balance: 111, at: t(3, 1) });
+  const [acc] = await accountBalances(P3);
+  assert.equal(acc.balance, 5000);
+  assert.deepEqual(acc.history.map((h) => h.b), [1200, 900, 5000]);
+  assert.ok(acc.history.every((h, i, a) => !i || a[i - 1].d < h.d), 'oldest first, one per day');
+});
+
+test('account edits: untick, bank details; cleared with null; the balance is untouched', async () => {
+  const P4 = '919800000304';
+  await saveBalance(P4, { bankId: 'sbi', bankName: 'State Bank of India', last4: '2222', balance: 700, at: Date.now() });
+  let [acc] = await accountBalances(P4);
+  assert.deepEqual([acc.excluded, acc.ifsc, acc.accountNumber, acc.holder], [false, null, null, null]);
+  await saveAccountEdit(P4, acc.id, { excluded: true, ifsc: 'SBIN0000379', accountNumber: '31735292586', holder: 'Test Person' });
+  [acc] = await accountBalances(P4);
+  assert.deepEqual([acc.excluded, acc.ifsc, acc.accountNumber, acc.holder, acc.balance], [true, 'SBIN0000379', '31735292586', 'Test Person', 700]);
+  await saveAccountEdit(P4, acc.id, { excluded: false, ifsc: null });
+  [acc] = await accountBalances(P4);
+  assert.deepEqual([acc.excluded, acc.ifsc, acc.accountNumber], [false, null, '31735292586']);
+});
+
+test('a card limit stays across statements and is null until you enter one', async () => {
+  const P5 = '919800000305';
+  await saveBill(P5, { totalDue: 3000, minDue: 150, dueDate: day(10), last4: '3333' }, 'cards@icicibank.com', Date.now() - 5 * DAY);
+  let [card] = await cardSummaries(P5);
+  assert.equal(card.limit, null);
+  await saveCardEdit(P5, card.key, { limit: 150000 });
+  await saveBill(P5, { totalDue: 4000, minDue: 200, dueDate: day(40), last4: '3333' }, 'cards@icicibank.com', Date.now());
+  [card] = await cardSummaries(P5);
+  assert.deepEqual([card.limit, card.totalDue], [150000, 4000]);
 });

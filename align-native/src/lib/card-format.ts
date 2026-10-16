@@ -22,3 +22,25 @@ export function detailsText(card: CardSummary): string {
     card.spentSince ? `spent since ${inr(card.spentSince)}` : '',
   ].filter(Boolean).join(' · ');
 }
+
+/** About when the next statement lands: a month after the last one ("about 10 Nov"), null when unknown. */
+export function nextStatement(statementDate: string | null): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(statementDate || '');
+  if (!m) return null;
+  const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3]);
+  const last = new Date(y, mo + 2, 0).getDate(); // days in the next month: a 31st statement lands on the 30th/28th
+  const next = new Date(y, mo + 1, Math.min(d, last), 12);
+  return next.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+/**
+ * The numbers for a card's summary row. Billed = what's left of the last statement (0 once paid), Unbilled = spent
+ * since, Outstanding = both. Limit and Left only when the user has entered a limit.
+ */
+export function cardNumbers(card: Pick<CardSummary, 'outstanding' | 'spentSince' | 'limit'>) {
+  const unbilled = card.spentSince || 0;
+  const outstanding = card.outstanding || 0;
+  const billed = Math.max(0, outstanding - unbilled);
+  const limit = card.limit && card.limit > 0 ? card.limit : null;
+  return { limit, billed, unbilled, outstanding, left: limit === null ? null : Math.max(0, limit - outstanding) };
+}

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { requestUser } from '../../../../lib/requestUser';
 import { db } from '../../../../lib/firebase';
 import { bankNameById } from '../../../../lib/bankSenders';
-import { accountBalances, cardSummaries } from '../../../../lib/moneyAccounts';
+import { accountBalances, cardSummaries, saveAccountEdit, type AccountEdit } from '../../../../lib/moneyAccounts';
 import { statementLine, type StatementState } from '../../../../lib/statementAuto';
 
 export const dynamic = 'force-dynamic';
@@ -43,4 +43,32 @@ export async function GET(req: Request) {
     })
     .sort((a, b) => b.at - a.at);
   return NextResponse.json({ cards, accounts, checks });
+}
+
+const text = (v: unknown, re: RegExp, upper = false) => {
+  if (v === null) return null;
+  if (typeof v !== 'string') return undefined;
+  const t = (upper ? v.toUpperCase() : v).replace(/\s+/g, upper ? '' : ' ').trim();
+  return re.test(t) ? t : undefined;
+};
+
+/** Body: { id, edit } where edit may hold excluded, ifsc, accountNumber, holder (null clears). Only known fields, checked. */
+export async function POST(req: Request) {
+  const user = await requestUser(req);
+  if (!user) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
+  const body = await req.json().catch(() => ({} as Record<string, unknown>));
+  const e = (body.edit && typeof body.edit === 'object' ? body.edit : {}) as Record<string, unknown>;
+  if (typeof body.id !== 'string' || !/^[\w.-]{1,80}$/.test(body.id)) return NextResponse.json({ error: 'Which account?' }, { status: 400 });
+  const edit: AccountEdit = {};
+  if (typeof e.excluded === 'boolean') edit.excluded = e.excluded;
+  const ifsc = text(e.ifsc, /^[A-Z]{4}0[A-Z0-9]{6}$/, true);
+  if (ifsc !== undefined) edit.ifsc = ifsc;
+  const num = text(e.accountNumber, /^\d{6,20}$/, true);
+  if (num !== undefined) edit.accountNumber = num;
+  const holder = text(e.holder, /^[A-Za-z][A-Za-z .'-]{1,59}$/);
+  if (holder !== undefined) edit.holder = holder;
+  if (e.ifsc !== undefined && ifsc === undefined) return NextResponse.json({ error: 'That IFSC code looks wrong (4 letters, 0, then 6 letters or digits).' }, { status: 400 });
+  if (e.accountNumber !== undefined && num === undefined) return NextResponse.json({ error: 'An account number is 6 to 20 digits.' }, { status: 400 });
+  await saveAccountEdit(user.phone, body.id, edit);
+  return NextResponse.json({ ok: true });
 }

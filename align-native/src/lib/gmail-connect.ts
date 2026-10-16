@@ -74,16 +74,23 @@ export const gmailSetBillReminders = (remind: boolean) =>
 export type CardSummary = {
   key: string; issuer: string; issuerName: string; last4: string | null; statementDate: string | null; dueDate: string | null;
   totalDue: number; minDue: number | null; paidSince: number; spentSince: number; outstanding: number;
-  status: 'paid' | 'due' | 'overdue'; daysLeft: number | null; manual: boolean; hidden: boolean; edited: boolean; remind: boolean;
+  status: 'paid' | 'due' | 'overdue'; daysLeft: number | null; manual: boolean; hidden: boolean; edited: boolean; remind: boolean; limit?: number | null;
 };
 export type CardEdit = {
   name?: string | null; last4?: string | null; hidden?: boolean; remind?: boolean | null; forDue?: string | null;
-  totalDue?: number | null; minDue?: number | null; dueDate?: string | null; paid?: boolean | null;
+  totalDue?: number | null; minDue?: number | null; dueDate?: string | null; paid?: boolean | null; limit?: number | null;
 };
 export const editCard = (key: string, edit: CardEdit) => call<{ ok: true }>('/api/money/cards', { method: 'POST', body: JSON.stringify({ key, edit }) });
 export const addCard = (edit: CardEdit) => call<{ ok: true; key: string }>('/api/money/cards', { method: 'POST', body: JSON.stringify({ add: edit }) });
 export const removeCard = (key: string) => call<{ ok: true }>('/api/money/cards', { method: 'POST', body: JSON.stringify({ remove: key }) });
-export type AccountBalance = { id: string; bankId: string; bankName: string; last4: string | null; balance: number; at: number };
+export type AccountBalance = {
+  id: string; bankId: string; bankName: string; last4: string | null; balance: number; at: number;
+  /** Older cached copies lack these. */
+  excluded?: boolean; ifsc?: string | null; accountNumber?: string | null; holder?: string | null;
+  history?: { d: string; b: number }[];
+};
+export type AccountEdit = { excluded?: boolean; ifsc?: string | null; accountNumber?: string | null; holder?: string | null };
+export const editAccount = (id: string, edit: AccountEdit) => call<{ ok: true }>('/api/money/accounts', { method: 'POST', body: JSON.stringify({ id, edit }) });
 /** Credit cards (statement, due date, outstanding now) and bank balances, read from bank emails and SMS. */
 export type StatementCheck = {
   slot: string; bankName: string; kind: 'account' | 'card'; from: string | null; to: string | null;

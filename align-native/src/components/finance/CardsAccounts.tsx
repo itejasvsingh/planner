@@ -1,14 +1,16 @@
-import React, { useCallback, useState, useMemo } from 'react';
+import React, { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect } from 'expo-router';
-import { AlertTriangle, ChevronRight, CreditCard, Landmark, Plus, ShieldCheck } from 'lucide-react-native';
-import { Text } from '@/components/ui/text';
+import { AlertTriangle, Check, ChevronDown, ChevronRight, ChevronUp, Copy, CreditCard, Landmark, Plus, ShieldCheck } from 'lucide-react-native';
+import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Radius, Shadow } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { refreshCards, useCards } from '@/lib/cards-store';
+import { changeAccount, refreshCards, useCards } from '@/lib/cards-store';
+import BalanceTrend from './BalanceTrend';
 import { adjustBalances, recentForAccount } from '@/lib/account-balances';
-import { cardTitle, detailsText, dueText, inr, shortDay } from '@/lib/card-format';
+import { cardNumbers, cardTitle, detailsText, dueText, inr, nextStatement, shortDay } from '@/lib/card-format';
 import type { CardSummary } from '@/lib/gmail-connect';
 import CardSheet from './CardSheet';
 
@@ -33,6 +35,15 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
   const data = useCards(phone);
   const [open, setOpen] = useState<CardSummary | 'new' | null>(null);
   const [showHidden, setShowHidden] = useState(false);
+  const [openAcct, setOpenAcct] = useState<string | null>(null);
+  const [form, setForm] = useState({ ifsc: '', accountNumber: '', holder: '' });
+  const [formError, setFormError] = useState('');
+  const [copied, setCopied] = useState('');
+  const copy = async (label: string, value: string) => {
+    await Clipboard.setStringAsync(value);
+    setCopied(label);
+    setTimeout(() => setCopied(''), 1500);
+  };
 
   useFocusEffect(useCallback(() => { void refreshCards(phone); }, [phone]));
 
@@ -96,6 +107,7 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
         {shown.map(card => {
           const tone = card.status === 'overdue' ? c.expense : card.status === 'paid' ? c.income : card.daysLeft !== null && card.daysLeft <= 3 ? c.expense : c.textSecondary;
           const details = detailsText(card);
+          const nums = cardNumbers(card);
           return (
             <Pressable
               key={card.key}
@@ -116,7 +128,19 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
                 </View>
                 <ChevronRight color={c.textTertiary} size={16} />
               </View>
-              {details ? <Text style={{ color: c.textSecondary, fontSize: 12, marginTop: 8 }}>{details}{card.edited ? ' · edited' : ''}</Text> : null}
+              <View style={styles.numbers}>
+                {([
+                  ['Limit', nums.limit], ['Billed', nums.billed], ['Unbilled', nums.unbilled], ['Left to spend', nums.left],
+                ] as [string, number | null][]).filter(([, v]) => v !== null).map(([label, v]) => (
+                  <View key={label} style={[styles.num, { backgroundColor: c.backgroundMuted }]}>
+                    <Text style={{ color: c.textTertiary, fontSize: 11, fontWeight: '600' }}>{label}</Text>
+                    <Text style={{ color: c.text, fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{inr(v as number)}</Text>
+                  </View>
+                ))}
+              </View>
+              <Text style={{ color: c.textSecondary, fontSize: 12, marginTop: 8 }}>
+                {[card.statementDate && card.totalDue ? `Statement ${inr(card.totalDue)}${card.status === 'paid' ? ' · paid' : ''}` : '', nextStatement(card.statementDate) ? `next about ${nextStatement(card.statementDate)}` : '', card.edited ? 'edited' : ''].filter(Boolean).join(' · ') || details}
+              </Text>
             </Pressable>
           );
         })}
@@ -131,32 +155,82 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
         {accounts.length > 0 && (
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 10 }}>
             <Text style={[styles.header, { color: c.textTertiary, marginBottom: 0 }]}>Bank balances</Text>
-            {accounts.length > 1 && <Text style={{ color: c.textSecondary, fontSize: 13, fontWeight: '700' }}>Total {inr(accounts.reduce((t, a) => t + a.balance, 0))}</Text>}
+            {accounts.length > 1 && <Text style={{ color: c.textSecondary, fontSize: 13, fontWeight: '700' }}>Total {inr(accounts.reduce((t, a) => t + (a.excluded ? 0 : a.balance), 0))}</Text>}
           </View>
         )}
         {accounts.length > 0 && (
           <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border, paddingVertical: 4 }, Shadow.card]}>
             {accounts.map((a, i) => {
               const recent = recentForAccount(a, items, 3);
+              const open = openAcct === a.id;
+              const included = !a.excluded;
+              const details = [['Account number', a.accountNumber], ['IFSC', a.ifsc], ['Holder', a.holder]].filter(([, v]) => !!v) as [string, string][];
               return (
               <View key={a.id} style={{ borderTopWidth: i ? 1 : 0, borderTopColor: c.border }}>
-                <View style={[styles.row, { paddingVertical: 10 }]}
-                  accessible accessibilityLabel={`${a.bankName} ${a.last4 || ''} balance ${inr(a.balance)} as of ${when(a.at)}`}>
-                  <View style={[styles.icon, { backgroundColor: c.backgroundMuted }]}><Landmark color={c.textSecondary} size={18} /></View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={{ color: c.text, fontWeight: '600', fontSize: 15 }} numberOfLines={1}>{a.bankName}{a.last4 ? ` ••${a.last4}` : ''}</Text>
-                    <Text style={{ color: c.textTertiary, fontSize: 12 }}>Balance as of {when(a.at)}</Text>
-                  </View>
-                  <Text style={{ color: c.text, fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{inr(a.balance)}</Text>
+                <View style={[styles.row, { paddingVertical: 10 }]}>
+                  <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: included }}
+                    accessibilityLabel={`Count ${a.bankName} ${a.last4 || ''} in the total`} hitSlop={8}
+                    onPress={() => changeAccount(phone, a.id, { excluded: included }).catch(() => { /* undone on screen */ })}
+                    style={[styles.check, included ? { backgroundColor: c.accentFill, borderColor: c.accentFill } : { borderColor: c.border }]}>
+                    {included && <Check color={c.onAccent} size={14} strokeWidth={3} />}
+                  </Pressable>
+                  <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }}
+                    accessibilityLabel={`${a.bankName} ${a.last4 || ''} balance ${inr(a.balance)} as of ${when(a.at)}. ${open ? 'Hide' : 'Show'} details`}
+                    onPress={() => { setOpenAcct(open ? null : a.id); setFormError(''); setForm({ ifsc: a.ifsc || '', accountNumber: a.accountNumber || '', holder: a.holder || '' }); }}
+                    style={[styles.row, { flex: 1 }]}>
+                    <View style={[styles.icon, { backgroundColor: c.backgroundMuted }]}><Landmark color={c.textSecondary} size={18} /></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: c.text, fontWeight: '600', fontSize: 15 }} numberOfLines={1}>{a.bankName}{a.last4 ? ` ••${a.last4}` : ''}</Text>
+                      <Text style={{ color: c.textTertiary, fontSize: 12 }}>{included ? `Balance as of ${when(a.at)}` : 'Not counted in the total'}</Text>
+                    </View>
+                    <Text style={{ color: included ? c.text : c.textTertiary, fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{inr(a.balance)}</Text>
+                    {open ? <ChevronUp color={c.textTertiary} size={16} /> : <ChevronDown color={c.textTertiary} size={16} />}
+                  </Pressable>
                 </View>
                 {recent.map((t: any) => (
-                  <View key={t.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 48, paddingBottom: 6, gap: 8 }}>
+                  <View key={t.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 78, paddingBottom: 6, gap: 8 }}>
                     <Text numberOfLines={1} style={{ color: c.textSecondary, fontSize: 13, flex: 1 }}>{t.title || (t.type === 'income' ? 'Income' : 'Payment')}</Text>
                     <Text style={{ color: t.type === 'income' || t.type === 'deposit' ? c.income : c.textSecondary, fontSize: 13, fontVariant: ['tabular-nums'] }}>
                       {t.type === 'income' || t.type === 'deposit' ? '+' : '−'}{inr(Number(t.amount) || 0)}
                     </Text>
                   </View>
                 ))}
+                {open && (
+                  <View style={{ paddingHorizontal: 4, paddingBottom: 12, paddingTop: 4, gap: 12 }}>
+                    <BalanceTrend history={a.history} />
+                    {details.length > 0 && (
+                      <View style={{ gap: 2 }}>
+                        {details.map(([label, value]) => (
+                          <Pressable key={label} accessibilityRole="button" accessibilityLabel={`Copy ${label}`} onPress={() => void copy(`${a.id}${label}`, value)}
+                            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 7 }}>
+                            <Text style={{ color: c.textTertiary, fontSize: 12, fontWeight: '600', width: 110 }}>{label}</Text>
+                            <Text style={{ color: c.text, fontSize: 14, fontWeight: '600', flex: 1, fontVariant: ['tabular-nums'] }} numberOfLines={1}>{value}</Text>
+                            {copied === `${a.id}${label}` ? <Check color={c.income} size={15} /> : <Copy color={c.textTertiary} size={15} />}
+                          </Pressable>
+                        ))}
+                        <Pressable accessibilityRole="button" onPress={() => void copy(`${a.id}all`, [a.bankName, ...details.map(([l, v]) => `${l}: ${v}`)].join('\n'))}
+                          style={[styles.add, { borderColor: c.border, marginTop: 6, borderStyle: 'solid' }]}>
+                          <Text style={{ color: c.accent, fontWeight: '700' }}>{copied === `${a.id}all` ? 'Copied' : 'Copy all details'}</Text>
+                        </Pressable>
+                      </View>
+                    )}
+                    <Text style={{ color: c.textTertiary, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>{details.length ? 'Edit bank details' : 'Add bank details to copy them anywhere'}</Text>
+                    {([['Account number', 'accountNumber', 'numeric'], ['IFSC code', 'ifsc', 'default'], ['Account holder', 'holder', 'default']] as const).map(([label, field, kb]) => (
+                      <TextInput key={field} accessibilityLabel={label} placeholder={label} placeholderTextColor={c.textTertiary}
+                        value={form[field]} onChangeText={v => setForm({ ...form, [field]: v })} keyboardType={kb === 'numeric' ? 'number-pad' : 'default'}
+                        autoCapitalize={field === 'ifsc' ? 'characters' : 'none'} autoCorrect={false}
+                        style={[styles.input, { backgroundColor: c.background, borderColor: c.border, color: c.text }]} />
+                    ))}
+                    {!!formError && <Text accessibilityRole="alert" style={{ color: c.expense, fontSize: 13 }}>{formError}</Text>}
+                    <Pressable accessibilityRole="button" onPress={() => {
+                      setFormError('');
+                      changeAccount(phone, a.id, { accountNumber: form.accountNumber.trim() || null, ifsc: form.ifsc.trim() || null, holder: form.holder.trim() || null })
+                        .catch(e => setFormError((e as Error).message));
+                    }} style={[styles.add, { backgroundColor: c.accentFill, borderColor: c.accentFill, borderStyle: 'solid' }]}>
+                      <Text style={{ color: c.onAccent, fontWeight: '700' }}>Save details</Text>
+                    </Pressable>
+                  </View>
+                )}
               </View>
               );
             })}
@@ -220,7 +294,11 @@ const styles = StyleSheet.create({
   header: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 10 },
   card: { borderRadius: Radius.lg, borderWidth: 1, padding: 14 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  numbers: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
+  num: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: Radius.sm, minWidth: 92 },
   empty: { padding: 28, alignItems: 'center', gap: 10, borderWidth: 1, borderStyle: 'dashed', borderRadius: Radius.lg },
   add: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: Radius.md, borderWidth: 1, borderStyle: 'dashed' },
+  check: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  input: { borderWidth: 1, borderRadius: Radius.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: 15 },
   icon: { width: 34, height: 34, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
 });

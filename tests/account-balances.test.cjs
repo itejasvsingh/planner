@@ -39,3 +39,11 @@ test('recent transactions for an account: newest first, only that account', () =
   ];
   assert.deepEqual(recentForAccount(acct, items, 2).map(i => i.id), ['2', '4']);
 });
+
+test('balances: an unticked account stays listed but is left out of the total and net worth', () => {
+  const other = { id: 'b', bankId: 'sbi', bankName: 'SBI', last4: '5555', balance: 4000, at, excluded: true };
+  const r = adjustBalances([acct, other], [], []);
+  assert.equal(r.accounts.length, 2);
+  assert.equal(r.totalBalance, 10000);
+  assert.equal(r.netWorth, 10000);
+});
