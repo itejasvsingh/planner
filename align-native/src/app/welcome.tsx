@@ -13,7 +13,7 @@ export default function WelcomeScreen() {
       <View style={styles.content}>
         <Text style={[styles.title, { color: theme.text }]}>Welcome to{'\n'}Align</Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          Manage your tasks, boost productivity and achieve your goals.
+          Plan your days and keep an eye on your money.
         </Text>
 
         <View style={styles.imageContainer}>
