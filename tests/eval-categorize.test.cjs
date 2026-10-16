@@ -39,3 +39,10 @@ test('cost per 1,000 from average tokens and per-million prices', () => {
   const c = costPer1000({ input: 400, output: 40, thought: 160 }, { input: 0.3, output: 2.5 });
   assert.ok(Math.abs(c - ((400 * 0.3 + 200 * 2.5) * 1000) / 1e6) < 1e-9);
 });
+
+test('prices.json has the models the evaluation can run, with sane numbers', () => {
+  const prices = require('../scripts/eval-categorize/prices.json');
+  for (const m of ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'claude-haiku-5-5']) {
+    assert.ok(prices[m] && prices[m].input > 0 && prices[m].output >= prices[m].input, m);
+  }
+});

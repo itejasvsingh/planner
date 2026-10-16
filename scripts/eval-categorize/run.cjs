@@ -2,6 +2,7 @@
 // category it picks, the tokens it used and how long it took.
 //
 //   GEMINI_API_KEY=... node scripts/eval-categorize/run.cjs [--model gemini-2.5-flash] [--thinking on|off] [--set all|tune|test] [--limit N] [--mock]
+//   ANTHROPIC_API_KEY=... node scripts/eval-categorize/run.cjs --provider anthropic [--model claude-haiku-5-5]   (the app's Claude call, lib/ai.ts)
 //
 // --thinking off adds thinkingBudget 0 (2.5 models only); the app leaves it on today, which costs more tokens.
 // --mock invents answers so you can check the whole pipeline without a key.
@@ -13,13 +14,33 @@ const { buildParsePrompt, PARSE_GENERATION_CONFIG } = jiti(path.join(__dirname, 
 
 const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : d; };
 const dir = path.join(__dirname, 'data');
-const model = arg('model', 'gemini-2.5-flash');
-const thinking = arg('thinking', 'on');
+const provider = arg('provider', 'gemini');
+if (!['gemini', 'anthropic'].includes(provider)) throw new Error('--provider must be gemini or anthropic.');
+const model = arg('model', provider === 'anthropic' ? 'claude-haiku-5-5' : 'gemini-2.5-flash');
+// Claude decides its own thinking (effort low in lib/ai.ts), so the flag only applies to Gemini
+const thinking = provider === 'anthropic' ? 'default' : arg('thinking', 'on');
 const mock = process.argv.includes('--mock');
 const which = arg('set', 'all');
 const outFile = path.join(dir, `predictions-${model}-think${thinking}${mock ? '-mock' : ''}.csv`);
 const COLS = ['id', 'pred_category', 'pred_type', 'input_tokens', 'output_tokens', 'thought_tokens', 'latency_ms', 'error'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+async function predictAnthropic(text, today) {
+  // Loaded only here, so Gemini and --mock runs don't need the package
+  const { callAnthropic, extractJson } = jiti(path.join(__dirname, '../../lib/ai.ts'));
+  for (let attempt = 0; ; attempt++) {
+    const t0 = Date.now();
+    try {
+      const r = await callAnthropic(buildParsePrompt(text, today), model);
+      const item = (extractJson(r.text)?.items || [])[0] || null;
+      return { pred_category: item?.category || '', pred_type: item?.type || '', input_tokens: r.inputTokens, output_tokens: r.outputTokens, thought_tokens: 0, latency_ms: Date.now() - t0, error: '' };
+    } catch (e) {
+      const retry = /429|529|503|overloaded|rate|ECONNRESET|timed out/i.test(e.message);
+      if (!retry || attempt >= 4) return { pred_category: '', pred_type: '', input_tokens: 0, output_tokens: 0, thought_tokens: 0, latency_ms: Date.now() - t0, error: e.message.slice(0, 120) };
+      await sleep(1000 * 2 ** attempt);
+    }
+  }
+}
 
 async function predictLive(genAI, text, today) {
   const cfg = { ...PARSE_GENERATION_CONFIG, ...(thinking === 'off' && model.startsWith('gemini-2.5') ? { thinkingConfig: { thinkingBudget: 0 } } : {}) };
@@ -49,19 +70,21 @@ const predictMock = (text, id) => ({ pred_category: ['Food & Dining', 'Transport
   const done = fs.existsSync(outFile) ? parseCsv(fs.readFileSync(outFile, 'utf8')) : [];
   const have = new Map(done.filter(d => !d.error).map(d => [d.id, d]));
   let genAI = null;
-  if (!mock) {
+  if (!mock && provider === 'anthropic') {
+    if (!process.env.ANTHROPIC_API_KEY) throw new Error('Set ANTHROPIC_API_KEY (your own key; never commit it), or use --mock.');
+  } else if (!mock) {
     if (!process.env.GEMINI_API_KEY) throw new Error('Set GEMINI_API_KEY (your own key; never commit it), or use --mock.');
     const { GoogleGenerativeAI } = require('@google/generative-ai');
     genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
   }
   const today = new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
   const todo = rows.filter(r => !have.has(r.id));
-  console.log(`${rows.length} rows, ${have.size} already done, ${todo.length} to run (${model}, thinking ${thinking}${mock ? ', MOCK' : ''}).`);
+  console.log(`${rows.length} rows, ${have.size} already done, ${todo.length} to run (${provider}/${model}${provider === 'gemini' ? `, thinking ${thinking}` : ''}${mock ? ', MOCK' : ''}).`);
   let next = 0, finished = 0;
   const worker = async () => {
     while (next < todo.length) {
       const r = todo[next++];
-      const out = mock ? predictMock(r.text, r.id) : await predictLive(genAI, r.text, today);
+      const out = mock ? predictMock(r.text, r.id) : provider === 'anthropic' ? await predictAnthropic(r.text, today) : await predictLive(genAI, r.text, today);
       have.set(r.id, { id: r.id, ...out });
       if (++finished % 25 === 0) { fs.writeFileSync(outFile, toCsv([...have.values()], COLS)); console.log(`  ${finished}/${todo.length}`); }
     }

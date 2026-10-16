@@ -15,7 +15,7 @@ The scripts run on your machine with your own key. Nothing here runs against you
    (that's in a separate file on purpose). Save as `data/labeled.csv`.
 3. **Run Gemini** with the app's exact prompt (`lib/parsePrompt.ts`; your own `GEMINI_API_KEY`):
    `node scripts/eval-categorize/run.cjs --model gemini-2.5-flash --thinking on`
-   Also try `--thinking off` and `--model gemini-2.5-flash-lite`. `--mock` checks the pipeline without a key.
+   Also try `--thinking off` and `--model gemini-2.5-flash-lite`. To test Claude Haiku 5.5, the model quick add can use, run `ANTHROPIC_API_KEY=... node scripts/eval-categorize/run.cjs --provider anthropic` (needs `npm install` first, for the Anthropic package) and report it the same way; its `--pred` file is `predictions-claude-haiku-5-5-thinkdefault.csv`. `--mock` checks the pipeline without a key.
    It resumes if interrupted.
 4. **Report**: `node scripts/eval-categorize/report.cjs --pred predictions-gemini-2.5-flash-thinkon.csv --set test`
    Rows split into `tune` and `test` halves by id. Change the prompt looking only at `tune` errors
