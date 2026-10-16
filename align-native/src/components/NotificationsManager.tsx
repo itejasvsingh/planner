@@ -24,7 +24,7 @@ export default function NotificationsManager() {
       const due = new Date(y, m - 1, d, 10, 0, 0);
       const min = c.minDue && c.minDue < c.outstanding ? ` (min ${inr(c.minDue)})` : '';
       out.push({
-        content: { title: `${cardTitle(c)} due in 3 days`, body: `${inr(c.outstanding)} to pay${min}. Open Money → Cards.`, sound: true },
+        content: { title: `${cardTitle(c)} due in 3 days`, body: `${inr(c.outstanding)} to pay${min}. Open Wallet.`, sound: true },
         trigger: { date: new Date(due.getTime() - 3 * 86400000), type: Notifications.SchedulableTriggerInputTypes.DATE },
       });
       out.push({

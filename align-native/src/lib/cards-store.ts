@@ -4,7 +4,7 @@ import { getItem, setItem } from '@/lib/storage';
 import { addNetEntry, editAccount, editNetEntry, moneyAccounts, removeNetEntry, type AccountEdit, type AccountBalance, type NetEntry, type CardSummary, type StatementCheck } from '@/lib/gmail-connect';
 
 /**
- * Cards and bank balances, shared by Money → Cards, the card page and the transaction form's "Paid with".
+ * Cards and bank balances, shared by Wallet, the card page and the transaction form's "Paid with".
  * Shows the last known list at once (saved on the device) and refreshes from the server when asked.
  */
 export type MoneyAccounts = { cards: CardSummary[]; accounts: AccountBalance[]; checks?: StatementCheck[]; entries?: NetEntry[] };
@@ -24,7 +24,7 @@ function set(phone: string, next: MoneyAccounts) {
   void setItem(key(phone), JSON.stringify(next));
 }
 
-/** Fetches the latest cards and balances (after an edit, or when Money → Cards opens). */
+/** Fetches the latest cards and balances (after an edit, or when Wallet opens). */
 export function refreshCards(phone: string | null): Promise<void> {
   if (!phone) return Promise.resolve();
   return new Promise((resolve) => {

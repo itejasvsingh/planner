@@ -21,7 +21,6 @@ import ReviewSheet from '@/components/finance/ReviewSheet';
 import CategoryPicker from '@/components/CategoryPicker';
 import { findSuspicious } from '@/lib/suspicious';
 import { todayKey } from '@/lib/dates';
-import CardsAccounts from '@/components/finance/CardsAccounts';
 import NinetyDayView from '@/components/finance/NinetyDayView';
 import { friendBalances, recentFriends, settleUpPatches, splitOf } from '@/lib/splits';
 
@@ -88,7 +87,7 @@ export default function FinanceScreen() {
     const { budgetLimits: limits, saveBudgets } = useBudgetLimits(phone);
     
     const cardData = useCards(phone);
-    // Card dues use what is owed now (the same adjusted figures as Money → Cards)
+    // Card dues use what is owed now (the same adjusted figures as Wallet)
     const adjusted = useMemo(() => (cardData ? adjustBalances(cardData.accounts || [], cardData.cards || [], items) : null), [cardData, items]);
     // Card dues use what's owed now; card reminder tasks aren't listed separately, so a card never shows twice
     const upcoming = useMemo(() => upcomingPayments(items as any, (adjusted?.cards || []).map(k => ({ title: cardTitle(k), dueDate: k.dueDate, outstanding: k.outstanding, hidden: k.hidden, status: k.status })), new Date(), 14), [items, adjusted]);
@@ -104,7 +103,7 @@ export default function FinanceScreen() {
     const [moreFilters, setMoreFilters] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
     const [categoriesShown, setCategoriesShown] = useState(false);
-    type MoneyView = 'Overview' | 'Analysis' | 'Cards' | 'Split';
+    type MoneyView = 'Overview' | 'Analysis' | 'Split';
     const [view, setView] = useState<MoneyView>('Overview');
     const [analysisMode, setAnalysisMode] = useState<'cycle' | '90'>('cycle');
     const [query, setQuery] = useState('');
@@ -342,12 +341,10 @@ export default function FinanceScreen() {
                 />
 
                 <View style={styles.content}>
-                    <SegmentedControl tabs={['Overview', 'Analysis', 'Cards', 'Split']} activeTab={view} onTabChange={t => setView(t as MoneyView)} />
+                    <SegmentedControl tabs={['Overview', 'Analysis', 'Split']} activeTab={view} onTabChange={t => setView(t as MoneyView)} />
                     <View style={{ height: 12 }} />
 
-                    {view === 'Cards' ? (
-                        <CardsAccounts phone={phone} items={items} onOpenSettings={() => router.push('/settings/gmail')} onEditTransaction={openEditSheet} />
-                    ) : view === 'Split' ? (
+                    {view === 'Split' ? (
                         <>
                             <Pressable accessibilityRole="button" onPress={() => { setEditingItem(null); setStartSplit(true); setIsSheetVisible(true); }}
                                 style={[styles.splitBtn, { backgroundColor: c.accentFill }]}>
@@ -445,7 +442,7 @@ export default function FinanceScreen() {
                         </View>
                     </Pressable>
                         {upcoming.length > 0 && (
-                            <Pressable accessibilityRole="button" accessibilityLabel="Next payment due. Open cards" onPress={() => setView('Cards')} style={[styles.heroNext, { borderTopColor: c.onHeroOverlay }]}>
+                            <Pressable accessibilityRole="button" accessibilityLabel="Next payment due. Open Wallet" onPress={() => router.push('/(tabs)/wallet' as any)} style={[styles.heroNext, { borderTopColor: c.onHeroOverlay }]}>
                                 <CalendarClock color={c.onHero} size={15} />
                                 <Text style={[styles.heroLineText, { color: c.onHero, flex: 1, fontWeight: '600' }]} numberOfLines={1}>
                                     {upcoming[0].title}{upcoming[0].amount > 0 ? ` ${formatMoney(upcoming[0].amount)}` : ''} · {dueLabel(upcoming[0].date)}{upcoming.length > 1 ? ` · +${upcoming.length - 1} more` : ''}

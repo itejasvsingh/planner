@@ -83,7 +83,7 @@ test('a wrong password says so; the right one imports the transactions and the c
   assert.deepEqual([st.checked, st.extras], [true, [{ title: 'Mystery Shop', amount: 999, date: '2026-09-12' }]]);
   assert.equal(st.msgId, 's1');
   assert.ok(st.foundAt > Date.now() - 60000, 'remembers when it was found, for the "new statement" notice');
-  assert.equal(statementLine('HDFC Bank', 'hdfc', st), "HDFC Bank account statement read: 4 transactions, 3 new. 1 payment from alerts isn't on it: check Money → Cards.");
+  assert.equal(statementLine('HDFC Bank', 'hdfc', st), "HDFC Bank account statement read: 4 transactions, 3 new. 1 payment from alerts isn't on it: check Wallet.");
   assert.equal(statementLine('HDFC Bank', 'hdfc__card', { state: 'needs_password', at: 1 }), 'HDFC Bank credit card statement found: it needs its PDF password (Align → Settings → Gmail).');
   const all = (await items()).filter((i) => i.title !== 'Mystery Shop');
   assert.equal(all.length, 4, 'opening balance is not a transaction; rent once');

@@ -24,7 +24,7 @@ const when = (ms: number) => {
 };
 
 /**
- * Money → Cards: credit cards (due date, outstanding now) and bank balances found in bank emails and SMS,
+ * Wallet: credit cards (due date, outstanding now) and bank balances found in bank emails and SMS,
  * plus cards added by hand. Tap a card for its transactions and to edit it.
  */
 

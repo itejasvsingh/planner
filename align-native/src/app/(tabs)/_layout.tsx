@@ -12,7 +12,7 @@ import { Tabs } from 'expo-router';
 import { expandQuickAdd } from '@/lib/quick-add-state';
 import { flushPendingSms } from '@/lib/sms-import';
 import { startGmailAutoSync } from '@/lib/gmail-connect';
-import { Calendar, ListTodo, Wallet } from 'lucide-react-native';
+import { Calendar, CreditCard, ListTodo, Wallet } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { Platform, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -109,6 +109,12 @@ export default function TabsLayout() {
           tabBarLabel: 'Money', 
           tabBarLabelStyle: { fontWeight: '600' },
           tabBarIcon: ({ focused }) => <TabIcon Icon={Wallet} focused={focused} /> 
+        }} />
+        <Tabs.Screen name="wallet" options={{ 
+          title: 'Wallet', 
+          tabBarLabel: 'Wallet', 
+          tabBarLabelStyle: { fontWeight: '600' },
+          tabBarIcon: ({ focused }) => <TabIcon Icon={CreditCard} focused={focused} /> 
         }} />
       </Tabs>
       <QuickAddBar />

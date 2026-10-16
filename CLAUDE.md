@@ -43,7 +43,7 @@
   all of `lib/bankSenders.ts` BANKS). Alerts from any bank go through `parseBankEmail` (sentence + labelled rows);
   `recordTransaction` keeps one payment from SMS/email/Gmail/statement once (same ref, or same amount and
   direction ±1 day from another source unless both refs differ) and stores `ref` and `time`.
-- Money → Cards & accounts (`lib/moneyAccounts.ts`, `GET /api/money/accounts`): per card the latest statement
+- Wallet & accounts (`lib/moneyAccounts.ts`, `GET /api/money/accounts`): per card the latest statement
   (gmail_links/<phone>/bills, with `statementDate`), payments (`money_accounts/<phone>/card_payments`) and spends
   since it (transactions with `cardLast4`), and the latest "Avl Bal" per account (`money_accounts/<phone>/accounts`),
   parsed by `lib/accountParse.ts` from Gmail and SMS. `money_accounts` is server-only (catch-all rule).
@@ -73,7 +73,7 @@
 - Card due reminders use what's owed now (`cardReminderLines` in `lib/moneyAccounts.ts` for WhatsApp; the app's
   `NotificationsManager` schedules them locally); per card `remind` in card_edits, else `gmail_links.billReminders`.
 - After each statement, rows are compared with alert-recorded transactions of the same `accountLast4`/`cardLast4`;
-  ones missing from the statement are stored as `statementStatus.<slot>.extras` and shown in Money → Cards.
+  ones missing from the statement are stored as `statementStatus.<slot>.extras` and shown in Wallet.
 - Security: the repo is public. Never commit tokens or keys (the history already holds old WhatsApp/Meta tokens, a
   Gemini key and old NUDGE/TEST_SUMMARY secrets, which must stay revoked). `/api/parse` is signed-in only and writes
   only to the caller's own account; cron routes accept only `CRON_SECRET` and reply with counts, never personal
