@@ -394,7 +394,7 @@ export default function FinanceScreen() {
                             <Text style={{ color: c.expense, fontWeight: '700', fontSize: 13 }}>Review</Text>
                         </Pressable>
                     )}
-                    <CycleStepper payday={payday} offset={offset} onChange={setOffset} />
+                    <CycleStepper plain payday={payday} offset={offset} onChange={setOffset} />
                                         {/* Budget / balance card */}
                     <Pressable
                         accessibilityRole="button"
@@ -435,20 +435,14 @@ export default function FinanceScreen() {
                             </>
                         )}
 
-                        <View style={styles.heroStats}>
-                            <View style={[styles.heroStat, { backgroundColor: c.backgroundElement }]}>
-                                <View style={[styles.heroStatIcon, { backgroundColor: c.incomeSoft }]}><ArrowDownLeft color={c.income} size={16} strokeWidth={2.5} /></View>
-                                <View>
-                                    <Text style={[styles.heroStatLabel, { color: c.textSecondary }]}>Income</Text>
-                                    <Text style={[styles.heroStatValue, { color: c.text }]}>{formatMoney(totalEarned)}</Text>
-                                </View>
+                        <View style={styles.heroLine}>
+                            <View style={styles.heroLineItem}>
+                                <ArrowDownLeft color={c.heroBar} size={15} strokeWidth={2.5} />
+                                <Text style={[styles.heroLineText, { color: c.onHero }]}>{formatMoney(totalEarned)} in</Text>
                             </View>
-                            <View style={[styles.heroStat, { backgroundColor: c.backgroundElement }]}>
-                                <View style={[styles.heroStatIcon, { backgroundColor: c.expenseSoft }]}><ArrowUpRight color={c.expense} size={16} strokeWidth={2.5} /></View>
-                                <View>
-                                    <Text style={[styles.heroStatLabel, { color: c.textSecondary }]}>Spent</Text>
-                                    <Text style={[styles.heroStatValue, { color: c.text }]}>{formatMoney(totalSpent)}</Text>
-                                </View>
+                            <View style={styles.heroLineItem}>
+                                <ArrowUpRight color={c.onHero} size={15} strokeWidth={2.5} />
+                                <Text style={[styles.heroLineText, { color: c.onHero }]}>{formatMoney(totalSpent)} out</Text>
                             </View>
                         </View>
                     </Pressable>
@@ -678,11 +672,11 @@ export default function FinanceScreen() {
                                                         {isTransfer ? '' : (isIncome ? '+' : '−')}{formatMoney(Number(item.amount) || 0)}
                                                     </Text>
                                                     {/* Kind of transaction at a glance */}
-                                                    <View style={[styles.kindTag, { backgroundColor: item.excluded ? c.backgroundMuted : isIncome ? c.incomeSoft : isTransfer ? c.backgroundMuted : c.expenseSoft }]}>
+                                                    {(isIncome || isTransfer || item.excluded) && <View style={[styles.kindTag, { backgroundColor: item.excluded ? c.backgroundMuted : isIncome ? c.incomeSoft : isTransfer ? c.backgroundMuted : c.expenseSoft }]}>
                                                         <Text style={[styles.kindTagText, { color: item.excluded ? c.textSecondary : isIncome ? c.income : isTransfer ? c.textSecondary : c.expense }]}>
                                                             {item.excluded ? 'Left out' : isIncome ? 'Income' : isTransfer ? 'Transfer' : 'Expense'}
                                                         </Text>
-                                                    </View>
+                                                    </View>}
                                                 </View>
                                             </Pressable>
                                         );
@@ -768,7 +762,9 @@ const styles = StyleSheet.create({
   heroAmount: { fontSize: 42, fontWeight: '800', letterSpacing: -1, marginTop: 4, fontVariant: ['tabular-nums'] },
   heroTrack: { height: 6, borderRadius: Radius.pill, overflow: 'hidden', marginTop: 16 },
   heroNote: { fontSize: 12, fontWeight: '600', marginTop: 8, opacity: 0.7 },
-  heroStats: { flexDirection: 'row', gap: 8, marginTop: 16 },
+  heroLine: { flexDirection: 'row', gap: 18, marginTop: 14 },
+  heroLineItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  heroLineText: { fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] },
   heroStat: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderRadius: Radius.md },
   heroStatIcon: { width: 32, height: 32, borderRadius: Radius.sm, alignItems: 'center', justifyContent: 'center' },
   heroStatLabel: { fontSize: 12, fontWeight: '600' },

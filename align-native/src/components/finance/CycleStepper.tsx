@@ -19,14 +19,14 @@ export function cycleName(payday: number, offset: number) {
 }
 
 /** ‹ This cycle › — steps through salary cycles; shared by Overview and Analysis. */
-export default function CycleStepper({ payday, offset, onChange }: { payday: number; offset: number; onChange: (offset: number) => void }) {
+export default function CycleStepper({ payday, offset, onChange, plain = false }: { payday: number; offset: number; onChange: (offset: number) => void; plain?: boolean }) {
   const c = useTheme();
   const cycle = cycleRange(payday, offset);
   const lastDay = new Date(cycle.end.getFullYear(), cycle.end.getMonth(), cycle.end.getDate() - 1);
   const inProgress = offset === 0;
   const atOldest = offset <= OLDEST_CYCLE;
   return (
-    <View style={[styles.stepper, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+    <View style={plain ? styles.plain : [styles.stepper, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
       <Pressable accessibilityRole="button" accessibilityLabel="Previous cycle" disabled={atOldest} onPress={() => onChange(offset - 1)} style={[styles.stepBtn, { opacity: atOldest ? 0.3 : 1 }]}>
         <ChevronLeft color={c.text} size={20} />
       </Pressable>
@@ -52,5 +52,6 @@ export default function CycleStepper({ payday, offset, onChange }: { payday: num
 
 const styles = StyleSheet.create({
   stepper: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderRadius: Radius.lg, paddingVertical: 8, paddingHorizontal: 6, marginBottom: 8 },
+  plain: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
   stepBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
 });
