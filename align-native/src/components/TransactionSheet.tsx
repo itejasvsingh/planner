@@ -4,7 +4,7 @@ import { Pressable } from '@/components/ui/pressable';
 import { Colors, Radius, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ChevronDown, ChevronUp, X, Trash2 } from 'lucide-react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import SegmentedControl from './SegmentedControl';
 import { DEFAULT_CATEGORY, categoriesFor, kindForType, resolveCategory, type CategoryKind } from '@/lib/categories';
 import CategoryPicker from './CategoryPicker';
@@ -62,6 +62,9 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [bookmarked, setBookmarked] = useState(false);
     // Bookmark, leave out, monthly bill and split live under "More options", open only when one of them is on
     const [moreOpen, setMoreOpen] = useState(false);
+    // Opening "More options" (or turning Split on) scrolls down so what appeared is in view
+    const formScroll = useRef<ScrollView>(null);
+    const scrollWhenGrown = useRef(false);
     const [excluded, setExcluded] = useState(false);
     const { phone } = usePhone();
     const cardData = useCards(phone);
@@ -184,7 +187,14 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                         </Pressable>
                     </View>
 
-                    <ScrollView style={{ flexShrink: 1 }} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 16, paddingBottom: 4 }}>
+                    <ScrollView
+                        ref={formScroll}
+                        style={{ flexShrink: 1 }}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
+                        contentContainerStyle={{ gap: 16, paddingBottom: 4 }}
+                        onContentSizeChange={() => { if (scrollWhenGrown.current) { scrollWhenGrown.current = false; formScroll.current?.scrollToEnd({ animated: true }); } }}
+                    >
                         <SegmentedControl 
                             tabs={['Expense', 'Income', 'Transfer']} 
                             activeTab={type === 'expense' ? 'Expense' : (type === 'transfer' ? 'Transfer' : 'Income')} 
@@ -242,7 +252,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                         {/* Category Selector */}
                         <View>
                             <Text style={[Type.label, { color: c.textSecondary, marginBottom: 8 }]}>Category</Text>
-                            <CategoryPicker kind={kindForType(type)} value={category} onChange={(v) => { setCategory(v); setCategoryTouched(true); }} />
+                            <CategoryPicker layout="row" kind={kindForType(type)} value={category} onChange={(v) => { setCategory(v); setCategoryTouched(true); }} />
                         </View>
 
                         {/* Paid with: read off the bank alert; only editable if the user says it's wrong */}
@@ -287,7 +297,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                             const active = rows.filter(r => r.on).map(r => r.label === 'Leave out of cash flow' ? 'Left out' : r.label === 'Split with friends' ? 'Split' : r.label);
                             return (
                                 <View>
-                                    <Pressable accessibilityRole="button" accessibilityState={{ expanded: moreOpen }} onPress={() => setMoreOpen(!moreOpen)}
+                                    <Pressable accessibilityRole="button" accessibilityState={{ expanded: moreOpen }} onPress={() => { scrollWhenGrown.current = !moreOpen; setMoreOpen(!moreOpen); }}
                                         style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
                                         <View style={{ flex: 1 }}>
                                             <Text style={[Type.label, { color: c.textSecondary }]}>More options</Text>
@@ -307,7 +317,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                                         accessibilityRole="switch"
                                                         accessibilityLabel={r.label}
                                                         accessibilityState={{ checked: r.on }}
-                                                        onPress={() => r.set(!r.on)}
+                                                        onPress={() => { if (r.label === 'Split with friends' && !r.on) scrollWhenGrown.current = true; r.set(!r.on); }}
                                                         style={{ width: 50, height: 30, borderRadius: 15, backgroundColor: r.on ? c.accentFill : c.backgroundMuted, padding: 2, justifyContent: 'center', alignItems: r.on ? 'flex-end' : 'flex-start' }}
                                                     >
                                                         <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } }} />
