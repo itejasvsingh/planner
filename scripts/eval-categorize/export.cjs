@@ -20,6 +20,7 @@ const arg = (n, d) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 
   const phone = arg('phone');
   if (!phone) throw new Error('Pass --phone <your number as stored, e.g. 919876543210>.');
   const limit = Number(arg('limit', 500));
+  if (!/\d{10}/.test(phone)) throw new Error(`--phone must be your real number in digits (like 9876543210), not "${phone}".`);
   const { db } = jiti(path.join(__dirname, '../../lib/firebase.ts'));
   const includeEmail = process.argv.includes('--include-email');
   if (includeEmail) console.warn('WARNING: including rows that came from email/Gmail. run.cjs will send their text to Gemini, which Align promises not to do with email data.');
