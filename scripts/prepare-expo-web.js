@@ -70,7 +70,7 @@ const pwaHeadSnippet = `
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Align">
-  <meta name="theme-color" content="#0E0D14">
+  <meta name="theme-color" content="#0E1325">
   <meta name="format-detection" content="telephone=no">
   <meta name="apple-touch-fullscreen" content="yes">
   <link rel="manifest" href="/manifest.json">

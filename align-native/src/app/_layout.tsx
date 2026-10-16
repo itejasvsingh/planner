@@ -1,6 +1,8 @@
 import { ReducedMotionConfig, ReduceMotion } from 'react-native-reanimated';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
+import { useFonts } from 'expo-font';
+import { FONT_ASSETS } from '@/lib/app-fonts';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, View, Platform, UIManager } from 'react-native';
 
@@ -21,6 +23,8 @@ SplashScreen.preventAutoHideAsync();
 function RootNav() {
   const { scheme: colorScheme } = useThemeMode();
   const { ready, phone } = usePhone();
+  const [fontsLoaded, fontError] = useFonts(FONT_ASSETS);
+  const fontsDone = fontsLoaded || !!fontError;
   const router = useRouter();
   const segments = useSegments();
   
@@ -42,7 +46,7 @@ function RootNav() {
   }, [segments]);
 
   useEffect(() => {
-    if (!ready || !securityReady || hasSeenOnboarding === null) return;
+    if (!ready || !securityReady || hasSeenOnboarding === null || !fontsDone) return;
     
     // Auth guard routing
     const inTabsGroup = segments[0] === '(tabs)';
@@ -62,15 +66,15 @@ function RootNav() {
     } else if (phone && !inTabsGroup && !inSettingsGroup ) {
       router.replace('/(tabs)');
     }
-  }, [ready, securityReady, phone, segments, hasSeenOnboarding]);
+  }, [ready, securityReady, phone, segments, hasSeenOnboarding, fontsDone]);
 
   useEffect(() => {
-    if (ready && securityReady && hasSeenOnboarding !== null) {
+    if (ready && securityReady && hasSeenOnboarding !== null && fontsDone) {
       void SplashScreen.hideAsync();
     }
-  }, [ready, securityReady, hasSeenOnboarding]);
+  }, [ready, securityReady, hasSeenOnboarding, fontsDone]);
 
-  if (!ready || !securityReady || hasSeenOnboarding === null) {
+  if (!ready || !securityReady || hasSeenOnboarding === null || !fontsDone) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors[colorScheme].background }}>
         <ActivityIndicator color={Colors[colorScheme].accent} />

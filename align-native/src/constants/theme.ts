@@ -1,62 +1,66 @@
 import '@/global.css';
 import { Platform } from 'react-native';
 
+/**
+ * Navy ink on a cool grey page with white cards and a deep blue accent (after Fold's look). Every colour is a role,
+ * so screens never hard-code one; secondary and tertiary text keep 4.5:1 on both the page and white cards.
+ */
 export const Colors = {
   light: {
-    text: '#0D0E0F',
-    textSecondary: '#5E5F66',
+    text: '#20294C',
+    textSecondary: '#4F5475',
     /** Keeps 4.5:1 on white and the page background. */
-    textTertiary: '#70717A',
-    background: '#F7F7FA',
+    textTertiary: '#676B89',
+    background: '#F0F1F5',
     backgroundElement: '#FFFFFF',
     /** Inset surfaces inside cards: pills, tracks, input wells. */
-    backgroundMuted: '#F1F1FA',
-    backgroundSelected: '#EEE5FF',
-    border: '#EAEAF2',
-    /** Violet accent for text, icons and selection. */
-    accent: '#7F3DFF',
-    accentSoft: '#EEE5FF',
-    /** Solid fill for primary buttons and selected pills; always pair with onAccent for content on top. */
-    accentFill: '#7F3DFF',
+    backgroundMuted: '#F0F1F5',
+    backgroundSelected: '#E3E7F3',
+    border: '#DDDFE9',
+    /** Deep blue for text, icons and selection. */
+    accent: '#0A2D67',
+    accentSoft: '#E3E7F3',
+    /** Solid fill for primary buttons and selected pills (navy); always pair with onAccent for content on top. */
+    accentFill: '#20294C',
     onAccent: '#FFFFFF',
     /** Translucent layer for tiles and tracks drawn on top of an accentFill surface. */
-    onAccentOverlay: 'rgba(255,255,255,0.18)',
-    /** The Money balance card: a soft lavender panel with ink text and a violet progress bar. */
-    heroFill: '#F2EAFF',
-    onHero: '#0D0E0F',
-    onHeroOverlay: 'rgba(127,61,255,0.12)',
-    heroBar: '#7F3DFF',
+    onAccentOverlay: 'rgba(255,255,255,0.16)',
+    /** The Money balance card: a navy panel with white text and a mint progress bar. */
+    heroFill: '#20294C',
+    onHero: '#FFFFFF',
+    onHeroOverlay: 'rgba(255,255,255,0.14)',
+    heroBar: '#8FD9B6',
     /** Text-safe green/red (the bright fills below are for tiles with white text). */
-    income: '#00875A',
-    incomeSoft: '#CFFAEA',
+    income: '#007A50',
+    incomeSoft: '#EAF8F1',
     incomeFill: '#00875A',
-    expense: '#D92D3A',
-    expenseSoft: '#FDD5D7',
+    expense: '#C9222F',
+    expenseSoft: '#FDEEEF',
     expenseFill: '#D92D3A',
     warning: '#9A6300',
-    warningSoft: '#FCEED4',
+    warningSoft: '#FEF6E6',
     /** Legacy name (was a separate teal accent); kept as an alias so every screen shares one accent. */
-    blue: '#7F3DFF',
+    blue: '#0A2D67',
     red: '#D92D3A',
   },
   dark: {
-    text: '#FFFFFF',
-    textSecondary: '#B4B4C4',
-    textTertiary: '#8E8EA3',
-    background: '#0E0D14',
-    backgroundElement: '#18171F',
-    backgroundMuted: '#22212B',
-    backgroundSelected: '#2A1F45',
-    border: '#2A2933',
-    accent: '#B08CFF',
-    accentSoft: '#2A1F45',
-    accentFill: '#8F55FF',
+    text: '#F0F1F5',
+    textSecondary: '#B7BCD6',
+    textTertiary: '#8F95B5',
+    background: '#0E1325',
+    backgroundElement: '#171E36',
+    backgroundMuted: '#212A47',
+    backgroundSelected: '#243257',
+    border: '#2B3558',
+    accent: '#8FB4FF',
+    accentSoft: '#1E2C52',
+    accentFill: '#3F63D6',
     onAccent: '#FFFFFF',
     onAccentOverlay: 'rgba(255,255,255,0.16)',
-    heroFill: '#1F1733',
+    heroFill: '#1B2547',
     onHero: '#FFFFFF',
-    onHeroOverlay: 'rgba(176,140,255,0.14)',
-    heroBar: '#B08CFF',
+    onHeroOverlay: 'rgba(143,180,255,0.16)',
+    heroBar: '#8FD9B6',
     income: '#34D399',
     incomeSoft: '#0E2A20',
     incomeFill: '#00875A',
@@ -65,7 +69,7 @@ export const Colors = {
     expenseFill: '#D92D3A',
     warning: '#FCAC12',
     warningSoft: '#33260A',
-    blue: '#B08CFF',
+    blue: '#8FB4FF',
     red: '#FF7A84',
   },
 } as const;
@@ -73,27 +77,27 @@ export const Colors = {
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 export const Radius = {
-  sm: 10,
-  md: 16,
-  lg: 20,
-  xl: 28,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
   pill: 999,
 } as const;
 
 /** Cards get a barely-there shadow; floating surfaces lift a little more. */
 export const Shadow = {
   card: {
-    shadowColor: '#1E1A3B',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 10,
+    shadowColor: '#20294C',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
     elevation: 1,
   },
   raised: {
-    shadowColor: '#1E1A3B',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 20,
+    shadowColor: '#20294C',
+    shadowOffset: { width: 0, height: 9 },
+    shadowOpacity: 0.12,
+    shadowRadius: 25,
     elevation: 4,
   },
 } as const;

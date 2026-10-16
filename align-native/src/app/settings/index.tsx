@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Alert, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
-import { Text } from '@/components/ui/text';
+import { Text, TextInput } from '@/components/ui/text';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import { doc, onSnapshot, setDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { TextInput, Modal, KeyboardAvoidingView } from 'react-native';
+import { Modal, KeyboardAvoidingView } from 'react-native';
 import { Bell, BellRing, ChevronRight, FileUp, LogOut, Mail, MessageCircle, MessageSquareText, Moon, Send, Repeat, Shield, Smartphone, Sun } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';

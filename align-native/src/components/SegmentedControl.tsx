@@ -20,6 +20,7 @@ export default function SegmentedControl({ tabs, activeTab, onTabChange }: Segme
             backgroundColor: c.backgroundMuted,
             padding: 3,
             borderRadius: Radius.md,
+            gap: 2,
             marginBottom: 4
         }}>
             {tabs.map(tab => {
@@ -31,14 +32,16 @@ export default function SegmentedControl({ tabs, activeTab, onTabChange }: Segme
                         accessibilityState={{ selected: isActive }}
                         onPress={() => onTabChange(tab)}
                         style={[
-                            { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: Radius.sm + 1, borderWidth: 1, borderColor: 'transparent' },
-                            isActive && { backgroundColor: c.backgroundElement, borderColor: c.border }
+                            { flex: 1, paddingVertical: 7, alignItems: 'center', borderRadius: Radius.sm, borderWidth: 1, borderColor: 'transparent' },
+                            isActive && { backgroundColor: c.accentFill, borderColor: c.accentFill }
                         ]}
                     >
                         <Text style={{ 
-                            fontSize: 13, 
-                            fontWeight: isActive ? '700' : '500', 
-                            color: isActive ? c.text : c.textSecondary 
+                            fontSize: 12,
+                            fontWeight: '600',
+                            letterSpacing: 0.5,
+                            textTransform: 'uppercase',
+                            color: isActive ? c.onAccent : c.textSecondary
                         }}>
                             {tab}
                         </Text>
