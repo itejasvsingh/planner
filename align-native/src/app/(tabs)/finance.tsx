@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Platform, View, ScrollView, StyleSheet, RefreshControl, type TextInput as RNTextInput } from 'react-native';
+import { Modal, Platform, Share, View, ScrollView, StyleSheet, RefreshControl, type TextInput as RNTextInput } from 'react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
-import { ArrowDownLeft, ArrowUpRight, Check, FileUp, Landmark, Plus, Search, ShieldAlert, Tags, Target, Users, Wallet, X } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, Bookmark, Check, Download, FileUp, Landmark, Plus, Search, ShieldAlert, Tags, Target, Users, Wallet, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import BudgetSheet from '@/components/BudgetSheet';
 import { MONTHLY_BUDGET_KEY, budgetStatus, categoryBudgets, summarizeBudget, type BudgetStatus } from '@/lib/budget';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems, useBudgetLimits } from '@/lib/use-planner-items';
-import { useCards } from '@/lib/cards-store';
+import { changeAccount, useCards } from '@/lib/cards-store';
 import { adjustBalances } from '@/lib/account-balances';
 import { upcomingPayments } from '@/lib/upcoming';
 import { cardTitle } from '@/lib/card-format';
@@ -36,7 +36,7 @@ import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 import { kindForType, resolveCategory, tintColors } from '@/lib/categories';
 import { useCategoryConfig } from '@/lib/use-category-config';
-import { amountOf, cycleRange, isCardPayment, isMoney } from '@/lib/finance-analysis';
+import { amountOf, cycleRange, isCardPayment, isMoney, leftOutOfFlow, matchesFlags, toCsv, type FlagFilter } from '@/lib/finance-analysis';
 import SegmentedControl from '@/components/SegmentedControl';
 import CategoryManager from '@/components/CategoryManager';
 import AnalysisView from '@/components/finance/AnalysisView';
@@ -123,6 +123,11 @@ export default function FinanceScreen() {
     }, []);
     const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
     const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+    const [flagFilters, setFlagFilters] = useState<Set<FlagFilter>>(new Set());
+    const toggleFlag = (f: FlagFilter) => setFlagFilters(prev => { const next = new Set(prev); if (next.has(f)) next.delete(f); else next.add(f); return next; });
+    // Merchant being renamed in the list
+    const [renamingId, setRenamingId] = useState<string | null>(null);
+    const [renameText, setRenameText] = useState('');
     const nameOf = (i: { category?: string; type?: string }) => resolveCategory(i.category, kindForType(i.type), categoryConfig).name;
     const payday = limits?.payday || 1;
     
@@ -139,8 +144,8 @@ export default function FinanceScreen() {
     });
 
 
-    const expenses = financeItems.filter(i => i.type === 'expense' && !isCardPayment(i));
-    const incomes = financeItems.filter(i => i.type !== 'expense' && i.type !== 'transfer');
+    const expenses = financeItems.filter(i => i.type === 'expense' && !isCardPayment(i) && !i.excluded);
+    const incomes = financeItems.filter(i => i.type !== 'expense' && i.type !== 'transfer' && !i.excluded);
 
     const totalSpent = expenses.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
     const totalEarned = incomes.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
@@ -184,7 +189,7 @@ export default function FinanceScreen() {
 
     // The chips filter the cycle on screen; typing a search looks through all of history.
     const searching = query.trim() !== '';
-    const filtering = searching || typeFilter !== 'all' || categoryFilter !== null;
+    const filtering = searching || typeFilter !== 'all' || categoryFilter !== null || flagFilters.size > 0;
     const listItems = useMemo(() => {
         if (!filtering) return financeItems;
         const q = query.trim().toLowerCase();
@@ -192,12 +197,35 @@ export default function FinanceScreen() {
             if (!isMoney(i)) return false;
             if (typeFilter !== 'all' && kindForType(i.type) !== typeFilter) return false;
             if (categoryFilter && nameOf(i) !== categoryFilter) return false;
+            if (flagFilters.size && !matchesFlags(i, flagFilters)) return false;
             if (q && !`${i.title || ''} ${nameOf(i)} ${i.amount ?? ''}`.toLowerCase().includes(q)) return false;
             return true;
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filtering, searching, financeItems, items, query, typeFilter, categoryFilter, categoryConfig]);
-    const listTotal = listItems.reduce((sum, i) => sum + (i.type === 'expense' ? -amountOf(i) : i.type === 'transfer' ? 0 : amountOf(i)), 0);
+    }, [filtering, searching, financeItems, items, query, typeFilter, categoryFilter, flagFilters, categoryConfig]);
+    // Counts on the "Untagged" and "No merchant" chips (this cycle)
+    const untaggedCount = financeItems.filter(i => matchesFlags(i, ['untagged'])).length;
+    const noMerchantCount = financeItems.filter(i => matchesFlags(i, ['nomerchant'])).length;
+    const exportCsv = async () => {
+        const csv = toCsv([...listItems].sort((a, b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`)), nameOf);
+        if (Platform.OS === 'web') {
+            const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `align-transactions-${todayKey()}.csv`;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        } else {
+            await Share.share({ message: csv, title: 'Align transactions' });
+        }
+    };
+    const commitRename = (item: any) => {
+        const t = renameText.trim();
+        setRenamingId(null);
+        if (!t || t === item.title) return;
+        void updateItem(item.id, { title: t });
+    };
+    const listTotal = listItems.reduce((sum, i) => sum + (leftOutOfFlow(i) ? 0 : i.type === 'expense' ? -amountOf(i) : amountOf(i)), 0);
 
     // Group transactions by date
     const groupedTransactions = useMemo(() => {
@@ -438,6 +466,22 @@ export default function FinanceScreen() {
                             <Text style={{ color: c.text, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{formatMoney(accountsInfo.totalBalance)}</Text>
                         </Pressable>
                     )}
+                    {adjusted && adjusted.accounts.length > 1 && (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters} style={{ marginTop: 8 }}>
+                            {adjusted.accounts.map(a => {
+                                const on = !a.excluded;
+                                return (
+                                    <Pressable key={a.id} accessibilityRole="checkbox" accessibilityState={{ checked: on }}
+                                        accessibilityLabel={`Count ${a.bankName} ${a.last4 || ''} in the total`}
+                                        onPress={() => changeAccount(phone, a.id, { excluded: on }).catch(() => { /* undone on screen */ })}
+                                        style={[styles.filterChip, { flexDirection: 'row', gap: 6 }, on ? { backgroundColor: c.accentSoft, borderColor: c.accentSoft } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+                                        {on && <Check color={c.accent} size={13} strokeWidth={3} />}
+                                        <Text style={{ color: on ? c.accent : c.textTertiary, fontWeight: '600', fontSize: 12 }}>{a.bankName}{a.last4 ? ` ••${a.last4}` : ''} · {formatMoney(a.balance)}</Text>
+                                    </Pressable>
+                                );
+                            })}
+                        </ScrollView>
+                    )}
 
                     <UpcomingPayments rows={upcoming} />
 
@@ -537,6 +581,20 @@ export default function FinanceScreen() {
                                 </Pressable>
                             );
                         })}
+                        {([
+                            ['bookmarked', 'Bookmarked', 0],
+                            ['excluded', 'Left out', 0],
+                            ['untagged', 'Untagged', untaggedCount],
+                            ['nomerchant', 'No merchant', noMerchantCount],
+                        ] as [FlagFilter, string, number][]).map(([key, label, n]) => {
+                            const active = flagFilters.has(key);
+                            return (
+                                <Pressable key={key} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={() => toggleFlag(key)}
+                                    style={[styles.filterChip, active ? { backgroundColor: c.accentFill, borderColor: c.accentFill } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+                                    <Text style={{ color: active ? c.onAccent : c.text, fontWeight: '600', fontSize: 12 }}>{label}{n > 0 ? ` · ${n}` : ''}</Text>
+                                </Pressable>
+                            );
+                        })}
                         {categoryFilter && (
                             <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${categoryFilter} filter`} onPress={() => setCategoryFilter(null)}
                                 style={[styles.filterChip, { backgroundColor: c.accentSoft, borderColor: c.accentSoft, flexDirection: 'row', gap: 6 }]}>
@@ -545,10 +603,18 @@ export default function FinanceScreen() {
                                 <X color={c.accent} size={14} />
                             </Pressable>
                         )}
+                        <Pressable accessibilityRole="button" accessibilityLabel="Export the listed transactions as CSV" onPress={() => void exportCsv()}
+                            style={[styles.filterChip, { backgroundColor: c.backgroundElement, borderColor: c.border, flexDirection: 'row', gap: 5 }]}>
+                            <Download color={c.text} size={13} />
+                            <Text style={{ color: c.text, fontWeight: '600', fontSize: 12 }}>Export</Text>
+                        </Pressable>
                     </ScrollView>
                     {filtering && (
                         <Text style={{ color: c.textSecondary, fontSize: 13, marginBottom: 10 }}>
                             {listItems.length} {listItems.length === 1 ? 'transaction' : 'transactions'} · net {listTotal < 0 ? '−' : '+'}{formatMoney(Math.abs(listTotal))}
+                            {flagFilters.size > 0 && (
+                                <Text onPress={() => setFlagFilters(new Set())} style={{ color: c.accent, fontWeight: '700' }}>{'  '}Reset filters</Text>
+                            )}
                         </Text>
                     )}
 
@@ -586,7 +652,37 @@ export default function FinanceScreen() {
                                                     {selectedIds.has(item.id) ? <Check color={c.onAccent} size={18} strokeWidth={3} /> : <Icon color={tint.fg} size={18} />}
                                                 </View>
                                                 <View style={{ flex: 1 }}>
-                                                    <Text style={[Type.body, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>{item.title}</Text>
+                                                    {renamingId === item.id ? (
+                                                        <TextInput
+                                                            accessibilityLabel="Rename merchant"
+                                                            value={renameText}
+                                                            onChangeText={setRenameText}
+                                                            autoFocus
+                                                            selectTextOnFocus
+                                                            returnKeyType="done"
+                                                            onSubmitEditing={() => commitRename(item)}
+                                                            onBlur={() => commitRename(item)}
+                                                            onKeyPress={(e: any) => { if (e.nativeEvent?.key === 'Escape') setRenamingId(null); }}
+                                                            style={[Type.body, { color: c.text, fontWeight: '600', borderBottomWidth: 1, borderBottomColor: c.accent, paddingVertical: 0 }]}
+                                                        />
+                                                    ) : (
+                                                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                                            <Pressable
+                                                                accessibilityRole="button"
+                                                                accessibilityLabel={`Rename ${item.title}`}
+                                                                disabled={selecting}
+                                                                onPress={() => { setRenameText(item.title || ''); setRenamingId(item.id); }}
+                                                                style={{ flexShrink: 1 }}
+                                                            >
+                                                                <Text style={[Type.body, { color: c.text, fontWeight: '600' }]} numberOfLines={1}>{item.title}</Text>
+                                                            </Pressable>
+                                                            {item.bookmarked && (
+                                                                <Pressable accessibilityRole="button" accessibilityLabel="Remove bookmark" hitSlop={8} onPress={() => void updateItem(item.id, { bookmarked: false })}>
+                                                                    <Bookmark color={c.accent} fill={c.accent} size={14} />
+                                                                </Pressable>
+                                                            )}
+                                                        </View>
+                                                    )}
                                                     <Text style={[Type.caption, { color: c.textTertiary, marginTop: 2 }]} numberOfLines={1}>
                                                         {[category.name, splitLabel(item), item.cardLast4 ? (cardNameMap.get(item.cardLast4) || `••${item.cardLast4}`) : null, formatTime(item.time), item.autoDetected ? SOURCE_LABEL[item.source] || 'Auto' : ''].filter(Boolean).join(' · ')}
                                                     </Text>
@@ -596,9 +692,9 @@ export default function FinanceScreen() {
                                                         {isTransfer ? '' : (isIncome ? '+' : '−')}{formatMoney(Number(item.amount) || 0)}
                                                     </Text>
                                                     {/* Kind of transaction at a glance */}
-                                                    <View style={[styles.kindTag, { backgroundColor: isIncome ? c.incomeSoft : isTransfer ? c.backgroundMuted : c.expenseSoft }]}>
-                                                        <Text style={[styles.kindTagText, { color: isIncome ? c.income : isTransfer ? c.textSecondary : c.expense }]}>
-                                                            {isIncome ? 'Income' : isTransfer ? 'Transfer' : 'Expense'}
+                                                    <View style={[styles.kindTag, { backgroundColor: item.excluded ? c.backgroundMuted : isIncome ? c.incomeSoft : isTransfer ? c.backgroundMuted : c.expenseSoft }]}>
+                                                        <Text style={[styles.kindTagText, { color: item.excluded ? c.textSecondary : isIncome ? c.income : isTransfer ? c.textSecondary : c.expense }]}>
+                                                            {item.excluded ? 'Left out' : isIncome ? 'Income' : isTransfer ? 'Transfer' : 'Expense'}
                                                         </Text>
                                                     </View>
                                                 </View>

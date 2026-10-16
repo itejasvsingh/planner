@@ -41,8 +41,8 @@ export function overview90(items: Txn[], today: string, nameOf: (t: Txn) => stri
   const from = key(start);
   const to = today;
   const inWindow = items.filter((t) => t.date && t.date >= from && t.date <= to);
-  const spends = inWindow.filter((t) => t.type === 'expense');
-  const incomes = inWindow.filter((t) => t.type === 'income' || t.type === 'deposit');
+  const spends = inWindow.filter((t) => t.type === 'expense' && (t as any).excluded !== true);
+  const incomes = inWindow.filter((t) => (t.type === 'income' || t.type === 'deposit') && (t as any).excluded !== true);
   const spent = spends.reduce((s, t) => s + amt(t), 0);
   const income = incomes.reduce((s, t) => s + amt(t), 0);
   const transfers = inWindow.filter((t) => t.type === 'transfer').reduce((s, t) => s + amt(t), 0);

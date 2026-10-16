@@ -57,6 +57,8 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [isSplit, setIsSplit] = useState(false);
     const [cardLast4, setCardLast4] = useState<string | null>(null);
     const [disputed, setDisputed] = useState(false);
+    const [bookmarked, setBookmarked] = useState(false);
+    const [excluded, setExcluded] = useState(false);
     const { phone } = usePhone();
     const cardData = useCards(phone);
         // Payment methods: cards and accounts
@@ -84,6 +86,8 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
             setCategoryTouched(!!item);
             setCardLast4(item?.cardLast4 || null);
             setDisputed(false);
+            setBookmarked(item?.bookmarked === true);
+            setExcluded(item?.excluded === true);
             // Keep the time the bank gave (editing must never wipe it)
             setTime(item?.time || '');
             if (item) {
@@ -140,6 +144,8 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
             // Only send a time when there is one: an empty value would erase the bank's time
             ...(time ? { time } : {}),
             isRecurring,
+            bookmarked,
+            excluded,
             ...(isRecurring ? { recurringFrequency: 'monthly' } : {}),
             // Which credit card paid (kept as-is when the choice isn't shown)
             ...(type === 'expense' && cardChoices.length ? { cardLast4: cardLast4 || null } : {}),
@@ -268,6 +274,30 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                         )}
 
                         
+                        {/* Keep track */}
+                        <View style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, borderRadius: Radius.lg, padding: 16, gap: 16, marginBottom: 12 }}>
+                            {([
+                                { label: 'Bookmark', hint: 'Find it later with the Bookmarked filter', on: bookmarked, set: setBookmarked, show: true },
+                                { label: 'Leave out of cash flow', hint: 'Still listed, but in no total or chart', on: excluded, set: setExcluded, show: type !== 'transfer' },
+                            ]).filter(r => r.show).map(r => (
+                                <View key={r.label} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <View style={{ flex: 1, paddingRight: 12 }}>
+                                        <Text style={[Type.body, { color: c.text, fontWeight: '600' }]}>{r.label}</Text>
+                                        <Text style={[Type.caption, { color: c.textTertiary }]}>{r.hint}</Text>
+                                    </View>
+                                    <Pressable
+                                        accessibilityRole="switch"
+                                        accessibilityLabel={r.label}
+                                        accessibilityState={{ checked: r.on }}
+                                        onPress={() => r.set(!r.on)}
+                                        style={{ width: 50, height: 30, borderRadius: 15, backgroundColor: r.on ? c.accentFill : c.backgroundMuted, padding: 2, justifyContent: 'center', alignItems: r.on ? 'flex-end' : 'flex-start' }}
+                                    >
+                                        <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } }} />
+                                    </Pressable>
+                                </View>
+                            ))}
+                        </View>
+
                         {/* Advanced Features */}
                         {type === 'expense' && (
                             <View style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, borderRadius: Radius.lg, padding: 16, gap: 16 }}>

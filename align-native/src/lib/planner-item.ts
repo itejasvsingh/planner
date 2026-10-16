@@ -56,6 +56,10 @@ export type PlannerItem = {
   updatedAt?: string;
   /** Set when auto-push moved an overdue task to a later day: the day it was due. */
   rolledOverFrom?: string;
+  /** Saved for later: shows under the Bookmarked filter. */
+  bookmarked?: boolean;
+  /** "Leave out of cash flow": listed, but counted in no total or chart. */
+  excluded?: boolean;
   /** Last digits of the credit card it was paid with (alerts set it; "Paid with" in the form too). */
   cardLast4?: string | null;
   accountLast4?: string | null;

@@ -122,3 +122,47 @@ test('cumulative net: income less spending day by day, card bills and transfers 
   assert.equal(s.length, 5, 'Oct 1 to Oct 5 only');
   assert.deepEqual(s.map(p => p.net), [0, 1000, 700, 700, 700]);
 });
+
+test('left out of cash flow: listed, but in no total', () => {
+  const items = [exp('a', '2026-10-02', 100), exp('b', '2026-10-03', 900, 'Food', { excluded: true }), inc('c', '2026-10-01', 5000), { ...inc('d', '2026-10-04', 700), excluded: true }];
+  assert.equal(a.isExpense(items[1]), false);
+  assert.equal(a.isIncome(items[3]), false);
+  assert.equal(a.isMoney(items[1]), true, 'still a transaction in the list');
+  assert.equal(a.isMoney(items[3]), true);
+  assert.equal(a.leftOutOfFlow(items[1]), true);
+  assert.equal(a.leftOutOfFlow({ id: 't', type: 'transfer' }), true);
+  assert.equal(a.leftOutOfFlow(items[0]), false);
+  const s = a.summarize(items, '2026-10-01', '2026-11-01');
+  assert.equal(s.spent, 100);
+  assert.equal(s.income, 5000);
+});
+
+test('flag filters: bookmarked, untagged, no merchant; all chosen flags must hold', () => {
+  const t = [
+    { id: '1', type: 'expense', title: 'Swiggy', category: 'Food', bookmarked: true },
+    { id: '2', type: 'expense', title: 'Payment', category: 'Other' },
+    { id: '3', type: 'expense', title: '', category: 'Food' },
+    { id: '4', type: 'income', title: 'Salary', category: '' },
+    { id: '5', type: 'transfer', title: 'Myself', category: 'Self Transfer' },
+    { id: '6', type: 'task', title: 'Call mom' },
+  ];
+  const ids = flags => t.filter(x => a.matchesFlags(x, flags)).map(x => x.id);
+  assert.deepEqual(ids(['bookmarked']), ['1']);
+  assert.deepEqual(ids(['untagged']), ['2', '4']);
+  assert.deepEqual(ids(['nomerchant']), ['2', '3']);
+  assert.deepEqual(ids(['untagged', 'nomerchant']), ['2']);
+  assert.deepEqual(ids(['excluded']), ['5']);
+  assert.deepEqual(ids([]), ['1', '2', '3', '4', '5', '6']);
+});
+
+test('CSV export: quotes, commas, and formula-looking cells', () => {
+  const csv = a.toCsv([
+    { id: '1', type: 'expense', date: '2026-10-02', time: '13:05', amount: 1500.5, title: 'Cafe, "Blue"', category: 'Food', bookmarked: true },
+    { id: '2', type: 'expense', date: '2026-10-03', amount: 10, title: '=HYPERLINK("x")', category: 'Other', excluded: true },
+  ], t => t.category);
+  const lines = csv.trimEnd().split('\n');
+  assert.equal(lines[0], 'Date,Time,Type,Amount,Merchant,Category,Bookmarked,Left out of cash flow');
+  assert.equal(lines[1], '2026-10-02,13:05,expense,1500.5,"Cafe, ""Blue""",Food,yes,');
+  assert.ok(lines[2].includes(`"'=HYPERLINK(""x"")"`), lines[2]);
+  assert.ok(lines[2].endsWith(',yes'));
+});

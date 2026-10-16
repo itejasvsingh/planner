@@ -11,6 +11,11 @@ export type Txn = {
   date?: string | null;
   category?: string;
   isRecurring?: boolean;
+  /** "Leave out of cash flow": still listed, but in no total. */
+  excluded?: boolean;
+  bookmarked?: boolean;
+  time?: string | null;
+  cardLast4?: string | null;
 };
 
 export type Cycle = {
@@ -65,9 +70,9 @@ export const amountOf = (t: Txn) => {
  * transaction list but is left out of every total, like a transfer.
  */
 export const isCardPayment = (t: Txn) => t.type === 'expense' && (/^card payment$/i.test(t.category || '') || /\b(?:credit\s*)?card\s*(?:bill|payment|autopay)\b|\bcc\s*payment\b/i.test(t.title || ''));
-export const isExpense = (t: Txn) => t.type === 'expense' && !isCardPayment(t);
-export const isIncome = (t: Txn) => t.type === 'income' || t.type === 'deposit';
-export const isMoney = (t: Txn) => t.type === 'expense' || isIncome(t) || t.type === 'transfer';
+export const isExpense = (t: Txn) => t.type === 'expense' && !isCardPayment(t) && t.excluded !== true;
+export const isIncome = (t: Txn) => (t.type === 'income' || t.type === 'deposit') && t.excluded !== true;
+export const isMoney = (t: Txn) => t.type === 'expense' || t.type === 'income' || t.type === 'deposit' || t.type === 'transfer';
 
 export function inRange(t: Txn, startKey: string, endKey: string): boolean {
   const d = t.date || '';
@@ -286,4 +291,30 @@ export function buildInsights(input: {
       : { tone: 'bad', text: `You spent ${format(Math.abs(cur.net))} more than you earned.` });
   }
   return out;
+}
+
+/** Why a transaction is in no total: you left it out, it's a transfer, or it's a card bill payment. */
+export const leftOutOfFlow = (t: Txn) => t.excluded === true || t.type === 'transfer' || isCardPayment(t);
+export const isBookmarked = (t: Txn) => t.bookmarked === true;
+/** Money in or out with no category chosen (blank, or the catch-all "Other"). */
+export const isUntagged = (t: Txn) => isMoney(t) && t.type !== 'transfer' && ['', 'other', 'general', 'misc', 'miscellaneous', 'uncategorized'].includes((t.category || '').trim().toLowerCase().replace(/^#/, ''));
+/** No payee name, or only a placeholder like "Payment". */
+export const noMerchant = (t: Txn) => isMoney(t) && /^(?:|payment|expense|income|transaction|upi|unknown)$/i.test((t.title || '').trim());
+
+export type FlagFilter = 'bookmarked' | 'excluded' | 'untagged' | 'nomerchant';
+const FLAG_TEST: Record<FlagFilter, (t: Txn) => boolean> = { bookmarked: isBookmarked, excluded: leftOutOfFlow, untagged: isUntagged, nomerchant: noMerchant };
+/** Every chosen flag must hold (they narrow the list together). */
+export const matchesFlags = (t: Txn, flags: Iterable<FlagFilter>) => { for (const f of flags) if (!FLAG_TEST[f](t)) return false; return true; };
+
+const csvCell = (v: unknown) => {
+  let s = String(v ?? '');
+  // A spreadsheet runs a cell starting with = + - @ as a formula; a leading quote keeps it text
+  if (/^[=+\-@\t\r]/.test(s) && !/^-?\d+(\.\d+)?$/.test(s)) s = `'${s}`;
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+/** Transactions as CSV text (date, time, type, amount, merchant, category, flags), newest first as given. */
+export function toCsv(txns: Txn[], categoryName: (t: Txn) => string = t => t.category || ''): string {
+  const rows = [['Date', 'Time', 'Type', 'Amount', 'Merchant', 'Category', 'Bookmarked', 'Left out of cash flow']];
+  for (const t of txns) rows.push([t.date || '', t.time || '', t.type || '', String(amountOf(t)), t.title || '', categoryName(t), t.bookmarked ? 'yes' : '', leftOutOfFlow(t) ? 'yes' : '']);
+  return rows.map(r => r.map(csvCell).join(',')).join('\n') + '\n';
 }

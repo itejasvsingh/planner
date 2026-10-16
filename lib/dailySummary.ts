@@ -183,7 +183,7 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
 
     // 4. Filter today's expenses
     const todayExpenses = items.filter((i: any) => 
-        (i.type === 'expense') && 
+        (i.type === 'expense') && i.excluded !== true &&
         (i.date === todayKey)
     );
 
