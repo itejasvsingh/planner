@@ -3,7 +3,7 @@ import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Colors, Radius, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { X, Trash2 } from 'lucide-react-native';
+import { ChevronDown, ChevronUp, X, Trash2 } from 'lucide-react-native';
 import { useState, useEffect } from 'react';
 import SegmentedControl from './SegmentedControl';
 import { DEFAULT_CATEGORY, categoriesFor, kindForType, resolveCategory, type CategoryKind } from '@/lib/categories';
@@ -11,7 +11,6 @@ import CategoryPicker from './CategoryPicker';
 import { DatePick } from './form/QuickPick';
 import { usePhone } from '@/lib/phone-context';
 import { useCards } from '@/lib/cards-store';
-import { cardTitle } from '@/lib/card-format';
 import SplitSection from './SplitSection';
 import { buildSplit, draftFrom, emptyDraft, splitOf, type SplitDraft } from '@/lib/splits';
 import { useCategoryConfig } from '@/lib/use-category-config';
@@ -61,6 +60,8 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [cardLast4, setCardLast4] = useState<string | null>(null);
     const [disputed, setDisputed] = useState(false);
     const [bookmarked, setBookmarked] = useState(false);
+    // Bookmark, leave out, monthly bill and split live under "More options", open only when one of them is on
+    const [moreOpen, setMoreOpen] = useState(false);
     const [excluded, setExcluded] = useState(false);
     const { phone } = usePhone();
     const cardData = useCards(phone);
@@ -90,6 +91,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
             setCardLast4(item?.cardLast4 || null);
             setDisputed(false);
             setBookmarked(item?.bookmarked === true);
+            setMoreOpen(startSplit || (!!item && (item.bookmarked === true || item.excluded === true || !!item.isRecurring || !!splitOf(item))));
             setExcluded(item?.excluded === true);
             // Keep the time the bank gave (editing must never wipe it)
             setTime(item?.time || '');
@@ -208,7 +210,6 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
 
                         {/* Title */}
                         <View style={{ gap: 8 }}>
-                            <Text style={[Type.label, { color: c.textSecondary }]}>Title</Text>
                             <TextInput
                                 accessibilityLabel="Title"
                                 value={title}
@@ -230,7 +231,6 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                         </View>
 
                         <View style={{ gap: 8 }}>
-                            <Text style={[Type.label, { color: c.textSecondary }]}>Date</Text>
                             <DatePick value={keyToDate(date)} onChange={d => setDate(dateToKey(d))} mode="past" />
                             {item?.autoDetected ? (
                                 <Text style={{ color: c.textTertiary, fontSize: 12 }}>
@@ -261,7 +261,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                         {type === 'expense' && cardChoices.length > 0 && !(detectedSource && !disputed) && (
                             <View style={{ gap: 8 }}>
                                 <Text style={[Type.label, { color: c.textSecondary }]}>Paid with</Text>
-                                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                                     {[{ key: '', label: 'Not a card', last4: null as string | null }, ...cardChoices].map(o => {
                                         const on = (cardLast4 || null) === o.last4;
                                         return (
@@ -272,75 +272,56 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                             </Pressable>
                                         );
                                     })}
-                                </View>
+                                </ScrollView>
                             </View>
                         )}
 
-                        
-                        {/* Keep track */}
-                        <View style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, borderRadius: Radius.lg, padding: 16, gap: 16, marginBottom: 12 }}>
-                            {([
+                        {/* More options: folded away unless one is on */}
+                        {(() => {
+                            const rows = [
                                 { label: 'Bookmark', hint: 'Find it later with the Bookmarked filter', on: bookmarked, set: setBookmarked, show: true },
                                 { label: 'Leave out of cash flow', hint: 'Still listed, but in no total or chart', on: excluded, set: setExcluded, show: type !== 'transfer' },
-                            ]).filter(r => r.show).map(r => (
-                                <View key={r.label} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <View style={{ flex: 1, paddingRight: 12 }}>
-                                        <Text style={[Type.body, { color: c.text, fontWeight: '600' }]}>{r.label}</Text>
-                                        <Text style={[Type.caption, { color: c.textTertiary }]}>{r.hint}</Text>
-                                    </View>
-                                    <Pressable
-                                        accessibilityRole="switch"
-                                        accessibilityLabel={r.label}
-                                        accessibilityState={{ checked: r.on }}
-                                        onPress={() => r.set(!r.on)}
-                                        style={{ width: 50, height: 30, borderRadius: 15, backgroundColor: r.on ? c.accentFill : c.backgroundMuted, padding: 2, justifyContent: 'center', alignItems: r.on ? 'flex-end' : 'flex-start' }}
-                                    >
-                                        <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } }} />
+                                { label: 'Monthly bill', hint: 'Remind me and auto-log this', on: isRecurring, set: setIsRecurring, show: type === 'expense' },
+                                { label: 'Split with friends', hint: 'Share the bill; only your part counts as spent', on: isSplit, set: setIsSplit, show: type === 'expense' },
+                            ].filter(r => r.show);
+                            const active = rows.filter(r => r.on).map(r => r.label === 'Leave out of cash flow' ? 'Left out' : r.label === 'Split with friends' ? 'Split' : r.label);
+                            return (
+                                <View>
+                                    <Pressable accessibilityRole="button" accessibilityState={{ expanded: moreOpen }} onPress={() => setMoreOpen(!moreOpen)}
+                                        style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6 }}>
+                                        <View style={{ flex: 1 }}>
+                                            <Text style={[Type.label, { color: c.textSecondary }]}>More options</Text>
+                                            {!moreOpen && active.length > 0 && <Text style={[Type.caption, { color: c.accent, fontWeight: '600' }]}>{active.join(' · ')}</Text>}
+                                        </View>
+                                        {moreOpen ? <ChevronUp color={c.textTertiary} size={18} /> : <ChevronDown color={c.textTertiary} size={18} />}
                                     </Pressable>
+                                    {moreOpen && (
+                                        <View style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, borderRadius: Radius.lg, padding: 16, gap: 16, marginTop: 6 }}>
+                                            {rows.map(r => (
+                                                <View key={r.label} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                    <View style={{ flex: 1, paddingRight: 12 }}>
+                                                        <Text style={[Type.body, { color: c.text, fontWeight: '600' }]}>{r.label}</Text>
+                                                        <Text style={[Type.caption, { color: c.textTertiary }]}>{r.hint}</Text>
+                                                    </View>
+                                                    <Pressable
+                                                        accessibilityRole="switch"
+                                                        accessibilityLabel={r.label}
+                                                        accessibilityState={{ checked: r.on }}
+                                                        onPress={() => r.set(!r.on)}
+                                                        style={{ width: 50, height: 30, borderRadius: 15, backgroundColor: r.on ? c.accentFill : c.backgroundMuted, padding: 2, justifyContent: 'center', alignItems: r.on ? 'flex-end' : 'flex-start' }}
+                                                    >
+                                                        <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } }} />
+                                                    </Pressable>
+                                                </View>
+                                            ))}
+                                            {type === 'expense' && isSplit && (
+                                                <SplitSection total={parseFloat(amount) || 0} draft={splitDraft} onChange={setSplitDraft} recent={friends} groups={groups} groupDrafts={groupDrafts} />
+                                            )}
+                                        </View>
+                                    )}
                                 </View>
-                            ))}
-                        </View>
-
-                        {/* Advanced Features */}
-                        {type === 'expense' && (
-                            <View style={{ backgroundColor: c.backgroundElement, borderWidth: 1, borderColor: c.border, borderRadius: Radius.lg, padding: 16, gap: 16 }}>
-                                {/* Recurring Toggle */}
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <View>
-                                        <Text style={[Type.body, { color: c.text, fontWeight: '600' }]}>Monthly Bill</Text>
-                                        <Text style={[Type.caption, { color: c.textTertiary }]}>Remind me and auto-log this</Text>
-                                    </View>
-                                    <Pressable 
-                                        onPress={() => setIsRecurring(!isRecurring)}
-                                        style={{ width: 50, height: 30, borderRadius: 15, backgroundColor: isRecurring ? c.accentFill : c.backgroundMuted, padding: 2, justifyContent: 'center', alignItems: isRecurring ? 'flex-end' : 'flex-start' }}
-                                    >
-                                        <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } }} />
-                                    </Pressable>
-                                </View>
-
-                                {/* Split Toggle */}
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                    <View>
-                                        <Text style={[Type.body, { color: c.text, fontWeight: '600' }]}>Split with friends</Text>
-                                        <Text style={[Type.caption, { color: c.textTertiary }]}>Share the bill; only your part counts as spent</Text>
-                                    </View>
-                                    <Pressable 
-                                        accessibilityRole="switch"
-                                        accessibilityLabel="Split with friends"
-                                        accessibilityState={{ checked: isSplit }}
-                                        onPress={() => setIsSplit(!isSplit)}
-                                        style={{ width: 50, height: 30, borderRadius: 15, backgroundColor: isSplit ? c.accentFill : c.backgroundMuted, padding: 2, justifyContent: 'center', alignItems: isSplit ? 'flex-end' : 'flex-start' }}
-                                    >
-                                        <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 2, shadowOffset: { width: 0, height: 1 } }} />
-                                    </Pressable>
-                                </View>
-
-                                {isSplit && (
-                                    <SplitSection total={parseFloat(amount) || 0} draft={splitDraft} onChange={setSplitDraft} recent={friends} groups={groups} groupDrafts={groupDrafts} />
-                                )}
-                            </View>
-                        )}
-                        
+                            );
+                        })()}
                     </ScrollView>
 
                     {/* Actions: always visible below the form */}
