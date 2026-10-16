@@ -13,6 +13,7 @@ import { adjustBalances } from '@/lib/account-balances';
 import { upcomingPayments } from '@/lib/upcoming';
 import { cardTitle } from '@/lib/card-format';
 import UpcomingPayments from '@/components/finance/UpcomingPayments';
+import BalanceOverview from '@/components/finance/BalanceOverview';
 import { Colors, Radius, Shadow, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import TransactionSheet from '@/components/TransactionSheet';
@@ -91,7 +92,6 @@ export default function FinanceScreen() {
     const cardData = useCards(phone);
     // What's in your bank accounts now (same adjusted figure as Money → Cards); no trend, as balances aren't kept over time
     const adjusted = useMemo(() => (cardData ? adjustBalances(cardData.accounts || [], cardData.cards || [], items) : null), [cardData, items]);
-    const accountsInfo = cardData?.accounts?.length && adjusted ? { ...adjusted, count: cardData.accounts.length, oldest: Math.min(...cardData.accounts.map(a => a.at)) } : null;
     // Card dues use what's owed now; card reminder tasks aren't listed separately, so a card never shows twice
     const upcoming = useMemo(() => upcomingPayments(items as any, (adjusted?.cards || []).map(k => ({ title: cardTitle(k), dueDate: k.dueDate, outstanding: k.outstanding, hidden: k.hidden, status: k.status })), new Date(), 14), [items, adjusted]);
     const cardNameMap = useMemo(() => {
@@ -451,36 +451,14 @@ export default function FinanceScreen() {
                         </View>
                     </Pressable>
 
-                    {accountsInfo && (
-                        <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel="Bank balances"
-                            onPress={() => setView('Cards')}
-                            style={[styles.setBudget, { backgroundColor: c.backgroundElement, borderColor: c.border }]}
-                        >
-                            <Landmark color={c.accent} size={18} />
-                            <View style={{ flex: 1 }}>
-                                <Text style={{ color: c.text, fontWeight: '600' }}>In your bank accounts</Text>
-                                <Text style={{ color: c.textTertiary, fontSize: 12 }}>{accountsInfo.count} account{accountsInfo.count === 1 ? '' : 's'} · oldest balance {new Date(accountsInfo.oldest).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}</Text>
-                            </View>
-                            <Text style={{ color: c.text, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{formatMoney(accountsInfo.totalBalance)}</Text>
-                        </Pressable>
-                    )}
-                    {adjusted && adjusted.accounts.length > 1 && (
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters} style={{ marginTop: 8 }}>
-                            {adjusted.accounts.map(a => {
-                                const on = !a.excluded;
-                                return (
-                                    <Pressable key={a.id} accessibilityRole="checkbox" accessibilityState={{ checked: on }}
-                                        accessibilityLabel={`Count ${a.bankName} ${a.last4 || ''} in the total`}
-                                        onPress={() => changeAccount(phone, a.id, { excluded: on }).catch(() => { /* undone on screen */ })}
-                                        style={[styles.filterChip, { flexDirection: 'row', gap: 6 }, on ? { backgroundColor: c.accentSoft, borderColor: c.accentSoft } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
-                                        {on && <Check color={c.accent} size={13} strokeWidth={3} />}
-                                        <Text style={{ color: on ? c.accent : c.textTertiary, fontWeight: '600', fontSize: 12 }}>{a.bankName}{a.last4 ? ` ••${a.last4}` : ''} · {formatMoney(a.balance)}</Text>
-                                    </Pressable>
-                                );
-                            })}
-                        </ScrollView>
+                    {adjusted && adjusted.accounts.length > 0 && (
+                        <BalanceOverview
+                            accounts={adjusted.accounts}
+                            total={adjusted.totalBalance}
+                            today={todayKey()}
+                            onToggle={(id, excluded) => { changeAccount(phone, id, { excluded }).catch(() => { /* undone on screen */ }); }}
+                            onOpen={() => setView('Cards')}
+                        />
                     )}
 
                     <UpcomingPayments rows={upcoming} />

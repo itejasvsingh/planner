@@ -6,16 +6,16 @@ import { Pressable } from '@/components/ui/pressable';
 import { useTheme } from '@/hooks/use-theme';
 
 const money = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
-const H = 90;
 const PAD = 6;
 
 /** One account's balance over the last weeks: a line with the day's balance under your finger. Needs 2+ days saved. */
-export default function BalanceTrend({ history }: { history?: { d: string; b: number }[] }) {
+export default function BalanceTrend({ history, height = 90, hideNote = false }: { history?: { d: string; b: number }[]; height?: number; hideNote?: boolean }) {
+  const H = height;
   const c = useTheme();
   const [w, setW] = useState(0);
   const [sel, setSel] = useState<number | null>(null);
   const pts = Array.isArray(history) ? history : [];
-  if (pts.length < 2) return <Text style={{ color: c.textTertiary, fontSize: 12 }}>Trend starts today: Align now keeps each day&apos;s balance.</Text>;
+  if (pts.length < 2) return hideNote ? null : <Text style={{ color: c.textTertiary, fontSize: 12 }}>Trend starts today: Align now keeps each day&apos;s balance.</Text>;
 
   const lo = Math.min(...pts.map(p => p.b));
   const hi = Math.max(...pts.map(p => p.b));

@@ -54,3 +54,31 @@ export function recentForAccount<T extends Item>(account: Named, items: T[], n =
     .sort((a, b) => (stamp(b) ?? 0) - (stamp(a) ?? 0))
     .slice(0, n);
 }
+
+/**
+ * Total across the ticked accounts, one point a day, oldest first. Each account carries its last known balance forward
+ * between its own points (and before its first one, so a newly seen account doesn't make a false jump), and the line
+ * ends today at the current adjusted total. Fewer than two points when there's no history yet.
+ */
+export function totalSeries(
+  accounts: { balance: number; excluded?: boolean; history?: { d: string; b: number }[] }[],
+  todayKey: string,
+): { d: string; b: number }[] {
+  const used = accounts.filter(a => !a.excluded && Array.isArray(a.history) && a.history.length > 0);
+  const days = [...new Set(used.flatMap(a => (a.history || []).map(h => h.d)))].filter(d => d <= todayKey).sort();
+  if (!days.length) return [];
+  const out = days.map(d => ({
+    d,
+    b: used.reduce((sum, a) => {
+      const h = a.history as { d: string; b: number }[];
+      let v = h[0].b;
+      for (const p of h) { if (p.d <= d) v = p.b; else break; }
+      return sum + v;
+    }, 0),
+  }));
+  // Accounts with no history yet still count in today's total
+  const total = accounts.reduce((t, a) => t + (a.excluded ? 0 : a.balance), 0);
+  if (out[out.length - 1].d === todayKey) out[out.length - 1].b = total;
+  else out.push({ d: todayKey, b: total });
+  return out;
+}

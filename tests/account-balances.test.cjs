@@ -47,3 +47,18 @@ test('balances: an unticked account stays listed but is left out of the total an
   assert.equal(r.totalBalance, 10000);
   assert.equal(r.netWorth, 10000);
 });
+
+test('total series: sums the ticked accounts day by day, carries balances forward, ends at today\'s total', () => {
+  const { totalSeries } = mod.exports;
+  const a = { balance: 700, history: [{ d: '2026-10-01', b: 1000 }, { d: '2026-10-03', b: 800 }] };
+  const b = { balance: 400, history: [{ d: '2026-10-02', b: 500 }] };
+  const off = { balance: 9999, excluded: true, history: [{ d: '2026-10-01', b: 9999 }] };
+  const s = totalSeries([a, b, off], '2026-10-04');
+  assert.deepEqual(s, [
+    { d: '2026-10-01', b: 1500 }, // b is carried back from its first point
+    { d: '2026-10-02', b: 1500 },
+    { d: '2026-10-03', b: 1300 },
+    { d: '2026-10-04', b: 1100 }, // today = current balances (700 + 400)
+  ]);
+  assert.deepEqual(totalSeries([{ balance: 5 }], '2026-10-04'), []);
+});
