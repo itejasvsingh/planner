@@ -19,6 +19,7 @@ export default function TaskCard({
   compact,
   onToggle,
   onPress,
+  onLongPress,
   isSwipable,
   hideTime,
 }: {
@@ -28,6 +29,8 @@ export default function TaskCard({
   compact?: boolean;
   onToggle: () => void;
   onPress: () => void;
+  /** Press and hold: used by Agenda for "Move to…". */
+  onLongPress?: () => void;
   isSwipable?: boolean;
   /** Set when the parent already shows the time next to the card. */
   hideTime?: boolean;
@@ -64,6 +67,7 @@ export default function TaskCard({
       accessibilityRole="button"
       accessibilityLabel={`Edit ${item.title}`}
       onPress={onPress}
+      onLongPress={onLongPress}
       style={({ pressed }) => [
         styles.card,
         {

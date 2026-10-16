@@ -1,18 +1,18 @@
-import { useEffect, useMemo, useState } from 'react';
-import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Modal, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
-import { Check, Plus, Undo2, Wallet, ArrowDownRight, ArrowUpRight } from 'lucide-react-native';
+import { Check, ChevronDown, ChevronUp, Plus, SlidersHorizontal, Undo2 } from 'lucide-react-native';
 import { Skeleton } from '@/components/ui/skeleton';
 import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Shadow } from '@/constants/theme';
-import { addDays, formatDateKey, startOfWeek, timeToMinutes, todayKey } from '@/lib/dates';
+import { addDays, formatDateKey, parseDateKey, timeToMinutes, todayKey } from '@/lib/dates';
+import { moveOptions } from '@/lib/reschedule';
 import { usePhone } from '@/lib/phone-context';
-import { isTaskForDate, itemTime, type PlannerItem } from '@/lib/planner-item';
+import { isTaskForDate, itemDateKey, itemTime, type PlannerItem } from '@/lib/planner-item';
 import { usePlannerItems } from '@/lib/use-planner-items';
 import ItemModal from '@/components/ItemModal';
-import TransactionSheet from '@/components/TransactionSheet';
 import TaskCard from '@/components/TaskCard';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 import SwipeAction from '@/components/SwipeAction';
@@ -31,8 +31,10 @@ export default function DailyScreen() {
   const [dailyDate, setDailyDate] = useState(() => new Date());
   const [filter, setFilter] = useState<Filter>('All');
   const [editingItem, setEditingItem] = useState<PlannerItem | null>(null);
-  const [editingFinanceItem, setEditingFinanceItem] = useState<any>(null);
-  const [isFinanceSheetVisible, setIsFinanceSheetVisible] = useState(false);
+  const [showFilter, setShowFilter] = useState(false);
+  const [overdueOpen, setOverdueOpen] = useState(false);
+  // The task being moved to another day (press and hold, or the Move buttons under an overdue task)
+  const [moving, setMoving] = useState<PlannerItem | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [actionError, setActionError] = useState('');
   // Last task removed by swipe, kept briefly so it can be restored.
@@ -46,16 +48,35 @@ export default function DailyScreen() {
 
   const dateKey = formatDateKey(dailyDate);
   const today = todayKey();
-  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(dailyDate), i)), [dailyDate]);
+  // A scrolling strip of days (a month back, two months ahead, wider if you jump further), centred on the chosen day
+  const DAY_W = 52;
+  const days = useMemo(() => {
+    const t = parseDateKey(today);
+    const sel = parseDateKey(dateKey);
+    const first = addDays(sel < t ? sel : t, -30);
+    const last = addDays(sel > t ? sel : t, 60);
+    const n = Math.round((last.getTime() - first.getTime()) / 86_400_000) + 1;
+    return Array.from({ length: n }, (_, i) => addDays(first, i));
+  }, [today, dateKey]);
+  const strip = useRef<ScrollView>(null);
+  const [stripW, setStripW] = useState(0);
+  const selIndex = days.findIndex(d => formatDateKey(d) === dateKey);
+  const centreOnSelected = (animated: boolean) => {
+    if (!stripW || selIndex < 0) return;
+    strip.current?.scrollTo({ x: Math.max(0, selIndex * DAY_W - (stripW - DAY_W) / 2), animated });
+  };
+  useEffect(() => { centreOnSelected(true); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selIndex, stripW]);
+  // Days that still have something to do (a dot under the number)
+  const busyDays = useMemo(() => new Set(items.filter(i => i.type === 'task' && !i.done).map(itemDateKey)), [items]);
 
   const allDayTasks = items.filter(item => isTaskForDate(item, dateKey));
-  const dailyFinances = items.filter(item => (item.type === 'expense' || item.type === 'income' || item.type === 'transfer') && item.date === dateKey);
+  const spentToday = items.filter(i => i.type === 'expense' && i.date === dateKey && !(i as any).excluded).reduce((t, i) => t + (Number(i.amount) || 0), 0);
   const completed = allDayTasks.filter(item => item.done).length;
   const open = allDayTasks.length - completed; // keep open count for tasks only
-  const overdue = items.filter(item => item.type === 'task' && !item.done && item.dueDate && item.dueDate < today);
+  const overdue = items.filter(item => item.type === 'task' && !item.done && item.dueDate && item.dueDate < today).sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
 
-  const allDayItems = [...allDayTasks, ...dailyFinances];
-  const filtered = allDayItems.filter(item => {
+  const filtered = allDayTasks.filter(item => {
     if (filter === 'Open' && item.done) return false;
     if (filter === 'Completed' && !item.done) return false;
     return true;
@@ -107,42 +128,18 @@ export default function DailyScreen() {
   }
 
 
-  const openFinanceEditor = (item: any) => {
-    setEditingFinanceItem(item);
-    setIsFinanceSheetVisible(true);
-  };
-
-  const handleFinanceSave = async (updates: any) => {
-    if (editingFinanceItem) {
-        await updateItem(editingFinanceItem.id, updates);
-    } else {
-        await addItem(updates);
+  /** Moves a task to another day (its time stays). */
+  async function moveTo(item: PlannerItem, key: string) {
+    setMoving(null);
+    triggerHaptic('success');
+    try {
+      await updateItem(item.id, { dueDate: key });
+    } catch {
+      setActionError('Could not move this task. Please try again.');
     }
-  };
+  }
 
-  function renderItem(item: any, hideTime = false) {
-    if (item.type === 'expense' || item.type === 'income' || item.type === 'transfer') {
-      const isIncome = item.type === 'income' || item.type === 'deposit';
-      const isTransfer = item.type === 'transfer';
-      return (
-        <Pressable 
-          key={item.id} 
-          onPress={() => openFinanceEditor(item)}
-          style={{ backgroundColor: c.backgroundElement, borderColor: c.border, flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 20, borderWidth: 1, opacity: hideTime ? 1 : 0.9, marginBottom: 8 }}
-        >
-          <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: isIncome ? c.incomeSoft : (isTransfer ? c.backgroundElement : c.expenseSoft), alignItems: 'center', justifyContent: 'center', marginRight: 16 }}>
-            {isIncome ? <ArrowUpRight color={c.income} size={20} /> : <ArrowDownRight color={isTransfer ? c.textTertiary : c.expense} size={20} />}
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: c.text, fontWeight: '600', fontSize: 16 }}>{item.title}</Text>
-            <Text style={{ color: c.textTertiary, fontSize: 12, marginTop: 2 }}>{item.category || 'Other'}</Text>
-          </View>
-          <Text style={{ color: isIncome ? c.income : (isTransfer ? c.textSecondary : c.text), fontWeight: '700', fontSize: 16 }}>
-            {isTransfer ? '' : (isIncome ? '+' : '-')}₹{item.amount || 0}
-          </Text>
-        </Pressable>
-      );
-    }
+  function renderItem(item: PlannerItem, hideTime = false) {
     return renderTask(item, hideTime);
   }
 
@@ -158,6 +155,7 @@ export default function DailyScreen() {
           isSwipable
           onToggle={() => void complete(item)}
           onPress={() => openEditor(item)}
+          onLongPress={item.kind === 'card_bill' ? undefined : () => { triggerHaptic('medium'); setMoving(item); }}
         />
       </SwipeAction>
     );
@@ -179,35 +177,54 @@ export default function DailyScreen() {
           title={dateKey === today ? 'Today' : dailyDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
           subtitle={dailyDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
           actions={
-            <HeaderButton label="Add task" onPress={() => openEditor()} filled>
-              <Plus color={c.onAccent} size={20} strokeWidth={2.5} />
-            </HeaderButton>
+            <>
+              {dateKey !== today && (
+                <Pressable accessibilityRole="button" accessibilityLabel="Back to today" hitSlop={8} onPress={() => { triggerHaptic('light'); setDailyDate(new Date()); }} style={[styles.todayBtn, { borderColor: c.border, backgroundColor: c.backgroundElement }]}>
+                  <Text style={{ color: c.text, fontWeight: '700', fontSize: 13 }}>Today</Text>
+                </Pressable>
+              )}
+              <HeaderButton label={showFilter || filter !== 'All' ? 'Hide filters' : 'Filter tasks'} onPress={() => setShowFilter(!showFilter)}>
+                <SlidersHorizontal color={filter !== 'All' ? c.accent : c.text} size={19} />
+              </HeaderButton>
+              <HeaderButton label="Add task" onPress={() => openEditor()} filled>
+                <Plus color={c.onAccent} size={20} strokeWidth={2.5} />
+              </HeaderButton>
+            </>
           }
         />
 
         <View style={styles.content}>
-          {/* Day progress (hidden on an empty day; the empty state says it) */}
-          {(loading || allDayTasks.length > 0) && <View style={[styles.progressCard, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
-            <View style={styles.progressText}>
-              <Text style={[styles.progressValue, { color: c.text }]}>
-                {loading ? '…' : open === 0 && completed > 0 ? 'All done' : `${open} to go`}
+          {/* Day summary: one line and a thin bar (hidden on an empty day; the empty state says it) */}
+          {(loading || allDayTasks.length > 0) && (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={[styles.summary, { color: c.textSecondary }]}>
+                <Text style={{ color: c.text, fontWeight: '800' }}>{loading ? '…' : open === 0 && completed > 0 ? 'All done' : `${open} to go`}</Text>
+                {`  ·  ${completed} of ${allDayTasks.length} done`}
+                {spentToday > 0 ? `  ·  ₹${Math.round(spentToday).toLocaleString('en-IN')} spent` : ''}
               </Text>
-              <Text style={[styles.progressLabel, { color: c.textSecondary }]}>
-                {completed} of {allDayTasks.length} complete
-              </Text>
+              <View style={[styles.progressTrack, { backgroundColor: c.backgroundMuted, height: 4 }]}>
+                <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%`, backgroundColor: c.accentFill }]} />
+              </View>
             </View>
-            <View style={[styles.progressTrack, { backgroundColor: c.backgroundMuted }]}>
-              <View style={[styles.progressFill, { width: `${Math.round(progress * 100)}%`, backgroundColor: c.accentFill }]} />
-            </View>
-          </View>}
+          )}
 
-          {/* Week strip */}
-          <View style={styles.weekRow}>
-            {weekDays.map(day => {
+          {/* Days: scroll sideways; the chosen day stays centred */}
+          <ScrollView
+            ref={strip}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            onLayout={e => setStripW(e.nativeEvent.layout.width)}
+            // The days only exist once the content is measured: centre then (no animation on the first open)
+            onContentSizeChange={() => centreOnSelected(false)}
+            contentContainerStyle={{ paddingVertical: 2 }}
+            style={styles.weekRow}
+          >
+            {days.map(day => {
               const key = formatDateKey(day);
               const selected = key === dateKey;
               const isDayToday = key === today;
-              const hasTasks = items.some(item => isTaskForDate(item, key) && !item.done);
+              const hasTasks = busyDays.has(key);
+              const firstOfMonth = day.getDate() === 1;
               return (
                 <Pressable
                   key={key}
@@ -218,45 +235,59 @@ export default function DailyScreen() {
                     triggerHaptic('light');
                     setDailyDate(day);
                   }}
-                  style={[styles.weekDay, selected && { backgroundColor: c.accentFill }]}
+                  style={[styles.weekDay, { width: DAY_W - 4, marginRight: 4 }, selected && { backgroundColor: c.accentFill }]}
                 >
-                  <Text style={[styles.weekLabel, { color: selected ? c.onAccent : c.textTertiary }]}>
-                    {day.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()}
+                  <Text style={[styles.weekLabel, { color: selected ? c.onAccent : firstOfMonth ? c.accent : c.textTertiary }]}>
+                    {(firstOfMonth ? day.toLocaleDateString('en-US', { month: 'short' }) : day.toLocaleDateString('en-US', { weekday: 'short' })).toUpperCase()}
                   </Text>
                   <Text style={[styles.weekNum, { color: selected ? c.onAccent : isDayToday ? c.accent : c.text }]}>
                     {day.getDate()}
                   </Text>
-                  <View
-                    style={[
-                      styles.weekDot,
-                      { backgroundColor: hasTasks ? (selected ? c.onAccent : c.textTertiary) : 'transparent' },
-                    ]}
-                  />
+                  <View style={[styles.weekDot, { backgroundColor: hasTasks ? (selected ? c.onAccent : c.textTertiary) : 'transparent' }]} />
                 </Pressable>
               );
             })}
-          </View>
+          </ScrollView>
 
-          {/* Overdue notice (only when relevant) */}
+          {/* Overdue: a folded list on today, with one-tap Move buttons */}
           {dateKey === today && overdue.length > 0 && (
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                triggerHaptic('light');
-                setDailyDate(new Date(`${overdue.map(i => i.dueDate!).sort()[0]}T12:00:00`));
-              }}
-              style={[styles.notice, { backgroundColor: c.warningSoft }]}
-            >
-              <View style={[styles.noticeDot, { backgroundColor: c.warning }]} />
-              <Text style={{ color: c.text, flex: 1, fontSize: 13, fontWeight: '600' }}>
-                {overdue.length} overdue {overdue.length === 1 ? 'task' : 'tasks'}
-              </Text>
-              <Text style={{ color: c.warning, fontWeight: '700', fontSize: 13 }}>Review</Text>
-            </Pressable>
+            <View style={[styles.overdueBox, { backgroundColor: c.warningSoft }]}>
+              <Pressable accessibilityRole="button" accessibilityState={{ expanded: overdueOpen }} onPress={() => { triggerHaptic('light'); setOverdueOpen(!overdueOpen); }} style={styles.overdueHead}>
+                <View style={[styles.noticeDot, { backgroundColor: c.warning }]} />
+                <Text style={{ color: c.text, flex: 1, fontSize: 13, fontWeight: '700' }}>
+                  Overdue ({overdue.length})
+                </Text>
+                {overdueOpen ? <ChevronUp color={c.warning} size={18} /> : <ChevronDown color={c.warning} size={18} />}
+              </Pressable>
+              {overdueOpen && (
+                <View style={{ gap: 10, paddingHorizontal: 10, paddingBottom: 12 }}>
+                  {overdue.some(i => i.kind !== 'card_bill') && (
+                    <Pressable accessibilityRole="button" onPress={() => { for (const i of overdue) if (i.kind !== 'card_bill') void moveTo(i, today); }} style={[styles.moveAll, { backgroundColor: c.accentFill }]}>
+                      <Text style={{ color: c.onAccent, fontWeight: '700', fontSize: 13 }}>Move all to today</Text>
+                    </Pressable>
+                  )}
+                  {overdue.map(item => (
+                    <View key={item.id} style={{ gap: 6 }}>
+                      {renderTask(item, false)}
+                      {item.kind !== 'card_bill' && (
+                        <View style={styles.moveRow}>
+                          {moveOptions(today, item.dueDate).map(o => (
+                            <Pressable key={o.key} accessibilityRole="button" accessibilityLabel={`Move ${item.title} to ${o.label}`} onPress={() => void moveTo(item, o.key)}
+                              style={[styles.moveChip, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+                              <Text style={{ color: c.text, fontWeight: '600', fontSize: 12 }}>{o.label}</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
           )}
 
-          {/* Filter */}
-          <View style={[styles.segmentedControl, { backgroundColor: c.backgroundMuted }]}>
+          {/* Filter: behind the icon in the header; open while one is chosen */}
+          {(showFilter || filter !== 'All') && <View style={[styles.segmentedControl, { backgroundColor: c.backgroundMuted }]}>
             {FILTERS.map(f => {
               const active = filter === f;
               return (
@@ -276,7 +307,7 @@ export default function DailyScreen() {
                 </Pressable>
               );
             })}
-          </View>
+          </View>}
 
           {!!(error || actionError) && (
             <Text accessibilityRole="alert" style={{ color: c.expense, marginBottom: 12, fontSize: 13 }}>
@@ -349,6 +380,27 @@ export default function DailyScreen() {
         </View>
       )}
 
+      <Modal visible={moving !== null} transparent animationType="fade" onRequestClose={() => setMoving(null)}>
+        <Pressable style={styles.sheetBackdrop} onPress={() => setMoving(null)}>
+          <Pressable style={[styles.moveSheet, { backgroundColor: c.background }]} onPress={() => {}}>
+            {moving && (
+              <>
+                <Text style={{ color: c.text, fontSize: 17, fontWeight: '800' }} numberOfLines={2}>Move “{moving.title}”</Text>
+                {moveOptions(today, itemDateKey(moving)).map(o => (
+                  <Pressable key={o.key} accessibilityRole="button" onPress={() => void moveTo(moving, o.key)} style={[styles.moveOption, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+                    <Text style={{ color: c.text, fontWeight: '700', fontSize: 15 }}>{o.label}</Text>
+                    <Text style={{ color: c.textTertiary, fontSize: 13 }}>{parseDateKey(o.key).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
+                  </Pressable>
+                ))}
+                <Pressable accessibilityRole="button" onPress={() => { const it = moving; setMoving(null); openEditor(it); }} style={[styles.moveOption, { backgroundColor: c.accentSoft, borderColor: c.accentSoft }]}>
+                  <Text style={{ color: c.accent, fontWeight: '700', fontSize: 15 }}>Pick another day…</Text>
+                </Pressable>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       <ItemModal
         visible={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -397,6 +449,16 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     gap: 12,
   },
+  summary: { fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'], marginBottom: 8 },
+  todayBtn: { paddingHorizontal: 12, height: 40, borderRadius: Radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  overdueBox: { borderRadius: Radius.md, marginBottom: 14, overflow: 'hidden' },
+  overdueHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  moveAll: { alignItems: 'center', paddingVertical: 10, borderRadius: Radius.md },
+  moveRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, paddingLeft: 4 },
+  moveChip: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: Radius.pill, borderWidth: 1 },
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  moveSheet: { borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: 20, paddingBottom: 34, gap: 10 },
+  moveOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderRadius: Radius.md, borderWidth: 1 },
   progressText: {
     flexDirection: 'row',
     alignItems: 'baseline',
