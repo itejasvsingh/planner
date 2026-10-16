@@ -29,7 +29,7 @@ export function extractJson(text: string): any | null {
  * keeps a categorising call quick (thinking tokens count against max_tokens, hence the room).
  */
 export async function callAnthropic(prompt: string, model = ANTHROPIC_MODEL, apiKey = process.env.ANTHROPIC_API_KEY || '') {
-  const client = new Anthropic({ apiKey, timeout: 20_000, maxRetries: 1 });
+  const client = new Anthropic({ apiKey, timeout: 8_000, maxRetries: 1 });
   const msg = await client.messages.create({
     model,
     max_tokens: 4096,
@@ -57,13 +57,16 @@ async function callGemini(prompt: string) {
   throw last;
 }
 
-/** Asks for a JSON object. Returns it with who answered, or null if nobody could. */
-export async function generateJson(prompt: string): Promise<{ json: any; provider: Provider; model: string } | null> {
+/**
+ * Asks for a JSON object. `usable` decides whether an answer counts (an empty list from one provider should still let the
+ * other try). Returns it with who answered, or null if nobody could.
+ */
+export async function generateJson(prompt: string, usable: (json: any) => boolean = () => true): Promise<{ json: any; provider: Provider; model: string } | null> {
   for (const provider of providerOrder(process.env)) {
     try {
       const r = provider === 'anthropic' ? { ...(await callAnthropic(prompt)), model: ANTHROPIC_MODEL } : await callGemini(prompt);
       const json = extractJson(r.text);
-      if (json) return { json, provider, model: r.model };
+      if (json && usable(json)) return { json, provider, model: r.model };
     } catch (e) {
       console.warn(`${provider} failed:`, (e as Error)?.message?.slice(0, 160));
     }

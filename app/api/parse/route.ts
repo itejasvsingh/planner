@@ -120,8 +120,8 @@ export async function POST(req: Request) {
         let parsedItems: any[] = [];
 
         // 1. Ask the AI (Claude or Gemini, see lib/ai.ts); fall back to plain rules below if nobody answers
-        const ai = await generateJson(buildParsePrompt(text, today));
-        if (ai && Array.isArray(ai.json.items) && ai.json.items.length > 0) {
+        const ai = await generateJson(buildParsePrompt(text, today), j => Array.isArray(j.items) && j.items.length > 0);
+        if (ai) {
             parsedItems = ai.json.items;
             console.log(`parse answered by ${ai.provider} (${ai.model})`);
         }

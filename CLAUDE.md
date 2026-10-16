@@ -72,3 +72,8 @@
   code + PKCE verifier → custom token `google_<sub>`, then the number is linked with a WhatsApp code as usual.
 - Card bill reminders (`lib/cardBills.ts`) are opt-in: bills are stored server-only; Agenda tasks
   (`kind: 'card_bill'`, never auto-pushed) and WhatsApp summary lines exist only after the user says yes.
+- AI provider (`lib/ai.ts`, `generateJson`): `AI_PROVIDER` = `gemini` (default) or `anthropic` (Claude Haiku 5.5, official SDK, no
+  temperature, effort low); `ANTHROPIC_API_KEY` / `GEMINI_API_KEY`. The chosen provider answers first and the other
+  (when its key exists) backs it up if it fails or gives nothing usable. Only `/api/parse` (quick add) uses it so far; the
+  WhatsApp bot and the SMS route still call Gemini directly. The privacy page names both providers. Emails and Gmail data
+  must never be passed to `generateJson`. Look for "parse answered by <provider>" in the logs.
