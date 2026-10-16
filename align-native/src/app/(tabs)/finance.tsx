@@ -5,7 +5,7 @@ import { Pressable } from '@/components/ui/pressable';
 import { ArrowDownLeft, ArrowUpRight, Bookmark, CalendarClock, Check, Download, FileUp, Plus, Search, ShieldAlert, SlidersHorizontal, Tags, Users, Wallet, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import BudgetSheet from '@/components/BudgetSheet';
-import { MONTHLY_BUDGET_KEY, categoryBudgets, summarizeBudget } from '@/lib/budget';
+import { MONTHLY_BUDGET_KEY, budgetStatus, categoryBudgets, summarizeBudget, type BudgetStatus } from '@/lib/budget';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems, useBudgetLimits } from '@/lib/use-planner-items';
 import { useCards } from '@/lib/cards-store';
@@ -103,6 +103,7 @@ export default function FinanceScreen() {
     const [categoriesOpen, setCategoriesOpen] = useState(false);
     const [moreFilters, setMoreFilters] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
+    const [categoriesShown, setCategoriesShown] = useState(false);
     type MoneyView = 'Overview' | 'Analysis' | 'Cards' | 'Split';
     const [view, setView] = useState<MoneyView>('Overview');
     const [analysisMode, setAnalysisMode] = useState<'cycle' | '90'>('cycle');
@@ -150,6 +151,22 @@ export default function FinanceScreen() {
 
     const totalSpent = expenses.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
     const totalEarned = incomes.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+
+    // Spending by category for the cycle on screen (budgeted ones first), shown under "Categories"
+    const categoryTotals = useMemo(() => {
+        const totals: Record<string, number> = {};
+        expenses.forEach(e => {
+            const cat = nameOf(e);
+            totals[cat] = (totals[cat] || 0) + (Number(e.amount) || 0);
+        });
+        const limitsByCat = categoryBudgets(limits);
+        for (const name of Object.keys(limitsByCat)) totals[name] = totals[name] || 0;
+        return Object.entries(totals)
+            .map(([name, amount]) => { const cat = resolveCategory(name, 'expense', categoryConfig); return { name, amount, limit: limitsByCat[name] || 0, icon: cat.icon, tint: cat.tint }; })
+            .sort((a, b) => (b.limit ? 1 : 0) - (a.limit ? 1 : 0) || (b.limit ? b.amount / b.limit - a.amount / a.limit : b.amount - a.amount))
+            .filter((cat, i) => cat.limit > 0 || i < 8);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [expenses, limits, categoryConfig]);
 
     const balance = totalEarned - totalSpent;
     const monthlyBudget = Number(limits?.[MONTHLY_BUDGET_KEY]) || 0;
@@ -449,11 +466,53 @@ export default function FinanceScreen() {
                                 <SlidersHorizontal color={activeFilterCount > 0 || filtersShown ? c.accent : c.textSecondary} size={19} />
                                 {activeFilterCount > 0 && <View style={[styles.filterDot, { backgroundColor: c.accent }]} />}
                             </Pressable>
-                            <Pressable accessibilityRole="button" onPress={() => setCategoriesOpen(true)} hitSlop={8}>
-                                <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Categories</Text>
+                            <Pressable accessibilityRole="button" accessibilityState={{ expanded: categoriesShown }} onPress={() => setCategoriesShown(!categoriesShown)} hitSlop={8}>
+                                <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Categories {categoriesShown ? '▴' : '▾'}</Text>
                             </Pressable>
                         </View>
                     </View>
+
+                    {categoriesShown && (
+                        <View style={[styles.group, { backgroundColor: c.backgroundElement, borderColor: c.border, padding: 16, gap: 16, marginBottom: 12 }, Shadow.card]}>
+                            {categoryTotals.length === 0 && <Text style={{ color: c.textSecondary, fontSize: 13 }}>Nothing spent yet this cycle.</Text>}
+                            {categoryTotals.map(cat => {
+                                const Icon = cat.icon;
+                                const tint = tintColors(cat.tint, theme.isDark);
+                                const share = cat.limit ? cat.amount / cat.limit : cat.amount / Math.max(totalSpent, 1);
+                                const status: BudgetStatus | null = cat.limit ? budgetStatus(share) : null;
+                                const barColor = status === 'over' ? c.expense : status === 'warning' ? c.warning : tint.fg;
+                                const picked = categoryFilter === cat.name;
+                                return (
+                                    <Pressable key={cat.name} accessibilityRole="button" accessibilityState={{ selected: picked }} accessibilityLabel={`Show ${cat.name} transactions`}
+                                        onPress={() => { if (picked) setCategoryFilter(null); else { setCategoryFilter(cat.name); setTypeFilter('expense'); } }}
+                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 12, opacity: categoryFilter && !picked ? 0.5 : 1 }}>
+                                        <View style={[styles.catIcon, { backgroundColor: tint.bg }]}>
+                                            <Icon color={tint.fg} size={16} />
+                                        </View>
+                                        <View style={{ flex: 1 }}>
+                                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 7 }}>
+                                                <Text style={[Type.label, { color: c.text, fontWeight: '600' }]}>{cat.name}</Text>
+                                                <Text style={[Type.label, { color: status === 'over' ? c.expense : c.textSecondary, fontVariant: ['tabular-nums'] }]}>
+                                                    {cat.limit ? `${formatMoney(cat.amount)} of ${formatMoney(cat.limit)}` : `${formatMoney(cat.amount)} · ${Math.round(share * 100)}%`}
+                                                </Text>
+                                            </View>
+                                            <View style={[styles.catTrack, { backgroundColor: c.backgroundMuted }]}>
+                                                <View style={{ width: `${Math.min(100, share * 100)}%`, height: '100%', backgroundColor: barColor, borderRadius: Radius.pill }} />
+                                            </View>
+                                        </View>
+                                    </Pressable>
+                                );
+                            })}
+                            <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 22 }}>
+                                <Pressable accessibilityRole="button" onPress={() => setCategoriesOpen(true)} hitSlop={8}>
+                                    <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>Edit categories</Text>
+                                </Pressable>
+                                <Pressable accessibilityRole="button" onPress={() => setBudgetOpen(true)} hitSlop={8}>
+                                    <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>Limits</Text>
+                                </Pressable>
+                            </View>
+                        </View>
+                    )}
 
                     {searchShown && (
                     <View style={[styles.search, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>

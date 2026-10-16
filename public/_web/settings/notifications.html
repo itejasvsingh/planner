@@ -558,13 +558,17 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
     // Auto-updater for iOS Standalone PWA
     (function() {
       var isStandalone = window.navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
-      if (isStandalone) {
+      // Once the service worker controls the page it brings new builds itself (see below); this is for the first open
+      if (isStandalone && !(navigator.serviceWorker && navigator.serviceWorker.controller)) {
         fetch('/?_cb=' + Date.now(), { cache: 'no-store' })
           .then(function(r) { return r.text(); })
           .then(function(html) {
             var m = html.match(/entry-([a-f0-9]+).js/);
             if (m && m[0] && !document.documentElement.innerHTML.includes(m[0])) {
-              window.location.reload(true);
+              // Once per new build: the saved copy can still be the old one for a moment, which must not loop
+              var seen = null;
+              try { seen = sessionStorage.getItem('align_reloaded_for'); sessionStorage.setItem('align_reloaded_for', m[0]); } catch (e) {}
+              if (seen !== m[0]) window.location.reload(true);
             }
           })
           .catch(function() {});
@@ -583,6 +587,15 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
     }
     // Offline support: register the service worker (it caches the app shell; see Step 4 of prepare-expo-web.js).
     if ('serviceWorker' in navigator) {
+      // A new build installs in the background (its files are saved before it takes over); when it does, reload once
+      // into it. The page opens from the saved copy first, so opening is instant.
+      var hadController = !!navigator.serviceWorker.controller;
+      var swReloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function() {
+        if (!hadController || swReloaded) return;
+        swReloaded = true;
+        window.location.reload();
+      });
       window.addEventListener('load', function() {
         navigator.serviceWorker.register('/sw.js').then(function(reg) { return reg.update(); }).catch(function() {});
       });
@@ -608,7 +621,7 @@ input::-webkit-search-cancel-button,input::-webkit-search-decoration,input::-web
       if (banner) banner.style.display = 'none';
     }
   </script>
-</head><body><div id="root"><div class="css-g5y9jx r-13awgt0"><!--$--><div class="css-g5y9jx r-13awgt0"><div class="css-g5y9jx" style="flex:1"><div class="css-g5y9jx" style="flex:1;align-items:center;justify-content:center;background-color:rgba(240,241,245,1.00)"><div role="progressbar" aria-valuemax="1" aria-valuemin="0" class="css-g5y9jx r-1awozwy r-1777fci"><div class="css-g5y9jx r-z80fyv r-19wmn03 r-17bb2tj r-1muvv40 r-1yef0xd r-1ldzwu0"><svg height="100%" viewBox="0 0 32 32" width="100%"><circle cx="16" cy="16" fill="none" r="14" stroke-width="4" style="stroke:#0A2D67;opacity:0.2"></circle><circle cx="16" cy="16" fill="none" r="14" stroke-width="4" style="stroke:#0A2D67;stroke-dasharray:80;stroke-dashoffset:60"></circle></svg></div></div></div></div></div><!--/$--></div></div><script src="/_expo/static/js/web/entry-44f6ac563de4c7780c6f1103bd7cc6ef.js" defer></script>
+</head><body><div id="root"><div class="css-g5y9jx r-13awgt0"><!--$--><div class="css-g5y9jx r-13awgt0"><div class="css-g5y9jx" style="flex:1"><div class="css-g5y9jx" style="flex:1;align-items:center;justify-content:center;background-color:rgba(240,241,245,1.00)"><div role="progressbar" aria-valuemax="1" aria-valuemin="0" class="css-g5y9jx r-1awozwy r-1777fci"><div class="css-g5y9jx r-z80fyv r-19wmn03 r-17bb2tj r-1muvv40 r-1yef0xd r-1ldzwu0"><svg height="100%" viewBox="0 0 32 32" width="100%"><circle cx="16" cy="16" fill="none" r="14" stroke-width="4" style="stroke:#0A2D67;opacity:0.2"></circle><circle cx="16" cy="16" fill="none" r="14" stroke-width="4" style="stroke:#0A2D67;stroke-dasharray:80;stroke-dashoffset:60"></circle></svg></div></div></div></div></div><!--/$--></div></div><script src="/_expo/static/js/web/entry-7eb52f5e7fe7266853db3001bbc1c23c.js" defer></script>
 
 <div id="ios-install-banner">
   <div style="display:flex; align-items:flex-start; gap:14px;">

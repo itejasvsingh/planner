@@ -24,7 +24,13 @@ function RootNav() {
   const { scheme: colorScheme } = useThemeMode();
   const { ready, phone } = usePhone();
   const [fontsLoaded, fontError] = useFonts(FONT_ASSETS);
-  const fontsDone = fontsLoaded || !!fontError;
+  // Never hold the app for fonts: after 1.2 s it opens with the system font and the new one swaps in when it arrives
+  const [fontGaveUp, setFontGaveUp] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setFontGaveUp(true), 1200);
+    return () => clearTimeout(t);
+  }, []);
+  const fontsDone = fontsLoaded || !!fontError || fontGaveUp;
   const router = useRouter();
   const segments = useSegments();
   
