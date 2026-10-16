@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Check, ChevronDown, ChevronUp, Plus, SlidersHorizontal, Undo2 } from 'lucide-react-native';
@@ -13,6 +13,7 @@ import { usePhone } from '@/lib/phone-context';
 import { isTaskForDate, itemDateKey, itemTime, type PlannerItem } from '@/lib/planner-item';
 import { usePlannerItems } from '@/lib/use-planner-items';
 import ItemModal from '@/components/ItemModal';
+import MoveSheet from '@/components/MoveSheet';
 import TaskCard from '@/components/TaskCard';
 import ScreenHeader, { HeaderButton } from '@/components/ScreenHeader';
 import SwipeAction from '@/components/SwipeAction';
@@ -59,13 +60,30 @@ export default function DailyScreen() {
     return Array.from({ length: n }, (_, i) => addDays(first, i));
   }, [today, dateKey]);
   const strip = useRef<ScrollView>(null);
-  const [stripW, setStripW] = useState(0);
+  const [measuredW, setStripW] = useState(0);
+  // The strip's width: as laid out, else the screen less the page padding (layout events can arrive late)
+  const winW = useWindowDimensions().width;
+  const stripW = measuredW || Math.min(winW, 720) - 32;
   const selIndex = days.findIndex(d => formatDateKey(d) === dateKey);
+  // A day you tap stays where it is; only a change from elsewhere (Today, jumping to an overdue day) centres the strip
+  const tappedDay = useRef(false);
   const centreOnSelected = (animated: boolean) => {
     if (!stripW || selIndex < 0) return;
     strip.current?.scrollTo({ x: Math.max(0, selIndex * DAY_W - (stripW - DAY_W) / 2), animated });
   };
-  useEffect(() => { centreOnSelected(true); // eslint-disable-next-line react-hooks/exhaustive-deps
+  const centredOnce = useRef(false);
+  useEffect(() => {
+    if (tappedDay.current) { tappedDay.current = false; return; }
+    if (!stripW) return;
+    // First time: jump there (no animation), and try again as the days finish laying out; later changes glide
+    const first = !centredOnce.current;
+    centredOnce.current = true;
+    centreOnSelected(!first);
+    if (!first) return;
+    const t1 = setTimeout(() => centreOnSelected(false), 120);
+    const t2 = setTimeout(() => centreOnSelected(false), 500);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selIndex, stripW]);
   // Days that still have something to do (a dot under the number)
   const busyDays = useMemo(() => new Set(items.filter(i => i.type === 'task' && !i.done).map(itemDateKey)), [items]);
@@ -82,8 +100,12 @@ export default function DailyScreen() {
     return true;
   });
 
-  const anytime = filtered.filter(item => !itemTime(item)).sort((a, b) => Number(b.priority === 'high') - Number(a.priority === 'high'));
-  const scheduled = filtered.filter(item => itemTime(item)).sort((a, b) => (timeToMinutes(itemTime(a)) ?? 0) - (timeToMinutes(itemTime(b)) ?? 0));
+  // On "All" the finished tasks fold under a "Completed" row at the bottom; "Open" and "Completed" filter as before
+  const shown = filter === 'All' ? filtered.filter(item => !item.done) : filtered;
+  const doneItems = filter === 'All' ? filtered.filter(item => item.done) : [];
+  const [doneOpen, setDoneOpen] = useState(false);
+  const anytime = shown.filter(item => !itemTime(item)).sort((a, b) => Number(b.priority === 'high') - Number(a.priority === 'high'));
+  const scheduled = shown.filter(item => itemTime(item)).sort((a, b) => (timeToMinutes(itemTime(a)) ?? 0) - (timeToMinutes(itemTime(b)) ?? 0));
 
   function openEditor(item: PlannerItem | null = null) {
     setEditingItem(item);
@@ -215,7 +237,7 @@ export default function DailyScreen() {
             showsHorizontalScrollIndicator={false}
             onLayout={e => setStripW(e.nativeEvent.layout.width)}
             // The days only exist once the content is measured: centre then (no animation on the first open)
-            onContentSizeChange={() => centreOnSelected(false)}
+            onContentSizeChange={() => { if (!tappedDay.current) centreOnSelected(false); }}
             contentContainerStyle={{ paddingVertical: 2 }}
             style={styles.weekRow}
           >
@@ -233,6 +255,7 @@ export default function DailyScreen() {
                   accessibilityState={{ selected }}
                   onPress={() => {
                     triggerHaptic('light');
+                    if (key !== dateKey) tappedDay.current = true;
                     setDailyDate(day);
                   }}
                   style={[styles.weekDay, { width: DAY_W - 4, marginRight: 4 }, selected && { backgroundColor: c.accentFill }]}
@@ -363,6 +386,17 @@ export default function DailyScreen() {
                 </>
               )}
 
+              {doneItems.length > 0 && (
+                <>
+                  <Pressable accessibilityRole="button" accessibilityState={{ expanded: doneOpen }} onPress={() => { triggerHaptic('light'); setDoneOpen(!doneOpen); }} style={styles.doneHead}>
+                    <Check color={c.textTertiary} size={15} strokeWidth={3} />
+                    <Text style={{ color: c.textTertiary, fontSize: 12, fontWeight: '700', letterSpacing: 0.6, flex: 1, textTransform: 'uppercase' }}>Completed ({doneItems.length})</Text>
+                    {doneOpen ? <ChevronUp color={c.textTertiary} size={16} /> : <ChevronDown color={c.textTertiary} size={16} />}
+                  </Pressable>
+                  {doneOpen && doneItems.map(item => renderItem(item))}
+                </>
+              )}
+
                 
 
             </View>
@@ -380,26 +414,7 @@ export default function DailyScreen() {
         </View>
       )}
 
-      <Modal visible={moving !== null} transparent animationType="fade" onRequestClose={() => setMoving(null)}>
-        <Pressable style={styles.sheetBackdrop} onPress={() => setMoving(null)}>
-          <Pressable style={[styles.moveSheet, { backgroundColor: c.background }]} onPress={() => {}}>
-            {moving && (
-              <>
-                <Text style={{ color: c.text, fontSize: 17, fontWeight: '800' }} numberOfLines={2}>Move “{moving.title}”</Text>
-                {moveOptions(today, itemDateKey(moving)).map(o => (
-                  <Pressable key={o.key} accessibilityRole="button" onPress={() => void moveTo(moving, o.key)} style={[styles.moveOption, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
-                    <Text style={{ color: c.text, fontWeight: '700', fontSize: 15 }}>{o.label}</Text>
-                    <Text style={{ color: c.textTertiary, fontSize: 13 }}>{parseDateKey(o.key).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</Text>
-                  </Pressable>
-                ))}
-                <Pressable accessibilityRole="button" onPress={() => { const it = moving; setMoving(null); openEditor(it); }} style={[styles.moveOption, { backgroundColor: c.accentSoft, borderColor: c.accentSoft }]}>
-                  <Text style={{ color: c.accent, fontWeight: '700', fontSize: 15 }}>Pick another day…</Text>
-                </Pressable>
-              </>
-            )}
-          </Pressable>
-        </Pressable>
-      </Modal>
+      <MoveSheet item={moving} today={today} onMove={(it, key) => void moveTo(it, key)} onPick={it => { setMoving(null); openEditor(it); }} onClose={() => setMoving(null)} />
 
       <ItemModal
         visible={modalOpen}
@@ -449,6 +464,7 @@ const styles = StyleSheet.create({
     marginBottom: 14,
     gap: 12,
   },
+  doneHead: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, paddingVertical: 6 },
   summary: { fontSize: 14, fontWeight: '600', fontVariant: ['tabular-nums'], marginBottom: 8 },
   todayBtn: { paddingHorizontal: 12, height: 40, borderRadius: Radius.pill, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   overdueBox: { borderRadius: Radius.md, marginBottom: 14, overflow: 'hidden' },

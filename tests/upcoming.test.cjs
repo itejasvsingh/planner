@@ -41,3 +41,24 @@ test('coming up: bills and card dues in the next 14 days, nothing doubled or irr
   const r2 = upcomingPayments(items.filter(i => i.id !== 'gen'), [], now);
   assert.deepEqual(r2.map(x => [x.date, x.title]), [['2026-10-15', 'Rent']]);
 });
+
+test('payments between two days: every month/week occurrence, no doubles, card dues even when overdue', () => {
+  const { paymentsBetween } = mod.exports;
+  const rent = { id: 'r', type: 'expense', title: 'Rent', amount: 9000, date: '2026-06-18', isRecurring: true, recurringFrequency: 'monthly' };
+  const gym = { id: 'g', type: 'expense', title: 'Gym', amount: 500, date: '2026-10-01', isRecurring: true, recurringFrequency: 'weekly' };
+  const later = { id: 'l', type: 'expense', title: 'Later', amount: 1, date: '2027-01-05', isRecurring: true, recurringFrequency: 'monthly' };
+  const generated = { id: 'x', type: 'expense', title: 'Rent', date: '2026-10-18', recurringParentId: 'r', isGeneratedRecurring: true };
+  const cards = [
+    { title: 'Axis', dueDate: '2026-10-12', outstanding: 5700, status: 'overdue' },
+    { title: 'HDFC', dueDate: '2026-10-25', outstanding: 0, status: 'due' },
+    { title: 'SBI', dueDate: '2026-10-20', outstanding: 300, status: 'paid' },
+    { title: 'ICICI', dueDate: '2026-11-02', outstanding: 800, status: 'due' },
+  ];
+  const r = paymentsBetween([rent, gym, later], cards, '2026-10-01', '2026-10-31');
+  assert.deepEqual(r.filter(x => x.title === 'Rent').map(x => x.date), ['2026-10-18']);
+  assert.deepEqual(r.filter(x => x.title === 'Gym').map(x => x.date), ['2026-10-01', '2026-10-08', '2026-10-15', '2026-10-22', '2026-10-29']);
+  assert.equal(r.some(x => x.title === 'Later'), false);
+  assert.deepEqual(r.filter(x => x.kind === 'card').map(x => [x.title, x.date]), [['Axis bill', '2026-10-12']]);
+  // Rent already added as a real expense on the 18th: not listed again
+  assert.equal(paymentsBetween([rent, generated], [], '2026-10-01', '2026-10-31').length, 0);
+});

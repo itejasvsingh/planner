@@ -69,3 +69,29 @@ export function dueLabel(key: string, now: Date = new Date()): string {
   if (days === 1) return 'Tomorrow';
   return new Date(y, m - 1, d).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
+
+/**
+ * Every bill and card due that falls between two days (inclusive), for the calendar: a monthly bill shows each month,
+ * a weekly one each week. Bills already added as a real expense for a day are left out (they're in your list then).
+ * Card dues are included even when overdue.
+ */
+export function paymentsBetween(items: RecurringParent[], cards: CardDue[], fromKey: string, toKey: string): Upcoming[] {
+  const out: Upcoming[] = [];
+  const have = new Set(items.filter(i => i.recurringParentId && i.date).map(i => `${i.recurringParentId}|${i.date}`));
+  const from = parse(fromKey);
+  for (const p of items) {
+    if (!p.isRecurring || p.isGeneratedRecurring || p.type !== 'expense' || !p.date) continue;
+    let d = nextDue(p.date, p.recurringFrequency, from);
+    for (let n = 0; n < 62; n++) {
+      const dk = key(d);
+      if (dk > toKey) break;
+      if (!have.has(`${p.id}|${dk}`)) out.push({ key: `bill-${p.id}-${dk}`, date: dk, title: p.title || 'Bill', amount: Number(p.amount) || 0, kind: 'bill' });
+      d = nextDue(p.date, p.recurringFrequency, new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1));
+    }
+  }
+  for (const c of cards) {
+    if (c.hidden || c.status === 'paid' || !c.dueDate || c.outstanding <= 0 || c.dueDate < fromKey || c.dueDate > toKey) continue;
+    out.push({ key: `card-${c.title}-${c.dueDate}`, date: c.dueDate, title: `${c.title} bill`, amount: c.outstanding, kind: 'card' });
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date) || b.amount - a.amount);
+}
