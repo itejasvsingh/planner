@@ -6,19 +6,21 @@ import { Pressable } from '@/components/ui/pressable';
 import { Radius, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import SegmentedControl from './SegmentedControl';
-import { YOU, buildSplit, describeSplit, equalShares, fmt, sameName, type SplitDraft, type SplitMethod } from '@/lib/splits';
+import { YOU, buildSplit, describeSplit, equalShares, fmt, sameName, weightedShares, type SplitDraft, type SplitMethod } from '@/lib/splits';
 
 const METHODS: { label: string; value: SplitMethod }[] = [
   { label: 'Equally', value: 'equal' },
   { label: 'Amounts', value: 'exact' },
   { label: 'Percent', value: 'percent' },
+  { label: 'Shares', value: 'shares' },
 ];
 
 /**
- * Who shared this bill, who paid, and how it's divided (equally, by amounts or by percent).
+ * Who shared this bill, who paid, and how it's divided (equally, by amounts, by percent or by shares), and the
+ * group it belongs to (a trip, a flat) so a group's balances can be seen on their own.
  * `total` is the whole bill; the expense itself keeps only your share.
  */
-export default function SplitSection({ total, draft, onChange, recent }: { total: number; draft: SplitDraft; onChange: (d: SplitDraft) => void; recent: string[] }) {
+export default function SplitSection({ total, draft, onChange, recent, groups = [], groupDrafts = {} }: { total: number; draft: SplitDraft; onChange: (d: SplitDraft) => void; recent: string[]; groups?: string[]; /** The newest split's friends, payer and method per group, to start a new split in that group */ groupDrafts?: Record<string, SplitDraft> }) {
   const c = useTheme();
   const [name, setName] = useState('');
   const set = (patch: Partial<SplitDraft>) => onChange({ ...draft, ...patch });
@@ -34,6 +36,7 @@ export default function SplitSection({ total, draft, onChange, recent }: { total
 
   const people = [YOU, ...draft.friends];
   const equal = equalShares(total, people.length);
+  const byShares = weightedShares(total, people.map(p => (String(draft.shares?.[p] ?? '').trim() === '' ? 1 : Math.max(0, parseFloat(draft.shares?.[p] || '0') || 0))));
   const result = draft.friends.length ? buildSplit(total, draft) : null;
   const suggestions = recent.filter(r => !draft.friends.some(f => sameName(f, r))).slice(0, 8);
 
@@ -46,6 +49,38 @@ export default function SplitSection({ total, draft, onChange, recent }: { total
 
   return (
     <View style={{ gap: 14, borderTopWidth: 1, borderTopColor: c.border, paddingTop: 16, marginTop: 4 }}>
+      {/* Group */}
+      <View style={{ gap: 8 }}>
+        {label('Group (optional)')}
+        <TextInput
+          accessibilityLabel="Group name"
+          value={draft.group ?? ''}
+          onChangeText={v => set({ group: v })}
+          maxLength={30}
+          placeholder="e.g. Goa trip, Flat"
+          placeholderTextColor={c.textTertiary}
+          style={{ backgroundColor: c.backgroundMuted, color: c.text, paddingHorizontal: 12, paddingVertical: 10, borderRadius: Radius.md, fontSize: 15 }}
+        />
+        {groups.length > 0 && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {groups.slice(0, 6).map(g => {
+              const selected = sameName(draft.group ?? '', g);
+              return (
+                <Pressable key={g} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`Group ${g}`} onPress={() => {
+                    if (selected) return set({ group: '' });
+                    // Nobody chosen yet: start from how this group was last split ("save default splits")
+                    const last = groupDrafts[g.toLowerCase()];
+                    if (last && draft.friends.length === 0) onChange({ ...draft, friends: last.friends, paidBy: last.paidBy, method: last.method, shares: last.shares, percent: last.percent, group: g });
+                    else set({ group: g });
+                  }} style={chip(selected)}>
+                  <Text style={chipText(selected)}>{g}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+      </View>
+
       {/* With whom */}
       <View style={{ gap: 8 }}>
         {label('With')}
@@ -116,6 +151,19 @@ export default function SplitSection({ total, draft, onChange, recent }: { total
                   <Text style={{ flex: 1, color: c.text, fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{p === YOU ? 'You' : p}</Text>
                   {draft.method === 'equal' ? (
                     <Text style={{ color: c.textSecondary, fontSize: 15, fontVariant: ['tabular-nums'] }}>₹{fmt(equal[i] || 0)}</Text>
+                  ) : draft.method === 'shares' ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <Text style={{ color: c.textSecondary, fontSize: 14, fontVariant: ['tabular-nums'] }}>₹{fmt(byShares[i] || 0)}</Text>
+                      <TextInput
+                        accessibilityLabel={`${p === YOU ? 'Your' : `${p}'s`} shares`}
+                        value={draft.shares?.[p] ?? ''}
+                        onChangeText={v => set({ shares: { ...(draft.shares || {}), [p]: v } })}
+                        keyboardType="decimal-pad"
+                        placeholder="1"
+                        placeholderTextColor={c.textTertiary}
+                        style={{ width: 56, textAlign: 'right', backgroundColor: c.backgroundMuted, color: c.text, paddingHorizontal: 10, paddingVertical: 7, borderRadius: Radius.sm, fontSize: 15 }}
+                      />
+                    </View>
                   ) : (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       {draft.method === 'exact' && <Text style={{ color: c.textSecondary }}>₹</Text>}
@@ -134,7 +182,7 @@ export default function SplitSection({ total, draft, onChange, recent }: { total
                 </View>
               ))}
             </View>
-            {draft.method !== 'equal' && (
+            {(draft.method === 'exact' || draft.method === 'percent') && (
               <Pressable accessibilityRole="button" onPress={() => {
                 // Start from an even split, then adjust
                 if (draft.method === 'exact') set({ exact: Object.fromEntries(people.map((p, i) => [p, String(equal[i] || 0)])) });

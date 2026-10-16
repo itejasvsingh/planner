@@ -8,7 +8,7 @@ const src = fs.readFileSync(path.join(__dirname, '../align-native/src/lib/splits
 const out = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
 const mod = { exports: {} };
 new Function('module', 'exports', out)(mod, mod.exports);
-const { buildSplit, draftFrom, splitOf, friendBalances, settleUpPatches, recentFriends, equalShares, describeSplit, emptyDraft } = mod.exports;
+const { buildSplit, draftFrom, splitOf, friendBalances, settleUpPatches, recentFriends, equalShares, describeSplit, emptyDraft, weightedShares, settleAmountPatches, groupNames, inGroup, groupTotals, reminderText, groupDefaultDraft } = mod.exports;
 
 const draft = o => ({ ...emptyDraft(), ...o });
 
@@ -87,4 +87,101 @@ test('reads the older split shapes', () => {
   const list = splitOf({ amount: 100, splits: [{ name: 'Kim', amount: 100, settled: false }] });
   assert.deepEqual([list.total, list.people[0].name], [200, 'Kim']);
   assert.equal(splitOf({ amount: 5, splits: [] }), null);
+});
+
+
+test('by shares: two shares to one, a blank box counts as one, leftover paise go to the first people', () => {
+  const draft2 = (o) => ({ ...emptyDraft(), ...o });
+  const a = buildSplit(1200, draft2({ friends: ['Rahul'], method: 'shares', shares: { you: '2', Rahul: '1' } })).split;
+  assert.deepEqual([a.yourShare, a.people[0].share, a.yourShares, a.people[0].shares], [800, 400, 2, 1]);
+  const b = buildSplit(100, draft2({ friends: ['A', 'B'], method: 'shares', shares: {} })).split;
+  assert.deepEqual([b.yourShare, b.people[0].share, b.people[1].share], [33.34, 33.33, 33.33]);
+  assert.equal(buildSplit(100, draft2({ friends: ['A'], method: 'shares', shares: { you: '0', A: '0' } })).error, 'Give at least one person a share');
+  assert.equal(buildSplit(100, draft2({ friends: ['A'], method: 'shares', shares: { you: '-1', A: '1' } })).error, 'Shares can’t be negative');
+  assert.deepEqual(weightedShares(10, [1, 1, 1]).reduce((t, x) => t + Math.round(x * 100), 0), 1000);
+  // editing again gives the same numbers back
+  const again = buildSplit(1200, draftFrom(a)).split;
+  assert.deepEqual([again.yourShare, again.people[0].share], [800, 400]);
+});
+
+test('a group name is kept (trimmed) and comes back when editing', () => {
+  const draft2 = (o) => ({ ...emptyDraft(), ...o });
+  const s = buildSplit(600, draft2({ friends: ['A'], group: '  Goa   trip ' })).split;
+  assert.equal(s.group, 'Goa trip');
+  assert.equal(draftFrom(s).group, 'Goa trip');
+  assert.equal(buildSplit(600, draft2({ friends: ['A'] })).split.group, undefined);
+});
+
+test('paying part of what a friend owes settles the oldest splits first; the last can be part-paid', () => {
+  const draft2 = (o) => ({ ...emptyDraft(), ...o });
+  const mk = (id, date, total) => ({ id, type: 'expense', title: id, date, amount: total / 2, split: buildSplit(total, draft2({ friends: ['Rahul'] })).split });
+  const items = [mk('B', '2026-10-05', 600), mk('A', '2026-10-01', 800)]; // Rahul owes 400 (A) + 300 (B)
+  assert.equal(friendBalances(items)[0].net, 700);
+  const { applied, patches } = settleAmountPatches(items, 'rahul', 500);
+  assert.equal(applied, 500);
+  const after = items.map(i => ({ ...i, split: (patches.find(p => p.id === i.id) || i).split }));
+  const a = after.find(i => i.id === 'A').split.people[0];
+  const b = after.find(i => i.id === 'B').split.people[0];
+  assert.deepEqual([a.settled, b.paid, b.settled], [true, 100, undefined]);
+  assert.equal(friendBalances(after)[0].net, 200);
+  // more than owed is capped
+  const all = settleAmountPatches(after, 'Rahul', 9999);
+  assert.equal(all.applied, 200);
+  const done = after.map(i => ({ ...i, split: (all.patches.find(p => p.id === i.id) || i).split }));
+  assert.equal(friendBalances(done).filter(b => b.net !== 0).length, 0);
+  assert.deepEqual(settleAmountPatches(items, 'Nobody', 50), { applied: 0, patches: [] });
+  assert.equal(settleAmountPatches(items, 'Rahul', 0).applied, 0);
+});
+
+test('paying a friend back in instalments when they paid', () => {
+  const draft2 = (o) => ({ ...emptyDraft(), ...o });
+  const split = buildSplit(900, draft2({ friends: ['Rahul', 'Priya'], paidBy: 'Rahul' })).split; // you owe Rahul 300
+  const items = [{ id: 'cab', type: 'expense', title: 'Cab', date: '2026-10-01', amount: 300, split }];
+  const { applied, patches } = settleAmountPatches(items, 'Rahul', 100);
+  assert.equal(applied, 100);
+  const next = [{ ...items[0], split: patches[0].split }];
+  assert.equal(friendBalances(next).find(b => b.name === 'Rahul').net, -200);
+  const rest = settleAmountPatches(next, 'Rahul', 200);
+  const done = [{ ...items[0], split: rest.patches[0].split }];
+  assert.equal(friendBalances(done).find(b => b.name === 'Rahul').net, 0);
+});
+
+test('groups: names (newest first), one group\'s splits, totals; reminder text', () => {
+  const draft2 = (o) => ({ ...emptyDraft(), ...o });
+  const goa = buildSplit(1000, draft2({ friends: ['Rahul'], group: 'Goa' })).split;
+  const flat = buildSplit(2000, draft2({ friends: ['Rahul', 'Priya'], group: 'Flat', paidBy: 'Priya' })).split;
+  const plain = buildSplit(400, draft2({ friends: ['Rahul'] })).split;
+  const items = [
+    { id: '1', type: 'expense', title: 'Hotel', date: '2026-10-01', amount: 500, split: goa },
+    { id: '2', type: 'expense', title: 'Rent', date: '2026-10-05', amount: 667, split: flat },
+    { id: '3', type: 'expense', title: 'Chai', date: '2026-10-06', amount: 200, split: plain },
+  ];
+  assert.deepEqual(groupNames(items), ['Flat', 'Goa']);
+  assert.deepEqual(inGroup(items, 'goa').map(i => i.id), ['1']);
+  assert.deepEqual(inGroup(items, '').map(i => i.id), ['3']);
+  const t = groupTotals(items);
+  assert.deepEqual(t.map(g => [g.name, g.net]), [['Flat', -666.67], ['Goa', 500]]);
+  const rahul = friendBalances(items).find(b => b.name === 'Rahul');
+  const msg = reminderText(rahul);
+  assert.ok(msg.startsWith('Hi Rahul, a quick reminder: you owe me ₹700.'), msg);
+  assert.ok(msg.includes('• Hotel: ₹500') && msg.includes('• Chai: ₹200') && msg.endsWith('Thanks!'));
+  const owesMe = friendBalances(items).find(b => b.name === 'Priya');
+  assert.equal(reminderText(owesMe), '', 'nothing to remind when you owe them');
+});
+
+test('a group remembers its friends, who paid and how it is split (not the old amounts)', () => {
+  const { groupDefaultDraft } = mod.exports;
+  const draft2 = (o) => ({ ...emptyDraft(), ...o });
+  const s1 = buildSplit(1000, draft2({ friends: ['Rahul'], group: 'Goa', method: 'shares', shares: { you: '2', Rahul: '1' } })).split;
+  const s2 = buildSplit(600, draft2({ friends: ['Rahul', 'Priya'], group: 'Goa', paidBy: 'Priya', method: 'exact', exact: { you: '100', Rahul: '200', Priya: '300' } })).split;
+  const items = [
+    { id: '1', type: 'expense', title: 'Hotel', date: '2026-10-01', amount: 500, split: s1 },
+    { id: '2', type: 'expense', title: 'Dinner', date: '2026-10-02', amount: 100, split: s2 },
+  ];
+  const d = groupDefaultDraft(items, 'goa');
+  assert.deepEqual([d.friends, d.paidBy, d.method, d.group], [['Rahul', 'Priya'], 'Priya', 'equal', 'Goa'], 'fixed amounts become an equal split');
+  assert.deepEqual(d.exact, {});
+  const d1 = groupDefaultDraft([items[0]], 'Goa');
+  assert.deepEqual([d1.method, d1.shares.you, d1.shares.Rahul], ['shares', '2', '1']);
+  assert.equal(groupDefaultDraft(items, 'Nope'), null);
 });

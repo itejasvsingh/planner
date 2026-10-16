@@ -8,8 +8,13 @@
  * - Another friend paid: that's between them; it doesn't change what you and the others owe each other here.
  */
 
-export type SplitMethod = 'equal' | 'exact' | 'percent';
-export type SplitPerson = { name: string; share: number; percent?: number; settled?: boolean };
+export type SplitMethod = 'equal' | 'exact' | 'percent' | 'shares';
+export type SplitPerson = {
+  name: string; share: number; percent?: number; /** 'shares' method: this person's number of shares */ shares?: number;
+  settled?: boolean;
+  /** Part of `share` paid back so far (you paid, they're paying you in instalments). */
+  paid?: number;
+};
 export type ExpenseSplit = {
   total: number;
   /** 'you' or a friend's name */
@@ -17,10 +22,15 @@ export type ExpenseSplit = {
   method: SplitMethod;
   yourShare: number;
   yourPercent?: number;
+  yourShares?: number;
   /** Friends only (not you). */
   people: SplitPerson[];
   /** A friend paid and you've paid them back. */
   youSettled?: boolean;
+  /** Part of `yourShare` you've paid back to the friend who paid. */
+  youPaid?: number;
+  /** A trip, a flat, a group of friends: splits with the same group are totalled together. */
+  group?: string;
 };
 
 export const YOU = 'you';
@@ -34,9 +44,12 @@ export type SplitDraft = {
   exact: Record<string, string>;
   /** name (or 'you') -> typed percent, for 'percent' */
   percent: Record<string, string>;
+  /** name (or 'you') -> typed number of shares, for 'shares' (blank = 1) */
+  shares?: Record<string, string>;
+  group?: string;
 };
 
-export const emptyDraft = (): SplitDraft => ({ friends: [], paidBy: YOU, method: 'equal', exact: {}, percent: {} });
+export const emptyDraft = (): SplitDraft => ({ friends: [], paidBy: YOU, method: 'equal', exact: {}, percent: {}, shares: {}, group: '' });
 
 const paise = (n: number) => Math.round(n * 100);
 const num = (s: string | undefined) => {
@@ -54,6 +67,16 @@ export function equalShares(total: number, count: number): number[] {
   return Array.from({ length: count }, () => (base + (rest-- > 0 ? 1 : 0)) / 100);
 }
 
+/** Shares in proportion to `weights` that add up to the total exactly; leftover paise go to the first people (you first). */
+export function weightedShares(total: number, weights: number[]): number[] {
+  const sum = weights.reduce((s, w) => s + w, 0);
+  if (!(sum > 0)) return weights.map(() => 0);
+  const p = paise(total);
+  const base = weights.map(w => Math.floor((p * w) / sum));
+  let rest = p - base.reduce((s, x) => s + x, 0);
+  return base.map(x => (x + (rest-- > 0 ? 1 : 0)) / 100);
+}
+
 export type SplitResult = { split: ExpenseSplit; error?: undefined } | { split?: undefined; error: string };
 
 /**
@@ -67,12 +90,19 @@ export function buildSplit(total: number, d: SplitDraft, previous?: ExpenseSplit
   const names = [YOU, ...friends];
   let shares: number[];
   let percents: number[] | undefined;
+  let weights: number[] | undefined;
   if (d.method === 'equal') {
     shares = equalShares(total, names.length);
   } else if (d.method === 'exact') {
     shares = names.map(n => num(d.exact[n]));
     const diff = paise(total) - shares.reduce((s, x) => s + paise(x), 0);
     if (diff !== 0) return { error: diff > 0 ? `₹${fmt(diff / 100)} still to assign` : `₹${fmt(-diff / 100)} more than the total` };
+  } else if (d.method === 'shares') {
+    // A blank box counts as one share; zero is allowed (someone who only shares nothing is just not in it)
+    weights = names.map(n => (String(d.shares?.[n] ?? '').trim() === '' ? 1 : num(d.shares?.[n])));
+    if (weights.some(w => w < 0)) return { error: 'Shares can’t be negative' };
+    if (!(weights.reduce((s, w) => s + w, 0) > 0)) return { error: 'Give at least one person a share' };
+    shares = weightedShares(total, weights);
   } else {
     percents = names.map(n => num(d.percent[n]));
     const sum = percents.reduce((s, x) => s + x, 0);
@@ -82,6 +112,7 @@ export function buildSplit(total: number, d: SplitDraft, previous?: ExpenseSplit
     shares = [(paise(total) - friendPaise.reduce((s, x) => s + x, 0)) / 100, ...friendPaise.map(x => x / 100)];
   }
   if (shares.some(s => s < 0)) return { error: 'Shares can’t be negative' };
+  const group = (d.group || '').replace(/\s+/g, ' ').trim().slice(0, 30);
   const paidBy = d.paidBy === YOU || friends.some(f => sameName(f, d.paidBy)) ? d.paidBy : YOU;
   const keepSettled = previous && previous.paidBy === paidBy;
   const split: ExpenseSplit = {
@@ -90,16 +121,22 @@ export function buildSplit(total: number, d: SplitDraft, previous?: ExpenseSplit
     method: d.method,
     yourShare: shares[0],
     ...(percents ? { yourPercent: percents[0] } : {}),
+    ...(weights ? { yourShares: weights[0] } : {}),
+    ...(group ? { group } : {}),
     people: friends.map((name, i) => {
       const before = keepSettled ? previous!.people.find(p => sameName(p.name, name)) : undefined;
+      const paid = before?.paid ? Math.min(before.paid, shares[i + 1]) : 0;
       return {
         name,
         share: shares[i + 1],
         ...(percents ? { percent: percents[i + 1] } : {}),
+        ...(weights ? { shares: weights[i + 1] } : {}),
         ...(before?.settled ? { settled: true } : {}),
+        ...(paid > 0 && !before?.settled ? { paid } : {}),
       };
     }),
     ...(keepSettled && previous!.youSettled ? { youSettled: true } : {}),
+    ...(keepSettled && previous!.youPaid && !previous!.youSettled ? { youPaid: Math.min(previous!.youPaid, shares[0]) } : {}),
   };
   return { split };
 }
@@ -108,11 +145,13 @@ export function buildSplit(total: number, d: SplitDraft, previous?: ExpenseSplit
 export function draftFrom(s: ExpenseSplit): SplitDraft {
   const exact: Record<string, string> = { [YOU]: String(s.yourShare) };
   const percent: Record<string, string> = s.yourPercent !== undefined ? { [YOU]: String(s.yourPercent) } : {};
+  const shares: Record<string, string> = s.yourShares !== undefined ? { [YOU]: String(s.yourShares) } : {};
   for (const p of s.people) {
     exact[p.name] = String(p.share);
     if (p.percent !== undefined) percent[p.name] = String(p.percent);
+    if (p.shares !== undefined) shares[p.name] = String(p.shares);
   }
-  return { friends: s.people.map(p => p.name), paidBy: s.paidBy, method: s.method, exact, percent };
+  return { friends: s.people.map(p => p.name), paidBy: s.paidBy, method: s.method, exact, percent, shares, group: s.group || '' };
 }
 
 type LegacySplit = { totalAmount?: number; splitWith?: string; yourShare?: number; paidBy?: string; settled?: boolean };
@@ -168,8 +207,8 @@ export function friendBalances(items: Item[]): FriendBalance[] {
     for (const p of s.people) {
       const b = entry(p.name, date);
       let amount = 0;
-      if (s.paidBy === YOU && !p.settled) amount = p.share;
-      else if (sameName(s.paidBy, p.name) && !s.youSettled) amount = -s.yourShare;
+      if (s.paidBy === YOU && !p.settled) amount = paise(p.share - (p.paid || 0)) / 100;
+      else if (sameName(s.paidBy, p.name) && !s.youSettled) amount = -paise(s.yourShare - (s.youPaid || 0)) / 100;
       if (paise(amount) !== 0) {
         b.net = paise(b.net + amount) / 100;
         b.open.push({ id: item.id, title: item.title || 'Expense', date, amount });
@@ -202,6 +241,96 @@ export function settleUpPatches(items: Item[], name: string): { id: string; spli
     if (changed) out.push({ id: item.id, split: { ...s, people, ...(youSettled ? { youSettled: true } : {}) } });
   }
   return out;
+}
+
+/**
+ * A payment of `amount` between you and `name` (they pay you back when they owe you, you pay them when you owe them):
+ * the oldest open splits are paid off first; the last one can be part-paid. Returns what was applied (never more than owed).
+ */
+export function settleAmountPatches(items: (Item & { date?: string | null })[], name: string, amount: number): { applied: number; patches: { id: string; split: ExpenseSplit }[] } {
+  const bal = friendBalances(items).find(b => sameName(b.name, name));
+  if (!bal || paise(bal.net) === 0 || !(amount > 0)) return { applied: 0, patches: [] };
+  const theyOwe = bal.net > 0;
+  let left = Math.min(paise(amount), Math.abs(paise(bal.net)));
+  const applied = left / 100;
+  const byId = new Map(items.map(i => [i.id, i]));
+  const order = bal.open.filter(e => (e.amount > 0) === theyOwe).sort((a, b) => a.date.localeCompare(b.date));
+  const out = new Map<string, ExpenseSplit>();
+  for (const e of order) {
+    if (left <= 0) break;
+    const item = byId.get(e.id);
+    const s0 = item && splitOf(item);
+    if (!s0) continue;
+    const s = out.get(e.id) || s0;
+    const owed = paise(Math.abs(e.amount));
+    const pay = Math.min(left, owed);
+    left -= pay;
+    const full = pay >= owed;
+    if (theyOwe) {
+      out.set(e.id, { ...s, people: s.people.map(p => (sameName(p.name, name) ? (full ? { ...p, settled: true } : { ...p, paid: paise((p.paid || 0) + pay / 100) / 100 }) : p)) });
+    } else {
+      out.set(e.id, full ? { ...s, youSettled: true } : { ...s, youPaid: paise((s.youPaid || 0) + pay / 100) / 100 });
+    }
+  }
+  return { applied, patches: [...out].map(([id, split]) => ({ id, split })) };
+}
+
+/** The group names used on your splits, most recent first. */
+export function groupNames(items: Item[]): string[] {
+  const seen = new Map<string, { name: string; date: string }>();
+  for (const item of items) {
+    const g = splitOf(item)?.group;
+    if (!g) continue;
+    const key = g.toLowerCase();
+    const prev = seen.get(key);
+    const date = item.date || '';
+    if (!prev || date >= prev.date) seen.set(key, { name: g, date });
+  }
+  return [...seen.values()].sort((a, b) => b.date.localeCompare(a.date)).map(x => x.name);
+}
+
+/** Only the splits tagged with `group` (or the ones with no group when `group` is ''), to see one group's balances. */
+export function inGroup<T extends Item>(items: T[], group: string): T[] {
+  return items.filter(i => {
+    const g = splitOf(i)?.group || '';
+    return sameName(g, group);
+  });
+}
+
+/** What the open splits in each group add up to: + you're owed, − you owe. */
+export function groupTotals(items: Item[]): { name: string; net: number; friends: number }[] {
+  return groupNames(items).map(name => {
+    const bal = friendBalances(inGroup(items, name));
+    return { name, net: bal.reduce((t, b) => t + paise(b.net), 0) / 100, friends: bal.filter(b => paise(b.net) !== 0).length };
+  });
+}
+
+/**
+ * The form for the newest split in `group`: the same friends, who paid and how it was divided, as a starting point
+ * (amounts are not carried over: they belong to the old bill). Null when the group has no split yet.
+ */
+export function groupDefaultDraft(items: (Item & { createdAt?: unknown })[], group: string): SplitDraft | null {
+  let best: { s: ExpenseSplit; date: string } | null = null;
+  for (const item of items) {
+    const s = splitOf(item);
+    if (!s || !s.group || !sameName(s.group, group)) continue;
+    const date = item.date || '';
+    if (!best || date >= best.date) best = { s, date };
+  }
+  if (!best) return null;
+  const d = draftFrom(best.s);
+  // Equal and by-shares splits carry over; fixed amounts and percents only mean something for that one bill
+  return { ...d, exact: {}, percent: d.method === 'percent' ? d.percent : {}, method: d.method === 'exact' ? 'equal' : d.method };
+}
+
+/** A short message to send a friend who owes you, listing what it's for. */
+export function reminderText(b: FriendBalance): string {
+  const owed = b.open.filter(e => e.amount > 0);
+  const total = owed.reduce((t, e) => t + paise(e.amount), 0) / 100;
+  if (!(total > 0)) return '';
+  const lines = owed.slice(0, 6).map(e => `• ${e.title}: ₹${fmt(e.amount)}`);
+  const more = owed.length > 6 ? [`• and ${owed.length - 6} more`] : [];
+  return [`Hi ${b.name}, a quick reminder: you owe me ₹${fmt(total)}.`, ...lines, ...more, 'Thanks!'].join('\n');
 }
 
 /** "Rahul owes you ₹400" lines for the form. */

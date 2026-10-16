@@ -34,13 +34,16 @@ interface TransactionSheetProps {
     item: any | null; // null means adding a new item
     /** Friends you've split with, most recent first. */
     friends?: string[];
+    /** Group names used on earlier splits, for one-tap tagging. */
+    groups?: string[];
+    groupDrafts?: Record<string, SplitDraft>;
     /** Adding from Money → Split: start with "Split with friends" on. */
     startSplit?: boolean;
     onSave: (updates: any) => Promise<void>;
     onDelete?: (id: string) => Promise<void>;
 }
 
-export default function TransactionSheet({ visible, onClose, item, onSave, onDelete, friends = [], startSplit = false }: TransactionSheetProps) {
+export default function TransactionSheet({ visible, onClose, item, onSave, onDelete, friends = [], groups = [], groupDrafts, startSplit = false }: TransactionSheetProps) {
     const { isDark } = useTheme();
     const c = isDark ? Colors.dark : Colors.light;
     const { config: categoryConfig, merchantRule } = useCategoryConfig();
@@ -333,7 +336,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                 </View>
 
                                 {isSplit && (
-                                    <SplitSection total={parseFloat(amount) || 0} draft={splitDraft} onChange={setSplitDraft} recent={friends} />
+                                    <SplitSection total={parseFloat(amount) || 0} draft={splitDraft} onChange={setSplitDraft} recent={friends} groups={groups} groupDrafts={groupDrafts} />
                                 )}
                             </View>
                         )}

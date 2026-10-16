@@ -22,7 +22,7 @@ import CategoryPicker from '@/components/CategoryPicker';
 import { findSuspicious } from '@/lib/suspicious';
 import { todayKey } from '@/lib/dates';
 import NinetyDayView from '@/components/finance/NinetyDayView';
-import { friendBalances, recentFriends, settleUpPatches, splitOf } from '@/lib/splits';
+import { friendBalances, groupDefaultDraft, groupNames, groupTotals, inGroup, recentFriends, settleAmountPatches, settleUpPatches, splitOf, type SplitDraft } from '@/lib/splits';
 
 /** "Split with Rahul" / "Split with 3" for a transaction row. */
 function splitLabel(item: any) {
@@ -182,10 +182,25 @@ export default function FinanceScreen() {
     const [reviewOpen, setReviewOpen] = useState(false);
 
     // Splitwise-style balances with friends, across all time
-    const balances = useMemo(() => friendBalances(items), [items]);
+    const [group, setGroup] = useState<string | null>(null);
+    const groups = useMemo(() => groupTotals(items), [items]);
+    // A group that no longer has any split falls back to "All"
+    const activeGroup = group && groups.some(g => g.name === group) ? group : null;
+    const balances = useMemo(() => friendBalances(activeGroup ? inGroup(items, activeGroup) : items), [items, activeGroup]);
     const friends = useMemo(() => recentFriends(items), [items]);
+    // How each group was last split (friends, who paid, method), to start a new split in it
+    const groupDrafts = useMemo(() => {
+        const out: Record<string, SplitDraft> = {};
+        for (const name of groupNames(items)) { const d = groupDefaultDraft(items, name); if (d) out[name.toLowerCase()] = d; }
+        return out;
+    }, [items]);
+    // Settling and payments act on the group on screen, or on everything with that friend when "All" is chosen
+    const scoped = (name: string) => (activeGroup ? inGroup(items, activeGroup) : items).filter(i => !!splitOf(i)?.people.some(p => p.name.toLowerCase() === name.toLowerCase()) || splitOf(i)?.paidBy.toLowerCase() === name.toLowerCase());
     const settleUp = (name: string) => {
-        for (const p of settleUpPatches(items, name)) void updateItem(p.id, { split: p.split });
+        for (const p of settleUpPatches(scoped(name), name)) void updateItem(p.id, { split: p.split });
+    };
+    const payFriend = (name: string, amount: number) => {
+        for (const p of settleAmountPatches(scoped(name), name, amount).patches) void updateItem(p.id, { split: p.split });
     };
 
     // The chips filter the cycle on screen; typing a search looks through all of history.
@@ -351,7 +366,7 @@ export default function FinanceScreen() {
                                 <Users color={c.onAccent} size={18} />
                                 <Text style={{ color: c.onAccent, fontWeight: '700', fontSize: 15 }}>Split a bill</Text>
                             </Pressable>
-                            <FriendsCard balances={balances} onSettle={settleUp} />
+                            <FriendsCard balances={balances} onSettle={settleUp} onPay={payFriend} groups={groups} group={activeGroup} onGroup={setGroup} />
                             {!balances.some(b => Math.round(b.net * 100) !== 0) && (
                                 <View style={[styles.empty, { borderColor: c.border, marginTop: 16 }]}>
                                     <Users color={c.textTertiary} size={32} />
@@ -729,6 +744,8 @@ export default function FinanceScreen() {
                 onSave={handleSave}
                 onDelete={deleteItem}
                 friends={friends}
+                groups={groups.map(g => g.name)}
+                groupDrafts={groupDrafts}
                 startSplit={startSplit}
             />
         </>
