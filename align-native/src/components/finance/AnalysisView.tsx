@@ -4,6 +4,7 @@ import { Text } from '@/components/ui/text';
 import { ArrowDownRight, ArrowUpRight, Lightbulb, Minus, TrendingDown, TrendingUp } from 'lucide-react-native';
 import { Pressable } from '@/components/ui/pressable';
 import CycleStepper from './CycleStepper';
+import NetSavingsChart from './NetSavingsChart';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Shadow, Type } from '@/constants/theme';
 import { kindForType, resolveCategory, tintColors, type CategoryConfig } from '@/lib/categories';
@@ -12,6 +13,7 @@ import {
   buildInsights,
   byCategory,
   categoryChanges,
+  cumulativeNet,
   cycleRange,
   cycleTrend,
   dailySeries,
@@ -156,10 +158,11 @@ export default function AnalysisView({
     const cats = byCategory(current, nameOf);
     const changes = new Map(categoryChanges(cats, byCategory(previousToDate, nameOf)).map(ch => [ch.name, ch]));
     const todayKey = dateKey(new Date());
+    const net = cumulativeNet(current, cycle, todayKey);
     const daily = dailySeries(current, cycle).map(d => ({ ...d, future: d.key > todayKey }));
     const insights = buildInsights({ current, previousToDate, nameOf, cycle, inProgress, format: money });
     return {
-      cycle, inProgress, elapsed, current, summary, prevSummary, cats, changes, daily, insights, nameOf,
+      net, cycle, inProgress, elapsed, current, summary, prevSummary, cats, changes, daily, insights, nameOf,
       trend: cycleTrend(moneyItems, payday, 6, offset),
       pace: pace(current, cycle),
       weekdays: weekdayTotals(current),
@@ -167,7 +170,7 @@ export default function AnalysisView({
     };
   }, [items, payday, offset, config]);
 
-  const { cycle, summary, prevSummary, cats, changes, daily, insights, trend, weekdays, top, inProgress, elapsed } = data;
+  const { net, cycle, summary, prevSummary, cats, changes, daily, insights, trend, weekdays, top, inProgress, elapsed } = data;
   const spentPct = prevSummary.spent > 0 ? (summary.spent - prevSummary.spent) / prevSummary.spent : null;
   const avgPerDay = data.pace.perDay;
   const hasData = data.current.length > 0;
@@ -224,6 +227,10 @@ export default function AnalysisView({
               </View>
             </Section>
           )}
+
+          <Section title="Net savings this cycle">
+            <NetSavingsChart points={net} />
+          </Section>
 
           <Section title="Daily spending">
             <BarChart

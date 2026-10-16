@@ -138,6 +138,28 @@ export function dailySeries(txns: Txn[], cycle: Pick<Cycle, 'start' | 'end'>): {
   return out;
 }
 
+/**
+ * Running net (income less spending) day by day through the cycle, from the same expense/income rules as the tiles.
+ * Stops at `todayKey` for a cycle still in progress, so the line doesn't run flat into the future.
+ */
+export function cumulativeNet(txns: Txn[], cycle: Pick<Cycle, 'start' | 'end'>, todayKey: string): { key: string; date: Date; net: number }[] {
+  const flow = new Map<string, number>();
+  for (const t of txns) {
+    if (!t.date) continue;
+    if (isExpense(t)) flow.set(t.date, (flow.get(t.date) || 0) - amountOf(t));
+    else if (isIncome(t)) flow.set(t.date, (flow.get(t.date) || 0) + amountOf(t));
+  }
+  const out: { key: string; date: Date; net: number }[] = [];
+  let net = 0;
+  for (let d = new Date(cycle.start); d < cycle.end; d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1)) {
+    const key = dateKey(d);
+    if (key > todayKey) break;
+    net += flow.get(key) || 0;
+    out.push({ key, date: d, net });
+  }
+  return out;
+}
+
 /** Total spend per weekday, Sunday = 0. */
 export function weekdayTotals(txns: Txn[]): number[] {
   const out = [0, 0, 0, 0, 0, 0, 0];

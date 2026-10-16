@@ -107,3 +107,18 @@ test('paying a card bill is not spending, but spending on the card is', () => {
   assert.equal(a.isMoney(rows[1]), true, 'still listed');
   assert.equal(a.byCategory(rows, t => t.category).find(c => c.name === 'Card payment'), undefined);
 });
+
+test('cumulative net: income less spending day by day, card bills and transfers left out, stops today', () => {
+  const cycle = a.cycleRange(1, 0, new Date(2026, 9, 12));
+  const rows = [
+    inc('i', '2026-10-02', 1000),
+    exp('e1', '2026-10-03', 200),
+    exp('e2', '2026-10-03', 100),
+    exp('cb', '2026-10-04', 5000, 'Card payment'),
+    { id: 't', type: 'transfer', date: '2026-10-05', amount: 400, category: 'Self Transfer' },
+    exp('future', '2026-10-20', 999),
+  ];
+  const s = a.cumulativeNet(rows, cycle, '2026-10-05');
+  assert.equal(s.length, 5, 'Oct 1 to Oct 5 only');
+  assert.deepEqual(s.map(p => p.net), [0, 1000, 700, 700, 700]);
+});
