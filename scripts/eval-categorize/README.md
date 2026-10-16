@@ -11,7 +11,7 @@ The scripts run on your machine with your own key. Nothing here runs against you
    `node scripts/eval-categorize/export.cjs --phone 91XXXXXXXXXX --limit 500`
    Repeated texts are collapsed so common merchants don't inflate accuracy (`--all` keeps them).
 2. **Label** `data/to-label.csv`: fill `true_category` with one of Food & Dining, Groceries, Transport, Shopping,
-   Bills & Recharge, Home & Help, Health, Education, Entertainment, Gifts, Other. Don't look at what Align stored
+   Bills & Recharge, Home & Help, Health, Education, Entertainment, Gifts, Other. (Short on time? `node scripts/eval-categorize/prefill.cjs` starts the column from what Align stored, so you only fix the wrong ones; say so in your write-up, because it can flatter Gemini.) Otherwise don't look at what Align stored
    (that's in a separate file on purpose). Save as `data/labeled.csv`.
 3. **Run Gemini** with the app's exact prompt (`lib/parsePrompt.ts`; your own `GEMINI_API_KEY`):
    `node scripts/eval-categorize/run.cjs --model gemini-2.5-flash --thinking on`
