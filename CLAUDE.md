@@ -55,6 +55,10 @@
   line). `account_edits/<id>` (server-only) holds the user's `excluded` tick (left out of the bank total, in `adjustBalances` so
   Overview and Cards agree) and typed bank details (`ifsc`, `accountNumber`, `holder`, shown for copying; never log them).
   A card's optional `limit` is a `card_edits` field that stays across statements (statements don't give it).
+- Places: an expense can carry `place` ({lat, lng}, from "Use my location" in the transaction sheet: browser geolocation on web via
+  `lib/geo.ts`, `expo-location` in the Android app via `lib/geo.native.ts`) and `placeName`. Named places are saved on the device only
+  (`lib/places-store.ts`, AsyncStorage `align_saved_places`); no address lookup or map service is used. Analysis → "Where you spend"
+  groups by place or shop (`lib/places.ts`). Adding `expo-location` changed the native fingerprint, so the Android workflow builds a new APK.
 - Net worth (`align-native/src/lib/net-worth.ts`, Money → Overview): ticked bank balances + custom assets − card dues − custom
   liabilities. Custom entries live in server-only `money_accounts/<phone>/net_worth/<id>` (max 50; `POST /api/money/networth`,
   returned as `entries` by `GET /api/money/accounts`). Sharing finances with other people ("Spaces") is deliberately not built.

@@ -5,6 +5,8 @@ import { ArrowDownRight, ArrowUpRight, Lightbulb, Minus, TrendingDown, TrendingU
 import { Pressable } from '@/components/ui/pressable';
 import CycleStepper from './CycleStepper';
 import NetSavingsChart from './NetSavingsChart';
+import WhereYouSpend from './WhereYouSpend';
+import type { Spot } from '@/lib/places';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Shadow, Type } from '@/constants/theme';
 import { kindForType, resolveCategory, tintColors, type CategoryConfig } from '@/lib/categories';
@@ -20,6 +22,7 @@ import {
   dateKey,
   elapsedDays,
   inRange,
+  isExpense,
   isMoney,
   pace,
   summarize,
@@ -128,6 +131,9 @@ export default function AnalysisView({
   offset,
   onOffsetChange,
   onSelectCategory,
+  onSelectPlace,
+  onSelectShop,
+  onNameSpot,
 }: {
   items: Txn[];
   payday: number;
@@ -136,6 +142,9 @@ export default function AnalysisView({
   offset: number;
   onOffsetChange: (offset: number) => void;
   onSelectCategory: (name: string) => void;
+  onSelectPlace?: (name: string) => void;
+  onSelectShop?: (name: string) => void;
+  onNameSpot?: (spot: Spot, name: string) => void;
 }) {
   const c = useTheme();
   const [allInsights, setAllInsights] = useState(false);
@@ -315,6 +324,10 @@ export default function AnalysisView({
               }))}
             />
           </Section>
+
+          {onSelectPlace && onSelectShop && onNameSpot && (
+            <WhereYouSpend expenses={data.current.filter(isExpense)} onSelectPlace={onSelectPlace} onSelectShop={onSelectShop} onNameSpot={onNameSpot} />
+          )}
 
           {top.length > 0 && (
             <Section title="Biggest expenses">

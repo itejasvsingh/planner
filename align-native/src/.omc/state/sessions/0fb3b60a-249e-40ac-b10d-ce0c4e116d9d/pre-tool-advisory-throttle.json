@@ -2,13 +2,9 @@
   "version": 1,
   "entries": {
     "79a93d4a2f8f50b95f852280616242fee1855dc99a3c75211917f55e72e95fae": {
-      "last_emitted_at_ms": 1792186509760,
+      "last_emitted_at_ms": 1792221041372,
       "message": "Use parallel execution for independent tasks. Use run_in_background for long operations (npm install, builds, tests)."
-    },
-    "466399dafa2d20f60587180bad0a07358eb7f2bce724df0ff682f038ad33f5ad": {
-      "last_emitted_at_ms": 1792186180337,
-      "message": "Read multiple files in parallel when possible for faster analysis."
     }
   },
-  "updated_at": "2026-10-16T21:35:09.760Z"
+  "updated_at": "2026-10-17T07:10:41.372Z"
 }

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Platform, Share, View, ScrollView, StyleSheet, RefreshControl, type TextInput as RNTextInput } from 'react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
-import { ArrowDownLeft, ArrowUpRight, Bookmark, CalendarClock, Check, Download, FileUp, Plus, Search, ShieldAlert, SlidersHorizontal, Tags, Users, Wallet, X } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, Bookmark, CalendarClock, Check, Download, MapPin, FileUp, Plus, Search, ShieldAlert, SlidersHorizontal, Tags, Users, Wallet, X } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import BudgetSheet from '@/components/BudgetSheet';
 import { MONTHLY_BUDGET_KEY, budgetStatus, categoryBudgets, summarizeBudget, type BudgetStatus } from '@/lib/budget';
@@ -22,6 +22,8 @@ import CategoryPicker from '@/components/CategoryPicker';
 import { findSuspicious } from '@/lib/suspicious';
 import { todayKey } from '@/lib/dates';
 import NinetyDayView from '@/components/finance/NinetyDayView';
+import { savePlace } from '@/lib/places-store';
+import { spotCentre, type Spot } from '@/lib/places';
 import { friendBalances, groupDefaultDraft, groupNames, groupTotals, inGroup, recentFriends, settleAmountPatches, settleUpPatches, splitOf, type SplitDraft } from '@/lib/splits';
 
 /** "Split with Rahul" / "Split with 3" for a transaction row. */
@@ -124,6 +126,7 @@ export default function FinanceScreen() {
     }, []);
     const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
     const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+    const [placeFilter, setPlaceFilter] = useState<string | null>(null);
     const [flagFilters, setFlagFilters] = useState<Set<FlagFilter>>(new Set());
     const toggleFlag = (f: FlagFilter) => setFlagFilters(prev => { const next = new Set(prev); if (next.has(f)) next.delete(f); else next.add(f); return next; });
     // Merchant being renamed in the list
@@ -205,7 +208,7 @@ export default function FinanceScreen() {
 
     // The chips filter the cycle on screen; typing a search looks through all of history.
     const searching = query.trim() !== '';
-    const filtering = searching || typeFilter !== 'all' || categoryFilter !== null || flagFilters.size > 0;
+    const filtering = searching || typeFilter !== 'all' || categoryFilter !== null || placeFilter !== null || flagFilters.size > 0;
     const listItems = useMemo(() => {
         if (!filtering) return financeItems;
         const q = query.trim().toLowerCase();
@@ -213,12 +216,13 @@ export default function FinanceScreen() {
             if (!isMoney(i)) return false;
             if (typeFilter !== 'all' && kindForType(i.type) !== typeFilter) return false;
             if (categoryFilter && nameOf(i) !== categoryFilter) return false;
+            if (placeFilter && (i.placeName || '').toLowerCase() !== placeFilter.toLowerCase()) return false;
             if (flagFilters.size && !matchesFlags(i, flagFilters)) return false;
             if (q && !`${i.title || ''} ${nameOf(i)} ${i.amount ?? ''}`.toLowerCase().includes(q)) return false;
             return true;
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filtering, searching, financeItems, items, query, typeFilter, categoryFilter, flagFilters, categoryConfig]);
+    }, [filtering, searching, financeItems, items, query, typeFilter, categoryFilter, placeFilter, flagFilters, categoryConfig]);
     // Counts on the "Untagged" and "No merchant" chips (this cycle)
     const untaggedCount = financeItems.filter(i => matchesFlags(i, ['untagged'])).length;
     const noMerchantCount = financeItems.filter(i => matchesFlags(i, ['nomerchant'])).length;
@@ -390,6 +394,13 @@ export default function FinanceScreen() {
                             <NinetyDayView items={items} config={categoryConfig} onSelectCategory={name => { setCategoryFilter(name); setTypeFilter('expense'); setView('Overview'); }} />
                         ) : (
                         <AnalysisView
+                            onSelectPlace={name => { setPlaceFilter(name); setTypeFilter('expense'); setView('Overview'); }}
+                            onSelectShop={name => { setQuery(name); setSearchOpen(true); setView('Overview'); }}
+                            onNameSpot={(spot: Spot, name: string) => {
+                                const centre = spotCentre(items as any, spot.ids);
+                                if (centre) void savePlace(name, centre);
+                                for (const id of spot.ids) void updateItem(id, { placeName: name });
+                            }}
                             items={items}
                             payday={payday}
                             config={categoryConfig}
@@ -577,6 +588,14 @@ export default function FinanceScreen() {
                             </Pressable>
                         </ScrollView>
                     )}
+                    {placeFilter && (
+                        <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${placeFilter} place filter`} onPress={() => setPlaceFilter(null)}
+                            style={[styles.filterChip, { backgroundColor: c.accentSoft, borderColor: c.accentSoft, flexDirection: 'row', gap: 6, alignSelf: 'flex-start', marginBottom: 10 }]}>
+                            <MapPin color={c.accent} size={14} />
+                            <Text style={{ color: c.accent, fontWeight: '700', fontSize: 12 }}>{placeFilter}</Text>
+                            <X color={c.accent} size={14} />
+                        </Pressable>
+                    )}
                     {categoryFilter && (
                         <Pressable accessibilityRole="button" accessibilityLabel={`Remove ${categoryFilter} filter`} onPress={() => setCategoryFilter(null)}
                             style={[styles.filterChip, { backgroundColor: c.accentSoft, borderColor: c.accentSoft, flexDirection: 'row', gap: 6, alignSelf: 'flex-start', marginBottom: 10 }]}>
@@ -660,7 +679,7 @@ export default function FinanceScreen() {
                                                         </View>
                                                     )}
                                                     <Text style={[Type.caption, { color: c.textTertiary, marginTop: 2 }]} numberOfLines={1}>
-                                                        {[category.name, splitLabel(item), item.cardLast4 ? (cardNameMap.get(item.cardLast4) || `••${item.cardLast4}`) : null, formatTime(item.time), item.autoDetected ? SOURCE_LABEL[item.source] || 'Auto' : ''].filter(Boolean).join(' · ')}
+                                                        {[category.name, splitLabel(item), item.cardLast4 ? (cardNameMap.get(item.cardLast4) || `••${item.cardLast4}`) : null, item.placeName || null, formatTime(item.time), item.autoDetected ? SOURCE_LABEL[item.source] || 'Auto' : ''].filter(Boolean).join(' · ')}
                                                     </Text>
                                                 </View>
                                                 <View style={{ alignItems: 'flex-end', gap: 3 }}>

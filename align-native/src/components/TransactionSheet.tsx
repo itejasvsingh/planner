@@ -1,9 +1,9 @@
-import { Modal, View, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
+import { Linking, Modal, View, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Colors, Radius, Type } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { ChevronDown, ChevronUp, X, Trash2 } from 'lucide-react-native';
+import { ChevronDown, ChevronUp, MapPin, X, Trash2 } from 'lucide-react-native';
 import { useState, useEffect, useRef } from 'react';
 import SegmentedControl from './SegmentedControl';
 import { DEFAULT_CATEGORY, categoriesFor, kindForType, resolveCategory, type CategoryKind } from '@/lib/categories';
@@ -14,6 +14,9 @@ import { useCards } from '@/lib/cards-store';
 import SplitSection from './SplitSection';
 import { buildSplit, draftFrom, emptyDraft, splitOf, type SplitDraft } from '@/lib/splits';
 import { useCategoryConfig } from '@/lib/use-category-config';
+import { geoSupported, getPosition } from '@/lib/geo';
+import { isLatLng, mapsUrl, nearestPlace, type LatLng } from '@/lib/places';
+import { savePlace, usePlaces } from '@/lib/places-store';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const dateToKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -62,6 +65,12 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [bookmarked, setBookmarked] = useState(false);
     // Bookmark, leave out, monthly bill and split live under "More options", open only when one of them is on
     const [moreOpen, setMoreOpen] = useState(false);
+    // Where it was spent: a pin (from your location or a saved place) and its name
+    const savedPlaces = usePlaces();
+    const [place, setPlace] = useState<LatLng | null>(null);
+    const [placeName, setPlaceName] = useState('');
+    const [placeBusy, setPlaceBusy] = useState(false);
+    const [placeError, setPlaceError] = useState('');
     // Opening "More options" (or turning Split on) scrolls down so what appeared is in view
     const formScroll = useRef<ScrollView>(null);
     const scrollWhenGrown = useRef(false);
@@ -94,7 +103,10 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
             setCardLast4(item?.cardLast4 || null);
             setDisputed(false);
             setBookmarked(item?.bookmarked === true);
-            setMoreOpen(startSplit || (!!item && (item.bookmarked === true || item.excluded === true || !!item.isRecurring || !!splitOf(item))));
+            setPlace(isLatLng(item?.place) ? { lat: item.place.lat, lng: item.place.lng } : null);
+            setPlaceName(item?.placeName || '');
+            setPlaceError('');
+            setMoreOpen(startSplit || (!!item && (item.bookmarked === true || item.excluded === true || !!item.isRecurring || !!splitOf(item) || isLatLng(item.place))));
             setExcluded(item?.excluded === true);
             // Keep the time the bank gave (editing must never wipe it)
             setTime(item?.time || '');
@@ -154,12 +166,16 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
             isRecurring,
             bookmarked,
             excluded,
+            place: type === 'expense' ? place : null,
+            placeName: type === 'expense' && (place || placeName.trim()) ? placeName.trim() || null : null,
             ...(isRecurring ? { recurringFrequency: 'monthly' } : {}),
             // Which credit card paid (kept as-is when the choice isn't shown)
             ...(type === 'expense' && cardChoices.length ? { cardLast4: cardLast4 || null } : {}),
             // Turning a split off clears it, including older shapes
             ...(built?.split ? { split: built.split, splits: [] } : item && splitOf(item) ? { split: null, splits: [] } : {}),
         });
+        // A place you named becomes a one-tap chip (and names later pins made nearby)
+        if (type === 'expense' && place && placeName.trim()) void savePlace(placeName, place);
         onClose();
     };
 
@@ -294,7 +310,8 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                 { label: 'Monthly bill', hint: 'Remind me and auto-log this', on: isRecurring, set: setIsRecurring, show: type === 'expense' },
                                 { label: 'Split with friends', hint: 'Share the bill; only your part counts as spent', on: isSplit, set: setIsSplit, show: type === 'expense' },
                             ].filter(r => r.show);
-                            const active = rows.filter(r => r.on).map(r => r.label === 'Leave out of cash flow' ? 'Left out' : r.label === 'Split with friends' ? 'Split' : r.label);
+                            const active = [...rows.filter(r => r.on).map(r => r.label === 'Leave out of cash flow' ? 'Left out' : r.label === 'Split with friends' ? 'Split' : r.label), ...(place ? ['Place'] : [])];
+                            const showPlace = type === 'expense' && (geoSupported() || savedPlaces.length > 0 || !!place);
                             return (
                                 <View>
                                     <Pressable accessibilityRole="button" accessibilityState={{ expanded: moreOpen }} onPress={() => { scrollWhenGrown.current = !moreOpen; setMoreOpen(!moreOpen); }}
@@ -324,6 +341,66 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                                     </Pressable>
                                                 </View>
                                             ))}
+                                            {showPlace && (
+                                                <View style={{ gap: 10 }}>
+                                                    <View>
+                                                        <Text style={[Type.body, { color: c.text, fontWeight: '600' }]}>Place</Text>
+                                                        <Text style={[Type.caption, { color: c.textTertiary }]}>Where you spent it, to see spending by place</Text>
+                                                    </View>
+                                                    {place ? (
+                                                        <View style={{ gap: 8 }}>
+                                                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                                                <MapPin color={c.accent} size={18} />
+                                                                <TextInput
+                                                                    accessibilityLabel="Name this place"
+                                                                    value={placeName}
+                                                                    onChangeText={setPlaceName}
+                                                                    maxLength={40}
+                                                                    placeholder="Name this place (e.g. Office)"
+                                                                    placeholderTextColor={c.textTertiary}
+                                                                    style={{ flex: 1, backgroundColor: c.backgroundMuted, color: c.text, paddingHorizontal: 12, paddingVertical: 9, borderRadius: Radius.md, fontSize: 15 }}
+                                                                />
+                                                            </View>
+                                                            <View style={{ flexDirection: 'row', gap: 16, paddingLeft: 26 }}>
+                                                                <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(mapsUrl(place))} hitSlop={8}>
+                                                                    <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>Open in Maps</Text>
+                                                                </Pressable>
+                                                                <Pressable accessibilityRole="button" onPress={() => { setPlace(null); setPlaceName(''); }} hitSlop={8}>
+                                                                    <Text style={{ color: c.expense, fontWeight: '700', fontSize: 13 }}>Remove place</Text>
+                                                                </Pressable>
+                                                            </View>
+                                                        </View>
+                                                    ) : (
+                                                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                                                            {geoSupported() && (
+                                                                <Pressable
+                                                                    accessibilityRole="button"
+                                                                    disabled={placeBusy}
+                                                                    onPress={() => {
+                                                                        setPlaceError('');
+                                                                        setPlaceBusy(true);
+                                                                        getPosition()
+                                                                            .then(pos => { setPlace(pos); const near = nearestPlace(savedPlaces, pos); if (near) setPlaceName(near.name); })
+                                                                            .catch(e => setPlaceError((e as Error).message))
+                                                                            .finally(() => setPlaceBusy(false));
+                                                                    }}
+                                                                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: c.accentFill }}
+                                                                >
+                                                                    <MapPin color={c.onAccent} size={15} />
+                                                                    <Text style={{ color: c.onAccent, fontWeight: '700', fontSize: 13 }}>{placeBusy ? 'Finding you…' : 'Use my location'}</Text>
+                                                                </Pressable>
+                                                            )}
+                                                            {savedPlaces.slice(0, 6).map(sp => (
+                                                                <Pressable key={sp.id} accessibilityRole="button" accessibilityLabel={`Place ${sp.name}`} onPress={() => { setPlace({ lat: sp.lat, lng: sp.lng }); setPlaceName(sp.name); setPlaceError(''); }}
+                                                                    style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: c.backgroundMuted }}>
+                                                                    <Text style={{ color: c.text, fontWeight: '600', fontSize: 13 }}>{sp.name}</Text>
+                                                                </Pressable>
+                                                            ))}
+                                                        </View>
+                                                    )}
+                                                    {!!placeError && <Text accessibilityRole="alert" style={{ color: c.expense, fontSize: 13 }}>{placeError}</Text>}
+                                                </View>
+                                            )}
                                             {type === 'expense' && isSplit && (
                                                 <SplitSection total={parseFloat(amount) || 0} draft={splitDraft} onChange={setSplitDraft} recent={friends} groups={groups} groupDrafts={groupDrafts} />
                                             )}

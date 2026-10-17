@@ -44,6 +44,12 @@
     "plugins": [
       "expo-router",
       [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Align uses your location only when you tap “Use my location” on a transaction, to note where you spent money. It stays with that transaction on your phone."
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "backgroundColor": "#0A0B0F",

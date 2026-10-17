@@ -56,6 +56,9 @@ export type PlannerItem = {
   updatedAt?: string;
   /** Set when auto-push moved an overdue task to a later day: the day it was due. */
   rolledOverFrom?: string;
+  /** Where the money was spent: a pin you added (latitude/longitude) and the name of the place, if you gave one. */
+  place?: { lat: number; lng: number } | null;
+  placeName?: string | null;
   /** Saved for later: shows under the Bookmarked filter. */
   bookmarked?: boolean;
   /** "Leave out of cash flow": listed, but counted in no total or chart. */

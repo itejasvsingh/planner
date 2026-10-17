@@ -14,6 +14,8 @@ export type Txn = {
   /** "Leave out of cash flow": still listed, but in no total. */
   excluded?: boolean;
   bookmarked?: boolean;
+  place?: { lat: number; lng: number } | null;
+  placeName?: string | null;
   time?: string | null;
   cardLast4?: string | null;
 };
@@ -314,7 +316,7 @@ const csvCell = (v: unknown) => {
 };
 /** Transactions as CSV text (date, time, type, amount, merchant, category, flags), newest first as given. */
 export function toCsv(txns: Txn[], categoryName: (t: Txn) => string = t => t.category || ''): string {
-  const rows = [['Date', 'Time', 'Type', 'Amount', 'Merchant', 'Category', 'Bookmarked', 'Left out of cash flow']];
-  for (const t of txns) rows.push([t.date || '', t.time || '', t.type || '', String(amountOf(t)), t.title || '', categoryName(t), t.bookmarked ? 'yes' : '', leftOutOfFlow(t) ? 'yes' : '']);
+  const rows = [['Date', 'Time', 'Type', 'Amount', 'Merchant', 'Category', 'Place', 'Bookmarked', 'Left out of cash flow']];
+  for (const t of txns) rows.push([t.date || '', t.time || '', t.type || '', String(amountOf(t)), t.title || '', categoryName(t), t.placeName || '', t.bookmarked ? 'yes' : '', leftOutOfFlow(t) ? 'yes' : '']);
   return rows.map(r => r.map(csvCell).join(',')).join('\n') + '\n';
 }

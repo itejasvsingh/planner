@@ -161,8 +161,8 @@ test('CSV export: quotes, commas, and formula-looking cells', () => {
     { id: '2', type: 'expense', date: '2026-10-03', amount: 10, title: '=HYPERLINK("x")', category: 'Other', excluded: true },
   ], t => t.category);
   const lines = csv.trimEnd().split('\n');
-  assert.equal(lines[0], 'Date,Time,Type,Amount,Merchant,Category,Bookmarked,Left out of cash flow');
-  assert.equal(lines[1], '2026-10-02,13:05,expense,1500.5,"Cafe, ""Blue""",Food,yes,');
+  assert.equal(lines[0], 'Date,Time,Type,Amount,Merchant,Category,Place,Bookmarked,Left out of cash flow');
+  assert.equal(lines[1], '2026-10-02,13:05,expense,1500.5,"Cafe, ""Blue""",Food,,yes,');
   assert.ok(lines[2].includes(`"'=HYPERLINK(""x"")"`), lines[2]);
   assert.ok(lines[2].endsWith(',yes'));
 });
