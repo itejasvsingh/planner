@@ -5,6 +5,7 @@ import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Radius } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import PlacesMap from './PlacesMap';
 import { spendByPlace, spendByShop, type Spot } from '@/lib/places';
 
 const money = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
@@ -45,6 +46,9 @@ export default function WhereYouSpend({ expenses, onSelectPlace, onSelectShop, o
           ))}
         </View>
       </View>
+      {tab === 'places' && places.some(p => p.lat !== undefined) && (
+        <PlacesMap spots={places} onOpen={s => onSelectPlace(s.name)} />
+      )}
       <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
         {tab === 'places' && places.length === 0 && (
           <Text style={{ color: c.textSecondary, fontSize: 13 }}>No places yet. On a new expense, open More options → Place → Use my location.</Text>

@@ -8,6 +8,7 @@ const src = fs.readFileSync(path.join(__dirname, '../align-native/src/lib/places
 const out = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
 const mod = { exports: {} };
 new Function('module', 'exports', out)(mod, mod.exports);
+const P = mod.exports;
 const { distanceM, nearestPlace, mapsUrl, spendByPlace, spendByShop, spotCentre, isLatLng } = mod.exports;
 
 const here = { lat: 12.9716, lng: 77.5946 };
@@ -58,4 +59,19 @@ test('spending by shop: spelled alike counts together; the commonest spelling is
     { id: '4', title: 'Chai shop', amount: 20 }, { id: '5', title: '', amount: 999 },
   ]);
   assert.deepEqual(r.map(s => [s.name, s.total, s.count]), [['Swiggy', 500, 3], ['Chai shop', 20, 1]]);
+});
+
+test('map maths: fit, project and tiles', () => {
+  const pts = [{ lat: 12.97, lng: 77.59 }, { lat: 12.99, lng: 77.62 }];
+  const { center, zoom } = P.fitView(pts, 320, 240);
+  assert.ok(zoom >= 11 && zoom <= 16);
+  for (const p of pts) { const v = P.pointInView(p, center, zoom, 320, 240); assert.ok(v.x >= 0 && v.x <= 320 && v.y >= 0 && v.y <= 240); }
+  const c = P.pointInView(center, center, zoom, 320, 240);
+  assert.ok(Math.abs(c.x - 160) < 0.01 && Math.abs(c.y - 120) < 0.01);
+  const back = P.fromWorldPx(...Object.values(P.worldPx(pts[0], 10)), 10);
+  assert.ok(Math.abs(back.lat - pts[0].lat) < 1e-6 && Math.abs(back.lng - pts[0].lng) < 1e-6);
+  const tiles = P.tilesFor(center, zoom, 320, 240);
+  assert.ok(tiles.length >= 4 && tiles.every(t => t.x >= 0 && t.y >= 0));
+  assert.equal(P.fitView([pts[0]], 320, 240).zoom, 17);
+  assert.deepEqual(P.fitView([], 320, 240).zoom, 4);
 });
