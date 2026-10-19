@@ -13,6 +13,7 @@ import { injectParsedItemsLocally, usePlannerItems } from '@/lib/use-planner-ite
 import { parseOffline } from '@/lib/quick-parse';
 import { todayKey } from '@/lib/dates';
 import { useCategoryConfig } from '@/lib/use-category-config';
+import { autoPlace } from '@/lib/auto-place';
 
 let ExpoSpeechRecognitionModule: any = null;
 let useSpeechRecognitionEvent: any = () => {};
@@ -26,7 +27,7 @@ export default function QuickAddBar() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
   const { phone } = usePhone();
-  const { addItem } = usePlannerItems(phone);
+  const { addItem, updateItem } = usePlannerItems(phone);
   const { merchantCategory } = useCategoryConfig();
   const [feedback, setFeedback] = useState('');
   const [hasError, setHasError] = useState(false);
@@ -60,6 +61,8 @@ export default function QuickAddBar() {
     if (!textToProcess.trim() || isProcessing) return;
     setFeedback('');
     setHasError(false);
+    // Where you are, for pinning an expense (asked at once so the answer is ready when the text is read)
+    const here = autoPlace();
     // Without the server (offline, or no API URL in this build) save a simple version on the device instead.
     const saveOffline = async (reason: string) => {
       const draft = parseOffline(textToProcess, todayKey());
@@ -67,6 +70,10 @@ export default function QuickAddBar() {
       if (mine && draft.type === 'expense') {
         draft.category = mine;
         draft.tags = [mine];
+      }
+      if (draft.type === 'expense') {
+        const pos = await here;
+        if (pos) Object.assign(draft, { place: pos.place, ...(pos.placeName ? { placeName: pos.placeName } : {}) });
       }
       await addItem(draft);
       setFeedback(`${reason} Saved “${draft.title}” as ${draft.type === 'expense' ? `an expense of ₹${draft.amount.toLocaleString('en-IN')}` : 'a task for today'}; edit it if needed.`);
@@ -116,6 +123,12 @@ export default function QuickAddBar() {
 
       // Immediately inject parsed items into local state and cache so they render instantly
       await injectParsedItemsLocally(phone, result.items);
+      const pos = await here;
+      if (pos) {
+        for (const it of result.items) {
+          if (it?.type === 'expense' && it.id) void updateItem(it.id, { place: pos.place, ...(pos.placeName ? { placeName: pos.placeName } : {}) }, { quiet: true });
+        }
+      }
 
       setFeedback(`${result.items.length} ${result.items.length === 1 ? 'item' : 'items'} added to your planner.`);
       setText('');

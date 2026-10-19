@@ -16,7 +16,8 @@ import { buildSplit, draftFrom, emptyDraft, splitOf, type SplitDraft } from '@/l
 import { useCategoryConfig } from '@/lib/use-category-config';
 import { geoSupported, getPosition } from '@/lib/geo';
 import { isLatLng, nearestPlace, type LatLng } from '@/lib/places';
-import { savePlace, usePlaces } from '@/lib/places-store';
+import { savePlace, setAutoPin, useAutoPin, usePlaces } from '@/lib/places-store';
+import { autoPlace } from '@/lib/auto-place';
 import PlacesMap from '@/components/finance/PlacesMap';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -73,6 +74,9 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [placeBusy, setPlaceBusy] = useState(false);
     const [placeError, setPlaceError] = useState('');
     const [showMap, setShowMap] = useState(false);
+    const autoOn = useAutoPin();
+    const [placeAuto, setPlaceAuto] = useState(false);
+    const placeTouched = useRef(false);
     // Opening "More options" (or turning Split on) scrolls down so what appeared is in view
     const formScroll = useRef<ScrollView>(null);
     const scrollWhenGrown = useRef(false);
@@ -109,6 +113,10 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
             setPlaceName(item?.placeName || '');
             setPlaceError('');
             setShowMap(false);
+            setPlaceAuto(false);
+            placeTouched.current = false;
+            // A new expense is pinned where you are now, unless you change it first (or turned automatic pinning off)
+            if (!item) void autoPlace().then(r => { if (r && !placeTouched.current) { setPlace(r.place); if (r.placeName) setPlaceName(r.placeName); setPlaceAuto(true); } });
             setMoreOpen(startSplit || (!!item && (item.bookmarked === true || item.excluded === true || !!item.isRecurring || !!splitOf(item) || isLatLng(item.place))));
             setExcluded(item?.excluded === true);
             // Keep the time the bank gave (editing must never wipe it)
@@ -369,7 +377,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                                                 <Pressable accessibilityRole="button" onPress={() => setShowMap(!showMap)} hitSlop={8}>
                                                                     <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>{showMap ? 'Hide map' : 'Show map'}</Text>
                                                                 </Pressable>
-                                                                <Pressable accessibilityRole="button" onPress={() => { setPlace(null); setPlaceName(''); }} hitSlop={8}>
+                                                                <Pressable accessibilityRole="button" onPress={() => { placeTouched.current = true; setPlaceAuto(false); setPlace(null); setPlaceName(''); }} hitSlop={8}>
                                                                     <Text style={{ color: c.expense, fontWeight: '700', fontSize: 13 }}>Remove place</Text>
                                                                 </Pressable>
                                                             </View>
@@ -381,6 +389,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                                                     accessibilityRole="button"
                                                                     disabled={placeBusy}
                                                                     onPress={() => {
+                                                                        placeTouched.current = true; setPlaceAuto(false);
                                                                         setPlaceError('');
                                                                         setPlaceBusy(true);
                                                                         getPosition()
@@ -395,7 +404,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                                                 </Pressable>
                                                             )}
                                                             {savedPlaces.slice(0, 6).map(sp => (
-                                                                <Pressable key={sp.id} accessibilityRole="button" accessibilityLabel={`Place ${sp.name}`} onPress={() => { setPlace({ lat: sp.lat, lng: sp.lng }); setPlaceName(sp.name); setPlaceError(''); }}
+                                                                <Pressable key={sp.id} accessibilityRole="button" accessibilityLabel={`Place ${sp.name}`} onPress={() => { placeTouched.current = true; setPlaceAuto(false); setPlace({ lat: sp.lat, lng: sp.lng }); setPlaceName(sp.name); setPlaceError(''); }}
                                                                     style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: Radius.pill, backgroundColor: c.backgroundMuted }}>
                                                                     <Text style={{ color: c.text, fontWeight: '600', fontSize: 13 }}>{sp.name}</Text>
                                                                 </Pressable>
@@ -403,6 +412,10 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                                         </View>
                                                     )}
                                                     {!!placeError && <Text accessibilityRole="alert" style={{ color: c.expense, fontSize: 13 }}>{placeError}</Text>}
+                                                    {placeAuto && !!place && <Text style={[Type.caption, { color: c.textTertiary }]}>Pinned automatically from where you are now. Change or remove it anytime.</Text>}
+                                                    <Pressable accessibilityRole="switch" accessibilityState={{ checked: autoOn }} onPress={() => void setAutoPin(!autoOn)} hitSlop={8}>
+                                                        <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>{autoOn ? 'Turn off automatic pinning' : 'Turn on automatic pinning'}</Text>
+                                                    </Pressable>
                                                 </View>
                                             )}
                                             {type === 'expense' && isSplit && (

@@ -41,3 +41,42 @@ export async function savePlace(name: string, at: LatLng): Promise<void> {
   emit();
   await setItem(KEY, JSON.stringify(places));
 }
+
+// ---- Automatic pinning (on by default; the phone asks for location permission the first time) ----
+const AUTO_KEY = 'align_auto_pin';
+let autoPin = true;
+let autoLoaded = false;
+const autoListeners = new Set<() => void>();
+
+async function loadAuto() {
+  if (autoLoaded) return;
+  autoLoaded = true;
+  try { autoPin = (await getItem(AUTO_KEY)) !== 'off'; autoListeners.forEach(l => l()); } catch { /* keep default */ }
+}
+
+export async function autoPinEnabled(): Promise<boolean> { await loadAuto(); return autoPin; }
+
+export async function setAutoPin(on: boolean): Promise<void> {
+  await loadAuto();
+  autoPin = on;
+  autoListeners.forEach(l => l());
+  await setItem(AUTO_KEY, on ? 'on' : 'off');
+}
+
+export function useAutoPin(): boolean {
+  useEffect(() => { void loadAuto(); }, []);
+  return useSyncExternalStore(
+    cb => { autoListeners.add(cb); return () => { autoListeners.delete(cb); }; },
+    () => autoPin,
+    () => autoPin,
+  );
+}
+
+/** The saved place within `radius` metres of `at`, if any. */
+export async function nearestSaved(at: LatLng, radius = 150): Promise<SavedPlace | null> {
+  await load();
+  let best: SavedPlace | null = null;
+  let bestD = radius;
+  for (const p of places) { const d = distanceM(p, at); if (d <= bestD) { best = p; bestD = d; } }
+  return best;
+}
