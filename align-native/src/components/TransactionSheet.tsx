@@ -72,6 +72,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [placeName, setPlaceName] = useState('');
     const [placeBusy, setPlaceBusy] = useState(false);
     const [placeError, setPlaceError] = useState('');
+    const [showMap, setShowMap] = useState(false);
     // Opening "More options" (or turning Split on) scrolls down so what appeared is in view
     const formScroll = useRef<ScrollView>(null);
     const scrollWhenGrown = useRef(false);
@@ -107,6 +108,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
             setPlace(isLatLng(item?.place) ? { lat: item.place.lat, lng: item.place.lng } : null);
             setPlaceName(item?.placeName || '');
             setPlaceError('');
+            setShowMap(false);
             setMoreOpen(startSplit || (!!item && (item.bookmarked === true || item.excluded === true || !!item.isRecurring || !!splitOf(item) || isLatLng(item.place))));
             setExcluded(item?.excluded === true);
             // Keep the time the bank gave (editing must never wipe it)
@@ -350,7 +352,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                                     </View>
                                                     {place ? (
                                                         <View style={{ gap: 8 }}>
-                                                            <PlacesMap height={160} spots={[{ key: 'here', name: placeName.trim() || 'Here', named: true, total: Number(amount) || 0, count: 1, ids: [], lat: place.lat, lng: place.lng }]} />
+                                                            {showMap && <PlacesMap height={160} spots={[{ key: 'here', name: placeName.trim() || 'Here', named: true, total: Number(amount) || 0, count: 1, ids: [], lat: place.lat, lng: place.lng }]} />}
                                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                                                 <MapPin color={c.accent} size={18} />
                                                                 <TextInput
@@ -364,6 +366,9 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                                                 />
                                                             </View>
                                                             <View style={{ flexDirection: 'row', gap: 16, paddingLeft: 26 }}>
+                                                                <Pressable accessibilityRole="button" onPress={() => setShowMap(!showMap)} hitSlop={8}>
+                                                                    <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>{showMap ? 'Hide map' : 'Show map'}</Text>
+                                                                </Pressable>
                                                                 <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(mapsUrl(place))} hitSlop={8}>
                                                                     <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>Open in Maps</Text>
                                                                 </Pressable>
