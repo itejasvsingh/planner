@@ -1,4 +1,4 @@
-import { Linking, Modal, View, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
+import { Modal, View, ScrollView, Platform, KeyboardAvoidingView } from 'react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Colors, Radius, Type } from '@/constants/theme';
@@ -15,7 +15,7 @@ import SplitSection from './SplitSection';
 import { buildSplit, draftFrom, emptyDraft, splitOf, type SplitDraft } from '@/lib/splits';
 import { useCategoryConfig } from '@/lib/use-category-config';
 import { geoSupported, getPosition } from '@/lib/geo';
-import { isLatLng, mapsUrl, nearestPlace, type LatLng } from '@/lib/places';
+import { isLatLng, nearestPlace, type LatLng } from '@/lib/places';
 import { savePlace, usePlaces } from '@/lib/places-store';
 import PlacesMap from '@/components/finance/PlacesMap';
 
@@ -368,9 +368,6 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                                             <View style={{ flexDirection: 'row', gap: 16, paddingLeft: 26 }}>
                                                                 <Pressable accessibilityRole="button" onPress={() => setShowMap(!showMap)} hitSlop={8}>
                                                                     <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>{showMap ? 'Hide map' : 'Show map'}</Text>
-                                                                </Pressable>
-                                                                <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(mapsUrl(place))} hitSlop={8}>
-                                                                    <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>Open in Maps</Text>
                                                                 </Pressable>
                                                                 <Pressable accessibilityRole="button" onPress={() => { setPlace(null); setPlaceName(''); }} hitSlop={8}>
                                                                     <Text style={{ color: c.expense, fontWeight: '700', fontSize: 13 }}>Remove place</Text>
