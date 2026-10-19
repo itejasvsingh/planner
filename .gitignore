@@ -55,3 +55,4 @@ align-native/.omc/
 
 # categorisation evaluation: your real transactions
 /scripts/eval-categorize/data/
+firestore-debug.log
