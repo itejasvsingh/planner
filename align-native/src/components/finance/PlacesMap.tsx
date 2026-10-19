@@ -53,7 +53,7 @@ export default function PlacesMap({ spots, onOpen }: { spots: Spot[]; onOpen: (s
 
   return (
     <View style={[styles.wrap, { borderColor: c.border, backgroundColor: c.backgroundMuted }]} onLayout={e => setW(Math.max(200, Math.round(e.nativeEvent.layout.width)))}>
-      <View style={{ height: H, overflow: 'hidden' }} {...pan.panHandlers} accessibilityLabel="Map of where you spend">
+      <View style={[{ height: H, overflow: 'hidden' }, { touchAction: 'none' } as any]} {...pan.panHandlers} accessibilityLabel="Map of where you spend">
         {tiles.map(t => (
           <Image key={`${t.z}/${t.x}/${t.y}/${t.left}`} source={{ uri: url(t), headers: { 'User-Agent': 'AlignPlanner/1.0 (alignplanner.vercel.app)' } }} onError={() => setFailed(f => f + 1)}
             style={{ position: 'absolute', left: t.left, top: t.top, width: 256, height: 256 }} />
