@@ -17,6 +17,7 @@ import { useCategoryConfig } from '@/lib/use-category-config';
 import { geoSupported, getPosition } from '@/lib/geo';
 import { isLatLng, mapsUrl, nearestPlace, type LatLng } from '@/lib/places';
 import { savePlace, usePlaces } from '@/lib/places-store';
+import PlacesMap from '@/components/finance/PlacesMap';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const dateToKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -349,6 +350,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                                     </View>
                                                     {place ? (
                                                         <View style={{ gap: 8 }}>
+                                                            <PlacesMap height={160} spots={[{ key: 'here', name: placeName.trim() || 'Here', named: true, total: Number(amount) || 0, count: 1, ids: [], lat: place.lat, lng: place.lng }]} />
                                                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                                                                 <MapPin color={c.accent} size={18} />
                                                                 <TextInput

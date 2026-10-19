@@ -8,13 +8,13 @@ import { useTheme } from '@/hooks/use-theme';
 import { fitView, fromWorldPx, pointInView, tilesFor, worldPx, type Spot } from '@/lib/places';
 
 const money = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
-const H = 240;
 
 /**
  * Pins on a map. Map pictures come from a public tile server (only the area in view is requested, never your
  * transactions); if they can't load (offline) the pins still show on a plain background with the places list below.
  */
-export default function PlacesMap({ spots, onOpen }: { spots: Spot[]; onOpen: (spot: Spot) => void }) {
+export default function PlacesMap({ spots, onOpen, height = 240 }: { spots: Spot[]; onOpen?: (spot: Spot) => void; height?: number }) {
+  const H = height;
   const c = useTheme();
   const pts = useMemo(() => spots.filter(s => typeof s.lat === 'number' && typeof s.lng === 'number') as (Spot & { lat: number; lng: number })[], [spots]);
   const [w, setW] = useState(340);
@@ -53,7 +53,7 @@ export default function PlacesMap({ spots, onOpen }: { spots: Spot[]; onOpen: (s
 
   return (
     <View style={[styles.wrap, { borderColor: c.border, backgroundColor: c.backgroundMuted }]} onLayout={e => setW(Math.max(200, Math.round(e.nativeEvent.layout.width)))}>
-      <View style={[{ height: H, overflow: 'hidden' }, { touchAction: 'none' } as any]} {...pan.panHandlers} accessibilityLabel="Map of where you spend">
+      <View style={[{ height: H, overflow: 'hidden' }, { touchAction: 'none' } as any]} {...pan.panHandlers} accessibilityLabel={onOpen ? "Map of where you spend" : "Map of where this was spent"}>
         {tiles.map(t => (
           <Image key={`${t.z}/${t.x}/${t.y}/${t.left}`} source={{ uri: url(t), headers: { 'User-Agent': 'AlignPlanner/1.0 (alignplanner.vercel.app)' } }} onError={() => setFailed(f => f + 1)}
             style={{ position: 'absolute', left: t.left, top: t.top, width: 256, height: 256 }} />
@@ -83,7 +83,7 @@ export default function PlacesMap({ spots, onOpen }: { spots: Spot[]; onOpen: (s
             <Text style={{ color: c.text, fontWeight: '700', fontSize: 15 }} numberOfLines={1}>{picked.name}</Text>
             <Text style={{ color: c.textSecondary, fontSize: 12 }}>{money(picked.total)} · {picked.count} {picked.count === 1 ? 'transaction' : 'transactions'}</Text>
           </View>
-          {picked.named && (
+          {picked.named && onOpen && (
             <Pressable accessibilityRole="button" onPress={() => onOpen(picked)} hitSlop={8}><Text style={{ color: c.accent, fontWeight: '700' }}>See transactions</Text></Pressable>
           )}
         </View>
