@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import { doc, onSnapshot, setDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { Modal, KeyboardAvoidingView } from 'react-native';
+import { MapPin } from 'lucide-react-native';
 import { Bell, BellRing, ChevronRight, FileUp, LogOut, Mail, MessageCircle, MessageSquareText, Moon, Send, Repeat, Shield, Smartphone, Sun } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
@@ -14,6 +15,7 @@ import { tintColors, type TintKey } from '@/lib/categories';
 import { usePhone } from '@/lib/phone-context';
 import { triggerHaptic } from '@/lib/haptics';
 import { db } from '@/lib/firebase';
+import { setAutoPin, useAutoPin } from '@/lib/places-store';
 import { isSecurityEnabled } from '@/lib/auth';
 import { signInWithGoogle } from '@/lib/google-auth';
 import { Radius } from '@/constants/theme';
@@ -76,6 +78,7 @@ function Row({
 }
 
 export default function SettingsScreen() {
+  const autoPinOn = useAutoPin();
   const c = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -203,6 +206,8 @@ export default function SettingsScreen() {
         <Row c={c} tint="orange" icon={<Bell color={tintColors('orange', c.isDark).fg} size={17} />} label="Notifications" onPress={() => router.push('/settings/notifications')} />
         <Row c={c} tint="green" icon={<Repeat color={tintColors('green', c.isDark).fg} size={17} />} label="Auto-Push Rollover" subtitle="Move unfinished tasks to tomorrow"
           trailing={<Switch value={autoPushEnabled} onValueChange={toggleAutoPush} trackColor={switchTrack} ios_backgroundColor={c.backgroundMuted} />} />
+        <Row c={c} tint="blue" icon={<MapPin color={tintColors('blue', c.isDark).fg} size={17} />} label="Pin location on new expenses" subtitle="Saved on this device. Change it on any expense"
+          trailing={<Switch value={autoPinOn} onValueChange={v => void setAutoPin(v)} trackColor={switchTrack} ios_backgroundColor={c.backgroundMuted} />} />
         <Row c={c} tint="violet" icon={scheme === 'dark' ? <Moon color={tintColors('violet', c.isDark).fg} size={17} /> : <Sun color={tintColors('violet', c.isDark).fg} size={17} />}
           label="Appearance" value={themeMode.charAt(0).toUpperCase() + themeMode.slice(1)} onPress={cycleTheme} last />
       </Group>

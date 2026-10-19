@@ -16,7 +16,7 @@ import { buildSplit, draftFrom, emptyDraft, splitOf, type SplitDraft } from '@/l
 import { useCategoryConfig } from '@/lib/use-category-config';
 import { geoSupported, getPosition } from '@/lib/geo';
 import { isLatLng, nearestPlace, type LatLng } from '@/lib/places';
-import { savePlace, setAutoPin, useAutoPin, usePlaces } from '@/lib/places-store';
+import { savePlace, usePlaces } from '@/lib/places-store';
 import { autoPlace } from '@/lib/auto-place';
 import PlacesMap from '@/components/finance/PlacesMap';
 
@@ -74,7 +74,6 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [placeBusy, setPlaceBusy] = useState(false);
     const [placeError, setPlaceError] = useState('');
     const [showMap, setShowMap] = useState(false);
-    const autoOn = useAutoPin();
     const [placeAuto, setPlaceAuto] = useState(false);
     const placeTouched = useRef(false);
     // Opening "More options" (or turning Split on) scrolls down so what appeared is in view
@@ -413,9 +412,6 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                                     )}
                                                     {!!placeError && <Text accessibilityRole="alert" style={{ color: c.expense, fontSize: 13 }}>{placeError}</Text>}
                                                     {placeAuto && !!place && <Text style={[Type.caption, { color: c.textTertiary }]}>Pinned automatically from where you are now. Change or remove it anytime.</Text>}
-                                                    <Pressable accessibilityRole="switch" accessibilityState={{ checked: autoOn }} onPress={() => void setAutoPin(!autoOn)} hitSlop={8}>
-                                                        <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>{autoOn ? 'Turn off automatic pinning' : 'Turn on automatic pinning'}</Text>
-                                                    </Pressable>
                                                 </View>
                                             )}
                                             {type === 'expense' && isSplit && (
