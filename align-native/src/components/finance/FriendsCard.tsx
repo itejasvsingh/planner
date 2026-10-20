@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, MessageCircle } from 'lucide-react-native';
 import { Pressable } from '@/components/ui/pressable';
 import { Radius, Shadow } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { fmt, reminderText, type FriendBalance } from '@/lib/splits';
+import { fmt, reminderText, type FriendBalance, type HistoryEntry } from '@/lib/splits';
 
 const day = (key: string) => (key ? new Date(`${key}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '');
 
@@ -14,7 +14,7 @@ const day = (key: string) => (key ? new Date(`${key}T12:00:00`).toLocaleDateStri
  * Tap a friend to see the expenses behind it, record a payment (any amount, oldest first), remind them on WhatsApp,
  * or settle everything (tap twice to confirm).
  */
-export default function FriendsCard({ balances, onSettle, onPay, groups = [], group = null, onGroup }: {
+export default function FriendsCard({ balances, onSettle, onPay, groups = [], group = null, onGroup, history }: {
   balances: FriendBalance[];
   onSettle: (name: string) => void;
   /** Records a payment of `amount` with `name`. */
@@ -22,13 +22,17 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
   groups?: { name: string; net: number }[];
   group?: string | null;
   onGroup?: (group: string | null) => void;
+  /** Every split with a friend, open or settled. */
+  history?: (name: string) => HistoryEntry[];
 }) {
   const c = useTheme();
   const [open, setOpen] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
   const [payText, setPayText] = useState('');
+  const [showAll, setShowAll] = useState<string | null>(null);
   const owing = balances.filter(b => Math.round(b.net * 100) !== 0);
-  if (!owing.length && !group) return null;
+  const rows = [...owing, ...balances.filter(b => Math.round(b.net * 100) === 0)];
+  if (!rows.length && !group) return null;
   const owedToYou = owing.filter(b => b.net > 0).reduce((s, b) => s + b.net, 0);
   const youOwe = owing.filter(b => b.net < 0).reduce((s, b) => s - b.net, 0);
 
@@ -60,16 +64,19 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
         </View>
       </View>
       {!owing.length && <Text style={{ color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 8 }}>All settled up in {group}.</Text>}
-      <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card, !owing.length && { display: 'none' }]}>
-        {owing.map((b, i) => {
+      <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card, !rows.length && { display: 'none' }]}>
+        {rows.map((b, i) => {
           const expanded = open === b.name;
           const theyOwe = b.net > 0;
+          const settled = Math.round(b.net * 100) === 0;
+          const hist = history ? history(b.name) : [];
+          const histShown = showAll === b.name ? hist : hist.slice(0, 6);
           return (
             <View key={b.name} style={{ borderTopWidth: i ? 1 : 0, borderTopColor: c.border }}>
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ expanded }}
-                accessibilityLabel={`${b.name}: ${theyOwe ? `owes you ₹${fmt(b.net)}` : `you owe ₹${fmt(-b.net)}`}`}
+                accessibilityLabel={`${b.name}: ${settled ? 'settled up' : theyOwe ? `owes you ₹${fmt(b.net)}` : `you owe ₹${fmt(-b.net)}`}`}
                 onPress={() => { setOpen(expanded ? null : b.name); setConfirming(null); setPayText(''); }}
                 style={styles.row}
               >
@@ -78,15 +85,40 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: c.text, fontWeight: '600', fontSize: 15 }} numberOfLines={1}>{b.name}</Text>
-                  <Text style={{ color: theyOwe ? c.income : c.expense, fontSize: 13, fontWeight: '600' }}>
-                    {theyOwe ? `owes you ₹${fmt(b.net)}` : `you owe ₹${fmt(-b.net)}`}
+                  <Text style={{ color: settled ? c.textTertiary : theyOwe ? c.income : c.expense, fontSize: 13, fontWeight: '600' }}>
+                    {settled ? 'settled up' : theyOwe ? `owes you ₹${fmt(b.net)}` : `you owe ₹${fmt(-b.net)}`}
                   </Text>
                 </View>
                 {expanded ? <ChevronDown color={c.textTertiary} size={18} /> : <ChevronRight color={c.textTertiary} size={18} />}
               </Pressable>
               {expanded && (
                 <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 8 }}>
-                  {b.open.map((e, j) => (
+                  {history ? (
+                    <View style={{ gap: 10 }}>
+                      <Text style={{ color: c.textTertiary, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' }}>History</Text>
+                      {histShown.map((e, j) => (
+                        <View key={`${e.id}-${j}`} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: e.status === 'settled' ? c.textTertiary : c.text, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>{e.title}</Text>
+                            <Text style={{ color: c.textTertiary, fontSize: 12 }} numberOfLines={1}>{day(e.date)}{e.group ? ` · ${e.group}` : ''}</Text>
+                          </View>
+                          <View style={{ alignItems: 'flex-end' }}>
+                            <Text style={{ color: e.status === 'settled' ? c.textTertiary : e.amount > 0 ? c.income : c.expense, fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
+                              {e.amount > 0 ? `+₹${fmt(e.amount)}` : `−₹${fmt(-e.amount)}`}
+                            </Text>
+                            <Text style={{ color: e.status === 'settled' ? c.income : c.textTertiary, fontSize: 11, fontWeight: '600' }}>
+                              {e.status === 'settled' ? '✓ Settled' : e.status === 'part' ? `₹${fmt(e.paid)} of ₹${fmt(Math.abs(e.amount))} paid` : 'Open'}
+                            </Text>
+                          </View>
+                        </View>
+                      ))}
+                      {hist.length > 6 && (
+                        <Pressable accessibilityRole="button" onPress={() => setShowAll(showAll === b.name ? null : b.name)} hitSlop={8} style={{ alignSelf: 'center' }}>
+                          <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>{showAll === b.name ? 'Show fewer' : `Show all ${hist.length}`}</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  ) : b.open.map((e, j) => (
                     <View key={`${e.id}-${j}`} style={{ flexDirection: 'row', gap: 8 }}>
                       <Text style={{ flex: 1, color: c.textSecondary, fontSize: 13 }} numberOfLines={1}>{e.title} · {day(e.date)}</Text>
                       <Text style={{ color: e.amount > 0 ? c.income : c.expense, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] }}>
@@ -94,7 +126,7 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
                       </Text>
                     </View>
                   ))}
-                  {onPay && (
+                  {onPay && !settled && (
                     <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
                       <TextInput
                         accessibilityLabel={`Amount ${theyOwe ? `${b.name} paid you` : `you paid ${b.name}`}`}
@@ -115,7 +147,7 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
                       </Pressable>
                     </View>
                   )}
-                  {theyOwe && (
+                  {theyOwe && !settled && (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel={`Remind ${b.name} on WhatsApp`}
@@ -125,7 +157,7 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
                       <Text style={{ color: c.text, fontWeight: '700' }}>Remind on WhatsApp</Text>
                     </Pressable>
                   )}
-                  <Pressable
+                  {!settled && <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={confirming === b.name ? `Confirm settle up with ${b.name}` : `Settle up with ${b.name}`}
                     onPress={() => {
@@ -141,7 +173,7 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
                         ? `Tap again: ${theyOwe ? `${b.name} paid you` : `you paid ${b.name}`} ₹${fmt(Math.abs(b.net))}`
                         : 'Settle up'}
                     </Text>
-                  </Pressable>
+                  </Pressable>}
                 </View>
               )}
             </View>

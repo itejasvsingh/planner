@@ -24,7 +24,7 @@ import { todayKey } from '@/lib/dates';
 import NinetyDayView from '@/components/finance/NinetyDayView';
 import { savePlace } from '@/lib/places-store';
 import { spotCentre, type Spot } from '@/lib/places';
-import { friendBalances, groupDefaultDraft, groupNames, groupTotals, inGroup, recentFriends, settleAmountPatches, settleUpPatches, splitOf, type SplitDraft } from '@/lib/splits';
+import { friendBalances, friendHistory, groupDefaultDraft, groupNames, groupTotals, inGroup, recentFriends, settleAmountPatches, settleUpPatches, splitOf, type SplitDraft } from '@/lib/splits';
 
 /** "Split with Rahul" / "Split with 3" for a transaction row. */
 function splitLabel(item: any) {
@@ -370,7 +370,7 @@ export default function FinanceScreen() {
                                 <Users color={c.onAccent} size={18} />
                                 <Text style={{ color: c.onAccent, fontWeight: '700', fontSize: 15 }}>Split a bill</Text>
                             </Pressable>
-                            <FriendsCard balances={balances} onSettle={settleUp} onPay={payFriend} groups={groups} group={activeGroup} onGroup={setGroup} />
+                            <FriendsCard balances={balances} history={name => friendHistory(activeGroup ? inGroup(items, activeGroup) : items, name)} onSettle={settleUp} onPay={payFriend} groups={groups} group={activeGroup} onGroup={setGroup} />
                             {!balances.some(b => Math.round(b.net * 100) !== 0) && (
                                 <View style={[styles.empty, { borderColor: c.border, marginTop: 16 }]}>
                                     <Users color={c.textTertiary} size={32} />

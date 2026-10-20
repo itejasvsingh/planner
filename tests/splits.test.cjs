@@ -185,3 +185,20 @@ test('a group remembers its friends, who paid and how it is split (not the old a
   assert.deepEqual([d1.method, d1.shares.you, d1.shares.Rahul], ['shares', '2', '1']);
   assert.equal(groupDefaultDraft(items, 'Nope'), null);
 });
+
+test('friend history lists open, part-paid and settled splits, newest first', () => {
+  const { friendHistory } = mod.exports;
+  const d = (o) => ({ ...emptyDraft(), ...o });
+  const a = buildSplit(1000, d({ friends: ['Rahul'] })).split;                       // you paid, Rahul owes 500
+  const b = buildSplit(400, d({ friends: ['Rahul'] })).split;                        // you paid, Rahul owes 200
+  const c = buildSplit(600, d({ friends: ['Rahul'], paidBy: 'Rahul' })).split;       // Rahul paid, you owe 300
+  const items = [
+    { id: '1', type: 'expense', title: 'Hotel', date: '2026-10-01', amount: 500, split: { ...a, people: [{ ...a.people[0], settled: true }] } },
+    { id: '2', type: 'expense', title: 'Chai', date: '2026-10-05', amount: 200, split: { ...b, people: [{ ...b.people[0], paid: 50 }] } },
+    { id: '3', type: 'expense', title: 'Dinner', date: '2026-10-03', amount: 300, split: { ...c, youSettled: true } },
+    { id: '4', type: 'expense', title: 'Other friend', date: '2026-10-04', amount: 100, split: buildSplit(200, d({ friends: ['Priya'] })).split },
+  ];
+  const h = friendHistory(items, 'rahul');
+  assert.deepEqual(h.map(e => [e.id, e.status, e.amount, e.paid]), [['2', 'part', 200, 50], ['3', 'settled', -300, 300], ['1', 'settled', 500, 500]]);
+  assert.equal(friendHistory(items, 'Nobody').length, 0);
+});

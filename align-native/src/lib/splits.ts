@@ -218,6 +218,39 @@ export function friendBalances(items: Item[]): FriendBalance[] {
   return [...byKey.values()].sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || b.lastDate.localeCompare(a.lastDate));
 }
 
+export type HistoryEntry = {
+  id: string; title: string; date: string;
+  /** The whole share on that expense: + they owe you, - you owe them */
+  amount: number;
+  /** How much of it has been paid back */
+  paid: number;
+  status: 'open' | 'part' | 'settled';
+  group?: string;
+};
+
+/** Every split you have with `name`, newest first, open or settled. */
+export function friendHistory(items: Item[], name: string): HistoryEntry[] {
+  const out: HistoryEntry[] = [];
+  for (const item of items) {
+    if (item.type !== 'expense') continue;
+    const s = splitOf(item);
+    if (!s) continue;
+    const date = item.date || '';
+    const base = { id: item.id, title: item.title || 'Expense', date, ...(s.group ? { group: s.group } : {}) };
+    for (const p of s.people) {
+      if (!sameName(p.name, name)) continue;
+      if (s.paidBy === YOU && p.share > 0) {
+        const paid = p.settled ? p.share : Math.min(p.paid || 0, p.share);
+        out.push({ ...base, amount: p.share, paid, status: p.settled ? 'settled' : paid > 0 ? 'part' : 'open' });
+      } else if (sameName(s.paidBy, name) && s.yourShare > 0) {
+        const paid = s.youSettled ? s.yourShare : Math.min(s.youPaid || 0, s.yourShare);
+        out.push({ ...base, amount: -s.yourShare, paid, status: s.youSettled ? 'settled' : paid > 0 ? 'part' : 'open' });
+      }
+    }
+  }
+  return out.sort((a, b) => b.date.localeCompare(a.date));
+}
+
 /** Friends you've split with, most recent first, for one-tap adding. */
 export function recentFriends(items: Item[]): string[] {
   return friendBalances(items)
