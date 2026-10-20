@@ -31,46 +31,37 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
   const [payText, setPayText] = useState('');
   const [showAll, setShowAll] = useState<string | null>(null);
   const owing = balances.filter(b => Math.round(b.net * 100) !== 0);
-  const rows = [...owing, ...balances.filter(b => Math.round(b.net * 100) === 0)];
-  if (!rows.length && !group) return null;
+  const settledRows = balances.filter(b => Math.round(b.net * 100) === 0);
+  if (!owing.length && !settledRows.length && !group) return null;
   const owedToYou = owing.filter(b => b.net > 0).reduce((s, b) => s + b.net, 0);
   const youOwe = owing.filter(b => b.net < 0).reduce((s, b) => s - b.net, 0);
 
-  return (
-    <View style={{ marginTop: 20 }}>
-      <Text style={[styles.header, { color: c.textTertiary }]}>Friends</Text>
-      {groups.length > 0 && onGroup && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingBottom: 10 }}>
-          {[{ name: null as string | null, net: 0 }, ...groups].map(g => {
-            const active = group === g.name;
-            return (
-              <Pressable key={g.name ?? 'all'} accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={g.name ? `Group ${g.name}` : 'All friends'}
-                onPress={() => { onGroup(g.name); setOpen(null); }}
-                style={[styles.chip, active ? { backgroundColor: c.accentFill, borderColor: c.accentFill } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
-                <Text style={{ color: active ? c.onAccent : c.text, fontWeight: '600', fontSize: 12 }}>{g.name ?? 'All'}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      )}
-      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
-        <View style={[styles.tile, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
-          <Text style={{ color: c.textTertiary, fontSize: 12, fontWeight: '600' }}>You are owed</Text>
-          <Text style={{ color: owedToYou > 0 ? c.income : c.text, fontSize: 20, fontWeight: '800', fontVariant: ['tabular-nums'] }}>₹{fmt(owedToYou)}</Text>
-        </View>
-        <View style={[styles.tile, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
-          <Text style={{ color: c.textTertiary, fontSize: 12, fontWeight: '600' }}>You owe</Text>
-          <Text style={{ color: youOwe > 0 ? c.expense : c.text, fontSize: 20, fontWeight: '800', fontVariant: ['tabular-nums'] }}>₹{fmt(youOwe)}</Text>
-        </View>
-      </View>
-      {!owing.length && <Text style={{ color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 8 }}>All settled up in {group}.</Text>}
-      <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card, !rows.length && { display: 'none' }]}>
-        {rows.map((b, i) => {
+  const list = (arr: FriendBalance[]) => (
+      <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
+        {arr.map((b, i) => {
           const expanded = open === b.name;
           const theyOwe = b.net > 0;
           const settled = Math.round(b.net * 100) === 0;
           const hist = history ? history(b.name) : [];
-          const histShown = showAll === b.name ? hist : hist.slice(0, 6);
+          const openHist = hist.filter(e => e.status !== 'settled');
+          const doneHist = hist.filter(e => e.status === 'settled');
+          const doneShown = showAll === b.name ? doneHist : doneHist.slice(0, 4);
+          const entry = (e: HistoryEntry, j: number) => (
+            <View key={`${e.id}-${j}`} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: e.status === 'settled' ? c.textTertiary : c.text, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>{e.title}</Text>
+                <Text style={{ color: c.textTertiary, fontSize: 12 }} numberOfLines={1}>{day(e.date)}{e.group ? ` · ${e.group}` : ''}</Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={{ color: e.status === 'settled' ? c.textTertiary : e.amount > 0 ? c.income : c.expense, fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
+                  {e.amount > 0 ? `+₹${fmt(e.amount)}` : `−₹${fmt(-e.amount)}`}
+                </Text>
+                <Text style={{ color: e.status === 'settled' ? c.income : c.textTertiary, fontSize: 11, fontWeight: '600' }}>
+                  {e.status === 'settled' ? '✓ Settled' : e.status === 'part' ? `₹${fmt(e.paid)} of ₹${fmt(Math.abs(e.amount))} paid` : 'Open'}
+                </Text>
+              </View>
+            </View>
+          );
           return (
             <View key={b.name} style={{ borderTopWidth: i ? 1 : 0, borderTopColor: c.border }}>
               <Pressable
@@ -95,26 +86,13 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
                 <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 8 }}>
                   {history ? (
                     <View style={{ gap: 10 }}>
-                      <Text style={{ color: c.textTertiary, fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' }}>History</Text>
-                      {histShown.map((e, j) => (
-                        <View key={`${e.id}-${j}`} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
-                          <View style={{ flex: 1 }}>
-                            <Text style={{ color: e.status === 'settled' ? c.textTertiary : c.text, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>{e.title}</Text>
-                            <Text style={{ color: c.textTertiary, fontSize: 12 }} numberOfLines={1}>{day(e.date)}{e.group ? ` · ${e.group}` : ''}</Text>
-                          </View>
-                          <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={{ color: e.status === 'settled' ? c.textTertiary : e.amount > 0 ? c.income : c.expense, fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
-                              {e.amount > 0 ? `+₹${fmt(e.amount)}` : `−₹${fmt(-e.amount)}`}
-                            </Text>
-                            <Text style={{ color: e.status === 'settled' ? c.income : c.textTertiary, fontSize: 11, fontWeight: '600' }}>
-                              {e.status === 'settled' ? '✓ Settled' : e.status === 'part' ? `₹${fmt(e.paid)} of ₹${fmt(Math.abs(e.amount))} paid` : 'Open'}
-                            </Text>
-                          </View>
-                        </View>
-                      ))}
-                      {hist.length > 6 && (
+                      {openHist.length > 0 && <Text style={[styles.sub, { color: c.textTertiary }]}>Open</Text>}
+                      {openHist.map(entry)}
+                      {doneHist.length > 0 && <Text style={[styles.sub, { color: c.textTertiary }, openHist.length > 0 && { marginTop: 6 }]}>Settled</Text>}
+                      {doneShown.map(entry)}
+                      {doneHist.length > 4 && (
                         <Pressable accessibilityRole="button" onPress={() => setShowAll(showAll === b.name ? null : b.name)} hitSlop={8} style={{ alignSelf: 'center' }}>
-                          <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>{showAll === b.name ? 'Show fewer' : `Show all ${hist.length}`}</Text>
+                          <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>{showAll === b.name ? 'Show fewer' : `Show all ${doneHist.length} settled`}</Text>
                         </Pressable>
                       )}
                     </View>
@@ -180,11 +158,49 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
           );
         })}
       </View>
+  );
+
+  return (
+    <View style={{ marginTop: 20 }}>
+      <Text style={[styles.header, { color: c.textTertiary }]}>Friends</Text>
+      {groups.length > 0 && onGroup && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingBottom: 10 }}>
+          {[{ name: null as string | null, net: 0 }, ...groups].map(g => {
+            const active = group === g.name;
+            return (
+              <Pressable key={g.name ?? 'all'} accessibilityRole="button" accessibilityState={{ selected: active }} accessibilityLabel={g.name ? `Group ${g.name}` : 'All friends'}
+                onPress={() => { onGroup(g.name); setOpen(null); }}
+                style={[styles.chip, active ? { backgroundColor: c.accentFill, borderColor: c.accentFill } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+                <Text style={{ color: active ? c.onAccent : c.text, fontWeight: '600', fontSize: 12 }}>{g.name ?? 'All'}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+        <View style={[styles.tile, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+          <Text style={{ color: c.textTertiary, fontSize: 12, fontWeight: '600' }}>You are owed</Text>
+          <Text style={{ color: owedToYou > 0 ? c.income : c.text, fontSize: 20, fontWeight: '800', fontVariant: ['tabular-nums'] }}>₹{fmt(owedToYou)}</Text>
+        </View>
+        <View style={[styles.tile, { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+          <Text style={{ color: c.textTertiary, fontSize: 12, fontWeight: '600' }}>You owe</Text>
+          <Text style={{ color: youOwe > 0 ? c.expense : c.text, fontSize: 20, fontWeight: '800', fontVariant: ['tabular-nums'] }}>₹{fmt(youOwe)}</Text>
+        </View>
+      </View>
+      {!owing.length && <Text style={{ color: c.textSecondary, fontSize: 13, textAlign: 'center', paddingVertical: 8 }}>All settled up in {group}.</Text>}
+      {owing.length > 0 && list(owing)}
+      {settledRows.length > 0 && (
+        <View style={{ marginTop: owing.length ? 18 : 0 }}>
+          <Text style={[styles.header, { color: c.textTertiary, marginBottom: 8 }]}>Settled up</Text>
+          {list(settledRows)}
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  sub: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
   header: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 10 },
   card: { borderRadius: Radius.lg, borderWidth: 1, overflow: 'hidden' },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, borderWidth: 1 },
