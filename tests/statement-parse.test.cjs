@@ -98,3 +98,11 @@ test('ICICI-style narration names', () => {
   assert.equal(cleanNarration('MMT/IMPS/427566677788/RAHUL SHARMA/HDFC0000123'), 'Rahul Sharma');
   assert.equal(cleanNarration('Int.Pd:01-07-2026 to 30-09-2026'), 'Interest');
 });
+
+test('the opened statement says whether it is a card or an account statement', () => {
+  const { kindFromPdf } = mod.exports;
+  assert.equal(kindFromPdf('Swiggy HDFC Bank Credit Card Statement\nPayment Due Date Total Dues Minimum Amount Due\nCredit Limit 1,00,000.00'), 'card');
+  assert.equal(kindFromPdf('Statement of account\nSavings Account\nDate Narration Withdrawal Amt. Deposit Amt. Closing Balance\nIFSC HDFC0001234'), 'account');
+  assert.equal(kindFromPdf('Account statement for your savings account. Pay your credit card bill from here.'), 'account', 'a card mention in an account statement');
+  assert.equal(kindFromPdf('Statement'), null, 'unclear');
+});

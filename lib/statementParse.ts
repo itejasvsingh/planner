@@ -389,3 +389,18 @@ export function cleanNarration(desc: string): string {
 }
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+/**
+ * What the statement itself says it is, once it's open: a card statement has dues, a minimum due and a credit limit;
+ * an account statement has withdrawals, deposits and a closing balance. The email's words can mislead (a bank
+ * account email mentioning a credit card, one subject for both), so a clear answer here wins. Null when unclear.
+ */
+export function kindFromPdf(text: string): 'account' | 'card' | null {
+  const hits = (res: RegExp[]) => res.filter((r) => r.test(text)).length;
+  const card = hits([/credit\s*card\s*statement|card\s+statement/i, /total\s+(?:amount\s+)?dues?\b/i, /minimum\s+(?:amount\s+)?due/i, /credit\s+limit/i, /reward\s*points|available\s+credit/i]);
+  const account = hits([/statement\s+of\s+account|account\s+statement/i, /withdrawal(?:\s*amt|s)?\b/i, /\bdeposit(?:\s*amt|s)?\b/i, /closing\s+balance/i, /\b(?:savings|current)\s+account\b|\bifsc\b/i]);
+  if (card >= 2 && card > account) return 'card';
+  if (account >= 2 && account > card) return 'account';
+  return null;
+}
+

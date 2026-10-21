@@ -146,7 +146,7 @@ export function parseBankEmail(text: string): ParsedTransaction | null {
 
 // ---------------------------------------------------------------- card bills
 
-export type CardBill = { totalDue: number; minDue: number | null; dueDate: string; last4: string | null };
+export type CardBill = { totalDue: number; minDue: number | null; dueDate: string; last4: string | null; /** Co-brand name found in the text ("Swiggy", "Regalia"…) */ product?: string };
 
 const MONEY = String.raw`(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)`;
 const TOTAL_DUE = new RegExp(String.raw`\b(?:total\s+(?:amount\s+)?(?:due|dues|payable)|amount\s+due|total\s+outstanding)\b[^\d₹]{0,25}?` + MONEY, 'i');
@@ -166,12 +166,57 @@ export function parseCardBill(text: string): CardBill | null {
     const n = m ? parseFloat(m[1].replace(/,/g, '')) : NaN;
     return n > 0 ? n : null;
   };
-  const totalDue = money(TOTAL_DUE);
-  const dueRaw = flat.match(DUE_DATE)?.[1] || '';
-  const dueDate = parseDate(dueRaw);
+  // Statement PDFs (HDFC and others) print the labels on one line and their values on the next
+  const table = billTable(flat);
+  const totalDue = table?.totalDue ?? money(TOTAL_DUE);
+  const dueDate = table?.dueDate ?? parseDate(flat.match(DUE_DATE)?.[1] || '');
   if (!totalDue || !dueDate) return null;
   const card = flat.match(CARD_LAST4);
-  return { totalDue, minDue: money(MIN_DUE), dueDate, last4: card ? card[1] || card[2] : null };
+  const product = flat.match(PRODUCT)?.[1];
+  return {
+    totalDue, minDue: table?.minDue ?? money(MIN_DUE), dueDate, last4: card ? card[1] || card[2] : null,
+    ...(product ? { product: product.replace(/\b\w/g, (c) => c.toUpperCase()) } : {}),
+  };
+}
+
+/** Co-brand cards ("Swiggy HDFC Bank Credit Card"): the name before the issuer, so the card isn't just "HDFC Bank". */
+const PRODUCT = /\b(swiggy|regalia(?: gold| first)?|millennia|moneyback\+?|infinia|diners club(?: privilege| black)?|tata neu(?: infinity| plus)?|indianoil|freedom|pixel|biz power|marriott bonvoy|irctc|shoppers stop|6e rewards|amazon pay|flipkart|myntra)\b[^\n]{0,30}credit card/i;
+
+const BILL_LABELS: { key: 'due' | 'total' | 'min'; re: RegExp }[] = [
+  { key: 'min', re: /min(?:imum)?\.?\s+(?:amount\s+)?(?:due|dues|payable)/i },
+  { key: 'total', re: /total\s+(?:amount\s+)?(?:due|dues|payable|outstanding)|(?<!min(?:imum)?\.?\s+)amount\s+due/i },
+  { key: 'due', re: /(?:payment\s+)?due\s+date/i },
+];
+const VALUE_TOKEN = /(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}|\d{1,2}[ -](?:[A-Za-z]{3,9})[ ,.-]+\d{2,4})|(\d[\d,]*\.\d{2})/g;
+
+/** A line with two or more of the bill labels, followed by a line with their values in the same order. */
+function billTable(flat: string): { totalDue: number | null; minDue: number | null; dueDate: string | null } | null {
+  const lines = flat.split('\n').map((l) => l.trim());
+  for (let i = 0; i < lines.length - 1; i++) {
+    const found: { key: 'due' | 'total' | 'min'; at: number }[] = [];
+    for (const l of BILL_LABELS) {
+      // Labels overlap ("Due Date" sits inside "Payment Due Date"); the minimum label contains "due" too
+      const m = lines[i].match(l.re);
+      if (m && m.index !== undefined) found.push({ key: l.key, at: m.index });
+    }
+    if (found.length < 2 || /\d/.test(lines[i].replace(/\b(?:\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})\b/g, ''))) continue;
+    found.sort((a, b) => a.at - b.at);
+    const values = lines.slice(i + 1, i + 3).find((l) => l && (l.match(VALUE_TOKEN) || []).length >= found.length);
+    if (!values) continue;
+    const tokens = [...values.matchAll(VALUE_TOKEN)];
+    const out = { totalDue: null as number | null, minDue: null as number | null, dueDate: null as string | null };
+    found.forEach((f, k) => {
+      const t = tokens[k];
+      if (!t) return;
+      if (f.key === 'due') out.dueDate = t[1] ? parseDate(t[1]) : null;
+      else {
+        const n = t[2] ? parseFloat(t[2].replace(/,/g, '')) : NaN;
+        if (n > 0) { if (f.key === 'total') out.totalDue = n; else out.minDue = n; }
+      }
+    });
+    if (out.totalDue && out.dueDate) return out;
+  }
+  return null;
 }
 
 /** A card company confirming it received your bill payment. */

@@ -27,7 +27,7 @@ export async function saveBill(phone: string, bill: CardBill, from: string, at?:
   const bank = bankForSender(from);
   const issuer = bank?.id || from.split('@').pop() || 'card';
   const stored: StoredBill = {
-    ...bill, issuer, issuerName: bank?.name || issuer, id: sha(`${phone}|${issuer}|${bill.last4 || ''}|${bill.dueDate}`),
+    ...bill, issuer, issuerName: [bank?.name || issuer, bill.product].filter(Boolean).join(' '), id: sha(`${phone}|${issuer}|${bill.last4 || ''}|${bill.dueDate}`),
     ...(at ? { statementDate: istParts(at).date } : {}),
   };
   await billsOf(phone).doc(stored.id).set({ ...stored, foundAt: FieldValue.serverTimestamp() }, { merge: true });

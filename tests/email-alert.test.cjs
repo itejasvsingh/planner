@@ -199,3 +199,17 @@ test('card payment confirmations are recognised (they close the bill reminder)',
   assert.ok(isCardPaymentReceived('We have received a payment of ₹3,210 for your slice card.'));
   assert.ok(!isCardPaymentReceived('₹2,000 credited to your savings account. Received from PRIYA NAIR.'), 'money into a bank account is not a card payment');
 });
+
+test('credit card statement summary in a PDF: labels on one line, values on the next (HDFC style)', () => {
+  const pdf = `Swiggy HDFC Bank Credit Card Statement
+HDFC Bank Credit Card No: 5522 85XX XXXX 1234
+Statement Date 21/10/2026
+Payment Due Date Total Dues Minimum Amount Due
+08/11/2026 C 12,345.67 C 617.00
+Domestic Transactions`;
+  const bill = parseCardBill(pdf);
+  assert.deepEqual(bill, { totalDue: 12345.67, minDue: 617, dueDate: '2026-11-08', last4: '1234', product: 'Swiggy' });
+  const reordered = parseCardBill(`Credit Card Statement\nCard ending 9988\nTotal Amount Due Minimum Amount Due Payment Due Date\n₹4,000.00 ₹200.00 05 Nov 2026`);
+  assert.deepEqual([reordered.totalDue, reordered.minDue, reordered.dueDate, reordered.last4], [4000, 200, '2026-11-05', '9988']);
+  assert.equal(parseCardBill('Your Swiggy HDFC Bank Credit Card e-statement is attached. Pay by the due date to avoid charges.'), null, 'no amounts in the email body');
+});

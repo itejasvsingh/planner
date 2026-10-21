@@ -4,6 +4,7 @@ import { open, seal } from './secretBox';
 import { BANKS, normalizeSender, sendersFor } from './bankSenders';
 import { bankQuery, billQuery, messageText, pdfAttachments, statementPdfQuery, type GmailMessage } from './gmailMessage';
 import { isLockedPdf, readStatement } from './statementFile';
+import { kindFromPdf } from './statementParse';
 import { importStatementRows, passwordVersion, statementKind, statementSlot, type StatementPassword, type StatementState } from './statementAuto';
 import { isCardPaymentReceived, parseBankEmail, parseCardBill } from './emailAlert';
 import { bankForSender, ensureBillTask, markBillsPaid, saveBill } from './cardBills';
@@ -381,17 +382,21 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
     //    that bank. A file that needs a password is tried again only after its bank's password changes.
     if (budget > 0 && !throttled && Date.now() < deadline - 10_000) {
       const done = new Set<string>(link.statementMsgIds || []);
+      // Statements read before bills were taken from the PDF itself are opened once more, only for the bill
+      const billIds = new Set<string>(link.statementBillIds || []);
+      // Card or account, as the opened PDF says: corrects the list in Settings → Gmail
+      const kindOf = new Map<string, 'account' | 'card'>();
       const tried: Record<string, { bank: string; v: number }> = { ...(link.statementTried || {}) };
       const passwords: Record<string, StatementPassword> = link.statementPasswords || {};
       const status: Record<string, StatementState> = {};
       const found = await list(statementPdfQuery(senders, (Date.now() - 95 * DAY_MS) / 1000), 30);
       const todo = found.ids
-        .filter((id) => !done.has(id) && !(tried[id] && passwordVersion(passwords, tried[id].bank.replace(/__card$/, '')) === tried[id].v))
+        .filter((id) => (!done.has(id) || !billIds.has(id)) && !(tried[id] && passwordVersion(passwords, tried[id].bank.replace(/__card$/, '')) === tried[id].v))
         .slice(0, Math.min(opts.statements ?? 2, budget));
       for (const id of todo) {
         if (Date.now() > deadline - 8_000) break;
         // Already read this run and it had no PDF: nothing to open
-        if (readIds.has(id) && !withPdf.has(id)) { done.add(id); continue; }
+        if (readIds.has(id) && !withPdf.has(id)) { done.add(id); billIds.add(id); continue; }
         try {
           let msg = withPdf.get(id);
           if (!msg) {
@@ -401,22 +406,38 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
           const { text, subject, from } = messageText(msg);
           const bank = bankForSender(from);
           const pdf = pdfAttachments(msg).find((a) => a.size <= 5_000_000);
-          if (!bank || !pdf) { done.add(id); continue; }
+          if (!bank || !pdf) { done.add(id); billIds.add(id); continue; }
           const data = pdf.data || (await gmail<{ data: string }>(token, `/messages/${id}/attachments/${pdf.attachmentId}`)).data;
           const buf = Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
           // Card or account statement: each has its own password (the other is tried too, in case it was
           // saved in the wrong place)
-          const creditCard = statementKind(bank.id, subject, text) === 'card';
-          const slot = statementSlot(bank.id, creditCard ? 'card' : 'account');
-          const pw = passwords[slot];
-          const otherPw = passwords[statementSlot(bank.id, creditCard ? 'account' : 'card')];
+          const emailCard = statementKind(bank.id, subject, text) === 'card';
+          const pw = passwords[statementSlot(bank.id, emailCard ? 'card' : 'account')];
+          const otherPw = passwords[statementSlot(bank.id, emailCard ? 'account' : 'card')];
           let res = await readStatement(buf);
           const locked = res.status === 'password';
           if (res.status === 'password' && pw) res = await readStatement(buf, open(pw.sealed));
           if (res.status === 'password' && otherPw) res = await readStatement(buf, open(otherPw.sealed));
           const at = Number(msg.internalDate || Date.now());
+          // Once open, the statement itself says whether it is a card or an account statement (and which one), which
+          // beats the email's wording; a locked file can only go by the email
+          const pdfKind = 'text' in res && res.text ? kindFromPdf(res.text) : null;
+          const creditCard = pdfKind ? pdfKind === 'card' : emailCard;
+          if (pdfKind) kindOf.set(id, pdfKind);
+          const slot = statementSlot(bank.id, creditCard ? 'card' : 'account');
+          const pdfText = 'text' in res && res.text ? res.text : '';
+          // The card or account number printed in the statement, not whatever the email mentions
+          const last4 = creditCard
+            ? creditCardOf(pdfText)?.last4 || creditCardOf(text)?.last4 || null
+            : accountLast4(pdfText) || accountLast4(text) || null;
+          // The statement's own summary (total due, minimum, due date, card) is the bill: banks like HDFC keep these
+          // out of the email text. Read even when the transaction table couldn't be.
+          if (creditCard && (res.status === 'ok' || res.status === 'unreadable') && res.text) await takeBill(`${res.text}\n${text}`, from, at);
+          // Only the bill was wanted from a statement that was already imported
+          if (done.has(id)) { if (res.status !== 'password') billIds.add(id); continue; }
+          billIds.add(id);
           if (res.status === 'ok') {
-            const r = await importStatementRows(phone, res.rows, { bankId: bank.id, bankName: bank.name, at, creditCard, last4: accountLast4(text) || creditCardOf(text)?.last4 || null, deadline: deadline - 3_000 });
+            const r = await importStatementRows(phone, res.rows, { bankId: bank.id, bankName: bank.name, at, creditCard, last4, deadline: deadline - 3_000 });
             added += r.added;
             if (!r.complete) break; // out of time: this statement continues next check
             status[slot] = { state: 'ok', at, msgId: id, foundAt: Date.now(), locked, added: r.added, rows: r.rows, from: r.from, to: r.to, checked: r.checked, extras: r.extras };
@@ -433,9 +454,15 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
           if (e instanceof GmailThrottled) { throttled = true; break; }
           console.warn('Statement PDF skipped:', (e as Error).message);
           done.add(id);
+          billIds.add(id);
         }
       }
       patch.statementMsgIds = [...done].slice(-200);
+      patch.statementBillIds = [...billIds].slice(-200);
+      const index = (link.statementIndex || []) as FoundStatement[];
+      if (kindOf.size && index.some((x) => kindOf.has(x.id) && kindOf.get(x.id) !== x.kind)) {
+        patch.statementIndex = index.map((x) => (kindOf.has(x.id) ? { ...x, kind: kindOf.get(x.id)! } : x));
+      }
       patch.statementTried = tried;
       for (const [b, st] of Object.entries(status)) patch[`statementStatus.${b}`] = st;
     }
@@ -580,7 +607,7 @@ export async function syncAll(deadline: number) {
 }
 
 /** Bump when how statements are sorted (account vs card) changes: they're checked again. */
-const INDEX_VERSION = 2;
+const INDEX_VERSION = 3;
 
 export type FoundStatement = {
   id: string;
@@ -618,11 +645,18 @@ export async function findStatements(phone: string, days = 90, deadline = Date.n
     const bank = bankForSender(from);
     const pdf = pdfAttachments(msg).find((x) => x.size <= 5_000_000);
     if (!bank || !pdf) return; // not a bank statement PDF
-    const kind = statementKind(bank.id, subject, text);
+    let kind = statementKind(bank.id, subject, text);
     let locked: boolean | null = null;
     try {
       const data = pdf.data || (await gmail<{ data: string }>(token, `/messages/${id}/attachments/${pdf.attachmentId}`)).data;
-      locked = await isLockedPdf(Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64'));
+      const buf = Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+      locked = await isLockedPdf(buf);
+      // An open PDF says itself whether it's a card or an account statement
+      if (locked === false) {
+        const res = await readStatement(buf);
+        const pdfKind = 'text' in res && res.text ? kindFromPdf(res.text) : null;
+        if (pdfKind) kind = pdfKind;
+      }
     } catch (e) {
       if (e instanceof GmailThrottled) throw e;
     }
