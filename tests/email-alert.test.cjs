@@ -213,3 +213,8 @@ Domestic Transactions`;
   assert.deepEqual([reordered.totalDue, reordered.minDue, reordered.dueDate, reordered.last4], [4000, 200, '2026-11-05', '9988']);
   assert.equal(parseCardBill('Your Swiggy HDFC Bank Credit Card e-statement is attached. Pay by the due date to avoid charges.'), null, 'no amounts in the email body');
 });
+
+test('the positional summary of a card statement becomes the bill', () => {
+  const bill = parseCardBill('Total Amount Due: Rs. 2,234.50\nMinimum Amount Due: Rs. 112.00\nPayment Due Date: 08 Nov 2026\nHDFC Bank Credit Card Statement\nPREVIOUS STATEMENT DUES PAYMENTS/CREDITS PURCHASES/DEBIT FINANCE CHARGES TOTAL AMOUNT DUE\n₹5,000.00 ₹4,000.00 ₹1,234.50 ₹0.00 ₹2,234.50');
+  assert.deepEqual([bill.totalDue, bill.minDue, bill.dueDate], [2234.5, 112, '2026-11-08']);
+});

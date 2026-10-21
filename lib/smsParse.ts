@@ -125,7 +125,8 @@ export function parseDate(text: string): string | null {
     const d = +m[1], mo = +m[2], y = fullYear(+m[3]);
     if (d >= 1 && d <= 31 && mo >= 1 && mo <= 12) return `${y}-${pad(mo)}-${pad(d)}`;
   }
-  m = text.match(/\b(\d{1,2})[- ]?([A-Za-z]{3})[a-z]*[- ,]?(\d{2,4})\b/);
+  // "08 Nov 2026", "08-Nov-26", "08 Nov, 2026"
+  m = text.match(/\b(\d{1,2})[- ]?([A-Za-z]{3})[a-z]*\.?(?:[- ]|, ?)?(\d{2,4})\b/);
   if (m && months[m[2].toLowerCase()]) {
     const d = +m[1], y = fullYear(+m[3]);
     if (d >= 1 && d <= 31) return `${y}-${pad(months[m[2].toLowerCase()])}-${pad(d)}`;

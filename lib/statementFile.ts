@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 import { getDocumentProxy } from 'unpdf';
-import { itemsToRows, linesToRows, tableToRows, type PdfItem, type StatementRow } from './statementParse';
+import { itemsToRows, linesToRows, summaryFromItems, tableToRows, type PdfItem, type StatementRow } from './statementParse';
 
 export type ReadResult =
   | { status: 'ok'; rows: StatementRow[]; text?: string }
@@ -74,7 +74,9 @@ export async function readStatement(buf: Buffer, password?: string): Promise<Rea
       if (err?.name === 'PasswordException') return { status: 'password', incorrect: err.code === 2 };
       return { status: 'unreadable', message: 'This PDF could not be opened.' };
     }
-    const text = lines.join('\n');
+    // The summary boxes (total due, minimum, due date) read by position come first, so they're found before stray numbers
+    const summary = summaryFromItems(items);
+    const text = (summary ? `${summary}\n` : '') + lines.join('\n');
     if (text.replace(/\s/g, '').length < 40) {
       return { status: 'unreadable', message: 'This PDF looks like a scanned image. Download the statement as Excel or CSV from your bank instead.' };
     }

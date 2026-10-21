@@ -75,7 +75,8 @@
   balance. A locked file is retried only after that bank's password changes (`statementTried`). Once open, the PDF decides
   card vs account (`kindFromPdf` in `lib/statementParse.ts`, beats the email's wording, also corrects `statementIndex`) and the
   card/account number; a card statement's own summary is saved as the bill (`parseCardBill` reads label-row/value-row tables like
-  HDFC's and co-brand names like "Swiggy"). Statements imported before this are reopened once for the bill only (`statementBillIds2`; renamed once so every statement is reopened again to add its Wallet record).
+  HDFC's and co-brand names like "Swiggy"). Statements imported before this are reopened once for the bill only (`statementBillIds3`; the name is bumped whenever bill reading improves, so every statement is reopened once more). Box layouts
+  (HDFC) are read by position: `summaryFromItems` in `lib/statementParse.ts` puts "Label: value" lines first in the PDF text.
 - Transfers: `expenseCategories.transferMerchants` (payee → Family / Self Transfer) and "self / own a/c" wording
   (`SELF_TRANSFER`) make `recordTransaction` save money-out as type `transfer`, before the duplicate check.
 - Suspicious payments are found in the app (`align-native/src/lib/suspicious.ts`, pure): Money shows "payments to

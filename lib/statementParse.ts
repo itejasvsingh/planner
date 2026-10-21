@@ -404,3 +404,50 @@ export function kindFromPdf(text: string): 'account' | 'card' | null {
   return null;
 }
 
+
+/**
+ * A card statement's summary boxes, read by position: each label ("Total Amount Due", "Minimum Due", "Due Date",
+ * "Payment Due Date", "Total Dues") and the value printed under it in the same column. Statements like HDFC's put
+ * these in boxes, so as plain lines the numbers sit next to unrelated ones (previous dues, payments, limits).
+ * Returns plain "Label: value" lines (empty when none are found), which parseCardBill reads first.
+ */
+export function summaryFromItems(items: PdfItem[]): string {
+  const LABELS: { name: string; re: RegExp; date?: boolean }[] = [
+    { name: 'Total Amount Due', re: /^total\s+(?:amount\s+)?dues?$|^total\s+amount\s+payable$/i },
+    { name: 'Minimum Amount Due', re: /^min(?:imum)?\.?\s+(?:amount\s+)?dues?$|^minimum\s+amount\s+payable$/i },
+    { name: 'Payment Due Date', re: /^(?:payment\s+)?due\s+date$/i, date: true },
+  ];
+  const MONEY = /(\d{1,3}(?:,\d{2,3})*(?:\.\d{2})|\d+\.\d{2})/;
+  const DATE = /\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b|\b\d{1,2}[ -][A-Za-z]{3,9}\.?,?[ -]\d{2,4}\b|\b[A-Za-z]{3,9} \d{1,2},? \d{4}\b/;
+  // Words on one line that sit close together make one phrase ("TOTAL", "AMOUNT", "DUE" -> "TOTAL AMOUNT DUE")
+  type Phrase = { str: string; x0: number; x1: number; y: number; page: number };
+  const phrases: Phrase[] = [];
+  const sorted = [...items].sort((a, b) => a.page - b.page || b.y - a.y || a.x - b.x);
+  for (const it of sorted) {
+    const last = phrases[phrases.length - 1];
+    if (last && last.page === it.page && Math.abs(last.y - it.y) <= 2 && it.x - last.x1 <= 8) {
+      last.str += (it.x - last.x1 > 1 ? ' ' : '') + it.str;
+      last.x1 = Math.max(last.x1, it.x + it.w);
+    } else phrases.push({ str: it.str, x0: it.x, x1: it.x + it.w, y: it.y, page: it.page });
+  }
+  const clean = (s: string) => s.replace(/\s+/g, ' ').trim();
+  const out: string[] = [];
+  for (const label of LABELS) {
+    const at = phrases.find((p) => label.re.test(clean(p.str)));
+    if (!at) continue;
+    const mid = (at.x0 + at.x1) / 2;
+    // The nearest value below it whose column overlaps the label's
+    const below = phrases
+      .filter((p) => p.page === at.page && p.y < at.y - 2 && at.y - p.y < 90 && p.x1 >= at.x0 - 30 && p.x0 <= at.x1 + 30)
+      .map((p) => ({ p, v: clean(p.str).match(label.date ? DATE : MONEY)?.[0] }))
+      .filter((c) => c.v)
+      .sort((a, b) => {
+        const dy = (at.y - a.p.y) - (at.y - b.p.y);
+        // Same row (within a few points): the one most directly under the label
+        if (Math.abs(dy) > 6) return dy;
+        return Math.abs((a.p.x0 + a.p.x1) / 2 - mid) - Math.abs((b.p.x0 + b.p.x1) / 2 - mid);
+      })[0];
+    if (below?.v) out.push(`${label.name}: ${label.date ? below.v.replace(/,/g, '') : `Rs. ${below.v}`}`);
+  }
+  return out.join('\n');
+}

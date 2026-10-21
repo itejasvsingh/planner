@@ -106,3 +106,20 @@ test('the opened statement says whether it is a card or an account statement', (
   assert.equal(kindFromPdf('Account statement for your savings account. Pay your credit card bill from here.'), 'account', 'a card mention in an account statement');
   assert.equal(kindFromPdf('Statement'), null, 'unclear');
 });
+
+test('card statement summary boxes are read by position (HDFC layout: labels above values, side by side)', () => {
+  const { summaryFromItems } = mod.exports;
+  // Made-up numbers in the positions HDFC's statement uses (PDF y grows upwards)
+  const it = (str, x, y, w = str.length * 5) => ({ str, x, y, w, page: 1 });
+  const items = [
+    it('PREVIOUS STATEMENT DUES', 45, 700), it('PAYMENTS/CREDITS', 200, 705), it('RECEIVED', 215, 695),
+    it('PURCHASES/DEBIT', 340, 705), it('FINANCE CHARGES', 470, 700), it('TOTAL AMOUNT DUE', 590, 700),
+    it('₹5,000.00', 80, 672), it('₹4,000.00', 220, 672), it('₹1,234.50', 350, 672), it('₹0.00', 495, 672),
+    it('₹2,234.50', 592, 668, 80),
+    it('TOTAL CREDIT LIMIT', 80, 640), it('AVAILABLE CREDIT LIMIT', 240, 640), it('MINIMUM DUE', 590, 630), it('DUE DATE', 680, 630),
+    it('₹1,00,000', 95, 610), it('₹97,766', 260, 610), it('₹112.00', 592, 605), it('08 Nov, 2026', 680, 605),
+    it('MINIMUM DUES', 640, 520), it('₹112.00', 640, 505),
+  ];
+  assert.equal(summaryFromItems(items), 'Total Amount Due: Rs. 2,234.50\nMinimum Amount Due: Rs. 112.00\nPayment Due Date: 08 Nov 2026');
+  assert.equal(summaryFromItems([it('Statement', 10, 10)]), '');
+});

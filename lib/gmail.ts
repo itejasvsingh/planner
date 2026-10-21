@@ -398,7 +398,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
     if (budget > 0 && !throttled && Date.now() < deadline - 10_000) {
       const done = new Set<string>(link.statementMsgIds || []);
       // Statements read before bills were taken from the PDF itself are opened once more, only for the bill
-      const billIds = new Set<string>(link.statementBillIds2 || []);
+      const billIds = new Set<string>(link.statementBillIds3 || []);
       // Card or account, as the opened PDF says: corrects the list in Settings → Gmail
       const kindOf = new Map<string, 'account' | 'card'>();
       const tried: Record<string, { bank: string; v: number }> = { ...(link.statementTried || {}) };
@@ -494,7 +494,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
         }
       }
       patch.statementMsgIds = [...done].slice(-200);
-      patch.statementBillIds2 = [...billIds].slice(-200);
+      patch.statementBillIds3 = [...billIds].slice(-200);
       const index = (link.statementIndex || []) as FoundStatement[];
       if (kindOf.size && index.some((x) => kindOf.has(x.id) && kindOf.get(x.id) !== x.kind)) {
         patch.statementIndex = index.map((x) => (kindOf.has(x.id) ? { ...x, kind: kindOf.get(x.id)! } : x));
