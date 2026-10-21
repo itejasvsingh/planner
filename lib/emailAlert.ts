@@ -149,9 +149,9 @@ export function parseBankEmail(text: string): ParsedTransaction | null {
 export type CardBill = { totalDue: number; minDue: number | null; dueDate: string; last4: string | null; /** Co-brand name found in the text ("Swiggy", "Regalia"…) */ product?: string };
 
 const MONEY = String.raw`(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d{1,2})?)`;
-const TOTAL_DUE = new RegExp(String.raw`\b(?:total\s+(?:amount\s+)?(?:due|dues|payable)|amount\s+due|total\s+outstanding)\b[^\d₹]{0,25}?` + MONEY, 'i');
-const MIN_DUE = new RegExp(String.raw`\bmin(?:imum)?\.?\s+(?:amount\s+)?(?:due|payable)\b[^\d₹]{0,25}?` + MONEY, 'i');
-const DUE_DATE = /\b(?:payment\s+)?due\s+(?:date|by|on)\b\s*(?:is|:|-)?\s*([^\n]{6,40})/i;
+const TOTAL_DUE = new RegExp(String.raw`\b(?:total\s+(?:amount\s+|amt\.?\s*|payment\s+)?(?:due|dues|payable)|(?<!min(?:imum)?\.?\s{0,2})amount\s+(?:due|payable)|total\s+outstanding|new\s+balance)\b[^\d₹]{0,25}?` + MONEY, 'i');
+const MIN_DUE = new RegExp(String.raw`\bmin(?:imum)?\.?\s*(?:amount\s+|amt\.?\s*|payment\s+)?(?:due|dues|payable)\b[^\d₹]{0,25}?` + MONEY, 'i');
+const DUE_DATE = /\b(?:(?:payment\s+)?due\s+(?:date|by|on)|pay\s+by)\b\s*(?:is|:|-)?\s*([^\n]{6,40})/i;
 const CARD_LAST4 = /\b(?:card|a\/c|account)\b[^\n]{0,30}?(?:ending|no\.?|number)?\s*(?:in|with|:)?\s*(?:x+|\*+|•+)\s*(\d{4})\b|\bending\s+(?:in|with)?\s*(\d{4})\b/i;
 
 /**

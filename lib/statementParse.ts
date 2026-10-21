@@ -412,10 +412,12 @@ export function kindFromPdf(text: string): 'account' | 'card' | null {
  * Returns plain "Label: value" lines (empty when none are found), which parseCardBill reads first.
  */
 export function summaryFromItems(items: PdfItem[]): string {
+  // Each bank words these differently: HDFC "Total Amount Due", Axis "Total Payment Due", RBL "Min. Amt. Due",
+  // Amex/Citi "New Balance" / "Due By", SBI Card "Total Amount Due" with the value beside it
   const LABELS: { name: string; re: RegExp; date?: boolean }[] = [
-    { name: 'Total Amount Due', re: /^total\s+(?:amount\s+)?dues?$|^total\s+amount\s+payable$/i },
-    { name: 'Minimum Amount Due', re: /^min(?:imum)?\.?\s+(?:amount\s+)?dues?$|^minimum\s+amount\s+payable$/i },
-    { name: 'Payment Due Date', re: /^(?:payment\s+)?due\s+date$/i, date: true },
+    { name: 'Total Amount Due', re: /^(?:total\s+(?:amount|amt\.?|payment)?\s*(?:due|dues|payable)|total\s+outstanding|amount\s+payable|new\s+balance|closing\s+balance|total\s+balance\s+due)$/i },
+    { name: 'Minimum Amount Due', re: /^min(?:imum)?\.?\s*(?:amount|amt\.?|payment)?\s*(?:due|dues|payable)$/i },
+    { name: 'Payment Due Date', re: /^(?:payment\s+)?due\s+(?:date|by|on)$|^pay(?:ment)?\s+by(?:\s+date)?$|^last\s+date\s+(?:for|of)\s+payment$/i, date: true },
   ];
   const MONEY = /(\d{1,3}(?:,\d{2,3})*(?:\.\d{2})|\d+\.\d{2})/;
   const DATE = /\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b|\b\d{1,2}[ -][A-Za-z]{3,9}\.?,?[ -]\d{2,4}\b|\b[A-Za-z]{3,9} \d{1,2},? \d{4}\b/;
@@ -430,7 +432,7 @@ export function summaryFromItems(items: PdfItem[]): string {
       last.x1 = Math.max(last.x1, it.x + it.w);
     } else phrases.push({ str: it.str, x0: it.x, x1: it.x + it.w, y: it.y, page: it.page });
   }
-  const clean = (s: string) => s.replace(/\s+/g, ' ').trim();
+  const clean = (s: string) => s.replace(/\s+/g, ' ').replace(/[:*]+$/, '').trim();
   const out: string[] = [];
   for (const label of LABELS) {
     const at = phrases.find((p) => label.re.test(clean(p.str)));
@@ -447,7 +449,14 @@ export function summaryFromItems(items: PdfItem[]): string {
         if (Math.abs(dy) > 6) return dy;
         return Math.abs((a.p.x0 + a.p.x1) / 2 - mid) - Math.abs((b.p.x0 + b.p.x1) / 2 - mid);
       })[0];
-    if (below?.v) out.push(`${label.name}: ${label.date ? below.v.replace(/,/g, '') : `Rs. ${below.v}`}`);
+    // Or beside it on the same line (label column, value column)
+    const beside = below ? null : phrases
+      .filter((p) => p.page === at.page && Math.abs(p.y - at.y) <= 4 && p.x0 >= at.x1 - 2 && p.x0 - at.x1 < 260)
+      .map((p) => ({ p, v: clean(p.str).match(label.date ? DATE : MONEY)?.[0] }))
+      .filter((c) => c.v)
+      .sort((a, b) => a.p.x0 - b.p.x0)[0];
+    const found = below || beside;
+    if (found?.v) out.push(`${label.name}: ${label.date ? found.v.replace(/,/g, '') : `Rs. ${found.v}`}`);
   }
   return out.join('\n');
 }

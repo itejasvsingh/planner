@@ -123,3 +123,19 @@ test('card statement summary boxes are read by position (HDFC layout: labels abo
   assert.equal(summaryFromItems(items), 'Total Amount Due: Rs. 2,234.50\nMinimum Amount Due: Rs. 112.00\nPayment Due Date: 08 Nov 2026');
   assert.equal(summaryFromItems([it('Statement', 10, 10)]), '');
 });
+
+test('other banks: their wording, and values beside the labels', () => {
+  const { summaryFromItems } = mod.exports;
+  const it = (str, x, y, w = str.length * 5) => ({ str, x, y, w, page: 1 });
+  // Axis / SBI Card style: label column, value column on the same line
+  const axis = [
+    it('Total Payment Due', 40, 600), it('₹ 8,450.00', 260, 600),
+    it('Minimum Payment Due', 40, 580), it('₹ 423.00', 260, 580),
+    it('Payment Due Date', 40, 560), it('05/11/2026', 260, 560),
+  ];
+  assert.equal(summaryFromItems(axis), 'Total Amount Due: Rs. 8,450.00\nMinimum Amount Due: Rs. 423.00\nPayment Due Date: 05/11/2026');
+  // RBL "Min. Amt. Due", Amex "New Balance" / "Due By", labels ending in a colon
+  const rbl = [it('New Balance:', 40, 700), it('Min. Amt. Due', 200, 700), it('Due By', 360, 700),
+    it('12,000.00', 40, 680), it('600.00', 200, 680), it('Nov 12, 2026', 360, 680)];
+  assert.equal(summaryFromItems(rbl), 'Total Amount Due: Rs. 12,000.00\nMinimum Amount Due: Rs. 600.00\nPayment Due Date: Nov 12 2026');
+});

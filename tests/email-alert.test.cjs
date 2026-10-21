@@ -218,3 +218,10 @@ test('the positional summary of a card statement becomes the bill', () => {
   const bill = parseCardBill('Total Amount Due: Rs. 2,234.50\nMinimum Amount Due: Rs. 112.00\nPayment Due Date: 08 Nov 2026\nHDFC Bank Credit Card Statement\nPREVIOUS STATEMENT DUES PAYMENTS/CREDITS PURCHASES/DEBIT FINANCE CHARGES TOTAL AMOUNT DUE\n₹5,000.00 ₹4,000.00 ₹1,234.50 ₹0.00 ₹2,234.50');
   assert.deepEqual([bill.totalDue, bill.minDue, bill.dueDate], [2234.5, 112, '2026-11-08']);
 });
+
+test('bill wording from other banks in the email or statement text', () => {
+  const axis = parseCardBill('Axis Bank Credit Card Statement\nCard No. XXXX XXXX XXXX 5678\nTotal Payment Due: INR 8,450.00\nMinimum Payment Due: INR 423.00\nPayment Due Date: 05/11/2026');
+  assert.deepEqual([axis.totalDue, axis.minDue, axis.dueDate, axis.last4], [8450, 423, '2026-11-05', '5678']);
+  const rbl = parseCardBill('RBL Bank credit card statement. Total Amt. Due Rs. 3,000.00 Min. Amt. Due Rs. 150.00 Pay by 12 Nov 2026');
+  assert.deepEqual([rbl.totalDue, rbl.minDue, rbl.dueDate], [3000, 150, '2026-11-12']);
+});
