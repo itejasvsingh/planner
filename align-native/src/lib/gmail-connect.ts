@@ -108,14 +108,14 @@ export type StatementKind = 'account' | 'card';
 /** Statements found in Gmail for one bank and kind (bank account / credit card). */
 export type StatementGroup = {
   bankId: string; bankName: string; kind: StatementKind; count: number; latest: number;
-  locked: boolean | null; hasPassword: boolean; wrongPassword: boolean; selected: boolean;
+  locked: boolean | null; hasPassword: boolean; wrongPassword: boolean; selected: boolean; /** The saved password opened a statement */ verified?: boolean;
 };
 export type StatementLists = { accounts: StatementGroup[]; cards: StatementGroup[]; searched: boolean; /** How far back statements are read */ months?: number; /** Banks whose cards are all closed */ closedCards?: { bankId: string; bankName: string }[] };
 /** Statements found so far, as two lists, and whether each bank's need a password. */
 export const gmailStatements = () => call<StatementLists>('/api/gmail/statements');
 /** Saves a bank's statement PDF password (kept encrypted on the server, never shown again); null removes it. */
 export const gmailSetStatementPassword = (bank: string, kind: StatementKind, password: string | null) =>
-  call<{ ok: true; hasPassword: boolean }>('/api/gmail/statements', { method: 'POST', body: JSON.stringify({ bank, kind, password }) });
+  call<{ ok: true; hasPassword: boolean; verified?: boolean }>('/api/gmail/statements', { method: 'POST', body: JSON.stringify({ bank, kind, password }) });
 
 /** Every credit card from this bank is closed (or open again): its statements and bills aren't read. */
 export const gmailCloseBankCards = (bankId: string, closed: boolean) =>

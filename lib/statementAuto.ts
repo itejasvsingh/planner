@@ -15,7 +15,8 @@ import { guessCategory } from './smsParse';
  * transactions (deduplicated against SMS/alerts and manual imports) and the closing balance are kept.
  */
 
-export type StatementPassword = { sealed: string; v: number };
+/** `verified`: it has opened one of that bank's statement PDFs (checked on save, or when a statement was read). */
+export type StatementPassword = { sealed: string; v: number; verified?: boolean };
 export type StatementState = {
   state: 'ok' | 'needs_password' | 'wrong_password' | 'unreadable'; at: number; locked?: boolean; added?: number;
   /** Which email, and when Align found it (for "new statement" notifications). */
@@ -55,14 +56,14 @@ export const statementSlot = (bankId: string, kind: StatementKind) => (kind === 
 export const kindsFor = (bankId: string): StatementKind[] => (CARD_ONLY.has(bankId) ? ['card'] : ['account', 'card']);
 
 /** Saves (or with null, removes) the PDF password for one kind of statement from a bank. */
-export async function setStatementPassword(phone: string, bankId: string, password: string | null, kind: StatementKind = 'account') {
+export async function setStatementPassword(phone: string, bankId: string, password: string | null, kind: StatementKind = 'account', verified = false) {
   const ref = db.collection('gmail_links').doc(phone);
   const field = `statementPasswords.${statementSlot(bankId, kind)}`;
   if (!password) {
     await ref.update({ [field]: FieldValue.delete() });
     return;
   }
-  await ref.update({ [field]: { sealed: seal(password), v: Date.now() } satisfies StatementPassword });
+  await ref.update({ [field]: { sealed: seal(password), v: Date.now(), verified } satisfies StatementPassword });
 }
 
 const KIND = (slot: string) => (slot.endsWith('__card') ? 'card' : 'account');
@@ -160,6 +161,8 @@ export type StatementGroup = {
   latest: number;
   /** true: needs a password; false: opens without one; null: not checked yet. */
   locked: boolean | null;
+  /** The saved password has opened one of these statements. */
+  verified?: boolean;
   hasPassword: boolean;
   /** The saved password didn't open the last one. */
   wrongPassword: boolean;
@@ -194,6 +197,7 @@ export function statementGroups(link: Record<string, any>): { accounts: Statemen
     const g = groups.get(slot) || {
       bankId: s.bankId, bankName: s.bankName, kind: s.kind, count: 0, latest: 0, locked: null as boolean | null,
       hasPassword: !!passwords[slot], wrongPassword: status[slot]?.state === 'wrong_password',
+      verified: passwords[slot]?.verified === true && status[slot]?.state !== 'wrong_password',
       // Statements are read from every bank, ticked or not
       selected: true,
     };

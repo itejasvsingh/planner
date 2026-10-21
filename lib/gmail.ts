@@ -431,8 +431,11 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
           const otherPw = passwords[statementSlot(bank.id, emailCard ? 'account' : 'card')];
           let res = await readStatement(buf);
           const locked = res.status === 'password';
-          if (res.status === 'password' && pw) res = await readStatement(buf, open(pw.sealed));
-          if (res.status === 'password' && otherPw) res = await readStatement(buf, open(otherPw.sealed));
+          let opener: string | null = null;
+          if (res.status === 'password' && pw) { res = await readStatement(buf, open(pw.sealed)); if (res.status !== 'password') opener = statementSlot(bank.id, emailCard ? 'card' : 'account'); }
+          if (res.status === 'password' && otherPw) { res = await readStatement(buf, open(otherPw.sealed)); if (res.status !== 'password') opener = statementSlot(bank.id, emailCard ? 'account' : 'card'); }
+          // The password that opened it is now known to work
+          if (opener && !passwords[opener]?.verified) patch[`statementPasswords.${opener}.verified`] = true;
           const at = Number(msg.internalDate || Date.now());
           // Once open, the statement itself says whether it is a card or an account statement (and which one), which
           // beats the email's wording; a locked file can only go by the email
@@ -694,17 +697,38 @@ export async function checkStatementPassword(phone: string, bankId: string, kind
   try {
     const link = (await links().doc(phone).get()).data();
     if (!link || link.status !== 'connected') return 'unknown';
-    const index = ((link.statementIndex || []) as FoundStatement[])
-      .filter((x) => x.bankId === bankId && x.kind === kind && x.locked === true)
-      .sort((a, b) => b.date - a.date);
-    if (!index.length) return 'unknown';
     const token = await accessToken(open(link.token));
     if (token === 'revoked') return 'unknown';
-    const msg = await gmail<GmailMessage>(token, `/messages/${index[0].id}?format=full`);
-    const pdf = pdfAttachments(msg).find((a) => a.size <= 5_000_000);
-    if (!pdf) return 'unknown';
-    const data = pdf.data || (await gmail<{ data: string }>(token, `/messages/${index[0].id}/attachments/${pdf.attachmentId}`)).data;
-    const res = await readStatement(Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64'), password);
+    const pdfOf = async (id: string) => {
+      const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=full`);
+      const pdf = pdfAttachments(msg).find((a) => a.size <= 5_000_000);
+      if (!pdf) return null;
+      const data = pdf.data || (await gmail<{ data: string }>(token, `/messages/${id}/attachments/${pdf.attachmentId}`)).data;
+      return { msg, buf: Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64') };
+    };
+    // A locked statement of this bank and kind: from the list Align keeps, else searched for in Gmail now
+    let target: Buffer | null = null;
+    const known = ((link.statementIndex || []) as FoundStatement[])
+      .filter((x) => x.bankId === bankId && x.kind === kind && x.locked === true)
+      .sort((a, b) => b.date - a.date)[0];
+    if (known) target = (await pdfOf(known.id))?.buf || null;
+    if (!target) {
+      const bank = BANKS.find((b) => b.id === bankId);
+      const domains = bank ? bank.senders : sendersFor(null, link.extraSenders).filter((d) => bankForSender(`x@${d}`)?.id === bankId);
+      if (!domains.length) return 'unknown';
+      const q = statementPdfQuery(domains, statementSince(12) / 1000);
+      const ids = ((await gmail<{ messages?: { id: string }[] }>(token, `/messages?q=${encodeURIComponent(q)}&maxResults=8`)).messages || []).map((m) => m.id);
+      for (const id of ids) {
+        const got = await pdfOf(id);
+        if (!got || (await isLockedPdf(got.buf)) !== true) continue;
+        const { subject, text } = messageText(got.msg);
+        if (statementKind(bankId, subject, text) !== kind) continue;
+        target = got.buf;
+        break;
+      }
+    }
+    if (!target) return 'unknown';
+    const res = await readStatement(target, password);
     return res.status === 'password' ? 'wrong' : 'ok';
   } catch {
     return 'unknown';

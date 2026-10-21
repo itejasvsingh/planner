@@ -90,6 +90,7 @@ test('a wrong password says so; the right one imports the transactions and the c
   assert.deepEqual(all.filter((i) => i.source === 'statement').map((i) => i.amount).sort((a, b) => a - b), [450, 2000, 50000]);
   const [acc] = await accountBalances(PHONE);
   assert.deepEqual([acc.bankId, acc.last4, acc.balance], ['hdfc', '7788', 42550]);
+  assert.equal((await link().get()).data().statementPasswords.hdfc.verified, true, 'opening a statement proves the password works');
   // The password is stored sealed, never as typed
   assert.equal(JSON.stringify((await link().get()).data()).includes('TEST1234'), false);
 });
@@ -116,6 +117,7 @@ test('Find statements lists the last 40 days with what happened to each, from ev
   const g = statementGroups((await link().get()).data());
   const pick = (x) => [x.bankId, x.count, x.locked, x.hasPassword, x.selected];
   assert.deepEqual(g.accounts.map(pick), [['hdfc', 1, true, true, true], ['in_xyz', 1, false, false, true]]);
+  assert.equal(g.accounts[0].verified, true, 'shown as working, not just saved');
   assert.deepEqual(g.cards.map(pick), [['icici', 1, true, false, true]]);
   assert.equal(g.months, 3, 'the last 3 months unless the user asks for more');
 

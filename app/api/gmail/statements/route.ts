@@ -58,18 +58,20 @@ export async function POST(req: Request) {
   if (password !== null && (password.length < 1 || password.length > 64)) return NextResponse.json({ error: 'Enter the password (up to 64 characters).' }, { status: 400 });
   const link = await db.collection('gmail_links').doc(user.phone).get();
   if (!link.exists) return NextResponse.json({ error: 'Connect Gmail first.' }, { status: 409 });
-  // A password that doesn't open the latest statement isn't saved: the user is told to try again
-  if (password && (await checkStatementPassword(user.phone, bank.id, kind, password)) === 'wrong') {
+  // A password is only called saved once it has opened one of that bank's statements; a wrong one isn't kept
+  const check = password ? await checkStatementPassword(user.phone, bank.id, kind, password) : 'unknown';
+  if (check === 'wrong') {
     return NextResponse.json({
       error: `That password didn’t open your latest ${bank.name} ${kind === 'card' ? 'credit card' : 'account'} statement. Check how the bank’s email says it’s made (often part of your name and date of birth) and try again.`,
       wrongPassword: true,
     }, { status: 422 });
   }
-  await setStatementPassword(user.phone, bank.id, password, kind);
+  await setStatementPassword(user.phone, bank.id, password, kind, check === 'ok');
   // Read the statements waiting for this password in the background; the app refreshes its lists shortly
   if (password) {
     const started = Date.now();
     after(() => readInBackground(user.phone, started));
   }
-  return NextResponse.json({ ok: true, bank: bank.id, kind, hasPassword: !!password, reading: !!password });
+  // verified: it opened a statement; false: kept, but there was no statement in Gmail to try it on yet
+  return NextResponse.json({ ok: true, bank: bank.id, kind, hasPassword: !!password, verified: check === 'ok', reading: !!password });
 }

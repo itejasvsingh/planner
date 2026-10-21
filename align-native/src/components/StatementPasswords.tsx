@@ -76,12 +76,14 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
     setNote('');
     setPwError('');
     try {
-      await gmailSetStatementPassword(bank, kind, password);
+      const r = await gmailSetStatementPassword(bank, kind, password);
       setEditing(null);
       setValue('');
       load();
       if (password) {
-        setNote('Password saved. Align is reading those statements in the background; this list updates in about a minute.');
+        setNote(r.verified
+          ? 'Password works: it opened your statement. Align is reading your statements in the background; this list updates in about a minute.'
+          : 'Kept, but not checked yet: there’s no statement from this bank in your Gmail to try it on. It’s checked when the next one arrives.');
         refreshSoon();
       } else setNote('Password removed.');
     } catch (e) {
@@ -125,7 +127,8 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
     if (g.locked === false) status = { text: 'No password needed ✓', color: c.income };
     else if (g.locked === null) status = { text: 'Not checked yet', color: c.textTertiary };
     else if (g.wrongPassword) status = { text: 'Wrong password', color: c.expense };
-    else if (g.hasPassword) status = { text: '🔒 Password saved ✓', color: c.income };
+    else if (g.hasPassword && g.verified) status = { text: '🔒 Password works ✓', color: c.income };
+    else if (g.hasPassword) status = { text: '🔒 Password not checked yet', color: c.textSecondary };
     else status = { text: '🔒 Needs password', color: c.expense };
     const action = g.locked === true ? (g.wrongPassword ? 'Try again' : g.hasPassword ? 'Change' : 'Add password') : null;
     return (

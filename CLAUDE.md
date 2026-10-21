@@ -42,7 +42,8 @@
 - Gmail reads alerts only from the banks the user ticks in Settings → Gmail (`gmail_links.banks` / `extraSenders`; null =
   all of `lib/bankSenders.ts` BANKS); statements and card bills (steps 3–4 of `syncGmail`) come from every known bank plus `extraSenders`, only from the last
   3 months unless the user picks 6 or 12 (`gmail_links.statementMonths`, `statementSince` in `lib/statementAuto.ts`, POST `/api/gmail/statements` `{months}`).
-  A statement password is tried on the newest locked statement before it's saved (`checkStatementPassword`); a wrong one is refused (422) with a try-again message. Alerts from any bank go through `parseBankEmail` (sentence + labelled rows);
+  A statement password is tried on the newest locked statement before it's saved (`checkStatementPassword`, searching Gmail for one if Align has none listed); a wrong one is refused (422) with a try-again message.
+  `statementPasswords.<slot>.verified` is set only when it opened a statement (on save or during a sync); the app shows "Password works" vs "not checked yet". Alerts from any bank go through `parseBankEmail` (sentence + labelled rows);
   `recordTransaction` keeps one payment from SMS/email/Gmail/statement once (same ref, or same amount and
   direction ±1 day from another source unless both refs differ) and stores `ref` and `time`.
 - Wallet & accounts (`lib/moneyAccounts.ts`, `GET /api/money/accounts`): per card the latest statement
