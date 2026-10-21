@@ -75,7 +75,9 @@ test('a card added by hand counts spends tagged with its last digits', async () 
 
 test('balance history: one point a day (the latest that day), late older messages fill their own day', async () => {
   const P3 = '919800000303';
-  const t = (n, h) => Date.now() - n * DAY + h * 60000;
+  // From midday India time, so minutes added never cross midnight (the test ran flaky near 23:45 IST)
+  const noon = Date.parse(`${istParts(Date.now()).date}T12:00:00+05:30`);
+  const t = (n, h) => noon - n * DAY + h * 60000;
   await saveBalance(P3, { bankId: 'hdfc', bankName: 'HDFC Bank', last4: '7777', balance: 1000, at: t(3, 10) });
   await saveBalance(P3, { bankId: 'hdfc', bankName: 'HDFC Bank', last4: '7777', balance: 900, at: t(3, 20) });
   await saveBalance(P3, { bankId: 'hdfc', bankName: 'HDFC Bank', last4: '7777', balance: 5000, at: t(2, 5) });
