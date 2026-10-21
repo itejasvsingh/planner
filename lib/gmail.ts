@@ -30,6 +30,9 @@ const OVERLAP_SEC = 2 * 24 * 3600; // re-read the last two days each run; record
 // message costs 20 (Google also throttles below that in practice). One read about every half second is
 // ~2,400 units a minute; a long backfill continues over the next checks.
 const MAX_MESSAGES_PER_RUN = 80;
+/** Kept in every check for card bills and statement PDFs (emails, and time before the deadline). */
+const STATEMENT_RESERVE = 12;
+const STATEMENT_TIME = 25_000;
 const READ_WIDTH = 1;
 const READ_PAUSE_MS = 450;
 // Checks for one user don't overlap (app open, "Check now" and the 15-minute job share the quota).
@@ -293,10 +296,11 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
     let checked = 0;
     let throttled = false;
 
-    const read = async (ids: string[]) => {
-      const batch = ids.slice(0, budget);
+    /** `max`: at most this many emails; `until`: stop by then (alerts leave room for bills and statements). */
+    const read = async (ids: string[], lim: { max?: number; until?: number } = {}) => {
+      const batch = ids.slice(0, Math.min(budget, lim.max ?? budget));
       const dates = new Array<number>(batch.length).fill(0);
-      const result = await pool(batch, READ_WIDTH, deadline, async (id) => {
+      const result = await pool(batch, READ_WIDTH, lim.until ?? deadline, async (id) => {
         const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=full`);
         const at = Number(msg.internalDate || Date.now());
         dates[batch.indexOf(id)] = at;
@@ -354,16 +358,20 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
     // Only the last 3 months of statements, unless the user asked for more
     const statementAfter = statementSince(statementMonthsOf(link)) / 1000;
 
+    // Time kept for bills and statements: 25 s, or 40% of a shorter check
+    const alertsUntil = deadline - Math.min(STATEMENT_TIME, (deadline - Date.now()) * 0.4);
+
     // 1. New since the last check, oldest first.
     const fresh = await list(bankQuery(senders, { after: Number(link.syncedThrough) / 1000 - OVERLAP_SEC }), 1000);
-    const forward = await read(fresh.ids.reverse());
+    const forward = await read(fresh.ids.reverse(), { max: budget - STATEMENT_RESERVE, until: alertsUntil });
     patch.syncedThrough = forward.all && fresh.complete ? runStart : Math.max(Number(link.syncedThrough), ...forward.dates);
 
     // 2. History, newest first.
     let backfillUntil: number | null = link.backfillUntil ? Number(link.backfillUntil) : null;
-    if (backfillUntil && budget > 0 && !throttled && Date.now() < deadline) {
-      const old = await list(bankQuery(senders, { after: Number(link.backfillFrom) / 1000, before: backfillUntil / 1000 }), budget);
-      const back = await read(old.ids);
+    // Older alerts never use the room kept for bills and statements, or they'd wait until the whole history is read
+    if (backfillUntil && budget > STATEMENT_RESERVE && !throttled && Date.now() < alertsUntil) {
+      const old = await list(bankQuery(senders, { after: Number(link.backfillFrom) / 1000, before: backfillUntil / 1000 }), budget - STATEMENT_RESERVE);
+      const back = await read(old.ids, { max: budget - STATEMENT_RESERVE, until: alertsUntil });
       if (back.all && old.complete) backfillUntil = null;
       // Re-reads the oldest email of this run next time (same second), which is harmless.
       else if (back.dates.length) backfillUntil = Math.min(...back.dates) + 1000;
