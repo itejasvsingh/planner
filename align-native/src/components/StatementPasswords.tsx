@@ -4,6 +4,7 @@ import { CreditCard, FileLock2, Landmark, Search } from 'lucide-react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { useTheme } from '@/hooks/use-theme';
+import { whenSignedIn } from '@/lib/firebase';
 import { Radius } from '@/constants/theme';
 import {
   gmailCloseBankCards, gmailFindStatements, gmailSetStatementMonths, gmailSetStatementPassword, gmailStatements,
@@ -26,7 +27,12 @@ const day = (ms: number) => new Date(ms).toLocaleDateString('en-GB', { day: 'num
  * new statement by itself (transactions, no duplicates, and balance). Passwords are stored encrypted on the
  * server and never shown again; the PDFs aren't kept.
  */
-export default function StatementPasswords({ refreshKey }: { refreshKey: number }) {
+export default function StatementPasswords({ refreshKey, mode = 'settings', onChanged }: {
+  refreshKey: number;
+  /** 'pending': only the statements waiting for a password (or with a wrong one), for Wallet */
+  mode?: 'settings' | 'pending';
+  onChanged?: () => void;
+}) {
   const c = useTheme();
   const [lists, setLists] = useState<StatementLists | null>(null);
   const [editing, setEditing] = useState<string | null>(null); // "<bank>:<kind>"
@@ -40,7 +46,8 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
   const load = useCallback(() => {
     gmailStatements().then(setLists).catch(() => setLists(l => l || { accounts: [], cards: [], searched: false }));
   }, []);
-  useEffect(load, [load, refreshKey]);
+  // After sign-in is restored (a request before that is refused)
+  useEffect(() => whenSignedIn(() => { load(); }), [load, refreshKey]);
 
   // While statements are read in the background, refresh the lists a couple of times
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -80,6 +87,7 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
       setEditing(null);
       setValue('');
       load();
+      onChanged?.();
       if (password) {
         setNote(r.verified
           ? 'Password works: it opened your statement. Align is reading your statements in the background; this list updates in about a minute.'
@@ -127,6 +135,7 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
     if (g.locked === false) status = { text: 'No password needed ✓', color: c.income };
     else if (g.locked === null) status = { text: 'Not checked yet', color: c.textTertiary };
     else if (g.wrongPassword) status = { text: 'Wrong password', color: c.expense };
+    else if (g.unreadable) status = { text: 'Opened, but couldn’t read it', color: c.expense };
     else if (g.hasPassword && g.verified) status = { text: '🔒 Password works ✓', color: c.income };
     else if (g.hasPassword) status = { text: '🔒 Password not checked yet', color: c.textSecondary };
     else status = { text: '🔒 Needs password', color: c.expense };
@@ -212,7 +221,29 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
     </View>
   );
 
-  if (!lists) return <ActivityIndicator color={c.accent} style={{ marginTop: 16 }} />;
+  if (!lists) return mode === 'pending' ? null : <ActivityIndicator color={c.accent} style={{ marginTop: 16 }} />;
+
+  if (mode === 'pending') {
+    const waiting = (g: StatementGroup) => g.locked === true && (!g.hasPassword || g.wrongPassword);
+    const pending = [...lists.accounts, ...lists.cards].filter(waiting);
+    if (!pending.length) return null;
+    return (
+      <View style={[styles.box, { backgroundColor: c.backgroundElement, borderColor: c.expense, marginTop: 0 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <FileLock2 color={c.expense} size={20} />
+          <Text style={{ color: c.text, fontSize: 16, fontWeight: '700', flex: 1 }}>
+            {pending.length === 1 ? '1 statement needs its password' : `${pending.length} statements need their passwords`}
+          </Text>
+        </View>
+        <Text style={{ color: c.textSecondary, fontSize: 13, lineHeight: 19 }}>
+          Enter the PDF password your bank uses. Align checks it opens the statement, then reads it for you.
+        </Text>
+        <View style={[styles.list, { borderColor: c.border }]}>{pending.map(row)}</View>
+        {!!note && <Text accessibilityLiveRegion="polite" style={{ color: c.textSecondary, fontSize: 13 }}>{note}</Text>}
+      </View>
+    );
+  }
+
   const any = lists.accounts.length + lists.cards.length > 0;
   const months = (lists.months === 6 || lists.months === 12 ? lists.months : 3) as 3 | 6 | 12;
   const span = months === 12 ? 'last year' : `last ${months} months`;

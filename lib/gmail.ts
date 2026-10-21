@@ -9,7 +9,7 @@ import { importStatementRows, passwordVersion, statementKind, statementMonthsOf,
 import { isCardPaymentReceived, parseBankEmail, parseCardBill } from './emailAlert';
 import { bankForSender, ensureBillTask, markBillsPaid, saveBill } from './cardBills';
 import { accountLast4, availableBalance, cardPaymentAmount, creditCardOf } from './accountParse';
-import { isClosedCard, recordCardPayment, saveBalance } from './moneyAccounts';
+import { isClosedCard, recordCardPayment, saveBalance, saveStatementRecord } from './moneyAccounts';
 import { istParts, recordTransaction } from './recordTransaction';
 
 /**
@@ -461,6 +461,8 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
             added += r.added;
             if (!r.complete) break; // out of time: this statement continues next check
             status[slot] = { state: 'ok', at, msgId: id, foundAt: Date.now(), locked, added: r.added, rows: r.rows, from: r.from, to: r.to, checked: r.checked, extras: r.extras };
+            const product = creditCard ? parseCardBill(`${pdfText}\n${text}`)?.product || null : null;
+            await saveStatementRecord(phone, { id, bankId: bank.id, bankName: bank.name, kind: creditCard ? 'card' : 'account', last4, product, state: 'ok', from: r.from || null, to: r.to || null, rows: r.rows, added: r.added, at });
             done.add(id);
             delete tried[id];
           } else if (res.status === 'password') {
@@ -468,6 +470,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
             tried[id] = { bank: slot, v: passwordVersion(passwords, bank.id) };
           } else {
             status[slot] = { state: 'unreadable', at, msgId: id, foundAt: Date.now() };
+            await saveStatementRecord(phone, { id, bankId: bank.id, bankName: bank.name, kind: creditCard ? 'card' : 'account', last4, state: 'unreadable', at });
             done.add(id);
           }
         } catch (e) {
@@ -685,7 +688,7 @@ export async function findStatements(phone: string, deadline = Date.now() + 40_0
   const statements = out.sort((a, b) => b.date - a.date);
   // Remember what was learned (newest 100), including statements this search didn't get to
   const merged = new Map<string, FoundStatement>([...known.entries(), ...statements.map((x) => [x.id, x] as const)]);
-  await ref.update({ statementIndex: [...merged.values()].sort((a, b) => b.date - a.date).slice(0, 100), statementIndexVersion: INDEX_VERSION });
+  await ref.update({ statementIndex: [...merged.values()].sort((a, b) => b.date - a.date).slice(0, 100), statementIndexVersion: INDEX_VERSION, statementIndexAt: Date.now() });
   return { status: 'ok', statements };
 }
 

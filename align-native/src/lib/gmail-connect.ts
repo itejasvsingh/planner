@@ -108,9 +108,13 @@ export type StatementKind = 'account' | 'card';
 /** Statements found in Gmail for one bank and kind (bank account / credit card). */
 export type StatementGroup = {
   bankId: string; bankName: string; kind: StatementKind; count: number; latest: number;
-  locked: boolean | null; hasPassword: boolean; wrongPassword: boolean; selected: boolean; /** The saved password opened a statement */ verified?: boolean;
+  locked: boolean | null; hasPassword: boolean; wrongPassword: boolean; selected: boolean; /** The saved password opened a statement */ verified?: boolean; /** The latest one opened but couldn't be read */ unreadable?: boolean;
 };
-export type StatementLists = { accounts: StatementGroup[]; cards: StatementGroup[]; searched: boolean; /** How far back statements are read */ months?: number; /** Banks whose cards are all closed */ closedCards?: { bankId: string; bankName: string }[] };
+import type { StatementRecord } from '@/lib/statement-summary';
+export type StatementLists = { accounts: StatementGroup[]; cards: StatementGroup[]; searched: boolean; /** How far back statements are read */ months?: number; /** Banks whose cards are all closed */ closedCards?: { bankId: string; bankName: string }[];
+  /** When Gmail was last searched for statements */ searchedAt?: number | null;
+  /** Statements Align opened in the window */ read?: StatementRecord[];
+};
 /** Statements found so far, as two lists, and whether each bank's need a password. */
 export const gmailStatements = () => call<StatementLists>('/api/gmail/statements');
 /** Saves a bank's statement PDF password (kept encrypted on the server, never shown again); null removes it. */

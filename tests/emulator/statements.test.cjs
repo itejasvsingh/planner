@@ -91,6 +91,9 @@ test('a wrong password says so; the right one imports the transactions and the c
   const [acc] = await accountBalances(PHONE);
   assert.deepEqual([acc.bankId, acc.last4, acc.balance], ['hdfc', '7788', 42550]);
   assert.equal((await link().get()).data().statementPasswords.hdfc.verified, true, 'opening a statement proves the password works');
+  // A record of what it covered, for the Wallet summary (server-only, no amounts copied)
+  const recs = (await db.collection('money_accounts').doc(PHONE).collection('statements').get()).docs.map((d) => d.data());
+  assert.deepEqual(recs.map((r) => [r.id, r.bankId, r.kind, r.last4, r.state, r.from, r.to, r.rows]), [['s1', 'hdfc', 'account', '7788', 'ok', '2026-09-03', '2026-09-28', 4]]);
   // The password is stored sealed, never as typed
   assert.equal(JSON.stringify((await link().get()).data()).includes('TEST1234'), false);
 });

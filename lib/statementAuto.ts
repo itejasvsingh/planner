@@ -163,6 +163,8 @@ export type StatementGroup = {
   locked: boolean | null;
   /** The saved password has opened one of these statements. */
   verified?: boolean;
+  /** The latest one opened but its layout couldn't be read. */
+  unreadable?: boolean;
   hasPassword: boolean;
   /** The saved password didn't open the last one. */
   wrongPassword: boolean;
@@ -198,6 +200,7 @@ export function statementGroups(link: Record<string, any>): { accounts: Statemen
       bankId: s.bankId, bankName: s.bankName, kind: s.kind, count: 0, latest: 0, locked: null as boolean | null,
       hasPassword: !!passwords[slot], wrongPassword: status[slot]?.state === 'wrong_password',
       verified: passwords[slot]?.verified === true && status[slot]?.state !== 'wrong_password',
+      unreadable: status[slot]?.state === 'unreadable',
       // Statements are read from every bank, ticked or not
       selected: true,
     };

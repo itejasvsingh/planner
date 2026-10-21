@@ -299,3 +299,19 @@ export async function setBankCardsClosed(phone: string, issuer: string, closed: 
   await db.collection('gmail_links').doc(phone).update({ closedBanks: closed ? FieldValue.arrayUnion(issuer) : FieldValue.arrayRemove(issuer) });
   return syncClosedCards(phone);
 }
+
+/** One statement Align opened (money_accounts/<phone>/statements/<msgId>, server-only): what it covered, for the Wallet summary. */
+export type StatementRecord = {
+  id: string; bankId: string; bankName: string; kind: 'account' | 'card'; last4: string | null; product?: string | null;
+  state: 'ok' | 'unreadable'; from?: string | null; to?: string | null; rows?: number; added?: number; at: number;
+};
+
+export async function saveStatementRecord(phone: string, rec: StatementRecord) {
+  await root(phone).collection('statements').doc(rec.id).set(rec);
+}
+
+/** Statements read since `sinceMs`, newest first (at most 30). */
+export async function statementRecords(phone: string, sinceMs: number): Promise<StatementRecord[]> {
+  const snap = await root(phone).collection('statements').where('at', '>=', sinceMs).get();
+  return snap.docs.map((d) => d.data() as StatementRecord).sort((a, b) => b.at - a.at).slice(0, 30);
+}

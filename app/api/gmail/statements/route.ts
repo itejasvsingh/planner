@@ -2,10 +2,10 @@ import { after, NextResponse } from 'next/server';
 import { requestUser } from '../../../../lib/requestUser';
 import { db } from '../../../../lib/firebase';
 import { BANKS, bankNameById } from '../../../../lib/bankSenders';
-import { kindsFor, setStatementPassword, statementGroups, STATEMENT_MONTHS } from '../../../../lib/statementAuto';
+import { kindsFor, setStatementPassword, statementGroups, statementMonthsOf, statementSince, STATEMENT_MONTHS } from '../../../../lib/statementAuto';
 import { readInBackground } from '../../../../lib/statementReader';
 import { checkStatementPassword } from '../../../../lib/gmail';
-import { setBankCardsClosed } from '../../../../lib/moneyAccounts';
+import { setBankCardsClosed, statementRecords } from '../../../../lib/moneyAccounts';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -18,8 +18,10 @@ export async function GET(req: Request) {
   const user = await requestUser(req);
   if (!user) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
   const link = (await db.collection('gmail_links').doc(user.phone).get()).data();
-  if (!link) return NextResponse.json({ accounts: [], cards: [], searched: false });
-  return NextResponse.json({ ...statementGroups(link), searched: Array.isArray(link.statementIndex) });
+  if (!link) return NextResponse.json({ accounts: [], cards: [], searched: false, read: [] });
+  // The statements Align has opened in the window, for the Wallet summary (amounts are worked out in the app)
+  const read = await statementRecords(user.phone, statementSince(statementMonthsOf(link))).catch(() => []);
+  return NextResponse.json({ ...statementGroups(link), searched: Array.isArray(link.statementIndex), searchedAt: link.statementIndexAt || null, read });
 }
 
 /** Body: { bank, kind: 'account' | 'card', password: string | null }. Saves the PDF password (sealed), or removes it. */

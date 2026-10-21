@@ -5,7 +5,7 @@ import { Colors } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { usePhone } from '@/lib/phone-context';
 import { usePlannerItems } from '@/lib/use-planner-items';
-import { useCards } from '@/lib/cards-store';
+import { refreshCards, useCards } from '@/lib/cards-store';
 import { adjustBalances } from '@/lib/account-balances';
 import { upcomingPayments } from '@/lib/upcoming';
 import { cardTitle } from '@/lib/card-format';
@@ -15,6 +15,7 @@ import ScreenHeader from '@/components/ScreenHeader';
 import TransactionSheet from '@/components/TransactionSheet';
 import CardsAccounts from '@/components/finance/CardsAccounts';
 import UpcomingPayments from '@/components/finance/UpcomingPayments';
+import StatementsCard from '@/components/finance/StatementsCard';
 
 /**
  * Wallet: net worth, credit cards (dues, overdue), bank accounts with their trend and details, and the bills coming up.
@@ -63,6 +64,7 @@ export default function WalletScreen() {
         <View style={{ paddingHorizontal: 16, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
           <UpcomingPayments rows={upcoming} />
           <View style={{ height: 16 }} />
+          <StatementsCard items={items} cards={cardData?.cards || []} onCardsChanged={() => void refreshCards(phone)} />
           <CardsAccounts phone={phone} items={items} onOpenSettings={() => router.push('/settings/gmail')} onEditTransaction={setEditing} />
         </View>
       </ScrollView>

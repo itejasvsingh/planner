@@ -80,6 +80,11 @@
   (`SELF_TRANSFER`) make `recordTransaction` save money-out as type `transfer`, before the duplicate check.
 - Suspicious payments are found in the app (`align-native/src/lib/suspicious.ts`, pure): Money shows "payments to
   check" and `SuspiciousWatcher` notifies once per new one; the answer is stored as the item's `review`.
+- Wallet → Statements (`components/finance/StatementsCard.tsx`): asks for missing/wrong PDF passwords inline (StatementPasswords
+  `mode="pending"`), searches Gmail for statements at most daily (`statementIndexAt`), and summarises each statement read
+  (`money_accounts/<phone>/statements/<msgId>`, written by `syncGmail` step 4) on the phone with `lib/statement-summary.ts` (rules only,
+  no AI): spent/received, top categories and shops, biggest, change vs the previous one; the newest card statement shows what's due
+  and a per-card "Remind me".
 - Closed cards: `card_edits.closed` (Wallet → card → "This card is closed") or `gmail_links.closedBanks` (Settings → Gmail → statements,
   "Card closed?" for a bank with no card in Wallet yet). `syncClosedCards` mirrors them into `gmail_links.closedCards`/`closedIssuers`,
   ticks off their bill tasks and clears their statement status; `isClosedCard` makes the Gmail sync skip their bills and statements.
