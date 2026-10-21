@@ -105,7 +105,7 @@ export default function BankPicker({ autoDetect, onSaved }: { autoDetect: boolea
     <View style={{ gap: 12 }}>
       <Text style={[styles.title, { color: c.text }]}>Your banks and cards</Text>
       <Text style={[styles.body, { color: c.textSecondary }]}>
-        Align only searches emails from the ones you tick. Fewer banks means quicker checks and less of your inbox read.
+        Align reads transaction alerts only from the ones you tick. Statements and card bills are picked up from every bank and card company Align knows.
       </Text>
       {busy === 'detect' ? (
         <View style={styles.detecting}>

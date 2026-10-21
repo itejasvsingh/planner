@@ -39,8 +39,8 @@
   `GMAIL_SYNC_SECRET`. The OAuth app is unverified (100-user lifetime cap); test with your own Google account.
 - Vercel functions can't require() ESM-only packages (see tests/server-modules.test.cjs); before shipping
   server dependencies, load built routes with `node --no-experimental-require-module`.
-- Gmail reads only the banks the user ticks in Settings → Gmail (`gmail_links.banks` / `extraSenders`; null =
-  all of `lib/bankSenders.ts` BANKS). Alerts from any bank go through `parseBankEmail` (sentence + labelled rows);
+- Gmail reads alerts only from the banks the user ticks in Settings → Gmail (`gmail_links.banks` / `extraSenders`; null =
+  all of `lib/bankSenders.ts` BANKS); statements and card bills (steps 3–4 of `syncGmail`) come from every known bank plus `extraSenders`. Alerts from any bank go through `parseBankEmail` (sentence + labelled rows);
   `recordTransaction` keeps one payment from SMS/email/Gmail/statement once (same ref, or same amount and
   direction ±1 day from another source unless both refs differ) and stores `ref` and `time`.
 - Wallet & accounts (`lib/moneyAccounts.ts`, `GET /api/money/accounts`): per card the latest statement

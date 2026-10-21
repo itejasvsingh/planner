@@ -244,11 +244,13 @@ test('bank picker: finds the banks in Gmail, reads only the chosen ones, and cat
   assert.deepEqual([saved.banks, saved.extra], [['hdfc'], ['alerts@mynewbank.in']]);
   google.fetched = [];
   await gmail.syncGmail(P4, Date.now() + 20000);
-  assert.ok(!google.fetched.includes('g2'), 'the ICICI email is not read: ICICI was not chosen');
-  const q = google.queries[google.queries.length - 1];
-  assert.match(q, /hdfcbank\.net/);
-  assert.match(q, /mynewbank\.in/);
-  assert.doesNotMatch(q, /icicibank/);
+  // Alerts: only the chosen banks. Statements and card bills: every known bank (ICICI's alert isn't recorded either way).
+  const alertQ = google.queries.filter(x => /debited/.test(x)).pop();
+  assert.match(alertQ, /hdfcbank\.net/);
+  assert.match(alertQ, /mynewbank\.in/);
+  assert.doesNotMatch(alertQ, /icicibank/, 'the ICICI alerts are not searched: ICICI was not chosen');
+  const statementQ = google.queries.filter(x => /estatement/.test(x)).pop();
+  assert.match(statementQ, /icicibank/, 'statements are searched at every bank');
   let items = (await db.collection('planner_items').where('ownerId', '==', P4).get()).docs.map(d => d.data());
   assert.deepEqual(items.map(i => i.amount), [250]);
 

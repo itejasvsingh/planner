@@ -346,6 +346,8 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
     const patch: Record<string, unknown> = {};
     // Only the banks and cards this person chose (all of them until they choose)
     const senders = sendersFor(link.banks, link.extraSenders);
+    // Statements and bills come from every bank and card company Align knows, ticked or not (alerts stay ticked-only)
+    const statementSenders = sendersFor(null, link.extraSenders);
 
     // 1. New since the last check, oldest first.
     const fresh = await list(bankQuery(senders, { after: Number(link.syncedThrough) / 1000 - OVERLAP_SEC }), 1000);
@@ -366,7 +368,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
     // 3. Card bills and statements the alert search didn't bring in (last ~3 months, a few per check).
     if (budget > 0 && !throttled && Date.now() < deadline) {
       const seen = new Set<string>([...(link.billMsgIds || []), ...readIds]);
-      const found = await list(billQuery(senders, (Date.now() - 100 * DAY_MS) / 1000), 30);
+      const found = await list(billQuery(statementSenders, (Date.now() - 100 * DAY_MS) / 1000), 30);
       const todo = found.ids.filter((id) => !seen.has(id)).slice(0, Math.min(5, budget));
       const res = await pool(todo, READ_WIDTH, deadline, async (id) => {
         const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=full`);
@@ -389,7 +391,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
       const tried: Record<string, { bank: string; v: number }> = { ...(link.statementTried || {}) };
       const passwords: Record<string, StatementPassword> = link.statementPasswords || {};
       const status: Record<string, StatementState> = {};
-      const found = await list(statementPdfQuery(senders, (Date.now() - 95 * DAY_MS) / 1000), 30);
+      const found = await list(statementPdfQuery(statementSenders, (Date.now() - 95 * DAY_MS) / 1000), 30);
       const todo = found.ids
         .filter((id) => (!done.has(id) || !billIds.has(id)) && !(tried[id] && passwordVersion(passwords, tried[id].bank.replace(/__card$/, '')) === tried[id].v))
         .slice(0, Math.min(opts.statements ?? 2, budget));
