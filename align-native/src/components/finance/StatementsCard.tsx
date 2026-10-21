@@ -138,6 +138,16 @@ export default function StatementsCard({ items, cards, onCardsChanged }: {
             )}
             {!sum.count && <Text style={{ color: c.textSecondary, fontSize: 13 }}>No spends on it.</Text>}
 
+            {rec.kind === 'card' && newest && !(card && card.dueDate) && (rec.bill ? (
+              <View style={[styles.due, { backgroundColor: c.accentSoft }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: c.text, fontWeight: '700', fontSize: 14 }}>{inr(rec.bill.totalDue)} to pay by {shortDay(rec.bill.dueDate)}</Text>
+                  {rec.bill.minDue ? <Text style={{ color: c.textSecondary, fontSize: 12 }}>Minimum {inr(rec.bill.minDue)}</Text> : null}
+                </View>
+              </View>
+            ) : rec.billFound === false ? (
+              <Text style={{ color: c.expense, fontSize: 13 }}>Align couldn’t find the due date and amount in this statement.</Text>
+            ) : null)}
             {card && card.dueDate && (
               <View style={[styles.due, { backgroundColor: card.status === 'paid' ? c.backgroundMuted : c.accentSoft }]}>
                 <View style={{ flex: 1 }}>

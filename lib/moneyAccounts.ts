@@ -304,10 +304,12 @@ export async function setBankCardsClosed(phone: string, issuer: string, closed: 
 export type StatementRecord = {
   id: string; bankId: string; bankName: string; kind: 'account' | 'card'; last4: string | null; product?: string | null;
   state: 'ok' | 'unreadable'; from?: string | null; to?: string | null; rows?: number; added?: number; at: number;
+  /** Card statements: whether its due date and amount were found, and what they were. */
+  billFound?: boolean; bill?: { totalDue: number; minDue: number | null; dueDate: string } | null;
 };
 
 export async function saveStatementRecord(phone: string, rec: StatementRecord) {
-  await root(phone).collection('statements').doc(rec.id).set(rec);
+  await root(phone).collection('statements').doc(rec.id).set(rec, { merge: true });
 }
 
 /** Statements read since `sinceMs`, newest first (at most 30). */

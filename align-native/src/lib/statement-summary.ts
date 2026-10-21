@@ -6,6 +6,7 @@
 export type StatementRecord = {
   id: string; bankId: string; bankName: string; kind: 'account' | 'card'; last4: string | null; product?: string | null;
   state: 'ok' | 'unreadable'; from?: string | null; to?: string | null; rows?: number; added?: number; at: number;
+  billFound?: boolean; bill?: { totalDue: number; minDue: number | null; dueDate: string } | null;
 };
 type Item = {
   id: string; type?: string; title?: string; amount?: number | string | null; date?: string | null; category?: string;

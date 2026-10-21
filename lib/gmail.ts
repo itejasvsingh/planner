@@ -398,7 +398,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
     if (budget > 0 && !throttled && Date.now() < deadline - 10_000) {
       const done = new Set<string>(link.statementMsgIds || []);
       // Statements read before bills were taken from the PDF itself are opened once more, only for the bill
-      const billIds = new Set<string>(link.statementBillIds || []);
+      const billIds = new Set<string>(link.statementBillIds2 || []);
       // Card or account, as the opened PDF says: corrects the list in Settings → Gmail
       const kindOf = new Map<string, 'account' | 'card'>();
       const tried: Record<string, { bank: string; v: number }> = { ...(link.statementTried || {}) };
@@ -452,17 +452,30 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
           if (creditCard && isClosedCard(link, bank.id, last4 || creditCardOf(text)?.last4 || null)) { done.add(id); billIds.add(id); delete tried[id]; continue; }
           // The statement's own summary (total due, minimum, due date, card) is the bill: banks like HDFC keep these
           // out of the email text. Read even when the transaction table couldn't be.
-          if (creditCard && (res.status === 'ok' || res.status === 'unreadable') && res.text) await takeBill(`${res.text}\n${text}`, from, at);
+          // The bill as the statement states it (null: a card statement where no due date and amount were found)
+          const bill = creditCard && pdfText ? parseCardBill(`${pdfText}\n${text}`) : null;
+          if (bill) await takeBill(`${pdfText}\n${text}`, from, at);
+          const billFields = creditCard && res.status !== 'password'
+            ? { billFound: !!bill, bill: bill ? { totalDue: bill.totalDue, minDue: bill.minDue, dueDate: bill.dueDate } : null }
+            : {};
+          const product = creditCard ? bill?.product || null : null;
           // Only the bill was wanted from a statement that was already imported
-          if (done.has(id)) { if (res.status !== 'password') billIds.add(id); continue; }
+          if (done.has(id)) {
+            if (res.status !== 'password') billIds.add(id);
+            // Read before Wallet kept a record of each statement: add it now (its transactions are already in)
+            if (res.status === 'ok' && res.rows.length) {
+              const dates = res.rows.map((r) => r.date).sort();
+              await saveStatementRecord(phone, { id, bankId: bank.id, bankName: bank.name, kind: creditCard ? 'card' : 'account', last4, product, state: 'ok', from: dates[0], to: dates[dates.length - 1], rows: res.rows.length, added: 0, at, ...billFields });
+            }
+            continue;
+          }
           billIds.add(id);
           if (res.status === 'ok') {
             const r = await importStatementRows(phone, res.rows, { bankId: bank.id, bankName: bank.name, at, creditCard, last4, deadline: deadline - 3_000 });
             added += r.added;
             if (!r.complete) break; // out of time: this statement continues next check
             status[slot] = { state: 'ok', at, msgId: id, foundAt: Date.now(), locked, added: r.added, rows: r.rows, from: r.from, to: r.to, checked: r.checked, extras: r.extras };
-            const product = creditCard ? parseCardBill(`${pdfText}\n${text}`)?.product || null : null;
-            await saveStatementRecord(phone, { id, bankId: bank.id, bankName: bank.name, kind: creditCard ? 'card' : 'account', last4, product, state: 'ok', from: r.from || null, to: r.to || null, rows: r.rows, added: r.added, at });
+            await saveStatementRecord(phone, { id, bankId: bank.id, bankName: bank.name, kind: creditCard ? 'card' : 'account', last4, product, state: 'ok', from: r.from || null, to: r.to || null, rows: r.rows, added: r.added, at, ...billFields });
             done.add(id);
             delete tried[id];
           } else if (res.status === 'password') {
@@ -470,7 +483,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
             tried[id] = { bank: slot, v: passwordVersion(passwords, bank.id) };
           } else {
             status[slot] = { state: 'unreadable', at, msgId: id, foundAt: Date.now() };
-            await saveStatementRecord(phone, { id, bankId: bank.id, bankName: bank.name, kind: creditCard ? 'card' : 'account', last4, state: 'unreadable', at });
+            await saveStatementRecord(phone, { id, bankId: bank.id, bankName: bank.name, kind: creditCard ? 'card' : 'account', last4, product, state: 'unreadable', at, ...billFields });
             done.add(id);
           }
         } catch (e) {
@@ -481,7 +494,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
         }
       }
       patch.statementMsgIds = [...done].slice(-200);
-      patch.statementBillIds = [...billIds].slice(-200);
+      patch.statementBillIds2 = [...billIds].slice(-200);
       const index = (link.statementIndex || []) as FoundStatement[];
       if (kindOf.size && index.some((x) => kindOf.has(x.id) && kindOf.get(x.id) !== x.kind)) {
         patch.statementIndex = index.map((x) => (kindOf.has(x.id) ? { ...x, kind: kindOf.get(x.id)! } : x));
