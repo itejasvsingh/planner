@@ -504,6 +504,8 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
       lastError: throttled ? notes[0] : null,
       syncingSince: null,
     });
+    // Saved passwords not yet proven: try them on a statement (a few per check)
+    if (Date.now() < deadline - 12_000) await verifySavedPasswords(phone).catch(() => 0);
     return { status: 'ok', added, checked, bills: billsFound, ...(message ? { message } : {}) };
   } catch (e) {
     const message = (e as Error).message;
@@ -736,4 +738,31 @@ export async function checkStatementPassword(phone: string, bankId: string, kind
   } catch {
     return 'unknown';
   }
+}
+
+/**
+ * Saved statement passwords that haven't been proven yet (saved before passwords were checked, or with no statement to
+ * try then) are tried on the bank's latest locked statement: verified when it opens, "wrong password" when it doesn't.
+ * Each is tried at most every 6 hours; a few per call.
+ */
+export async function verifySavedPasswords(phone: string, max = 2): Promise<number> {
+  const ref = links().doc(phone);
+  const link = (await ref.get()).data();
+  if (!link || link.status !== 'connected') return 0;
+  const passwords = (link.statementPasswords || {}) as Record<string, StatementPassword & { checkedAt?: number }>;
+  const todo = Object.entries(passwords)
+    .filter(([, p]) => p && !p.verified && !(p.checkedAt && Date.now() - p.checkedAt < 6 * 3600_000))
+    .slice(0, max);
+  let done = 0;
+  for (const [slot, p] of todo) {
+    const kind = slot.endsWith('__card') ? 'card' : 'account';
+    const bankId = slot.replace(/__card$/, '');
+    const result = await checkStatementPassword(phone, bankId, kind, open(p.sealed));
+    const patch: Record<string, unknown> = { [`statementPasswords.${slot}.checkedAt`]: Date.now() };
+    if (result === 'ok') patch[`statementPasswords.${slot}.verified`] = true;
+    if (result === 'wrong') patch[`statementStatus.${slot}`] = { state: 'wrong_password', at: Date.now() } satisfies StatementState;
+    await ref.update(patch);
+    done++;
+  }
+  return done;
 }

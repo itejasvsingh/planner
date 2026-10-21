@@ -4,7 +4,7 @@ import { db } from '../../../../lib/firebase';
 import { BANKS, bankNameById } from '../../../../lib/bankSenders';
 import { kindsFor, setStatementPassword, statementGroups, statementMonthsOf, statementSince, STATEMENT_MONTHS } from '../../../../lib/statementAuto';
 import { readInBackground } from '../../../../lib/statementReader';
-import { checkStatementPassword } from '../../../../lib/gmail';
+import { checkStatementPassword, verifySavedPasswords } from '../../../../lib/gmail';
 import { setBankCardsClosed, statementRecords } from '../../../../lib/moneyAccounts';
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +21,9 @@ export async function GET(req: Request) {
   if (!link) return NextResponse.json({ accounts: [], cards: [], searched: false, read: [] });
   // The statements Align has opened in the window, for the Wallet summary (amounts are worked out in the app)
   const read = await statementRecords(user.phone, statementSince(statementMonthsOf(link))).catch(() => []);
+  // Passwords saved but not yet proven are tried in the background; the list shows the result on its next refresh
+  const unproven = Object.values((link.statementPasswords || {}) as Record<string, { verified?: boolean }>).some((p) => p && !p.verified);
+  if (unproven) after(() => verifySavedPasswords(user.phone).then(() => undefined).catch(() => undefined));
   return NextResponse.json({ ...statementGroups(link), searched: Array.isArray(link.statementIndex), searchedAt: link.statementIndexAt || null, read });
 }
 

@@ -48,6 +48,15 @@ export default function StatementPasswords({ refreshKey, mode = 'settings', onCh
   }, []);
   // After sign-in is restored (a request before that is refused)
   useEffect(() => whenSignedIn(() => { load(); }), [load, refreshKey]);
+  // Saved passwords not yet proven are being tried on the server: look again shortly for the result
+  const rechecked = useRef(false);
+  useEffect(() => {
+    if (!lists || rechecked.current) return;
+    if (![...lists.accounts, ...lists.cards].some(g => g.hasPassword && !g.verified && !g.wrongPassword)) return;
+    rechecked.current = true;
+    const t = setTimeout(load, 15_000);
+    return () => clearTimeout(t);
+  }, [lists, load]);
 
   // While statements are read in the background, refresh the lists a couple of times
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);

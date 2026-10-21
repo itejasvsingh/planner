@@ -148,3 +148,18 @@ test('account or card statement: slice sends both now', () => {
   assert.equal(statementKind('hdfc', 'Account Statement for September', ''), 'account');
   assert.equal(statementKind('sbicard', 'Your statement', ''), 'card');
 });
+
+test('passwords saved before they were checked are tried on the latest statement', async () => {
+  await setStatementPassword(PHONE, 'hdfc', 'TEST1234');
+  assert.equal((await link().get()).data().statementPasswords.hdfc.verified, false);
+  assert.equal(await gmail.verifySavedPasswords(PHONE), 1);
+  assert.equal((await link().get()).data().statementPasswords.hdfc.verified, true, 'it opened the statement');
+  assert.equal(await gmail.verifySavedPasswords(PHONE), 0, 'a proven password is not tried again');
+
+  await setStatementPassword(PHONE, 'hdfc', 'not-it');
+  await gmail.verifySavedPasswords(PHONE);
+  const d = (await link().get()).data();
+  assert.deepEqual([d.statementPasswords.hdfc.verified, d.statementStatus.hdfc.state], [false, 'wrong_password']);
+  assert.equal(await gmail.verifySavedPasswords(PHONE), 0, 'not tried again for 6 hours');
+  await setStatementPassword(PHONE, 'hdfc', 'TEST1234', 'account', true);
+});
