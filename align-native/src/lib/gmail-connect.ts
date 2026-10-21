@@ -110,13 +110,17 @@ export type StatementGroup = {
   bankId: string; bankName: string; kind: StatementKind; count: number; latest: number;
   locked: boolean | null; hasPassword: boolean; wrongPassword: boolean; selected: boolean;
 };
-export type StatementLists = { accounts: StatementGroup[]; cards: StatementGroup[]; searched: boolean };
+export type StatementLists = { accounts: StatementGroup[]; cards: StatementGroup[]; searched: boolean; /** How far back statements are read */ months?: number };
 /** Statements found so far, as two lists, and whether each bank's need a password. */
 export const gmailStatements = () => call<StatementLists>('/api/gmail/statements');
 /** Saves a bank's statement PDF password (kept encrypted on the server, never shown again); null removes it. */
 export const gmailSetStatementPassword = (bank: string, kind: StatementKind, password: string | null) =>
   call<{ ok: true; hasPassword: boolean }>('/api/gmail/statements', { method: 'POST', body: JSON.stringify({ bank, kind, password }) });
 
-/** Reads up to six new statement PDFs now, then checks the last 90 days of statements for passwords. */
+/** How far back statements are read: 3 (default), 6 or 12 months. */
+export const gmailSetStatementMonths = (months: 3 | 6 | 12) =>
+  call<{ ok: true; months: number }>('/api/gmail/statements', { method: 'POST', body: JSON.stringify({ months }) });
+
+/** Reads new statement PDFs now, then checks the chosen window (last 3 months by default) for passwords. */
 export const gmailFindStatements = () =>
   call<StatementLists & { status: 'ok' | 'not_connected' | 'reconnect'; reading?: boolean }>('/api/gmail/statements/find', { method: 'POST' });

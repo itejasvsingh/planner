@@ -5,7 +5,7 @@ import { BANKS, normalizeSender, sendersFor } from './bankSenders';
 import { bankQuery, billQuery, messageText, pdfAttachments, statementPdfQuery, type GmailMessage } from './gmailMessage';
 import { isLockedPdf, readStatement } from './statementFile';
 import { kindFromPdf } from './statementParse';
-import { importStatementRows, passwordVersion, statementKind, statementSlot, type StatementPassword, type StatementState } from './statementAuto';
+import { importStatementRows, passwordVersion, statementKind, statementMonthsOf, statementSince, statementSlot, type StatementPassword, type StatementState } from './statementAuto';
 import { isCardPaymentReceived, parseBankEmail, parseCardBill } from './emailAlert';
 import { bankForSender, ensureBillTask, markBillsPaid, saveBill } from './cardBills';
 import { accountLast4, availableBalance, cardPaymentAmount, creditCardOf } from './accountParse';
@@ -348,6 +348,8 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
     const senders = sendersFor(link.banks, link.extraSenders);
     // Statements and bills come from every bank and card company Align knows, ticked or not (alerts stay ticked-only)
     const statementSenders = sendersFor(null, link.extraSenders);
+    // Only the last 3 months of statements, unless the user asked for more
+    const statementAfter = statementSince(statementMonthsOf(link)) / 1000;
 
     // 1. New since the last check, oldest first.
     const fresh = await list(bankQuery(senders, { after: Number(link.syncedThrough) / 1000 - OVERLAP_SEC }), 1000);
@@ -368,7 +370,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
     // 3. Card bills and statements the alert search didn't bring in (last ~3 months, a few per check).
     if (budget > 0 && !throttled && Date.now() < deadline) {
       const seen = new Set<string>([...(link.billMsgIds || []), ...readIds]);
-      const found = await list(billQuery(statementSenders, (Date.now() - 100 * DAY_MS) / 1000), 30);
+      const found = await list(billQuery(statementSenders, statementAfter), 30);
       const todo = found.ids.filter((id) => !seen.has(id)).slice(0, Math.min(5, budget));
       const res = await pool(todo, READ_WIDTH, deadline, async (id) => {
         const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=full`);
@@ -391,7 +393,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
       const tried: Record<string, { bank: string; v: number }> = { ...(link.statementTried || {}) };
       const passwords: Record<string, StatementPassword> = link.statementPasswords || {};
       const status: Record<string, StatementState> = {};
-      const found = await list(statementPdfQuery(statementSenders, (Date.now() - 95 * DAY_MS) / 1000), 30);
+      const found = await list(statementPdfQuery(statementSenders, statementAfter), 100);
       const todo = found.ids
         .filter((id) => (!done.has(id) || !billIds.has(id)) && !(tried[id] && passwordVersion(passwords, tried[id].bank.replace(/__card$/, '')) === tried[id].v))
         .slice(0, Math.min(opts.statements ?? 2, budget));
@@ -622,11 +624,11 @@ export type FoundStatement = {
 };
 
 /**
- * Statement PDFs from your banks in the last `days` days (every bank Align knows, so ones you haven't
+ * Statement PDFs from your banks in the chosen window (last 3 months by default) (every bank Align knows, so ones you haven't
  * ticked show up too). Each new one is opened just far enough to see whether it needs a password; the
  * answer is remembered (gmail_links.statementIndex), so later searches only check new emails.
  */
-export async function findStatements(phone: string, days = 90, deadline = Date.now() + 40_000): Promise<{ status: 'ok' | 'not_connected' | 'reconnect'; statements: FoundStatement[] }> {
+export async function findStatements(phone: string, deadline = Date.now() + 40_000): Promise<{ status: 'ok' | 'not_connected' | 'reconnect'; statements: FoundStatement[] }> {
   const ref = links().doc(phone);
   const link = (await ref.get()).data();
   if (!link) return { status: 'not_connected', statements: [] };
@@ -634,7 +636,7 @@ export async function findStatements(phone: string, days = 90, deadline = Date.n
   const token = await accessToken(open(link.token));
   if (token === 'revoked') return { status: 'reconnect', statements: [] };
   const senders = sendersFor(null, link.extraSenders);
-  const after = (Date.now() - days * DAY_MS) / 1000;
+  const after = statementSince(statementMonthsOf(link)) / 1000;
   const found = ((await gmail<{ messages?: { id: string }[] }>(token, `/messages?q=${encodeURIComponent(statementPdfQuery(senders, after))}&maxResults=100`)).messages || []).map((m) => m.id);
   // Remembered answers, unless they came from an older way of sorting account vs card statements
   const known = new Map<string, FoundStatement>(link.statementIndexVersion === INDEX_VERSION ? ((link.statementIndex || []) as FoundStatement[]).map((x) => [x.id, x]) : []);
@@ -669,4 +671,29 @@ export async function findStatements(phone: string, days = 90, deadline = Date.n
   const merged = new Map<string, FoundStatement>([...known.entries(), ...statements.map((x) => [x.id, x] as const)]);
   await ref.update({ statementIndex: [...merged.values()].sort((a, b) => b.date - a.date).slice(0, 100), statementIndexVersion: INDEX_VERSION });
   return { status: 'ok', statements };
+}
+
+/**
+ * Tries a statement password on the newest locked statement of that bank and kind before it's saved, so a typo is
+ * caught straight away. 'unknown' when there's nothing to try it on (or Gmail can't be reached): it's saved as before.
+ */
+export async function checkStatementPassword(phone: string, bankId: string, kind: 'account' | 'card', password: string): Promise<'ok' | 'wrong' | 'unknown'> {
+  try {
+    const link = (await links().doc(phone).get()).data();
+    if (!link || link.status !== 'connected') return 'unknown';
+    const index = ((link.statementIndex || []) as FoundStatement[])
+      .filter((x) => x.bankId === bankId && x.kind === kind && x.locked === true)
+      .sort((a, b) => b.date - a.date);
+    if (!index.length) return 'unknown';
+    const token = await accessToken(open(link.token));
+    if (token === 'revoked') return 'unknown';
+    const msg = await gmail<GmailMessage>(token, `/messages/${index[0].id}?format=full`);
+    const pdf = pdfAttachments(msg).find((a) => a.size <= 5_000_000);
+    if (!pdf) return 'unknown';
+    const data = pdf.data || (await gmail<{ data: string }>(token, `/messages/${index[0].id}/attachments/${pdf.attachmentId}`)).data;
+    const res = await readStatement(Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64'), password);
+    return res.status === 'password' ? 'wrong' : 'ok';
+  } catch {
+    return 'unknown';
+  }
 }

@@ -104,19 +104,32 @@ test('Find statements lists the last 40 days with what happened to each, from ev
   mailbox.push({ id: 's2', from: 'cc.statements@icicibank.com', internalDate: String(Date.now() - 86400000), payload: { mimeType: 'multipart/mixed', headers: [{ name: 'Subject', value: 'ICICI Bank Credit Card Statement' }, { name: 'From', value: 'cc.statements@icicibank.com' }], parts: [{ mimeType: 'application/octet-stream', filename: 'CCStatement', body: { attachmentId: 'att2', size: 1000 } }] } });
   // and one from a bank Align doesn't list, found by its .bank.in address
   mailbox.push({ id: 's3', from: 'estatement@xyz.bank.in', internalDate: String(Date.now() - 2 * 86400000 + 1000), payload: { mimeType: 'multipart/mixed', headers: [{ name: 'Subject', value: 'Statement of Account' }, { name: 'From', value: 'estatement@xyz.bank.in' }], parts: [{ mimeType: 'application/pdf', filename: 'stmt.pdf', body: { attachmentId: 'att3', size: 1000 } }] } });
-  const r = await gmail.findStatements(PHONE, 90);
+  const r = await gmail.findStatements(PHONE);
   assert.equal(r.status, 'ok');
   assert.deepEqual(r.statements.map((f) => [f.id, f.bankId, f.bankName, f.kind, f.locked]), [
     ['s2', 'icici', 'ICICI Bank', 'card', true],
     ['s3', 'in_xyz', 'XYZ Bank', 'account', false],
     ['s1', 'hdfc', 'HDFC Bank', 'account', true],
   ]);
-  // Two lists, one row per bank: needs a password or not, password saved, bank ticked
+  // Two lists, one row per bank: needs a password or not, password saved (statements are read from every bank)
   const { statementGroups } = jiti(path.join(__dirname, '../../lib/statementAuto.ts'));
   const g = statementGroups((await link().get()).data());
   const pick = (x) => [x.bankId, x.count, x.locked, x.hasPassword, x.selected];
-  assert.deepEqual(g.accounts.map(pick), [['hdfc', 1, true, true, true], ['in_xyz', 1, false, false, false]]);
-  assert.deepEqual(g.cards.map(pick), [['icici', 1, true, false, false]]);
+  assert.deepEqual(g.accounts.map(pick), [['hdfc', 1, true, true, true], ['in_xyz', 1, false, false, true]]);
+  assert.deepEqual(g.cards.map(pick), [['icici', 1, true, false, true]]);
+  assert.equal(g.months, 3, 'the last 3 months unless the user asks for more');
+
+  // A password is tried on the newest locked statement before it's saved
+  assert.equal(await gmail.checkStatementPassword(PHONE, 'hdfc', 'account', 'nope'), 'wrong');
+  assert.equal(await gmail.checkStatementPassword(PHONE, 'hdfc', 'account', 'TEST1234'), 'ok');
+  assert.equal(await gmail.checkStatementPassword(PHONE, 'sbi', 'account', 'x'), 'unknown', 'nothing to try it on');
+
+  // Statements older than the window aren't listed (or read); choosing 6 months brings them in
+  const { statementSince } = jiti(path.join(__dirname, '../../lib/statementAuto.ts'));
+  const old = { id: 'old1', bankId: 'hdfc', bankName: 'HDFC Bank', kind: 'account', date: statementSince(4), locked: true };
+  const data = (await link().get()).data();
+  assert.equal(statementGroups({ ...data, statementIndex: [...data.statementIndex, old] }).accounts[0].count, 1);
+  assert.equal(statementGroups({ ...data, statementIndex: [...data.statementIndex, old], statementMonths: 6 }).accounts[0].count, 2);
   const res = await gmail.syncGmail(PHONE, Date.now() + 20000, { statements: 6 });
   assert.equal(res.status, 'ok');
 });

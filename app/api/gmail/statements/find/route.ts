@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 /**
- * "Find statements": looks through the last 90 days of statement PDFs from your banks, checks which need a
+ * "Find statements": looks through the chosen window (last 3 months unless the user picked more) of statement PDFs from your banks, checks which need a
  * password, and answers with the two lists (bank accounts, credit cards) within ~20 seconds. Reading the
  * statements themselves (transactions, balance) continues in the background after the answer.
  */
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   const allowed = await consumeRateLimit(`stmt_find_${user.phone}`, 15, 60 * 60 * 1000).catch(() => true);
   if (!allowed) return NextResponse.json({ error: 'Searched a lot this hour. Try again in a few minutes.' }, { status: 429 });
   try {
-    const found = await findStatements(user.phone, 90, started + 20_000);
+    const found = await findStatements(user.phone, started + 20_000);
     if (found.status !== 'ok') return NextResponse.json({ status: found.status, accounts: [], cards: [], searched: false, reading: false });
     after(() => readInBackground(user.phone, started));
     const link = (await db.collection('gmail_links').doc(user.phone).get()).data() || {};
