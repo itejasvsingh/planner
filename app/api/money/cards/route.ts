@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'node:crypto';
 import { requestUser } from '../../../../lib/requestUser';
-import { deleteManualCard, saveCardEdit, type CardEdit } from '../../../../lib/moneyAccounts';
+import { deleteManualCard, saveCardEdit, syncClosedCards, type CardEdit } from '../../../../lib/moneyAccounts';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +14,7 @@ function clean(e: Record<string, unknown>): CardEdit {
   if (typeof e.name === 'string') out.name = e.name.trim().slice(0, 40) || null;
   if (e.last4 === null || (typeof e.last4 === 'string' && /^\d{4}$/.test(e.last4))) out.last4 = e.last4 as string | null;
   if (typeof e.hidden === 'boolean') out.hidden = e.hidden;
+  if (typeof e.closed === 'boolean') out.closed = e.closed;
   if (e.remind === null || typeof e.remind === 'boolean') out.remind = e.remind as boolean | null;
   if (e.forDue === null || (typeof e.forDue === 'string' && DATE.test(e.forDue))) out.forDue = e.forDue as string | null;
   if (money(e.totalDue) !== undefined) out.totalDue = money(e.totalDue);
@@ -46,6 +47,9 @@ export async function POST(req: Request) {
   if (typeof body.key !== 'string' || !/^[\w.-]{1,80}$/.test(body.key) || !body.edit || typeof body.edit !== 'object') {
     return NextResponse.json({ error: 'Which card, and what to change?' }, { status: 400 });
   }
-  await saveCardEdit(user.phone, body.key, clean(body.edit as Record<string, unknown>));
+  const edit = clean(body.edit as Record<string, unknown>);
+  await saveCardEdit(user.phone, body.key, edit);
+  // Closing (or reopening) a card changes what the Gmail sync reads and which reminders stay open
+  if (edit.closed !== undefined) await syncClosedCards(user.phone);
   return NextResponse.json({ ok: true });
 }

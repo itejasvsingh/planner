@@ -5,6 +5,7 @@ import { BANKS, bankNameById } from '../../../../lib/bankSenders';
 import { kindsFor, setStatementPassword, statementGroups, STATEMENT_MONTHS } from '../../../../lib/statementAuto';
 import { readInBackground } from '../../../../lib/statementReader';
 import { checkStatementPassword } from '../../../../lib/gmail';
+import { setBankCardsClosed } from '../../../../lib/moneyAccounts';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -26,6 +27,15 @@ export async function POST(req: Request) {
   const user = await requestUser(req);
   if (!user) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
+  // { closeCards: bankId, closed: boolean }: every credit card from that bank is closed (or open again)
+  if (typeof body.closeCards === 'string') {
+    const bankId = body.closeCards;
+    if (!BANKS.some((b) => b.id === bankId) && !/^in_[a-z0-9-]{1,40}$/.test(bankId)) return NextResponse.json({ error: 'Unknown bank.' }, { status: 400 });
+    const exists = (await db.collection('gmail_links').doc(user.phone).get()).exists;
+    if (!exists) return NextResponse.json({ error: 'Connect Gmail first.' }, { status: 409 });
+    await setBankCardsClosed(user.phone, bankId, body.closed !== false);
+    return NextResponse.json({ ok: true, bank: bankId, closed: body.closed !== false });
+  }
   // { months: 3 | 6 | 12 }: how far back statements are read (3 unless the user asks for more)
   if (body.months !== undefined) {
     const months = Number(body.months);

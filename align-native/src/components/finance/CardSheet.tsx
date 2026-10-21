@@ -38,6 +38,7 @@ export default function CardSheet({ phone, card, visible, onClose, onEditTransac
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [confirmRemove, setConfirmRemove] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [form, setForm] = useState({ name: '', last4: '', totalDue: '', minDue: '', limit: '', dueDate: null as string | null });
 
   useEffect(() => {
@@ -229,6 +230,26 @@ export default function CardSheet({ phone, card, visible, onClose, onEditTransac
                 )}
                 {!!error && <Text accessibilityRole="alert" style={{ color: c.expense, marginTop: 8 }}>{error}</Text>}
               </View>
+
+              {!card.manual && (
+                <View style={{ gap: 6 }}>
+                  {card.closed && (
+                    <Text style={{ color: c.textSecondary, fontSize: 13 }}>
+                      Closed. Align no longer reads this card&apos;s statements or bills, asks for its PDF password or reminds you about it. Past transactions stay.
+                    </Text>
+                  )}
+                  <Pressable accessibilityRole="button" disabled={busy}
+                    onPress={() => {
+                      if (card.closed || closing) { setClosing(false); return void run(() => editCard(card.key, { closed: !card.closed }), true); }
+                      setClosing(true);
+                    }}
+                    style={{ paddingVertical: 12, borderRadius: Radius.md, alignItems: 'center', backgroundColor: closing ? c.expense : c.backgroundMuted }}>
+                    <Text style={{ color: closing ? '#FFFFFF' : card.closed ? c.accent : c.expense, fontWeight: '700' }}>
+                      {card.closed ? 'Card is open again' : closing ? 'Tap again: this card is closed' : 'This card is closed'}
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
 
               <Text style={[styles.section, { color: c.textTertiary }]}>{since ? `Since the ${shortDay(since)} statement` : 'Transactions'}</Text>
               {!card.last4 ? (

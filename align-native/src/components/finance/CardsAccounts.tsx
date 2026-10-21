@@ -153,7 +153,7 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
                 <View style={[styles.icon, { backgroundColor: c.accentSoft }]}><CreditCard color={c.accent} size={18} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: c.text, fontWeight: '700', fontSize: 15 }} numberOfLines={1}>{cardTitle(card)}</Text>
-                  <Text style={{ color: tone, fontSize: 13, fontWeight: '600', marginTop: 1 }}>{dueText(card)}</Text>
+                  <Text style={{ color: tone, fontSize: 13, fontWeight: '600', marginTop: 1 }}>{card.closed ? 'Closed' : dueText(card)}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={{ color: c.textTertiary, fontSize: 12, fontWeight: '600' }}>Outstanding</Text>

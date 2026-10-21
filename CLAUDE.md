@@ -79,6 +79,9 @@
   (`SELF_TRANSFER`) make `recordTransaction` save money-out as type `transfer`, before the duplicate check.
 - Suspicious payments are found in the app (`align-native/src/lib/suspicious.ts`, pure): Money shows "payments to
   check" and `SuspiciousWatcher` notifies once per new one; the answer is stored as the item's `review`.
+- Closed cards: `card_edits.closed` (Wallet → card → "This card is closed") or `gmail_links.closedBanks` (Settings → Gmail → statements,
+  "Card closed?" for a bank with no card in Wallet yet). `syncClosedCards` mirrors them into `gmail_links.closedCards`/`closedIssuers`,
+  ticks off their bill tasks and clears their statement status; `isClosedCard` makes the Gmail sync skip their bills and statements.
 - Card due reminders use what's owed now (`cardReminderLines` in `lib/moneyAccounts.ts` for WhatsApp; the app's
   `NotificationsManager` schedules them locally); per card `remind` in card_edits, else `gmail_links.billReminders`.
 - After each statement, rows are compared with alert-recorded transactions of the same `accountLast4`/`cardLast4`;

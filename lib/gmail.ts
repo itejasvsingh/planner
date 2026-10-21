@@ -9,7 +9,7 @@ import { importStatementRows, passwordVersion, statementKind, statementMonthsOf,
 import { isCardPaymentReceived, parseBankEmail, parseCardBill } from './emailAlert';
 import { bankForSender, ensureBillTask, markBillsPaid, saveBill } from './cardBills';
 import { accountLast4, availableBalance, cardPaymentAmount, creditCardOf } from './accountParse';
-import { recordCardPayment, saveBalance } from './moneyAccounts';
+import { isClosedCard, recordCardPayment, saveBalance } from './moneyAccounts';
 import { istParts, recordTransaction } from './recordTransaction';
 
 /**
@@ -282,6 +282,9 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
     const takeBill = async (text: string, from: string, at?: number) => {
       const bill = parseCardBill(text);
       if (!bill) return false;
+      // A card the user closed: its bills aren't kept
+      const issuer = bankForSender(from)?.id || from.split('@').pop() || 'card';
+      if (isClosedCard(link, issuer, bill.last4)) return true;
       const stored = await saveBill(phone, bill, from, at);
       billsFound++;
       if (link.billReminders === true && stored.dueDate >= todayKey) await ensureBillTask(phone, stored);
@@ -434,6 +437,8 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
           const last4 = creditCard
             ? creditCardOf(pdfText)?.last4 || creditCardOf(text)?.last4 || null
             : accountLast4(pdfText) || accountLast4(text) || null;
+          // A card the user closed: nothing more is read from its statements (and no password is asked for)
+          if (creditCard && isClosedCard(link, bank.id, last4 || creditCardOf(text)?.last4 || null)) { done.add(id); billIds.add(id); delete tried[id]; continue; }
           // The statement's own summary (total due, minimum, due date, card) is the bill: banks like HDFC keep these
           // out of the email text. Read even when the transaction table couldn't be.
           if (creditCard && (res.status === 'ok' || res.status === 'unreadable') && res.text) await takeBill(`${res.text}\n${text}`, from, at);

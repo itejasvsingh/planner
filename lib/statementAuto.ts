@@ -4,6 +4,7 @@ import { seal } from './secretBox';
 import { recordTransaction } from './recordTransaction';
 import { allMerchantRules } from './merchantRules';
 import { saveBalance } from './moneyAccounts';
+import { bankNameById } from './bankSenders';
 import { cleanNarration, type StatementRow } from './statementParse';
 import { guessCategory } from './smsParse';
 
@@ -177,14 +178,18 @@ export function statementSince(months: number, now = Date.now()) {
   return d.getTime();
 }
 
-export function statementGroups(link: Record<string, any>): { accounts: StatementGroup[]; cards: StatementGroup[]; months: number } {
+export function statementGroups(link: Record<string, any>): { accounts: StatementGroup[]; cards: StatementGroup[]; months: number; closedCards: { bankId: string; bankName: string }[] } {
   const months = statementMonthsOf(link);
   const since = statementSince(months);
   const index = ((link.statementIndex || []) as { bankId: string; bankName: string; kind: StatementKind; date: number; locked: boolean | null }[]).filter((s) => s.date >= since);
   const passwords = (link.statementPasswords || {}) as Record<string, StatementPassword>;
   const status = (link.statementStatus || {}) as Record<string, StatementState>;
   const groups = new Map<string, StatementGroup>();
+  const closedIssuers = (link.closedIssuers || []) as string[];
+  const closedNames = new Map<string, string>(((link.closedBanks || []) as string[]).map((b) => [b, bankNameById(b)]));
   for (const s of index) {
+    // Every card from this bank is closed: its card statements aren't listed (shown under "Closed cards" instead)
+    if (s.kind === 'card' && closedIssuers.includes(s.bankId)) { closedNames.set(s.bankId, s.bankName); continue; }
     const slot = statementSlot(s.bankId, s.kind);
     const g = groups.get(slot) || {
       bankId: s.bankId, bankName: s.bankName, kind: s.kind, count: 0, latest: 0, locked: null as boolean | null,
@@ -199,5 +204,8 @@ export function statementGroups(link: Record<string, any>): { accounts: Statemen
     groups.set(slot, g);
   }
   const all = [...groups.values()].sort((a, b) => Number(b.locked === true) - Number(a.locked === true) || b.latest - a.latest);
-  return { accounts: all.filter((g) => g.kind === 'account'), cards: all.filter((g) => g.kind === 'card'), months };
+  return {
+    accounts: all.filter((g) => g.kind === 'account'), cards: all.filter((g) => g.kind === 'card'), months,
+    closedCards: [...closedNames.entries()].map(([bankId, bankName]) => ({ bankId, bankName })),
+  };
 }

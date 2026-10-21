@@ -6,7 +6,7 @@ import { Pressable } from '@/components/ui/pressable';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius } from '@/constants/theme';
 import {
-  gmailFindStatements, gmailSetStatementMonths, gmailSetStatementPassword, gmailStatements,
+  gmailCloseBankCards, gmailFindStatements, gmailSetStatementMonths, gmailSetStatementPassword, gmailStatements,
   type StatementGroup, type StatementKind, type StatementLists,
 } from '@/lib/gmail-connect';
 
@@ -94,6 +94,17 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
     }
   };
 
+  const closeCards = async (bankId: string, bankName: string, closed: boolean) => {
+    setNote('');
+    try {
+      await gmailCloseBankCards(bankId, closed);
+      setNote(closed ? `${bankName} cards marked closed: their statements and bills won’t be read.` : `${bankName} cards are open again.`);
+      load();
+    } catch (e) {
+      setNote(friendly(e));
+    }
+  };
+
   const setMonths = async (m: 3 | 6 | 12) => {
     setNote('');
     try {
@@ -126,6 +137,12 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
           </View>
           <View style={{ alignItems: 'flex-end', gap: 2 }}>
             <Text style={{ color: status.color, fontSize: 12, fontWeight: '700' }}>{status.text}</Text>
+            {g.kind === 'card' && !open && (
+              <Pressable accessibilityRole="button" accessibilityLabel={`${g.bankName} credit card is closed`} disabled={busy} hitSlop={6}
+                onPress={() => void closeCards(g.bankId, g.bankName, true)}>
+                <Text style={{ color: c.textSecondary, fontSize: 12, fontWeight: '600' }}>Card closed?</Text>
+              </Pressable>
+            )}
             {action && !open && (
               <Pressable accessibilityRole="button" accessibilityLabel={`${action}: ${g.bankName} ${g.kind === 'card' ? 'credit card' : 'account'} statements`}
                 disabled={finding || busy} hitSlop={6}
@@ -228,6 +245,19 @@ export default function StatementPasswords({ refreshKey }: { refreshKey: number 
       </Pressable>
       {any && list('Bank accounts', Landmark, lists.accounts)}
       {any && list('Credit cards', CreditCard, lists.cards)}
+      {!!lists.closedCards?.length && (
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: c.textSecondary, fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase' }}>Closed cards</Text>
+          {lists.closedCards.map(b => (
+            <View key={b.bankId} style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ color: c.textSecondary, fontSize: 14, flex: 1 }}>{b.bankName} · not read</Text>
+              <Pressable accessibilityRole="button" disabled={busy} onPress={() => void closeCards(b.bankId, b.bankName, false)} hitSlop={6}>
+                <Text style={{ color: c.accent, fontSize: 13, fontWeight: '700' }}>Reopen</Text>
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      )}
       {!!note && <Text accessibilityLiveRegion="polite" style={{ color: c.textSecondary, fontSize: 13 }}>{note}</Text>}
     </View>
   );

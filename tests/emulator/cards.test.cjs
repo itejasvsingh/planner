@@ -128,3 +128,28 @@ test('net worth entries: add, change, remove; a missing entry is not created by 
   for (let i = 0; i < 50; i++) await saveNetEntry(P6, { name: `E${i}`, kind: 'liability', value: i });
   assert.equal(await saveNetEntry(P6, { name: 'one too many', kind: 'asset', value: 1 }), null);
 });
+
+test('a closed card: hidden, its bill reminder ticked off, its bills and statements skipped; reopening undoes it', async () => {
+  const { syncClosedCards, isClosedCard } = jiti(path.join(__dirname, '../../lib/moneyAccounts.ts'));
+  const { db } = jiti(path.join(__dirname, '../../lib/firebase.ts'));
+  const PC = '919800000399';
+  await db.collection('gmail_links').doc(PC).set({ status: 'connected', statementStatus: { icici__card: { state: 'needs_password', at: 1 } } });
+  const bill = await saveBill(PC, { totalDue: 3000, minDue: 150, dueDate: day(5), last4: '7777' }, 'credit_cards@icicibank.com', Date.now() - 5 * DAY);
+  await db.collection('planner_items').doc(`bill_${bill.id}`).set({ ownerId: PC, type: 'task', kind: 'card_bill', done: false, bill: { issuer: 'icici', last4: '7777' } });
+
+  await saveCardEdit(PC, 'icici_7777', { closed: true });
+  const r = await syncClosedCards(PC);
+  assert.deepEqual([r.closedCards, r.closedIssuers], [['icici_7777'], ['icici']]);
+  const [card] = await cardSummaries(PC);
+  assert.deepEqual([card.closed, card.hidden], [true, true]);
+  assert.equal((await db.collection('planner_items').doc(`bill_${bill.id}`).get()).data().done, true, 'its reminder is ticked off');
+  const link = (await db.collection('gmail_links').doc(PC).get()).data();
+  assert.equal(link.statementStatus.icici__card, undefined, 'no more "needs password" for it');
+  assert.ok(isClosedCard(link, 'icici', '7777') && isClosedCard(link, 'icici', null), 'skipped by number, or by bank when every card there is closed');
+  assert.ok(!isClosedCard(link, 'icici', '1111') && !isClosedCard(link, 'hdfc', null), 'a different card is still read');
+
+  await saveCardEdit(PC, 'icici_7777', { closed: false });
+  const again = await syncClosedCards(PC);
+  assert.deepEqual([again.closedCards, again.closedIssuers], [[], []]);
+  assert.equal((await cardSummaries(PC))[0].hidden, false);
+});

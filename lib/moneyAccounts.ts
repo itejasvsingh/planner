@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { db } from './firebase';
+import { db, FieldValue } from './firebase';
 import { istParts } from './recordTransaction';
 import type { StoredBill } from './cardBills';
 
@@ -69,6 +69,8 @@ export type CardSummary = {
   daysLeft: number | null;
   manual: boolean;
   hidden: boolean;
+  /** The user closed this card: hidden, no reminders, its statements and bills are no longer read. */
+  closed: boolean;
   /** The user changed this statement's amounts or due date. */
   edited: boolean;
   /** Due-date reminders on for this card (its own switch, else the "remind me about card bills" answer). */
@@ -86,6 +88,8 @@ export type CardEdit = {
   name?: string | null;
   last4?: string | null;
   hidden?: boolean;
+  /** The card was closed (see CardSummary.closed). */
+  closed?: boolean;
   manual?: boolean;
   /** Reminders for this card: true/false, or unset to follow the general answer. */
   remind?: boolean | null;
@@ -118,6 +122,7 @@ export async function cardSummaries(phone: string, now = Date.now()): Promise<Ca
     db.collection('gmail_links').doc(phone).get(),
   ]);
   const remindAll = linkSnap.data()?.billReminders === true;
+  const closedBanks = (linkSnap.data()?.closedBanks || []) as string[];
   const edits = new Map(editSnap.docs.map((d) => [d.id, d.data() as CardEdit]));
   type Base = { key: string; issuer: string; issuerName: string; last4: string | null; statementDate?: string; dueDate: string | null; totalDue: number; minDue: number | null; billId?: string; manual: boolean };
   const cards = new Map<string, Base>();
@@ -177,7 +182,8 @@ export async function cardSummaries(phone: string, now = Date.now()): Promise<Ca
       status: paid || totalDue <= 0 ? 'paid' : daysLeft !== null && daysLeft < 0 ? 'overdue' : 'due',
       daysLeft,
       manual: c.manual,
-      hidden: e.hidden === true,
+      hidden: e.hidden === true || e.closed === true || closedBanks.includes(c.issuer),
+      closed: e.closed === true || closedBanks.includes(c.issuer),
       edited: !c.manual && current && (e.totalDue != null || e.minDue !== undefined || !!e.dueDate || e.paid != null),
       remind: typeof e.remind === 'boolean' ? e.remind : remindAll,
       limit: e.limit ?? null,
@@ -249,4 +255,47 @@ export async function accountBalances(phone: string, now = Date.now()): Promise<
     return { ...a, excluded: e.excluded === true, ifsc: e.ifsc || null, accountNumber: e.accountNumber || null, holder: e.holder || null, history };
   }));
   return out.sort((a, b) => b.at - a.at);
+}
+
+/**
+ * Mirrors which cards are closed into gmail_links (closedCards: "<issuer>_<last4>", closedIssuers: issuers whose every
+ * known card is closed), so the Gmail sync and the statements list skip them without reading the card edits.
+ * Also ticks off open "Pay … card" reminders for the closed cards.
+ */
+export async function syncClosedCards(phone: string) {
+  const cards = await cardSummaries(phone);
+  const real = cards.filter((c) => !c.manual);
+  const closedCards = real.filter((c) => c.closed).map((c) => `${c.issuer}_${c.last4 || ''}`);
+  const issuers = [...new Set(real.map((c) => c.issuer))];
+  const link = db.collection('gmail_links').doc(phone);
+  const linkData = (await link.get()).data();
+  const closedIssuers = [...new Set([...issuers.filter((i) => real.filter((c) => c.issuer === i).every((c) => c.closed)), ...((linkData?.closedBanks || []) as string[])])];
+  if (linkData) {
+    // A bank whose every card is closed: drop its card-statement status (no "needs password" notice for it)
+    const clear = Object.fromEntries(closedIssuers.filter((i) => linkData.statementStatus?.[`${i}__card`]).map((i) => [`statementStatus.${i}__card`, FieldValue.delete()]));
+    await link.update({ closedCards, closedIssuers, ...clear });
+  }
+  if (closedCards.length || closedIssuers.length) {
+    const tasks = await db.collection('planner_items').where('ownerId', '==', phone).where('kind', '==', 'card_bill').get();
+    for (const d of tasks.docs) {
+      const t = d.data();
+      if (t.done || !t.bill) continue;
+      if (closedCards.includes(`${t.bill.issuer}_${t.bill.last4 || ''}`) || closedIssuers.includes(t.bill.issuer)) await d.ref.update({ done: true });
+    }
+  }
+  return { closedCards, closedIssuers };
+}
+
+/** Whether a card from `issuer` (last digits if known) is one the user closed. */
+export function isClosedCard(link: Record<string, any> | undefined, issuer: string, last4: string | null) {
+  // Closed from the statements list: every card from that bank
+  if (((link?.closedBanks || []) as string[]).includes(issuer)) return true;
+  if (last4) return ((link?.closedCards || []) as string[]).includes(`${issuer}_${last4}`);
+  return ((link?.closedIssuers || []) as string[]).includes(issuer);
+}
+
+/** "All my cards from this bank are closed" (from the statements list, where there may be no card in Wallet yet). */
+export async function setBankCardsClosed(phone: string, issuer: string, closed: boolean) {
+  await db.collection('gmail_links').doc(phone).update({ closedBanks: closed ? FieldValue.arrayUnion(issuer) : FieldValue.arrayRemove(issuer) });
+  return syncClosedCards(phone);
 }
