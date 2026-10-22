@@ -16,7 +16,7 @@ export type ParsedTransaction = {
   time: string | null;
 };
 
-const AMOUNT = /(?:rs\.?|inr|₹)\s*([\d,]+(?:\.\d{1,2})?)/i;
+const AMOUNT = /(?:rs\.?|inr|₹)[.:]?\s*([\d,]+(?:\.\d{1,2})?)/i;
 const AMOUNT_AFTER = /([\d,]+(?:\.\d{1,2})?)\s*(?:rs\.?|inr|₹)/i;
 // SBI-style "debited by 1,499.00" with no currency marker
 const AMOUNT_AFTER_VERB = /\b(?:debited|credited|spent|paid)\s+(?:by|for|with|of)\s+([\d,]+(?:\.\d{1,2})?)/i;

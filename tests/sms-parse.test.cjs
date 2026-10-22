@@ -49,3 +49,8 @@ const ignored = [
 for (const [name, sms] of ignored) {
   test(`ignores ${name}`, () => assert.equal(parseTransactionSms(sms), null));
 }
+
+test('"Rs:500" (a colon after the currency) is an amount', () => {
+  const got = parseTransactionSms('A/c XX1234 debited Rs:500.00 on 05-10-26 to VPA shop@ybl. Avl Bal Rs:4,500.25');
+  assert.deepEqual([got.type, got.amount, got.date], ['expense', 500, '2026-10-05']);
+});

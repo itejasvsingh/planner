@@ -49,7 +49,8 @@
 - Wallet & accounts (`lib/moneyAccounts.ts`, `GET /api/money/accounts`): per card the latest statement
   (gmail_links/<phone>/bills, with `statementDate`), payments (`money_accounts/<phone>/card_payments`) and spends
   since it (transactions with `cardLast4`), and the latest "Avl Bal" per account (`money_accounts/<phone>/accounts`),
-  parsed by `lib/accountParse.ts` from Gmail and SMS. `money_accounts` is server-only (catch-all rule).
+  parsed by `lib/accountParse.ts` from Gmail and SMS (many wordings; a currency-less "Avl Bal: 12,345.67" only when it looks like money). The
+  Android app's on-device SMS filter (`modules/align-sms/.../SmsForwarder.kt`) also forwards balance-only messages; changing it needs a new APK. `money_accounts` is server-only (catch-all rule).
   The user's card changes live in `money_accounts/<phone>/card_edits/<key>` (`POST /api/money/cards`): name, last4 and
   hidden persist; amounts, due date and paid apply only while `forDue` matches the latest statement; `manual_*` keys
   are cards added by hand. The app's "Paid with" sets a transaction's `cardLast4`.

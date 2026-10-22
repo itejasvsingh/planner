@@ -14,11 +14,14 @@ internal object SmsForwarder {
   private const val KEY_PENDING = "pending"
   private const val MAX_PENDING = 50
 
-  private val amount = Regex("(rs\\.?|inr|₹)\\s*[\\d,]", RegexOption.IGNORE_CASE)
+  // "Rs 500", "Rs.500", "Rs:500", "INR:500", "₹500"
+  private val amount = Regex("(rs\\.?|inr|₹)[.:]?\\s*[\\d,]", RegexOption.IGNORE_CASE)
   private val verb = Regex("debit|credit|spent|sent|paid|received|withdrawn|deducted|purchase", RegexOption.IGNORE_CASE)
+  // Balance-only messages ("Your A/c XX1234 balance is Rs 5,000", "Avl Bal: 12,345.67") are sent too, for the balance
+  private val balance = Regex("\\bbal(ance)?\\b[^\\n]{0,40}?(rs\\.?|inr|₹|\\d{1,3},\\d|\\d\\.\\d{2})", RegexOption.IGNORE_CASE)
 
   /** Cheap on-device pre-filter; the server does the real parsing and ignores OTPs, offers, etc. */
-  fun looksLikeTransaction(text: String) = amount.containsMatchIn(text) && verb.containsMatchIn(text)
+  fun looksLikeTransaction(text: String) = (amount.containsMatchIn(text) && verb.containsMatchIn(text)) || balance.containsMatchIn(text)
 
   private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 

@@ -60,3 +60,17 @@ test('banks by sender: DCB, and any .bank.in address', () => {
   assert.equal(bankNameById('in_kvbank'), 'KV Bank');
   assert.equal(bankFromSender('promo@shop.com'), null);
 });
+
+test('balance wordings banks use in SMS', () => {
+  const b = (t) => availableBalance(t)?.balance ?? null;
+  assert.equal(b('Rs 250.00 debited from A/c XX1234. Updated Bal:Rs 9,750.00'), 9750);
+  assert.equal(b('INR 1,000 credited to a/c XX1234. New Bal INR 5,500.50'), 5500.5);
+  assert.equal(b('Canara: Rs 300 debited from A/c XX1234. Total Avail.bal INR 12,000.00'), 12000);
+  assert.equal(b('Your a/c XX1234 has a balance of Rs. 3,210.00'), 3210);
+  assert.equal(b('A/c XX1234 debited Rs:500 on 05-10-26. Avl Bal Rs:4,500.25'), 4500.25);
+  assert.equal(b('Txn of INR 99 on A/c XX1234. Avl Bal: 12,345.67'), 12345.67, 'no currency after the label');
+  assert.equal(b('BOB: Clr Bal:Rs.1,000.00CR'), 1000);
+  assert.equal(b('Avl Bal as on 05-10-2026 for your a/c'), null, 'a date is not a balance');
+  assert.equal(b('Rs 500 debited from A/c XX1234 on 05-10-26'), null);
+  assert.equal(b('Rs 500 spent on Credit Card XX4321. Avl Lmt Rs 45,000'), null);
+});

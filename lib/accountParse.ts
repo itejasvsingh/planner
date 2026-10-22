@@ -6,11 +6,15 @@ import { BANKS } from './bankSenders';
  * card payment confirmation says was paid. Only these numbers are kept, never the message.
  */
 
-const AMOUNT = String.raw`(?:₹|rs\.?|inr)\s*([\d,]+(?:\.\d{1,2})?)`;
-// "Avl Bal Rs 12,345.67", "Available Balance: INR 5,000", "A/c balance is Rs.100", "Avbl Bal", "Clr Bal",
-// "Bal: INR 2,000", "balance in your account is Rs 50" (but not "Avl Lmt" or "minimum balance charges")
+const AMOUNT = String.raw`(?:₹|rs\.?|inr)[.:]?\s*([\d,]+(?:\.\d{1,2})?)`;
+// After a balance label the currency is sometimes left out ("Avl Bal: 12,345.67"): then the number must look like
+// money (commas or paise), so a date or an account number isn't taken for it
+const BAL_AMOUNT = String.raw`(?:(?:₹|rs\.?|inr)[.:]?\s*([\d,]+(?:\.\d{1,2})?)|(\d{1,3}(?:,\d{2,3})+(?:\.\d{1,2})?|\d+\.\d{2})(?![\d/-]))`;
+// "Avl Bal Rs 12,345.67", "Available Balance: INR 5,000", "A/c balance is Rs.100", "Avbl Bal", "Clr Bal", "Bal: INR 2,000",
+// "balance in your account is Rs 50", "Updated Bal:Rs 900", "New Bal", "Total Avail.bal INR", "balance of Rs 10",
+// "Avl Bal: 12,345.67" (but not "Avl Lmt" or "minimum balance charges")
 const BALANCE = new RegExp(
-  String.raw`\b(?:(?:avl|avbl|avail|available|a\/c|account|acct|clr|clear|closing|total|ledger|net\s+avl)\.?\s*)?bal(?:ance)?\.?(?:\s+(?:in\s+(?:your\s+)?(?:a\/c|account)(?:\s+\S+)?|as\s+on\s+\S+))?(?:\s+is)?\s*(?::|-|=)?\s*` + AMOUNT,
+  String.raw`\b(?:(?:avl|avbl|avlbl|avail|aval|available|a\/c|account|acct|clr|clear|closing|total|ledger|net\s+avl|updated|new|current|curr|effective|total\s+avail)\.?\s*)?bal(?:ance)?\.?(?:\s+(?:in\s+(?:your\s+)?(?:a\/c|account)(?:\s+\S+)?|as\s+on\s+\S+|of|for\s+(?:a\/c|account)\s+\S+))?(?:\s+is)?\s*(?::|-|=)?\s*` + BAL_AMOUNT,
   'i',
 );
 const ACCOUNT_LAST4 = /\b(?:a\/c|acct|account|ac)\b(?:\s*no\.?)?[^\n\d]{0,12}?(?:x+|\*+|•+|ending\s*(?:in|with)?\s*)(\d{3,4})\b/i;
@@ -27,7 +31,7 @@ export function accountLast4(text: string): string | null {
 export function availableBalance(text: string): { balance: number; last4: string | null } | null {
   const m = text.match(BALANCE);
   if (!m) return null;
-  const balance = toNumber(m[1]);
+  const balance = toNumber(m[1] || m[2]);
   if (!Number.isFinite(balance)) return null;
   // A credit card's available limit, or a loan's outstanding, isn't a bank balance
   if (/credit\s*card/i.test(text) && !/\ba\/c\b|savings|current\s+a/i.test(text)) return null;
