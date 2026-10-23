@@ -134,6 +134,18 @@ export async function cardSummaries(phone: string, now = Date.now()): Promise<Ca
       cards.set(key, { key, issuer: b.issuer, issuerName: b.issuerName, last4: b.last4, statementDate: b.statementDate, dueDate: b.dueDate, totalDue: b.totalDue, minDue: b.minDue, billId: b.id, manual: false });
     }
   }
+  // One card, seen twice: a bill whose email never named the card's digits, and another bill from the same bank that did.
+  // When the bank has exactly one card with digits, the digit-less bill belongs to it (the newer statement's amounts win).
+  const withDigits = new Map<string, string[]>();
+  for (const [key, c] of cards) if (c.last4) withDigits.set(c.issuer, [...(withDigits.get(c.issuer) || []), key]);
+  for (const [key, c] of [...cards]) {
+    if (c.last4) continue;
+    const same = withDigits.get(c.issuer) || [];
+    if (same.length !== 1) continue;
+    const keep = cards.get(same[0])!;
+    if ((c.dueDate || '') > (keep.dueDate || '')) cards.set(same[0], { ...c, key: keep.key, last4: keep.last4, issuerName: keep.issuerName.length >= c.issuerName.length ? keep.issuerName : c.issuerName });
+    cards.delete(key);
+  }
   for (const [key, e] of edits) {
     if (e.manual) cards.set(key, { key, issuer: 'manual', issuerName: e.name || 'Card', last4: e.last4 || null, dueDate: e.dueDate || null, totalDue: e.totalDue || 0, minDue: e.minDue ?? null, manual: true });
   }

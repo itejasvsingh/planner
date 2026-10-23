@@ -163,3 +163,23 @@ test('an account alert remembers its bank, so an account with no quoted balance 
   const [item] = (await db.collection('planner_items').where('ownerId', '==', PB).get()).docs.map((d) => d.data());
   assert.deepEqual([item.accountLast4, item.bankId, item.bankName], ['8002', 'slice', 'slice']);
 });
+
+test('one card seen twice (a bill without its digits and one with) is one card; two cards with digits stay two', async () => {
+  const PD = '919800000397';
+  const at = Date.now() - 10 * DAY;
+  // An older bill from an email that never named the card, then the statement PDF's bill with the digits
+  await saveBill(PD, { totalDue: 1000, minDue: 50, dueDate: day(-12), last4: null }, 'cards@yesbank.in', at - 30 * DAY);
+  await saveBill(PD, { totalDue: 2500, minDue: 125, dueDate: day(8), last4: '4455' }, 'cards@yesbank.in', at);
+  let cards = await cardSummaries(PD);
+  assert.deepEqual(cards.map((c) => [c.issuer, c.last4, c.totalDue]), [['yes', '4455', 2500]], 'one Yes Bank card, with its digits and the newest amounts');
+
+  // The digit-less bill is the newer one: its amounts win, the digits stay
+  await saveBill(PD, { totalDue: 3100, minDue: 155, dueDate: day(20), last4: null }, 'cards@yesbank.in', at + DAY);
+  cards = await cardSummaries(PD);
+  assert.deepEqual(cards.map((c) => [c.last4, c.totalDue]), [['4455', 3100]]);
+
+  // A second real card from the same bank (its own digits) stays separate; a digit-less bill can't be placed, so it stays listed
+  await saveBill(PD, { totalDue: 700, minDue: 35, dueDate: day(9), last4: '9988' }, 'cards@yesbank.in', at);
+  cards = await cardSummaries(PD);
+  assert.deepEqual(cards.map((c) => c.last4).sort(), ['4455', '9988'].sort().concat(cards.some((c) => c.last4 === null) ? [null] : []).sort());
+});
