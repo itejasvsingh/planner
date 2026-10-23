@@ -19,6 +19,23 @@ const HOUR = 60 * 60 * 1000;
 
 const hash = (phone: string, code: string) => createHash('sha256').update(`${phone}:${code}`).digest();
 
+/**
+ * Tester sign-ins, for people trying the app without a WhatsApp code. `TEST_LOGINS` in Vercel lists fake numbers with a
+ * 6-digit code you choose for each: "910000000001:482913,910000000002:731946". A tester enters that number and code; no
+ * WhatsApp message is sent. Only fake numbers count: 91 followed by ten digits starting with 0, which no real mobile number
+ * can start with, so this can never open a real person's account. Unset (the default) it does nothing.
+ */
+const TEST_NUMBER = /^910\d{9}$/;
+export function testLogins(env = process.env.TEST_LOGINS): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const pair of String(env || '').split(',')) {
+    const [rawPhone, rawCode] = pair.split(':').map((x) => (x || '').trim());
+    const phone = normalizePhone(rawPhone);
+    if (TEST_NUMBER.test(phone) && /^\d{6}$/.test(rawCode || '')) out.set(phone, rawCode);
+  }
+  return out;
+}
+
 export type StartResult = { status: 'sent'; template: boolean } | { status: 'error'; message: string; http: number };
 
 export async function startPhoneLogin(rawPhone: string, ip: string): Promise<StartResult> {
@@ -30,6 +47,9 @@ export async function startPhoneLogin(rawPhone: string, ip: string): Promise<Sta
     consumeRateLimit(`authcode_ip_${ip}`, 30, HOUR),
   ]);
   if (!byPhone || !byIp) return { status: 'error', message: 'Too many codes requested. Try again in an hour.', http: 429 };
+
+  // A tester number: nothing to send; the code was agreed in advance
+  if (testLogins().has(phone)) return { status: 'sent', template: false };
 
   const prev = await db.collection('auth_codes').doc(phone).get();
   if (prev.exists && Date.now() - Number(prev.data()?.sentAt || 0) < RESEND_AFTER_MS) {
@@ -83,6 +103,14 @@ export async function verifyPhoneLogin(rawPhone: string, rawCode: string, idToke
   const code = String(rawCode || '').replace(/\D/g, '');
   if (!isValidPhone(phone) || code.length !== 6) return { status: 'error', message: 'Enter the 6-digit code from WhatsApp.', http: 400 };
 
+  // A tester number: the agreed code, with its own limit on wrong tries (no WhatsApp code exists for it)
+  const testCode = testLogins().get(phone);
+  if (testCode) {
+    if (!(await consumeRateLimit(`testlogin_${phone}`, 12, HOUR))) return { status: 'error', message: 'Too many tries. Wait an hour.', http: 429 };
+    if (!timingSafeEqual(hash(phone, code), hash(phone, testCode))) return { status: 'error', message: "That code isn't right.", http: 400 };
+    return finishLogin(phone, idToken);
+  }
+
   const ref = db.collection('auth_codes').doc(phone);
   const outcome = await db.runTransaction(async (t) => {
     const snap = await t.get(ref);
@@ -98,6 +126,11 @@ export async function verifyPhoneLogin(rawPhone: string, rawCode: string, idToke
   if (outcome === 'locked') return { status: 'error', message: 'Too many wrong tries. Ask for a new code.', http: 429 };
   if (outcome === 'wrong') return { status: 'error', message: "That code isn't right. Check WhatsApp and try again.", http: 400 };
 
+  return finishLogin(phone, idToken);
+}
+
+/** After a correct code: a sign-in token for the number, or (with a signed-in user's ID token) the number linked to that account. */
+async function finishLogin(phone: string, idToken?: string): Promise<VerifyResult> {
   const claims = { phone, phones: getPhoneVariants(phone) };
   if (idToken) {
     let uid: string;

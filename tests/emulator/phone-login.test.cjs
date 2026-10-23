@@ -26,7 +26,7 @@ global.fetch = async (url, opts) => {
 const lastCode = () => sent[sent.length - 1].text.body.match(/\d{6}/)[0];
 
 const jiti = require('jiti')(__filename);
-const { startPhoneLogin, verifyPhoneLogin, isLoginRequest, replyWithLoginCode } = jiti(path.join(__dirname, '../../lib/phoneAuth.ts'));
+const { startPhoneLogin, verifyPhoneLogin, isLoginRequest, replyWithLoginCode, testLogins } = jiti(path.join(__dirname, '../../lib/phoneAuth.ts'));
 const { botNumber } = jiti(path.join(__dirname, '../../lib/whatsappSend.ts'));
 const { db, adminAuth } = jiti(path.join(__dirname, '../../lib/firebase.ts'));
 
@@ -133,4 +133,45 @@ test('"Login" sent to the bot gets a code back that signs in, without the 30-sec
 
 test("the login screen can find Align's WhatsApp number", async () => {
   assert.equal(await botNumber(), '15550100199');
+});
+
+test('tester sign-in: a fake number and an agreed code, no WhatsApp message; real numbers and bad entries are ignored', async () => {
+  // Parsing: only 91 + ten digits starting with 0 (never a real mobile number) and a 6-digit code count
+  assert.deepEqual([...testLogins('910000000001:482913, 0000000002:731946 ,919876543210:111111,910000000003:12345,garbage,910000000004:abcdef')].sort(), [['910000000001', '482913'], ['910000000002', '731946']]);
+  assert.equal(testLogins('').size + testLogins(undefined).size, 0, 'off by default');
+
+  process.env.TEST_LOGINS = '910000000001:482913,919876500099:555555';
+  try {
+    const before = sent.length;
+    assert.deepEqual(await startPhoneLogin('0000000001', '10.0.0.7'), { status: 'sent', template: false });
+    assert.equal(sent.length, before, 'no WhatsApp message for a tester');
+
+    const wrong = await verifyPhoneLogin('910000000001', '000000');
+    assert.equal(wrong.status, 'error');
+    const ok = await verifyPhoneLogin('910000000001', '482913');
+    assert.equal(ok.status, 'ok');
+    const cred = await signInWithCustomToken(auth, ok.token);
+    assert.ok(cred.user.uid.startsWith('wa_9100000000'), 'a normal sign-in token for the fake number');
+    await db.collection('planner_items').doc('tester-own').set({ ownerId: '910000000001', type: 'expense', amount: 5 });
+    const own = await getDocs(query(collection(cdb, 'planner_items'), where('ownerId', 'in', ['910000000001', '0000000001'])));
+    assert.deepEqual(own.docs.map((d) => d.id), ['tester-own'], 'the tester sees their own data');
+    await assert.rejects(getDoc(doc(cdb, 'planner_items', 'theirs')), 'and nobody else\'s');
+    await signOut(auth);
+
+    // A real-looking number in the list is ignored: it goes through WhatsApp like anyone else
+    const real = await startPhoneLogin('919876500099', '10.0.0.8');
+    assert.equal(real.status, 'sent');
+    assert.equal(sent.length, before + 1, 'a WhatsApp code was sent for the real-looking number');
+    assert.equal((await verifyPhoneLogin('919876500099', '555555')).status, 'error', 'its listed code does not work');
+
+    // Wrong tries are limited
+    let last;
+    for (let i = 0; i < 14; i++) last = await verifyPhoneLogin('910000000001', '999999');
+    assert.equal(last.http, 429);
+  } finally {
+    delete process.env.TEST_LOGINS;
+  }
+  const after = await startPhoneLogin('910000000001', '10.0.0.9');
+  assert.equal(after.status, 'sent');
+  assert.equal(sent[sent.length - 1].to, '910000000001', 'switched off again: goes through WhatsApp');
 });

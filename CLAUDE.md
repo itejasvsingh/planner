@@ -22,6 +22,9 @@
   through `/api/auth/code` + `/api/auth/verify` (a code sent on WhatsApp; the custom token's `phones` claim lists
   the number's spellings, matched against `ownerId`), Google users after verifying a number the same way.
   Never add client writes of `users/<uid>.phone` or rules that allow signed-out access.
+- Tester sign-ins (`testLogins` in `lib/phoneAuth.ts`): `TEST_LOGINS` in Vercel, e.g. `910000000001:482913,910000000002:731946` (fake number : 6-digit code you choose).
+  A tester enters the number and code; no WhatsApp code is sent. Only `91` + ten digits starting with `0` count (no real mobile number can), so it can
+  never open a real person's account; wrong tries are limited to 12 an hour. Unset = off. Remove entries when testing ends.
 - Server code (API routes, crons, the WhatsApp bot) uses the Admin SDK (`lib/firebase.ts`), which needs
   `FIREBASE_SERVICE_ACCOUNT` (service-account JSON, raw or base64) in Vercel. Server-only collections:
   `rate_limits`, `auth_codes` and anything not matched in `firestore.rules`.
