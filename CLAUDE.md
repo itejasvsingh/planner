@@ -76,7 +76,7 @@
   balance. A locked file is retried only after that bank's password changes (`statementTried`). Once open, the PDF decides
   card vs account (`kindFromPdf` in `lib/statementParse.ts`, beats the email's wording, also corrects `statementIndex`) and the
   card/account number; a card statement's own summary is saved as the bill (`parseCardBill` reads label-row/value-row tables like
-  HDFC's and co-brand names like "Swiggy"). Statements imported before this are reopened once for the bill only (`statementBillIds5`; the name is bumped whenever bill reading improves, so every statement is reopened once more). Statement summaries
+  HDFC's and co-brand names like "Swiggy"). Statements imported before this are reopened once for the bill only (`statementBillIds6`; the name is bumped whenever bill reading improves, so every statement is reopened once more). Statement summaries
   are read by meaning and position, not per bank (words like total+due, min+due, due+date; wrapped labels; decoys such as previous/current dues skipped;
   min ≤ total; due date within ~2 months): no new bank should need a code change. A statement where nothing credible is found says so in Wallet. Box layouts
   (HDFC) are read by position: `summaryFromItems` in `lib/statementParse.ts` puts "Label: value" lines first in the PDF text.
@@ -87,7 +87,8 @@
   (`SELF_TRANSFER`) make `recordTransaction` save money-out as type `transfer`, before the duplicate check.
 - Suspicious payments are found in the app (`align-native/src/lib/suspicious.ts`, pure): Money shows "payments to
   check" and `SuspiciousWatcher` notifies once per new one; the answer is stored as the item's `review`.
-- Wallet → Statements (`components/finance/StatementsCard.tsx`): asks for missing/wrong PDF passwords inline (StatementPasswords
+- Wallet → Statements (`components/finance/StatementsCard.tsx`, two parts: `pending` on top only when a password is needed, `list` at the bottom as
+  compact tap-to-expand rows with the statement's own summary, spent/refunds/fees and every transaction): asks for missing/wrong PDF passwords inline (StatementPasswords
   `mode="pending"`), searches Gmail for statements at most daily (`statementIndexAt`), and summarises each statement read
   (`money_accounts/<phone>/statements/<msgId>`, written by `syncGmail` step 4) on the phone with `lib/statement-summary.ts` (rules only,
   no AI): spent/received, top categories and shops, biggest, change vs the previous one; the newest card statement shows what's due

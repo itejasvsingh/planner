@@ -41,3 +41,18 @@ test('change from the previous statement of the same card', () => {
   assert.equal(previousStatement([oct], oct), null);
   assert.deepEqual(statementItems(items, rec({ last4: null, from: '2026-01-01', to: '2026-12-31' })), [], 'no card number: nothing to match');
 });
+
+test('the whole statement: spends, refunds and fees apart, and every transaction listed', () => {
+  const { statementRows } = mod.exports;
+  const all = [
+    { id: 'a', type: 'expense', title: 'Amazon', amount: 1000, date: '2026-10-02', category: 'Shopping', cardLast4: '1234' },
+    { id: 'b', type: 'expense', title: 'FINANCE CHARGES', amount: 80, date: '2026-10-20', cardLast4: '1234' },
+    { id: 'c', type: 'expense', title: 'IGST-CI @18%', amount: 14.4, date: '2026-10-20', cardLast4: '1234' },
+    { id: 'd', type: 'income', title: 'Refund Myntra', amount: 300, date: '2026-10-10', cardLast4: '1234' },
+    { id: 'e', type: 'expense', title: 'Late payment fee', amount: 500, date: '2026-10-15', cardLast4: '1234' },
+  ];
+  const r = rec({ id: 'oct', from: '2026-09-21', to: '2026-10-20' });
+  const s = summarizeStatement(all, r);
+  assert.deepEqual([s.spent, s.refunds, s.fees, s.count], [1000, 300, 594.4, 1]);
+  assert.deepEqual(statementRows(all, r).map(x => [x.id, x.kind]), [['b', 'fee'], ['c', 'fee'], ['e', 'fee'], ['d', 'refund'], ['a', 'spend']].sort((x, y) => all.find(i => i.id === y[0]).date.localeCompare(all.find(i => i.id === x[0]).date) || 0));
+});

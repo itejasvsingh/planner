@@ -306,6 +306,8 @@ export type StatementRecord = {
   state: 'ok' | 'unreadable'; from?: string | null; to?: string | null; rows?: number; added?: number; at: number;
   /** Card statements: whether its due date and amount were found, and what they were. */
   billFound?: boolean; bill?: { totalDue: number; minDue: number | null; dueDate: string } | null;
+  /** The statement's own summary (previous balance, payments received, purchases, finance charges). */
+  breakdown?: { previous?: number; payments?: number; purchases?: number; charges?: number } | null;
 };
 
 export async function saveStatementRecord(phone: string, rec: StatementRecord) {

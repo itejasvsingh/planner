@@ -430,12 +430,22 @@ export function summaryFromItems(items: PdfItem[], now = Date.now()): string {
   }
   const words = (s: string) => s.toLowerCase().replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ').trim();
   const has = (w: string, re: RegExp) => re.test(` ${w} `);
+  // The statement's own breakdown (HDFC: previous dues − payments/credits + purchases + finance charges = total)
+  const PARTS: { kind: 'previous' | 'payments' | 'purchases' | 'charges'; re: RegExp }[] = [
+    { kind: 'previous', re: /\b(?:previous|prior|opening|last) (?:statement )?(?:dues?|balance|outstanding)\b|\bbalance brought forward\b/ },
+    { kind: 'payments', re: /\bpayments?(?: credits?)?(?: received)?\b|\bcredits? received\b/ },
+    { kind: 'purchases', re: /\bpurchases?\b|\bdebits?\b|\bnew (?:charges|purchases|spends?)\b|\bspends?\b/ },
+    { kind: 'charges', re: /\bfinance charges?\b|\binterest charges?\b|\bfees? (?:and|&) (?:other )?charges\b|\bother charges\b/ },
+  ];
   const DECOY = /\b(previous|prior|last|opening|credit limit|available|cash limit|past|over limit|current dues|finance|charges|reward|points|payments?\s+(?:credits|received))\b/;
 
-  type Kind = 'total' | 'min' | 'date';
+  type Kind = 'total' | 'min' | 'date' | 'previous' | 'payments' | 'purchases' | 'charges';
   const kindOf = (text: string): Kind | null => {
     const w = words(text);
-    if (!w || w.length > 40 || has(w, DECOY)) return null;
+    if (!w || w.length > 40) return null;
+    const part = PARTS.find((x) => x.re.test(` ${w} `) && !/\b(?:minimum|min|limit|reward|points|total|date|by|on)\b/.test(w) && (x.kind === 'previous' || !/\b(?:due|dues|payable)\b/.test(w)));
+    if (part) return part.kind;
+    if (has(w, DECOY)) return null;
     if (has(w, /\bmin(?:imum)?\b/) && has(w, /\b(?:due|dues|payable|amount|amt|payment)\b/)) return 'min';
     if (has(w, /\b(?:due|pay)\b/) && has(w, /\b(?:date|by|on|before)\b/) && !has(w, /\b(?:amount|amt|total|min|minimum)\b/)) return 'date';
     if (has(w, /\blast date\b/) && has(w, /\bpayment\b/)) return 'date';
@@ -485,9 +495,31 @@ export function summaryFromItems(items: PdfItem[], now = Date.now()): string {
   const dates = best('date');
   const date = dates.find((d) => dateOk(d.value)) || (dates.length ? undefined : undefined);
 
+  // The statement's own breakdown, kept only when it adds up to the total (previous − payments + purchases + charges)
+  const part = (kind: Kind) => { const c = best(kind)[0]; return c ? toNum(c.value) : null; };
+  const [prev, pay, buy, chg] = [part('previous'), part('payments'), part('purchases'), part('charges')];
+  const parts: string[] = [];
+  if (total && (prev !== null || buy !== null)) {
+    const sum = (prev ?? 0) - (pay ?? 0) + (buy ?? 0) + (chg ?? 0);
+    if (Math.abs(sum - toNum(total.value)) <= 1) {
+      if (prev !== null) parts.push(`Previous Balance: Rs. ${prev.toFixed(2)}`);
+      if (pay !== null) parts.push(`Payments Received: Rs. ${pay.toFixed(2)}`);
+      if (buy !== null) parts.push(`Purchases: Rs. ${buy.toFixed(2)}`);
+      if (chg !== null) parts.push(`Finance Charges: Rs. ${chg.toFixed(2)}`);
+    }
+  }
+
   const out: string[] = [];
   if (total) out.push(`Total Amount Due: Rs. ${total.value}`);
   if (min && (!total || toNum(min.value) <= toNum(total.value))) out.push(`Minimum Amount Due: Rs. ${min.value}`);
   if (date) out.push(`Payment Due Date: ${date.value.replace(/,/g, '')}`);
-  return out.join('\n');
+  return [...out, ...parts].join('\n');
+}
+
+/** The breakdown lines summaryFromItems wrote into a statement's text, as numbers (each only if present). */
+export function breakdownFromText(text: string): { previous?: number; payments?: number; purchases?: number; charges?: number } | null {
+  const grab = (label: string) => { const m = text.match(new RegExp(`^${label}: Rs\\. ([\\d.]+)$`, 'm')); return m ? parseFloat(m[1]) : undefined; };
+  const out = { previous: grab('Previous Balance'), payments: grab('Payments Received'), purchases: grab('Purchases'), charges: grab('Finance Charges') };
+  const clean = Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined)) as { previous?: number; payments?: number; purchases?: number; charges?: number };
+  return Object.keys(clean).length ? clean : null;
 }

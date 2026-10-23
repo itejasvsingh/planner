@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { useFocusEffect } from 'expo-router';
-import { AlertTriangle, Check, ChevronDown, ChevronRight, ChevronUp, Copy, CreditCard, Landmark, Plus, ShieldCheck } from 'lucide-react-native';
+import { AlertTriangle, Check, ChevronDown, ChevronRight, ChevronUp, Copy, CreditCard, Landmark, Plus } from 'lucide-react-native';
 import { Text, TextInput } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Radius, Shadow } from '@/constants/theme';
@@ -13,7 +13,7 @@ import NetWorthCard from './NetWorthCard';
 import BalanceOverview from './BalanceOverview';
 import { todayKey } from '@/lib/dates';
 import { adjustBalances, recentForAccount } from '@/lib/account-balances';
-import { cardNumbers, cardStrip, cardTitle, detailsText, dueText, inr, nextStatement, shortDay } from '@/lib/card-format';
+import { cardNumbers, cardStrip, cardTitle, detailsText, dueText, inr, nextStatement } from '@/lib/card-format';
 import type { CardSummary } from '@/lib/gmail-connect';
 import CardSheet from './CardSheet';
 
@@ -52,7 +52,6 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
 
   const baseCards = data?.cards || [];
   const baseAccounts = data?.accounts || [];
-  const allChecks = data?.checks || [];
   
   // Realtime Sync with planner items
   const { cards, accounts, netWorth } = React.useMemo(() => adjustBalances(baseAccounts, baseCards, items), [baseAccounts, baseCards, items]);
@@ -60,8 +59,6 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
   const shown = cards.filter(k => showHidden || !k.hidden);
   const hiddenCount = cards.filter(k => k.hidden).length;
   
-  const checks = allChecks.filter(k => !k.state || k.state === 'ok');
-  const waiting = allChecks.filter(k => k.state === 'needs_password' || k.state === 'wrong_password');
   const sheet = (
     <CardSheet
       phone={phone}
@@ -273,53 +270,6 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
               );
             })}
           </View>
-        )}
-        {(checks.length > 0 || waiting.length > 0) && (
-          <>
-            <Text style={[styles.header, { color: c.textTertiary, marginTop: 10, marginBottom: 0 }]}>Statement checks</Text>
-            {waiting.map(k => (
-              <Pressable key={k.slot} accessibilityRole="button" onPress={onOpenSettings} style={[styles.card, { backgroundColor: c.expenseSoft, borderColor: c.expenseSoft }]}>
-                <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
-                  <AlertTriangle color={c.expense} size={18} />
-                  <Text style={{ color: c.text, flex: 1, fontSize: 13, fontWeight: '600' }}>{k.line}</Text>
-                  <Text style={{ color: c.expense, fontWeight: '700', fontSize: 13 }}>Add password</Text>
-                </View>
-              </Pressable>
-            ))}
-            {checks.map(k => {
-              const ok = k.checked && !k.extras.length;
-              const Icon = ok ? ShieldCheck : AlertTriangle;
-              return (
-                <View key={k.slot} style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: ok ? c.border : c.expense }]}>
-                  <View style={{ flexDirection: 'row', gap: 10 }}>
-                    <Icon color={ok ? c.income : k.checked ? c.expense : c.textTertiary} size={18} style={{ marginTop: 1 }} />
-                    <View style={{ flex: 1, gap: 3 }}>
-                      <Text style={{ color: c.text, fontWeight: '700' }}>
-                        {k.bankName} · {k.kind === 'card' ? 'card' : 'account'} statement{k.from && k.to ? ` ${shortDay(k.from)} – ${shortDay(k.to)}` : ''}
-                      </Text>
-                      <Text style={{ color: c.textSecondary, fontSize: 13 }}>
-                        {k.rows} transactions{k.added ? `; ${k.added} that alerts missed are now added` : ', all already in Align'}.
-                      </Text>
-                      {!k.checked ? (
-                        <Text style={{ color: c.textTertiary, fontSize: 12 }}>Couldn&apos;t compare with alerts: the email didn&apos;t name the account&apos;s last digits.</Text>
-                      ) : k.extras.length ? (
-                        <>
-                          <Text style={{ color: c.expense, fontSize: 13, fontWeight: '600' }}>
-                            {k.extras.length} payment{k.extras.length === 1 ? '' : 's'} from alerts {k.extras.length === 1 ? "isn't" : "aren't"} on this statement. Check for a duplicate or a different account:
-                          </Text>
-                          {k.extras.map(x => (
-                            <Text key={`${x.date}${x.title}${x.amount}`} style={{ color: c.text, fontSize: 13 }}>• {x.title} · {inr(x.amount)} · {shortDay(x.date)}</Text>
-                          ))}
-                        </>
-                      ) : (
-                        <Text style={{ color: c.income, fontSize: 13, fontWeight: '600' }}>Everything Align recorded matches the statement.</Text>
-                      )}
-                    </View>
-                  </View>
-                </View>
-              );
-            })}
-          </>
         )}
       </View>
       {settingsLink}

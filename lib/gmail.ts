@@ -4,7 +4,7 @@ import { open, seal } from './secretBox';
 import { BANKS, normalizeSender, sendersFor } from './bankSenders';
 import { bankQuery, billQuery, messageText, pdfAttachments, statementPdfQuery, type GmailMessage } from './gmailMessage';
 import { isLockedPdf, readStatement } from './statementFile';
-import { kindFromPdf } from './statementParse';
+import { breakdownFromText, kindFromPdf } from './statementParse';
 import { importStatementRows, passwordVersion, statementKind, statementMonthsOf, statementSince, statementSlot, type StatementPassword, type StatementState } from './statementAuto';
 import { isCardPaymentReceived, parseBankEmail, parseCardBill } from './emailAlert';
 import { bankForSender, ensureBillTask, markBillsPaid, saveBill } from './cardBills';
@@ -398,7 +398,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
     if (budget > 0 && !throttled && Date.now() < deadline - 10_000) {
       const done = new Set<string>(link.statementMsgIds || []);
       // Statements read before bills were taken from the PDF itself are opened once more, only for the bill
-      const billIds = new Set<string>(link.statementBillIds5 || []);
+      const billIds = new Set<string>(link.statementBillIds6 || []);
       // Card or account, as the opened PDF says: corrects the list in Settings → Gmail
       const kindOf = new Map<string, 'account' | 'card'>();
       const tried: Record<string, { bank: string; v: number }> = { ...(link.statementTried || {}) };
@@ -456,7 +456,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
           const bill = creditCard && pdfText ? parseCardBill(`${pdfText}\n${text}`) : null;
           if (bill) await takeBill(`${pdfText}\n${text}`, from, at);
           const billFields = creditCard && res.status !== 'password'
-            ? { billFound: !!bill, bill: bill ? { totalDue: bill.totalDue, minDue: bill.minDue, dueDate: bill.dueDate } : null }
+            ? { billFound: !!bill, bill: bill ? { totalDue: bill.totalDue, minDue: bill.minDue, dueDate: bill.dueDate } : null, breakdown: breakdownFromText(pdfText) }
             : {};
           const product = creditCard ? bill?.product || null : null;
           // Only the bill was wanted from a statement that was already imported
@@ -494,7 +494,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
         }
       }
       patch.statementMsgIds = [...done].slice(-200);
-      patch.statementBillIds5 = [...billIds].slice(-200);
+      patch.statementBillIds6 = [...billIds].slice(-200);
       const index = (link.statementIndex || []) as FoundStatement[];
       if (kindOf.size && index.some((x) => kindOf.has(x.id) && kindOf.get(x.id) !== x.kind)) {
         patch.statementIndex = index.map((x) => (kindOf.has(x.id) ? { ...x, kind: kindOf.get(x.id)! } : x));

@@ -62,10 +62,12 @@ export default function WalletScreen() {
       >
         <ScreenHeader title="Wallet" subtitle="Net worth, cards and bank accounts" />
         <View style={{ paddingHorizontal: 16, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
+          {/* Only when a statement needs its PDF password: it needs you, so it comes first */}
+          <StatementsCard section="pending" items={items} cards={cardData?.cards || []} onCardsChanged={() => void refreshCards(phone)} />
           <UpcomingPayments rows={upcoming} />
           <View style={{ height: 16 }} />
-          <StatementsCard items={items} cards={cardData?.cards || []} onCardsChanged={() => void refreshCards(phone)} />
           <CardsAccounts phone={phone} items={items} onOpenSettings={() => router.push('/settings/gmail')} onEditTransaction={setEditing} />
+          <StatementsCard section="list" items={items} cards={cardData?.cards || []} checks={(cardData?.checks || []) as any} onCardsChanged={() => void refreshCards(phone)} />
         </View>
       </ScrollView>
       <TransactionSheet visible={editing !== null} item={editing} onClose={() => setEditing(null)} onSave={save} onDelete={deleteItem} />

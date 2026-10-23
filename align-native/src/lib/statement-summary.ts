@@ -7,19 +7,25 @@ export type StatementRecord = {
   id: string; bankId: string; bankName: string; kind: 'account' | 'card'; last4: string | null; product?: string | null;
   state: 'ok' | 'unreadable'; from?: string | null; to?: string | null; rows?: number; added?: number; at: number;
   billFound?: boolean; bill?: { totalDue: number; minDue: number | null; dueDate: string } | null;
+  /** The statement's own summary: previous balance, payments received, purchases, finance charges (kept only when they add up). */
+  breakdown?: { previous?: number; payments?: number; purchases?: number; charges?: number } | null;
 };
 type Item = {
   id: string; type?: string; title?: string; amount?: number | string | null; date?: string | null; category?: string;
   cardLast4?: string | null; accountLast4?: string | null; excluded?: boolean;
 };
 export type Ranked = { name: string; total: number; count: number };
+export type StatementRow = { id: string; date: string; title: string; amount: number; kind: 'spend' | 'refund' | 'fee'; category?: string };
 export type StatementSummary = {
-  spent: number; received: number; count: number;
+  spent: number; /** Refunds and credits back to the card/account */ received: number; refunds: number; /** Interest, late fees, GST and other charges */ fees: number; count: number;
   categories: Ranked[]; shops: Ranked[];
   biggest: { title: string; amount: number; date: string } | null;
   /** Spent vs the previous statement of the same card/account (fraction, e.g. 0.12 = 12% more); null without one. */
   change: number | null;
 };
+
+// Interest, late fees, annual/joining fees, GST on them and similar charges: money out, but not spending
+const FEE = /finance charge|interest|late (?:payment )?(?:fee|charge)|annual fee|joining fee|membership fee|\bgst\b|igst|cgst|sgst|service tax|over ?limit|surcharge|processing fee|cash advance fee|forex mark ?up|\bfee\b/i;
 
 const num = (v: unknown) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -33,10 +39,22 @@ export function statementItems<T extends Item>(items: T[], rec: StatementRecord)
 
 const rank = (map: Map<string, Ranked>, n = 3) => [...map.values()].sort((a, b) => b.total - a.total).slice(0, n).map(r => ({ ...r, total: r2(r.total) }));
 
+/** Every transaction on the statement: spends, refunds and fees, newest first. */
+export function statementRows(items: Item[], rec: StatementRecord): StatementRow[] {
+  const out: StatementRow[] = [];
+  for (const t of statementItems(items, rec)) {
+    if (t.excluded || (t.type !== 'expense' && t.type !== 'income')) continue;
+    const title = (t.title || (t.type === 'income' ? 'Credit' : 'Expense')).trim();
+    out.push({ id: t.id, date: t.date || '', title, amount: num(t.amount), kind: t.type === 'income' ? 'refund' : FEE.test(title) ? 'fee' : 'spend', ...(t.category ? { category: t.category } : {}) });
+  }
+  return out.sort((a, b) => b.date.localeCompare(a.date));
+}
+
 export function summarizeStatement(items: Item[], rec: StatementRecord, previous?: StatementRecord | null): StatementSummary {
   const mine = statementItems(items, rec);
   let spent = 0;
   let received = 0;
+  let fees = 0;
   let count = 0;
   let biggest: StatementSummary['biggest'] = null;
   const cats = new Map<string, Ranked>();
@@ -46,6 +64,7 @@ export function summarizeStatement(items: Item[], rec: StatementRecord, previous
     const a = num(t.amount);
     if (t.type === 'income') { received += a; continue; }
     if (t.type !== 'expense') continue;
+    if (FEE.test(t.title || '')) { fees += a; continue; }
     spent += a;
     count += 1;
     const cat = t.category || 'Other';
@@ -59,10 +78,10 @@ export function summarizeStatement(items: Item[], rec: StatementRecord, previous
   }
   let change: number | null = null;
   if (previous) {
-    const before = statementItems(items, previous).filter(t => t.type === 'expense' && !t.excluded).reduce((s, t) => s + num(t.amount), 0);
+    const before = statementItems(items, previous).filter(t => t.type === 'expense' && !t.excluded && !FEE.test(t.title || '')).reduce((s, t) => s + num(t.amount), 0);
     if (before > 0) change = Math.round(((spent - before) / before) * 100) / 100;
   }
-  return { spent: r2(spent), received: r2(received), count, categories: rank(cats), shops: rank(shops), biggest, change };
+  return { spent: r2(spent), received: r2(received), refunds: r2(received), fees: r2(fees), count, categories: rank(cats), shops: rank(shops), biggest, change };
 }
 
 /** The statement before `rec` for the same bank, kind and card/account number. */

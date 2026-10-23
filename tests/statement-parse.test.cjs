@@ -121,7 +121,9 @@ test('card statement summary boxes are read by position (HDFC layout: labels abo
     it('₹1,00,000', 95, 610), it('₹97,766', 260, 610), it('₹112.00', 592, 605), it('08 Nov, 2026', 680, 605),
     it('MINIMUM DUES', 640, 520), it('₹112.00', 640, 505),
   ];
-  assert.equal(summaryFromItems(items, NOW), 'Total Amount Due: Rs. 2,234.50\nMinimum Amount Due: Rs. 112.00\nPayment Due Date: 08 Nov 2026');
+  const hdfc = summaryFromItems(items, NOW);
+  assert.equal(hdfc, 'Total Amount Due: Rs. 2,234.50\nMinimum Amount Due: Rs. 112.00\nPayment Due Date: 08 Nov 2026\nPrevious Balance: Rs. 5000.00\nPayments Received: Rs. 4000.00\nPurchases: Rs. 1234.50\nFinance Charges: Rs. 0.00');
+  assert.deepEqual(mod.exports.breakdownFromText(hdfc), { previous: 5000, payments: 4000, purchases: 1234.5, charges: 0 });
   assert.equal(summaryFromItems([it('Statement', 10, 10)], NOW), '');
 });
 
@@ -162,4 +164,14 @@ test('a bank Align has never seen: labels by meaning, wrapped labels, decoys and
   assert.equal(summaryFromItems([it('Due Date', 50, 500), it('01/01/2031', 50, 485)], NOW), '');
   // The minimum is never larger than the total
   assert.equal(summaryFromItems([it('Total Amount Due', 50, 700), it('₹ 100.00', 50, 680), it('Minimum Amount Due', 250, 700), it('₹ 500.00', 250, 680)], NOW), 'Total Amount Due: Rs. 100.00');
+});
+
+test('the breakdown is kept only when it adds up to the total', () => {
+  const { summaryFromItems } = mod.exports;
+  const it = (str, x, y, w = str.length * 5) => ({ str, x, y, w, page: 1 });
+  const wrong = [
+    it('PREVIOUS STATEMENT DUES', 40, 700), it('PURCHASES/DEBIT', 200, 700), it('TOTAL AMOUNT DUE', 360, 700),
+    it('₹5,000.00', 60, 680), it('₹1,000.00', 220, 680), it('₹9,999.00', 380, 680),
+  ];
+  assert.equal(summaryFromItems(wrong, NOW), 'Total Amount Due: Rs. 9,999.00', 'breakdown dropped: it does not add up');
 });
