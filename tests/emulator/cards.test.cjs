@@ -155,3 +155,11 @@ test('a closed card: hidden, its bill reminder ticked off, its bills and stateme
   assert.deepEqual([again.closedCards, again.closedIssuers], [[], []]);
   assert.equal((await cardSummaries(PC))[0].hidden, false);
 });
+
+test('an account alert remembers its bank, so an account with no quoted balance can be listed by name', async () => {
+  const { db } = jiti(path.join(__dirname, '../../lib/firebase.ts'));
+  const PB = '919800000398';
+  await recordTransaction(PB, { type: 'expense', amount: 20, merchant: 'Parks', category: 'Other', ref: 'r1', date: null }, { source: 'gmail', dedupText: 'slice1', date: day(0), account: '8002', bank: { id: 'slice', name: 'slice' } });
+  const [item] = (await db.collection('planner_items').where('ownerId', '==', PB).get()).docs.map((d) => d.data());
+  assert.deepEqual([item.accountLast4, item.bankId, item.bankName], ['8002', 'slice', 'slice']);
+});

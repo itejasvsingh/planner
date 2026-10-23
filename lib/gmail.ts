@@ -327,7 +327,7 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
           return;
         }
         const arrived = istParts(at);
-        const outcome = await recordTransaction(phone, tx, { source: 'gmail', dedupText: `gmail:${id}`, date: tx.date || arrived.date, time: arrived.time, card: creditCardOf(text), account: accountLast4(text), text });
+        const outcome = await recordTransaction(phone, tx, { source: 'gmail', dedupText: `gmail:${id}`, date: tx.date || arrived.date, time: arrived.time, card: creditCardOf(text), account: accountLast4(text), bank: bankForSender(from) ? { id: bankForSender(from)!.id, name: bankForSender(from)!.name } : null, text });
         if (outcome === 'added') added++;
       });
       budget -= result.done;

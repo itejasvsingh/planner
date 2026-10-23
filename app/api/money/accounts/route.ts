@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requestUser } from '../../../../lib/requestUser';
 import { db } from '../../../../lib/firebase';
-import { bankNameById } from '../../../../lib/bankSenders';
-import { accountBalances, cardSummaries, netEntries, saveAccountEdit, type AccountEdit } from '../../../../lib/moneyAccounts';
+import { BANKS, bankNameById } from '../../../../lib/bankSenders';
+import { accountBalances, cardSummaries, netEntries, saveAccountEdit, saveBalance, type AccountEdit } from '../../../../lib/moneyAccounts';
 import { statementLine, type StatementState } from '../../../../lib/statementAuto';
 
 export const dynamic = 'force-dynamic';
@@ -58,6 +58,18 @@ export async function POST(req: Request) {
   const user = await requestUser(req);
   if (!user) return NextResponse.json({ error: 'Sign in first.' }, { status: 401 });
   const body = await req.json().catch(() => ({} as Record<string, unknown>));
+  // { setBalance: { bankId, last4, balance } }: an account whose alerts never quote a balance (slice's, for one) gets a starting
+  // balance typed in once; transactions after it then move it live
+  if (body.setBalance && typeof body.setBalance === 'object') {
+    const b = body.setBalance as Record<string, unknown>;
+    const bankId = typeof b.bankId === 'string' ? b.bankId : '';
+    const known = BANKS.some((x) => x.id === bankId) || /^in_[a-z0-9-]{1,40}$/.test(bankId) || bankId === 'bank';
+    const last4 = typeof b.last4 === 'string' && /^\d{3,4}$/.test(b.last4) ? b.last4 : null;
+    const balance = typeof b.balance === 'number' && Number.isFinite(b.balance) && Math.abs(b.balance) < 1e10 ? Math.round(b.balance * 100) / 100 : null;
+    if (!known || !last4 || balance === null) return NextResponse.json({ error: 'Enter the balance as a number.' }, { status: 400 });
+    await saveBalance(user.phone, { bankId, bankName: bankId === 'bank' ? 'Bank account' : bankNameById(bankId), last4, balance, at: Date.now() });
+    return NextResponse.json({ ok: true });
+  }
   const e = (body.edit && typeof body.edit === 'object' ? body.edit : {}) as Record<string, unknown>;
   if (typeof body.id !== 'string' || !/^[\w.-]{1,80}$/.test(body.id)) return NextResponse.json({ error: 'Which account?' }, { status: 400 });
   const edit: AccountEdit = {};

@@ -97,6 +97,9 @@
   newer transaction on that account (`accountLast4`, or `cardLast4` when "Paid with" names it): spends and transfers out, income in. A new quoted
   balance replaces it (so the two always line up); `applied` counts the newer ones. Card owed works the same way by `cardLast4`.
   Wallet → account → "This month" and every transaction (tap to edit/delete) come from the same items.
+- An account whose alerts never quote a balance (slice's): its transactions carry `accountLast4` + `bankId`/`bankName` (from `recordTransaction`'s `bank`);
+  Wallet lists it under "Accounts without a balance" and the user types the balance once (`POST /api/money/accounts {setBalance}` → `saveBalance`).
+  After that the live balance moves with each later transaction, and any alert that does quote a balance corrects it.
 - Wallet colours: `dueTone` in `align-native/src/lib/upcoming.ts` (red overdue, amber within 3 days, blue later; green paid) on "Coming up",
   the card rows and the statement due box. "Coming up" lists every unpaid card whenever it's due (overdue first), bills only in the next 14 days.
 - Closed cards: `card_edits.closed` (Wallet → card → "This card is closed") or `gmail_links.closedBanks` (Settings → Gmail → statements,

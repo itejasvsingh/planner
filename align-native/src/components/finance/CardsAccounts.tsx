@@ -13,6 +13,7 @@ import NetWorthCard from './NetWorthCard';
 import BalanceOverview from './BalanceOverview';
 import { todayKey } from '@/lib/dates';
 import { summarizeStatement } from '@/lib/statement-summary';
+import { setAccountBalance } from '@/lib/gmail-connect';
 import { adjustBalances, recentForAccount, transactionsForAccount } from '@/lib/account-balances';
 import { cardNumbers, cardStrip, cardTitle, detailsText, dueText, inr, nextStatement } from '@/lib/card-format';
 import type { CardSummary } from '@/lib/gmail-connect';
@@ -40,6 +41,9 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
   const [open, setOpen] = useState<CardSummary | 'new' | null>(null);
   const [showHidden, setShowHidden] = useState(false);
   const [txAll, setTxAll] = useState<string | null>(null);
+  const [balForm, setBalForm] = useState<Record<string, string>>({});
+  const [balBusy, setBalBusy] = useState<string | null>(null);
+  const [balErr, setBalErr] = useState('');
   const [openAcct, setOpenAcct] = useState<string | null>(null);
   const [form, setForm] = useState({ ifsc: '', accountNumber: '', holder: '' });
   const [formError, setFormError] = useState('');
@@ -82,6 +86,58 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
     </Pressable>
   ) : null;
 
+  // Accounts seen in the transactions whose alerts never quote a balance: type it in once (shown even before any balance exists)
+  const missingBlock = (() => {
+          // Accounts that appear in your transactions but whose alerts never quote a balance (slice's, for one): type it in once
+          const have = new Set(accounts.map(a => a.last4).filter(Boolean));
+          const seen = new Map<string, { last4: string; bankId: string; bankName: string; count: number }>();
+          for (const t of items as any[]) {
+            if (!t.accountLast4 || have.has(t.accountLast4) || !['expense', 'income', 'deposit', 'transfer'].includes(t.type)) continue;
+            const e = seen.get(t.accountLast4) || { last4: t.accountLast4, bankId: t.bankId || 'bank', bankName: t.bankName || 'Bank account', count: 0 };
+            e.count += 1;
+            seen.set(t.accountLast4, e);
+          }
+          const missing = [...seen.values()];
+          if (!missing.length) return null;
+          return (
+            <>
+              <Text style={[styles.header, { color: c.textTertiary, marginTop: 18, marginBottom: 8 }]}>Accounts without a balance</Text>
+              <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border }, Shadow.card]}>
+                {missing.map((m, i) => (
+                  <View key={m.last4} style={{ borderTopWidth: i ? 1 : 0, borderTopColor: c.border, paddingVertical: 10, gap: 8 }}>
+                    <View style={styles.row}>
+                      <View style={[styles.icon, { backgroundColor: c.warningSoft }]}><Landmark color={c.warning} size={18} /></View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: c.text, fontWeight: '600', fontSize: 15 }}>{m.bankName} ••{m.last4}</Text>
+                        <Text style={{ color: c.textTertiary, fontSize: 12 }}>{m.count} transaction{m.count === 1 ? '' : 's'} · its alerts don’t show a balance</Text>
+                      </View>
+                    </View>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TextInput accessibilityLabel={`Current balance of ${m.bankName} ${m.last4}`} placeholder="Current balance, e.g. 12500" placeholderTextColor={c.textTertiary}
+                        value={balForm[m.last4] || ''} onChangeText={v => setBalForm({ ...balForm, [m.last4]: v })} keyboardType="decimal-pad"
+                        style={[styles.input, { flex: 1, backgroundColor: c.background, borderColor: c.border, color: c.text }]} />
+                      <Pressable accessibilityRole="button" disabled={balBusy === m.last4 || !(parseFloat((balForm[m.last4] || '').replace(/,/g, '')) >= 0)}
+                        onPress={() => {
+                          setBalErr('');
+                          setBalBusy(m.last4);
+                          setAccountBalance(m.bankId, m.last4, parseFloat((balForm[m.last4] || '').replace(/,/g, '')))
+                            .then(() => refreshCards(phone))
+                            .catch(e => setBalErr((e as Error).message))
+                            .finally(() => setBalBusy(null));
+                        }}
+                        style={{ paddingHorizontal: 16, justifyContent: 'center', borderRadius: Radius.md, backgroundColor: parseFloat((balForm[m.last4] || '').replace(/,/g, '')) >= 0 ? c.accentFill : c.backgroundMuted }}>
+                        <Text style={{ color: parseFloat((balForm[m.last4] || '').replace(/,/g, '')) >= 0 ? c.onAccent : c.textTertiary, fontWeight: '700' }}>{balBusy === m.last4 ? 'Saving…' : 'Save'}</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ))}
+                {!!balErr && <Text accessibilityRole="alert" style={{ color: c.expense, fontSize: 13, paddingBottom: 8 }}>{balErr}</Text>}
+                <Text style={{ color: c.textTertiary, fontSize: 12, paddingBottom: 10 }}>Type today’s balance once. From then on, every payment and credit on that account moves it, and any alert that does quote a balance corrects it.</Text>
+              </View>
+            </>
+          );
+        })();
+
   if (!cards.length && !accounts.length) {
     return (
       <View style={{ gap: 12 }}>
@@ -93,6 +149,7 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
             bank balances from alerts. Or add a card yourself.
           </Text>
         </View>
+        {missingBlock}
         {addButton}
         {settingsLink}
         {sheet}
@@ -334,6 +391,7 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
             })}
           </View>
         )}
+        {missingBlock}
       </View>
       {settingsLink}
       {sheet}

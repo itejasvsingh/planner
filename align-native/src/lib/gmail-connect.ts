@@ -134,3 +134,7 @@ export const gmailSetStatementMonths = (months: 3 | 6 | 12) =>
 /** Reads new statement PDFs now, then checks the chosen window (last 3 months by default) for passwords. */
 export const gmailFindStatements = () =>
   call<StatementLists & { status: 'ok' | 'not_connected' | 'reconnect'; reading?: boolean }>('/api/gmail/statements/find', { method: 'POST' });
+
+/** An account whose alerts never quote a balance: type the balance in once; later transactions move it. */
+export const setAccountBalance = (bankId: string, last4: string, balance: number) =>
+  call<{ ok: true }>('/api/money/accounts', { method: 'POST', body: JSON.stringify({ setBalance: { bankId, last4, balance } }) });
