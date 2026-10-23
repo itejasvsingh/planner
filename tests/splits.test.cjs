@@ -202,3 +202,46 @@ test('friend history lists open, part-paid and settled splits, newest first', ()
   assert.deepEqual(h.map(e => [e.id, e.status, e.amount, e.paid]), [['2', 'part', 200, 50], ['3', 'settled', -300, 300], ['1', 'settled', 500, 500]]);
   assert.equal(friendHistory(items, 'Nobody').length, 0);
 });
+
+test('cashback: rupees or percent, shared by everyone or kept by the payer', () => {
+  const d = (o) => ({ ...emptyDraft(), friends: ['Rahul'], ...o });
+  const cb = (value, unit, mode) => ({ cashback: { value, unit, mode } });
+
+  // Shared: ₹100 off a ₹1,000 bill split two ways, typed as rupees or as 10%
+  for (const c of [cb('100', 'amount', 'share'), cb('10', 'percent', 'share')]) {
+    const s = buildSplit(1000, d(c)).split;
+    assert.deepEqual([s.yourShare, s.people[0].share, s.total], [450, 450, 1000]);
+    assert.deepEqual([s.cashback.amount, s.cashback.mode], [100, 'share']);
+  }
+  // Uneven shares: cashback is cut in proportion (60/40 of ₹100)
+  const uneven = buildSplit(1000, d({ method: 'percent', percent: { you: '60', Rahul: '40' }, ...cb('100', 'amount', 'share') })).split;
+  assert.deepEqual([uneven.yourShare, uneven.people[0].share], [540, 360]);
+
+  // Kept by you (you paid): Rahul still owes his full ₹500; your cost goes down
+  const kept = buildSplit(1000, d(cb('100', 'amount', 'keep'))).split;
+  assert.deepEqual([kept.yourShare, kept.people[0].share], [400, 500]);
+  // A friend paid and keeps it: nothing changes for you
+  const theirs = buildSplit(1000, d({ paidBy: 'Rahul', ...cb('100', 'amount', 'keep') })).split;
+  assert.deepEqual([theirs.yourShare, theirs.people[0].share], [500, 500]);
+
+  // Rahul had already paid his ₹500: the cashback means ₹50 comes back to him
+  const before = buildSplit(1000, d({})).split;
+  const settled = { ...before, people: [{ ...before.people[0], settled: true }] };
+  const after = buildSplit(1000, d(cb('100', 'amount', 'share')), settled).split;
+  assert.deepEqual([after.people[0].share, after.people[0].paid, !!after.people[0].settled], [450, 500, false]);
+  const items = [{ id: '1', type: 'expense', title: 'Dinner', date: '2026-10-01', amount: 450, split: after }];
+  assert.deepEqual(friendBalances(items).map(b => [b.name, b.net]), [['Rahul', -50]], 'you owe Rahul ₹50');
+  const { friendHistory } = mod.exports;
+  assert.deepEqual(friendHistory(items, 'Rahul').map(h => [h.status, h.refund]), [['open', -50]], 'the history says ₹50 goes back to him');
+  // Without cashback he stays settled
+  assert.equal(buildSplit(1000, d({}), settled).split.people[0].settled, true);
+
+  // Editing again keeps the cashback and doesn't compound it
+  const again = buildSplit(1000, draftFrom(after), after).split;
+  assert.deepEqual([again.yourShare, again.people[0].share, again.people[0].paid], [450, 450, 500]);
+
+  assert.match(buildSplit(1000, d(cb('120', 'percent', 'share'))).error, /100%/);
+  assert.match(buildSplit(1000, d(cb('1200', 'amount', 'share'))).error, /more than the bill/);
+  assert.match(buildSplit(1000, d(cb('600', 'amount', 'keep'))).error, /your own share/);
+  assert.equal(buildSplit(1000, d({ cashback: { value: '', unit: 'amount', mode: 'share' } })).split.cashback, undefined);
+});

@@ -78,6 +78,9 @@
   card/account number; a card statement's own summary is saved as the bill (`parseCardBill` reads label-row/value-row tables like
   HDFC's and co-brand names like "Swiggy"). Statements imported before this are reopened once for the bill only (`statementBillIds4`; the name is bumped whenever bill reading improves, so every statement is reopened once more). Box layouts
   (HDFC) are read by position: `summaryFromItems` in `lib/statementParse.ts` puts "Label: value" lines first in the PDF text.
+- Split cashback (`ExpenseSplit.cashback`, set in the split form, `buildSplit` in `align-native/src/lib/splits.ts`): rupees or % of the total;
+  'share' lowers everyone's share in proportion (someone who already paid keeps `paid` = what they paid, so the difference shows as owed back),
+  'keep' lowers only the payer's own cost (no effect on you when a friend paid).
 - Transfers: `expenseCategories.transferMerchants` (payee → Family / Self Transfer) and "self / own a/c" wording
   (`SELF_TRANSFER`) make `recordTransaction` save money-out as type `transfer`, before the duplicate check.
 - Suspicious payments are found in the app (`align-native/src/lib/suspicious.ts`, pure): Money shows "payments to

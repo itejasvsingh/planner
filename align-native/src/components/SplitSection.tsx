@@ -193,6 +193,54 @@ export default function SplitSection({ total, draft, onChange, recent, groups = 
             )}
           </View>
 
+          {/* Cashback that came on the bill, often later: in rupees or a percent, shared or kept by whoever paid */}
+          <View style={{ gap: 8 }}>
+            {label('Cashback (optional)')}
+            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              <View style={{ flexDirection: 'row', gap: 4 }}>
+                {(['amount', 'percent'] as const).map(u => {
+                  const selected = (draft.cashback?.unit || 'amount') === u;
+                  return (
+                    <Pressable key={u} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={u === 'amount' ? 'Cashback in rupees' : 'Cashback in percent'}
+                      onPress={() => set({ cashback: { value: draft.cashback?.value || '', unit: u, mode: draft.cashback?.mode || 'share' } })} style={chip(selected)}>
+                      <Text style={chipText(selected)}>{u === 'amount' ? '₹' : '%'}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <TextInput
+                accessibilityLabel="Cashback"
+                value={draft.cashback?.value ?? ''}
+                onChangeText={v => set({ cashback: { value: v, unit: draft.cashback?.unit || 'amount', mode: draft.cashback?.mode || 'share' } })}
+                keyboardType="decimal-pad"
+                placeholder={(draft.cashback?.unit || 'amount') === 'percent' ? 'e.g. 5' : 'e.g. 100'}
+                placeholderTextColor={c.textTertiary}
+                style={{ flex: 1, backgroundColor: c.backgroundMuted, color: c.text, paddingHorizontal: 12, paddingVertical: 9, borderRadius: Radius.md, fontSize: 15 }}
+              />
+            </View>
+            {parseFloat(draft.cashback?.value || '0') > 0 && (
+              <>
+                <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap' }}>
+                  {([['share', 'Everyone shares it'], ['keep', draft.paidBy === YOU ? 'I keep it' : `${draft.paidBy} keeps it`]] as const).map(([m, text]) => {
+                    const selected = (draft.cashback?.mode || 'share') === m;
+                    return (
+                      <Pressable key={m} accessibilityRole="button" accessibilityState={{ selected }}
+                        onPress={() => set({ cashback: { value: draft.cashback?.value || '', unit: draft.cashback?.unit || 'amount', mode: m } })} style={chip(selected)}>
+                        <Text style={chipText(selected)}>{text}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {result?.split?.cashback && (
+                  <Text style={{ color: c.textTertiary, fontSize: 12 }}>
+                    ₹{fmt(result.split.cashback.amount)} cashback{result.split.cashback.unit === 'percent' ? ` (${result.split.cashback.value}%)` : ''}
+                    {result.split.cashback.mode === 'keep' && draft.paidBy !== YOU ? ' kept by whoever paid: your share doesn’t change.' : result.split.cashback.mode === 'keep' ? ' kept by you: friends still owe their full shares.' : ' shared: everyone’s share goes down in proportion; anyone who already paid is owed the difference.'}
+                  </Text>
+                )}
+              </>
+            )}
+          </View>
+
           {/* What it means */}
           {result?.error ? (
             <Text accessibilityLiveRegion="polite" style={{ color: c.expense, fontWeight: '600' }}>{result.error}</Text>

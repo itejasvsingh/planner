@@ -31,6 +31,12 @@ export type ExpenseSplit = {
   youPaid?: number;
   /** A trip, a flat, a group of friends: splits with the same group are totalled together. */
   group?: string;
+  /**
+   * Cashback that came on the bill (often later). 'share': it lowers everyone's share in proportion (people who had
+   * already paid are owed the difference back); 'keep': the payer keeps it, so only their own cost goes down.
+   * `amount` is in rupees whichever way it was typed (`unit`: rupees, or a percent of the total).
+   */
+  cashback?: { unit: 'amount' | 'percent'; value: number; amount: number; mode: 'share' | 'keep' };
 };
 
 export const YOU = 'you';
@@ -47,6 +53,8 @@ export type SplitDraft = {
   /** name (or 'you') -> typed number of shares, for 'shares' (blank = 1) */
   shares?: Record<string, string>;
   group?: string;
+  /** Cashback as typed: a rupee amount or a percent of the total, shared by everyone or kept by the payer. */
+  cashback?: { value: string; unit: 'amount' | 'percent'; mode: 'share' | 'keep' };
 };
 
 export const emptyDraft = (): SplitDraft => ({ friends: [], paidBy: YOU, method: 'equal', exact: {}, percent: {}, shares: {}, group: '' });
@@ -115,28 +123,56 @@ export function buildSplit(total: number, d: SplitDraft, previous?: ExpenseSplit
   const group = (d.group || '').replace(/\s+/g, ' ').trim().slice(0, 30);
   const paidBy = d.paidBy === YOU || friends.some(f => sameName(f, d.paidBy)) ? d.paidBy : YOU;
   const keepSettled = previous && previous.paidBy === paidBy;
+
+  // Cashback: rupees or a percent of the total; shared by everyone, or kept by whoever paid
+  let cashback: ExpenseSplit['cashback'];
+  let adj = shares;
+  const cv = num(d.cashback?.value);
+  if (d.cashback && cv > 0) {
+    const unit = d.cashback.unit === 'percent' ? 'percent' : 'amount';
+    if (unit === 'percent' && cv > 100) return { error: 'Cashback can’t be more than 100%' };
+    const amount = unit === 'percent' ? Math.round((paise(total) * cv) / 100) / 100 : paise(cv) / 100;
+    if (amount > total) return { error: 'Cashback can’t be more than the bill' };
+    const mode = d.cashback.mode === 'keep' ? 'keep' : 'share';
+    if (mode === 'share') {
+      const cut = weightedShares(amount, shares);
+      adj = shares.map((x, i) => paise(x - cut[i]) / 100);
+    } else if (paidBy === YOU) {
+      // You paid and keep it: friends still owe their full shares, your own cost goes down
+      if (amount > shares[0]) return { error: 'Cashback you keep can’t be more than your own share' };
+      adj = [paise(shares[0] - amount) / 100, ...shares.slice(1)];
+    }
+    cashback = { unit, value: cv, amount, mode };
+  }
+  // Someone who had already paid their full share when cashback lowered it is owed the difference: they stay "paid"
+  // for what they paid (not settled), and the balance shows what comes back to them
+  const settledMark = (wasSettled: boolean | undefined, base: number, now: number) => !!wasSettled && now >= base;
   const split: ExpenseSplit = {
     total: paise(total) / 100,
     paidBy,
     method: d.method,
-    yourShare: shares[0],
+    yourShare: adj[0],
+    ...(cashback ? { cashback } : {}),
     ...(percents ? { yourPercent: percents[0] } : {}),
     ...(weights ? { yourShares: weights[0] } : {}),
     ...(group ? { group } : {}),
     people: friends.map((name, i) => {
       const before = keepSettled ? previous!.people.find(p => sameName(p.name, name)) : undefined;
       const paid = before?.paid ? Math.min(before.paid, shares[i + 1]) : 0;
+      const base = shares[i + 1];
+      const full = before?.settled ? base : paid;
       return {
         name,
-        share: shares[i + 1],
+        share: adj[i + 1],
         ...(percents ? { percent: percents[i + 1] } : {}),
         ...(weights ? { shares: weights[i + 1] } : {}),
-        ...(before?.settled ? { settled: true } : {}),
-        ...(paid > 0 && !before?.settled ? { paid } : {}),
+        ...(settledMark(before?.settled, base, adj[i + 1]) ? { settled: true } : {}),
+        ...(full > 0 && !settledMark(before?.settled, base, adj[i + 1]) ? { paid: full } : {}),
       };
     }),
-    ...(keepSettled && previous!.youSettled ? { youSettled: true } : {}),
-    ...(keepSettled && previous!.youPaid && !previous!.youSettled ? { youPaid: Math.min(previous!.youPaid, shares[0]) } : {}),
+    ...(keepSettled && settledMark(previous!.youSettled, shares[0], adj[0]) ? { youSettled: true } : {}),
+    ...(keepSettled && !settledMark(previous!.youSettled, shares[0], adj[0]) && (previous!.youSettled || previous!.youPaid)
+      ? { youPaid: previous!.youSettled ? shares[0] : Math.min(previous!.youPaid || 0, shares[0]) } : {}),
   };
   return { split };
 }
@@ -151,7 +187,10 @@ export function draftFrom(s: ExpenseSplit): SplitDraft {
     if (p.percent !== undefined) percent[p.name] = String(p.percent);
     if (p.shares !== undefined) shares[p.name] = String(p.shares);
   }
-  return { friends: s.people.map(p => p.name), paidBy: s.paidBy, method: s.method, exact, percent, shares, group: s.group || '' };
+  return {
+    friends: s.people.map(p => p.name), paidBy: s.paidBy, method: s.method, exact, percent, shares, group: s.group || '',
+    ...(s.cashback ? { cashback: { value: String(s.cashback.value), unit: s.cashback.unit, mode: s.cashback.mode } } : {}),
+  };
 }
 
 type LegacySplit = { totalAmount?: number; splitWith?: string; yourShare?: number; paidBy?: string; settled?: boolean };
@@ -225,6 +264,8 @@ export type HistoryEntry = {
   /** How much of it has been paid back */
   paid: number;
   status: 'open' | 'part' | 'settled';
+  /** Cashback came after they paid: this much goes back to them (you paid) or to you (they paid). */
+  refund?: number;
   group?: string;
 };
 
@@ -240,11 +281,13 @@ export function friendHistory(items: Item[], name: string): HistoryEntry[] {
     for (const p of s.people) {
       if (!sameName(p.name, name)) continue;
       if (s.paidBy === YOU && p.share > 0) {
+        const over = !p.settled && (p.paid || 0) > p.share ? paise((p.paid || 0) - p.share) / 100 : 0;
         const paid = p.settled ? p.share : Math.min(p.paid || 0, p.share);
-        out.push({ ...base, amount: p.share, paid, status: p.settled ? 'settled' : paid > 0 ? 'part' : 'open' });
+        out.push({ ...base, amount: p.share, paid, status: over ? 'open' : p.settled ? 'settled' : paid > 0 ? 'part' : 'open', ...(over ? { refund: -over } : {}) });
       } else if (sameName(s.paidBy, name) && s.yourShare > 0) {
+        const over = !s.youSettled && (s.youPaid || 0) > s.yourShare ? paise((s.youPaid || 0) - s.yourShare) / 100 : 0;
         const paid = s.youSettled ? s.yourShare : Math.min(s.youPaid || 0, s.yourShare);
-        out.push({ ...base, amount: -s.yourShare, paid, status: s.youSettled ? 'settled' : paid > 0 ? 'part' : 'open' });
+        out.push({ ...base, amount: -s.yourShare, paid, status: over ? 'open' : s.youSettled ? 'settled' : paid > 0 ? 'part' : 'open', ...(over ? { refund: over } : {}) });
       }
     }
   }

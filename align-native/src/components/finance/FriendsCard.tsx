@@ -57,7 +57,7 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
                   {e.amount > 0 ? `+₹${fmt(e.amount)}` : `−₹${fmt(-e.amount)}`}
                 </Text>
                 <Text style={{ color: e.status === 'settled' ? c.income : c.textTertiary, fontSize: 11, fontWeight: '600' }}>
-                  {e.status === 'settled' ? '✓ Settled' : e.status === 'part' ? `₹${fmt(e.paid)} of ₹${fmt(Math.abs(e.amount))} paid` : 'Open'}
+                  {e.refund ? (e.refund < 0 ? `Cashback: ₹${fmt(-e.refund)} back to them` : `Cashback: ₹${fmt(e.refund)} back to you`) : e.status === 'settled' ? '✓ Settled' : e.status === 'part' ? `₹${fmt(e.paid)} of ₹${fmt(Math.abs(e.amount))} paid` : 'Open'}
                 </Text>
               </View>
             </View>
