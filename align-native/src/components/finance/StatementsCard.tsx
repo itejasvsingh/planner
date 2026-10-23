@@ -182,10 +182,10 @@ export default function StatementsCard({ section, items, cards, checks = [], onC
         )}
 
         {rec.kind === 'card' && newest && (card && card.dueDate ? (
-          <View style={[styles.due, { backgroundColor: card.status === 'paid' ? c.backgroundMuted : c.accentSoft }]}>
+          <View style={[styles.due, { backgroundColor: card.status === 'paid' || billLeft <= 0 ? c.incomeSoft : card.status === 'overdue' ? c.expenseSoft : card.daysLeft !== null && card.daysLeft <= 3 ? c.warningSoft : c.accentSoft }]}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: c.text, fontWeight: '700', fontSize: 14 }}>
-                {card.status === 'paid' || billLeft <= 0 ? 'Paid ✓' : `${inr(billLeft)} to pay by ${shortDay(card.dueDate)}`}
+              <Text style={{ color: card.status === 'paid' || billLeft <= 0 ? c.income : card.status === 'overdue' ? c.expense : card.daysLeft !== null && card.daysLeft <= 3 ? c.warning : c.text, fontWeight: '700', fontSize: 14 }}>
+                {card.status === 'paid' || billLeft <= 0 ? 'Paid ✓' : `${inr(billLeft)} ${card.status === 'overdue' ? 'was due' : 'to pay by'} ${shortDay(card.dueDate)}`}
               </Text>
               {card.status !== 'paid' && card.minDue ? <Text style={{ color: c.textSecondary, fontSize: 12 }}>Minimum {inr(card.minDue)}</Text> : null}
             </View>
@@ -228,6 +228,9 @@ export default function StatementsCard({ section, items, cards, checks = [], onC
           const Icon = rec.kind === 'card' ? CreditCard : Landmark;
           const name = `${rec.bankName}${rec.product ? ` ${rec.product}` : ''}${rec.last4 ? ` ••${rec.last4}` : ''}`;
           const due = rec.kind === 'card' && newest && rec.bill ? `Due ${shortDay(rec.bill.dueDate)}` : '';
+          const liveCard = rec.kind === 'card' && newest ? cardFor(rec) : undefined;
+          // The due part of the line: red overdue, amber within 3 days, green paid
+          const dueFg = !due ? c.textTertiary : liveCard?.status === 'paid' ? c.income : liveCard?.status === 'overdue' ? c.expense : liveCard?.daysLeft != null && liveCard.daysLeft <= 3 ? c.warning : c.textTertiary;
           return (
             <View key={rec.id} style={{ borderTopWidth: i ? 1 : 0, borderTopColor: c.border }}>
               <Pressable accessibilityRole="button" accessibilityState={{ expanded: isOpen }} accessibilityLabel={`${name} statement ${span(rec)}, spent ${inr(sum.spent)}${due ? `, ${due}` : ''}`}
@@ -235,7 +238,7 @@ export default function StatementsCard({ section, items, cards, checks = [], onC
                 <View style={[styles.icon, { backgroundColor: c.accentSoft }]}><Icon color={c.accent} size={16} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: c.text, fontWeight: '700', fontSize: 15 }} numberOfLines={1}>{name}</Text>
-                  <Text style={{ color: c.textTertiary, fontSize: 12 }}>{span(rec)}{due ? ` · ${due}` : ''}</Text>
+                  <Text style={{ color: c.textTertiary, fontSize: 12 }}>{span(rec)}{due ? <Text style={{ color: dueFg, fontWeight: dueFg === c.textTertiary ? '400' : '700' }}>{` · ${liveCard?.status === 'paid' ? 'Paid' : liveCard?.status === 'overdue' ? 'Overdue' : due}`}</Text> : null}</Text>
                 </View>
                 <Text style={{ color: c.text, fontWeight: '700', fontSize: 15, fontVariant: ['tabular-nums'] }}>{inr(sum.spent)}</Text>
                 {isOpen ? <ChevronDown color={c.textTertiary} size={16} /> : <ChevronRight color={c.textTertiary} size={16} />}

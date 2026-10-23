@@ -109,19 +109,26 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
         <View style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border, padding: 0, marginBottom: 12, overflow: 'hidden' }, Shadow.card]}>
           {shown.map((card, i) => {
             const strip = cardStrip(card);
-            const bg = strip?.tone === 'overdue' ? c.expenseSoft : c.backgroundMuted;
+            // Red overdue, amber due within 3 days, green paid, blue otherwise
+            const soon = !!strip && strip.tone === 'due' && card.daysLeft !== null && card.daysLeft <= 3;
+            const fg = strip?.tone === 'overdue' ? c.expense : soon ? c.warning : strip?.tone === 'due' ? c.accent : c.textSecondary;
+            const bg = strip?.tone === 'overdue' ? c.expenseSoft : soon ? c.warningSoft : strip?.tone === 'due' ? c.accentSoft : c.backgroundMuted;
+            // A card with nothing to pay is green
+            const paid = card.status === 'paid';
+            const iconFg = paid ? c.income : strip ? fg : c.accent;
+            const iconBg = paid ? c.incomeSoft : strip ? bg : c.accentSoft;
             return (
               <Pressable key={card.key} accessibilityRole="button" accessibilityLabel={`${cardTitle(card)}: outstanding ${inr(card.outstanding)}${strip ? `. ${strip.text}` : ''}`}
                 onPress={() => setOpen(card)} style={{ borderTopWidth: i ? 1 : 0, borderTopColor: c.border, padding: 12, gap: 8 }}>
                 <View style={styles.row}>
-                  <View style={[styles.icon, { backgroundColor: c.accentSoft }]}><CreditCard color={c.accent} size={16} /></View>
+                  <View style={[styles.icon, { backgroundColor: iconBg }]}><CreditCard color={iconFg} size={16} /></View>
                   <Text style={{ color: c.text, fontWeight: '700', fontSize: 15, flex: 1 }} numberOfLines={1}>{cardTitle(card)}</Text>
                   <Text style={{ color: c.text, fontWeight: '800', fontSize: 15, fontVariant: ['tabular-nums'] }}>{inr(card.outstanding)}</Text>
                 </View>
                 {strip && (
                   <View style={[styles.strip, { backgroundColor: bg }]}>
-                    {strip.tone === 'overdue' && <AlertTriangle color={c.expense} size={14} />}
-                    <Text style={{ color: strip.tone === 'overdue' ? c.expense : c.textSecondary, fontSize: 12, fontWeight: '600', flex: 1 }}>{strip.text}</Text>
+                    {(strip.tone === 'overdue' || soon) && <AlertTriangle color={fg} size={14} />}
+                    <Text style={{ color: fg, fontSize: 12, fontWeight: '600', flex: 1 }}>{strip.text}</Text>
                   </View>
                 )}
               </Pressable>
@@ -135,7 +142,8 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
       )}
       <View style={{ gap: 10 }}>
         {shown.map(card => {
-          const tone = card.status === 'overdue' ? c.expense : card.status === 'paid' ? c.income : card.daysLeft !== null && card.daysLeft <= 3 ? c.expense : c.textSecondary;
+          const tone = card.status === 'overdue' ? c.expense : card.status === 'paid' ? c.income : card.daysLeft !== null && card.daysLeft <= 3 ? c.warning : c.accent;
+          const tile = card.status === 'overdue' ? c.expenseSoft : card.status === 'paid' ? c.incomeSoft : card.daysLeft !== null && card.daysLeft <= 3 ? c.warningSoft : c.accentSoft;
           const details = detailsText(card);
           const nums = cardNumbers(card);
           return (
@@ -147,7 +155,7 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
               style={[styles.card, { backgroundColor: c.backgroundElement, borderColor: c.border, opacity: card.hidden ? 0.6 : 1 }, Shadow.card]}
             >
               <View style={styles.row}>
-                <View style={[styles.icon, { backgroundColor: c.accentSoft }]}><CreditCard color={c.accent} size={18} /></View>
+                <View style={[styles.icon, { backgroundColor: tile }]}><CreditCard color={tone} size={18} /></View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: c.text, fontWeight: '700', fontSize: 15 }} numberOfLines={1}>{cardTitle(card)}</Text>
                   <Text style={{ color: tone, fontSize: 13, fontWeight: '600', marginTop: 1 }}>{card.closed ? 'Closed' : dueText(card)}</Text>

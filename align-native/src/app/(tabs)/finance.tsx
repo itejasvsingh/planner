@@ -471,7 +471,7 @@ export default function FinanceScreen() {
                             <Pressable accessibilityRole="button" accessibilityLabel="Next payment due. Open Wallet" onPress={() => router.push('/(tabs)/wallet' as any)} style={[styles.heroNext, { borderTopColor: c.onHeroOverlay }]}>
                                 <CalendarClock color={c.onHero} size={15} />
                                 <Text style={[styles.heroLineText, { color: c.onHero, flex: 1, fontWeight: '600' }]} numberOfLines={1}>
-                                    {upcoming[0].title}{upcoming[0].amount > 0 ? ` ${formatMoney(upcoming[0].amount)}` : ''} · {dueLabel(upcoming[0].date)}{upcoming.length > 1 ? ` · +${upcoming.length - 1} more` : ''}
+                                    {upcoming[0].title}{upcoming[0].amount > 0 ? ` ${formatMoney(upcoming[0].amount)}` : ''} · {upcoming[0].tone === 'overdue' ? 'overdue' : dueLabel(upcoming[0].date)}{upcoming.length > 1 ? ` · +${upcoming.length - 1} more` : ''}
                                 </Text>
                             </Pressable>
                         )}

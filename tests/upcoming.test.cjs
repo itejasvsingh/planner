@@ -37,7 +37,8 @@ test('coming up: bills and card dues in the next 14 days, nothing doubled or irr
     { title: 'Far', dueDate: '2026-12-01', outstanding: 100 },
   ];
   const r = upcomingPayments(items, cards, now);
-  assert.deepEqual(r.map(x => [x.date, x.title]), [['2026-10-18', 'Axis ••9999 bill']], 'rent is already added as a real expense, wifi (28th) and gym (5th) are not due within 14 days');
+  // Every card with something to pay is listed, even one due after the two weeks; bills only within the two weeks
+  assert.deepEqual(r.map(x => [x.date, x.title]), [['2026-10-18', 'Axis ••9999 bill'], ['2026-12-01', 'Far bill']], 'rent is already added as a real expense, wifi (28th) and gym (5th) are not due within 14 days');
   const r2 = upcomingPayments(items.filter(i => i.id !== 'gen'), [], now);
   assert.deepEqual(r2.map(x => [x.date, x.title]), [['2026-10-15', 'Rent']]);
 });
@@ -61,4 +62,17 @@ test('payments between two days: every month/week occurrence, no doubles, card d
   assert.deepEqual(r.filter(x => x.kind === 'card').map(x => [x.title, x.date]), [['Axis bill', '2026-10-12']]);
   // Rent already added as a real expense on the 18th: not listed again
   assert.equal(paymentsBetween([rent, generated], [], '2026-10-01', '2026-10-31').length, 0);
+});
+
+test('coming up lists every unpaid card, overdue first, each with an urgency colour', () => {
+  const { dueTone } = mod.exports;
+  const cards = [
+    { title: 'Later', dueDate: '2026-11-20', outstanding: 900, status: 'due' },
+    { title: 'Soon', dueDate: '2026-10-16', outstanding: 500, status: 'due' },
+    { title: 'Late', dueDate: '2026-10-10', outstanding: 7000, status: 'overdue' },
+    { title: 'Paid', dueDate: '2026-10-12', outstanding: 800, status: 'paid' },
+  ];
+  const r = upcomingPayments([], cards, now);
+  assert.deepEqual(r.map(x => [x.title, x.tone]), [['Late bill', 'overdue'], ['Soon bill', 'soon'], ['Later bill', 'later']]);
+  assert.deepEqual([dueTone('2026-10-13', now), dueTone('2026-10-16', now), dueTone('2026-10-17', now), dueTone('2026-10-12', now)], ['soon', 'soon', 'later', 'overdue'], 'today to 3 days ahead is soon');
 });
