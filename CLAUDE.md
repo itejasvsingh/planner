@@ -76,7 +76,9 @@
   balance. A locked file is retried only after that bank's password changes (`statementTried`). Once open, the PDF decides
   card vs account (`kindFromPdf` in `lib/statementParse.ts`, beats the email's wording, also corrects `statementIndex`) and the
   card/account number; a card statement's own summary is saved as the bill (`parseCardBill` reads label-row/value-row tables like
-  HDFC's and co-brand names like "Swiggy"). Statements imported before this are reopened once for the bill only (`statementBillIds4`; the name is bumped whenever bill reading improves, so every statement is reopened once more). Box layouts
+  HDFC's and co-brand names like "Swiggy"). Statements imported before this are reopened once for the bill only (`statementBillIds5`; the name is bumped whenever bill reading improves, so every statement is reopened once more). Statement summaries
+  are read by meaning and position, not per bank (words like total+due, min+due, due+date; wrapped labels; decoys such as previous/current dues skipped;
+  min ≤ total; due date within ~2 months): no new bank should need a code change. A statement where nothing credible is found says so in Wallet. Box layouts
   (HDFC) are read by position: `summaryFromItems` in `lib/statementParse.ts` puts "Label: value" lines first in the PDF text.
 - Split cashback (`ExpenseSplit.cashback`, set in the split form, `buildSplit` in `align-native/src/lib/splits.ts`): rupees or % of the total;
   'share' lowers everyone's share in proportion (someone who already paid keeps `paid` = what they paid, so the difference shows as owed back),

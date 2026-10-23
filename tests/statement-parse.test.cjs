@@ -10,6 +10,7 @@ const mod = { exports: {} };
 new Function('module', 'exports', out)(mod, mod.exports);
 const { tableToRows, linesToRows, cleanNarration, parseDateCell, parseMoney } = mod.exports;
 
+const NOW = Date.parse('2026-10-23T12:00:00Z');
 const brief = r => [r.date, r.type, r.amount];
 
 test('dates and amounts in the formats banks use', () => {
@@ -120,8 +121,8 @@ test('card statement summary boxes are read by position (HDFC layout: labels abo
     it('₹1,00,000', 95, 610), it('₹97,766', 260, 610), it('₹112.00', 592, 605), it('08 Nov, 2026', 680, 605),
     it('MINIMUM DUES', 640, 520), it('₹112.00', 640, 505),
   ];
-  assert.equal(summaryFromItems(items), 'Total Amount Due: Rs. 2,234.50\nMinimum Amount Due: Rs. 112.00\nPayment Due Date: 08 Nov 2026');
-  assert.equal(summaryFromItems([it('Statement', 10, 10)]), '');
+  assert.equal(summaryFromItems(items, NOW), 'Total Amount Due: Rs. 2,234.50\nMinimum Amount Due: Rs. 112.00\nPayment Due Date: 08 Nov 2026');
+  assert.equal(summaryFromItems([it('Statement', 10, 10)], NOW), '');
 });
 
 test('other banks: their wording, and values beside the labels', () => {
@@ -133,9 +134,32 @@ test('other banks: their wording, and values beside the labels', () => {
     it('Minimum Payment Due', 40, 580), it('₹ 423.00', 260, 580),
     it('Payment Due Date', 40, 560), it('05/11/2026', 260, 560),
   ];
-  assert.equal(summaryFromItems(axis), 'Total Amount Due: Rs. 8,450.00\nMinimum Amount Due: Rs. 423.00\nPayment Due Date: 05/11/2026');
+  assert.equal(summaryFromItems(axis, NOW), 'Total Amount Due: Rs. 8,450.00\nMinimum Amount Due: Rs. 423.00\nPayment Due Date: 05/11/2026');
   // RBL "Min. Amt. Due", Amex "New Balance" / "Due By", labels ending in a colon
   const rbl = [it('New Balance:', 40, 700), it('Min. Amt. Due', 200, 700), it('Due By', 360, 700),
     it('12,000.00', 40, 680), it('600.00', 200, 680), it('Nov 12, 2026', 360, 680)];
-  assert.equal(summaryFromItems(rbl), 'Total Amount Due: Rs. 12,000.00\nMinimum Amount Due: Rs. 600.00\nPayment Due Date: Nov 12 2026');
+  assert.equal(summaryFromItems(rbl, NOW), 'Total Amount Due: Rs. 12,000.00\nMinimum Amount Due: Rs. 600.00\nPayment Due Date: Nov 12 2026');
+});
+
+test('a bank Align has never seen: labels by meaning, wrapped labels, decoys and implausible dates skipped', () => {
+  const { summaryFromItems } = mod.exports;
+  const it = (str, x, y, w = str.length * 5) => ({ str, x, y, w, page: 1 });
+  const items = [
+    // wrapped over two lines, unfamiliar wording
+    it('Amount to be', 50, 700), it('paid', 50, 690), it('Pay this by', 260, 700),
+    it('Min. payment', 400, 700), it('due', 400, 690),
+    it('₹ 15,300.00', 50, 660), it('02-Nov-2026', 262, 660), it('₹ 765.00', 402, 660),
+    // decoys: statement date, previous dues, current dues, credit limit
+    it('Statement Date', 50, 600), it('24-Oct-2026', 50, 585),
+    it('Previous Statement Dues', 50, 560), it('₹ 9,999.00', 50, 545),
+    it('Current Dues', 260, 560), it('₹ 111.00', 260, 545),
+    it('Total Credit Limit', 400, 560), it('₹ 3,00,000.00', 400, 545),
+    // a due date that can't be this statement's (years away) is not taken
+    it('Due Date', 50, 500), it('01/01/2031', 50, 485),
+  ];
+  assert.equal(summaryFromItems(items, NOW), 'Total Amount Due: Rs. 15,300.00\nMinimum Amount Due: Rs. 765.00\nPayment Due Date: 02-Nov-2026');
+  // Nothing credible: no lines at all, so the caller says so instead of guessing
+  assert.equal(summaryFromItems([it('Due Date', 50, 500), it('01/01/2031', 50, 485)], NOW), '');
+  // The minimum is never larger than the total
+  assert.equal(summaryFromItems([it('Total Amount Due', 50, 700), it('₹ 100.00', 50, 680), it('Minimum Amount Due', 250, 700), it('₹ 500.00', 250, 680)], NOW), 'Total Amount Due: Rs. 100.00');
 });

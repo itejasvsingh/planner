@@ -406,22 +406,18 @@ export function kindFromPdf(text: string): 'account' | 'card' | null {
 
 
 /**
- * A card statement's summary boxes, read by position: each label ("Total Amount Due", "Minimum Due", "Due Date",
- * "Payment Due Date", "Total Dues") and the value printed under it in the same column. Statements like HDFC's put
- * these in boxes, so as plain lines the numbers sit next to unrelated ones (previous dues, payments, limits).
- * Returns plain "Label: value" lines (empty when none are found), which parseCardBill reads first.
+ * A card statement's summary (total due, minimum due, due date), read by position and by meaning rather than by
+ * any one bank's wording, so a bank Align has never seen usually works:
+ *  - a label is recognised by its words ("total" + "due"/"payable"/"outstanding", "min" + "due", "due" + "date"/"by"),
+ *    including labels wrapped over two lines, and decoys ("previous statement dues", "current dues", limits) are skipped;
+ *  - its value is the nearest amount/date below it in the same column, or beside it on the same line;
+ *  - when several candidates exist, the combination that makes sense wins: minimum not above the total, a due date
+ *    within about two months of `now`, preferring the topmost on the first pages.
+ * Returns plain "Label: value" lines (empty when nothing credible is found), which parseCardBill reads first.
  */
-export function summaryFromItems(items: PdfItem[]): string {
-  // Each bank words these differently: HDFC "Total Amount Due", Axis "Total Payment Due", RBL "Min. Amt. Due",
-  // Amex/Citi "New Balance" / "Due By", SBI Card "Total Amount Due" with the value beside it
-  const LABELS: { name: string; re: RegExp; date?: boolean }[] = [
-    { name: 'Total Amount Due', re: /^(?:total\s+(?:amount|amt\.?|payment)?\s*(?:due|dues|payable)|total\s+outstanding|amount\s+payable|new\s+balance|closing\s+balance|total\s+balance\s+due)$/i },
-    { name: 'Minimum Amount Due', re: /^min(?:imum)?\.?\s*(?:amount|amt\.?|payment)?\s*(?:due|dues|payable)$/i },
-    { name: 'Payment Due Date', re: /^(?:payment\s+)?due\s+(?:date|by|on)$|^pay(?:ment)?\s+by(?:\s+date)?$|^last\s+date\s+(?:for|of)\s+payment$/i, date: true },
-  ];
+export function summaryFromItems(items: PdfItem[], now = Date.now()): string {
   const MONEY = /(\d{1,3}(?:,\d{2,3})*(?:\.\d{2})|\d+\.\d{2})/;
-  const DATE = /\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b|\b\d{1,2}[ -][A-Za-z]{3,9}\.?,?[ -]\d{2,4}\b|\b[A-Za-z]{3,9} \d{1,2},? \d{4}\b/;
-  // Words on one line that sit close together make one phrase ("TOTAL", "AMOUNT", "DUE" -> "TOTAL AMOUNT DUE")
+  const DATE = /\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b|\b\d{1,2}[ -][A-Za-z]{3,9}\.?,?[ -]\d{2,4}\b|\b[A-Za-z]{3,9}\.? \d{1,2},? \d{4}\b/;
   type Phrase = { str: string; x0: number; x1: number; y: number; page: number };
   const phrases: Phrase[] = [];
   const sorted = [...items].sort((a, b) => a.page - b.page || b.y - a.y || a.x - b.x);
@@ -432,31 +428,66 @@ export function summaryFromItems(items: PdfItem[]): string {
       last.x1 = Math.max(last.x1, it.x + it.w);
     } else phrases.push({ str: it.str, x0: it.x, x1: it.x + it.w, y: it.y, page: it.page });
   }
-  const clean = (s: string) => s.replace(/\s+/g, ' ').replace(/[:*]+$/, '').trim();
+  const words = (s: string) => s.toLowerCase().replace(/[^a-z ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  const has = (w: string, re: RegExp) => re.test(` ${w} `);
+  const DECOY = /\b(previous|prior|last|opening|credit limit|available|cash limit|past|over limit|current dues|finance|charges|reward|points|payments?\s+(?:credits|received))\b/;
+
+  type Kind = 'total' | 'min' | 'date';
+  const kindOf = (text: string): Kind | null => {
+    const w = words(text);
+    if (!w || w.length > 40 || has(w, DECOY)) return null;
+    if (has(w, /\bmin(?:imum)?\b/) && has(w, /\b(?:due|dues|payable|amount|amt|payment)\b/)) return 'min';
+    if (has(w, /\b(?:due|pay)\b/) && has(w, /\b(?:date|by|on|before)\b/) && !has(w, /\b(?:amount|amt|total|min|minimum)\b/)) return 'date';
+    if (has(w, /\blast date\b/) && has(w, /\bpayment\b/)) return 'date';
+    if ((has(w, /\btotal\b/) && has(w, /\b(?:due|dues|payable|outstanding)\b/)) || has(w, /\b(?:amount payable|payable amount|net payable|amount to be paid|total outstanding|new balance|closing balance|total balance due|balance due|statement balance|total payment|total amount)\b/)) return 'total';
+    return null;
+  };
+
+  type Cand = { kind: Kind; value: string; y: number; page: number; order: number };
+  const cands: Cand[] = [];
+  phrases.forEach((at, order) => {
+    // The label may wrap over two lines: try it alone, and with the phrase just under it in the same column
+    const under = phrases.find((q) => q !== at && q.page === at.page && q.y < at.y && at.y - q.y <= 16 && q.x1 >= at.x0 - 6 && q.x0 <= at.x1 + 6 && !MONEY.test(q.str) && !DATE.test(q.str));
+    const tries: { text: string; bottom: Phrase }[] = [{ text: at.str, bottom: at }];
+    if (under) tries.push({ text: `${at.str} ${under.str}`, bottom: under });
+    for (const t of tries) {
+      const kind = kindOf(t.text);
+      if (!kind) continue;
+      const lo = Math.min(at.x0, t.bottom.x0), hi = Math.max(at.x1, t.bottom.x1), mid = (lo + hi) / 2;
+      const pick = (re: RegExp, near: Phrase[]) => near
+        .map((p) => ({ p, v: p.str.replace(/\s+/g, ' ').match(re)?.[0] }))
+        .filter((c): c is { p: Phrase; v: string } => !!c.v);
+      const below = pick(kind === 'date' ? DATE : MONEY, phrases.filter((p) => p.page === at.page && p.y < t.bottom.y - 2 && t.bottom.y - p.y < 90 && p.x1 >= lo - 30 && p.x0 <= hi + 30))
+        .sort((a, b) => {
+          const dy = (t.bottom.y - a.p.y) - (t.bottom.y - b.p.y);
+          if (Math.abs(dy) > 6) return dy;
+          return Math.abs((a.p.x0 + a.p.x1) / 2 - mid) - Math.abs((b.p.x0 + b.p.x1) / 2 - mid);
+        })[0];
+      const beside = below ? undefined : pick(kind === 'date' ? DATE : MONEY, phrases.filter((p) => p.page === at.page && Math.abs(p.y - at.y) <= 4 && p.x0 >= at.x1 - 2 && p.x0 - at.x1 < 260)).sort((a, b) => a.p.x0 - b.p.x0)[0];
+      const found = below || beside;
+      if (found) cands.push({ kind, value: found.v, y: at.y, page: at.page, order });
+    }
+  });
+
+  const toNum = (v: string) => parseFloat(v.replace(/,/g, ''));
+  const dayMs = 86_400_000;
+  const dateOk = (v: string) => {
+    const d = Date.parse(v.replace(/(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})/, (_, a, b, y) => `${y.length === 2 ? 2000 + +y : y}-${String(b).padStart(2, '0')}-${String(a).padStart(2, '0')}`).replace(/,/g, ''));
+    return Number.isFinite(d) && d >= now - 20 * dayMs && d <= now + 75 * dayMs;
+  };
+  const best = (kind: Kind) => cands.filter((c) => c.kind === kind).sort((a, b) => a.page - b.page || a.order - b.order);
+  const totals = best('total').filter((c) => toNum(c.value) > 0);
+  const mins = best('min');
+  // A total with a minimum no larger than it, in that order of preference
+  let total = totals[0];
+  let min = mins[0];
+  for (const t of totals) { const m = mins.find((x) => toNum(x.value) <= toNum(t.value)); if (m) { total = t; min = m; break; } }
+  const dates = best('date');
+  const date = dates.find((d) => dateOk(d.value)) || (dates.length ? undefined : undefined);
+
   const out: string[] = [];
-  for (const label of LABELS) {
-    const at = phrases.find((p) => label.re.test(clean(p.str)));
-    if (!at) continue;
-    const mid = (at.x0 + at.x1) / 2;
-    // The nearest value below it whose column overlaps the label's
-    const below = phrases
-      .filter((p) => p.page === at.page && p.y < at.y - 2 && at.y - p.y < 90 && p.x1 >= at.x0 - 30 && p.x0 <= at.x1 + 30)
-      .map((p) => ({ p, v: clean(p.str).match(label.date ? DATE : MONEY)?.[0] }))
-      .filter((c) => c.v)
-      .sort((a, b) => {
-        const dy = (at.y - a.p.y) - (at.y - b.p.y);
-        // Same row (within a few points): the one most directly under the label
-        if (Math.abs(dy) > 6) return dy;
-        return Math.abs((a.p.x0 + a.p.x1) / 2 - mid) - Math.abs((b.p.x0 + b.p.x1) / 2 - mid);
-      })[0];
-    // Or beside it on the same line (label column, value column)
-    const beside = below ? null : phrases
-      .filter((p) => p.page === at.page && Math.abs(p.y - at.y) <= 4 && p.x0 >= at.x1 - 2 && p.x0 - at.x1 < 260)
-      .map((p) => ({ p, v: clean(p.str).match(label.date ? DATE : MONEY)?.[0] }))
-      .filter((c) => c.v)
-      .sort((a, b) => a.p.x0 - b.p.x0)[0];
-    const found = below || beside;
-    if (found?.v) out.push(`${label.name}: ${label.date ? found.v.replace(/,/g, '') : `Rs. ${found.v}`}`);
-  }
+  if (total) out.push(`Total Amount Due: Rs. ${total.value}`);
+  if (min && (!total || toNum(min.value) <= toNum(total.value))) out.push(`Minimum Amount Due: Rs. ${min.value}`);
+  if (date) out.push(`Payment Due Date: ${date.value.replace(/,/g, '')}`);
   return out.join('\n');
 }

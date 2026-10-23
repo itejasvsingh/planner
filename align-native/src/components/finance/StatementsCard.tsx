@@ -146,7 +146,10 @@ export default function StatementsCard({ items, cards, onCardsChanged }: {
                 </View>
               </View>
             ) : rec.billFound === false ? (
-              <Text style={{ color: c.expense, fontSize: 13 }}>Align couldn’t find the due date and amount in this statement.</Text>
+              <View style={{ gap: 2 }}>
+                <Text style={{ color: c.expense, fontSize: 13 }}>Align couldn’t find the due date and amount in this statement.</Text>
+                <Text style={{ color: c.textSecondary, fontSize: 12 }}>Tap “Add a card” under Credit cards below and type them in once; Align reminds you from that.</Text>
+              </View>
             ) : null)}
             {card && card.dueDate && (
               <View style={[styles.due, { backgroundColor: card.status === 'paid' ? c.backgroundMuted : c.accentSoft }]}>
