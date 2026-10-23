@@ -2,8 +2,6 @@ import { useState, useEffect } from 'react';
 import { View, StyleSheet, Switch, Alert, Platform, ScrollView } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
-import { Stack, useRouter } from 'expo-router';
-import { ChevronLeft } from 'lucide-react-native';
 import * as Notifications from 'expo-notifications';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -16,7 +14,6 @@ import { disablePush, enablePush, pushStatus, sendTestPush, type PushStatus } fr
 
 export default function NotificationsSettingsScreen() {
   const theme = useTheme();
-  const router = useRouter();
   const { phone } = usePhone();
 
   const [pushEnabled, setPushEnabled] = useState(false);
@@ -134,32 +131,23 @@ export default function NotificationsSettingsScreen() {
 
   return (
     <View style={[styles.safe, { backgroundColor: theme.background }]}>
-      <Stack.Screen options={{ headerShown: false }} />
-      
-      <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={10}>
-          <ChevronLeft color={theme.text} size={28} />
-        </Pressable>
-        <Text style={[styles.title, { color: theme.text }]}>Notifications</Text>
-      </View>
-
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
         {Platform.OS === 'web' && (
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>PUSH NOTIFICATIONS</Text>
-            <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
+            <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
               {webPush === 'on' || webPush === 'off' ? (
                 <View style={styles.row}>
                   <Text style={[styles.rowText, { color: theme.text }]}>Notify me on this device</Text>
                   <Switch value={webPush === 'on'} disabled={webBusy} onValueChange={() => void handleToggleWebPush()} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
                 </View>
               ) : (
-                <View style={{ padding: 16 }}>
+                <View style={{ paddingHorizontal: 14, paddingVertical: 14 }}>
                   <Text style={{ color: webPush === 'denied' || webPush === 'not-configured' ? theme.expense : theme.textSecondary, fontSize: 14, lineHeight: 20 }}>
                     {webPush === null ? 'Checking…'
                       : webPush === 'needs-install' ? 'On iPhone, add Align to your Home Screen first: tap Share, then Add to Home Screen. Open Align from the new icon, then come back here.'
                       : webPush === 'denied' ? 'Notifications are blocked for Align. Turn them on in your phone’s Settings → Notifications → Align, then come back here.'
-                      : webPush === 'not-configured' ? 'Push isn’t set up on the server yet. The owner needs to add the notification keys in Vercel (see CLAUDE.md).'
+                      : webPush === 'not-configured' ? 'Push isn’t set up on the server yet. Notifications aren’t switched on for this app yet.'
                       : 'This browser can’t show push notifications.'}
                   </Text>
                 </View>
@@ -179,7 +167,7 @@ export default function NotificationsSettingsScreen() {
         {Platform.OS !== 'web' && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>ALERTS</Text>
-          <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
+          <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
             <View style={styles.row}>
               <Text style={[styles.rowText, { color: theme.text }]}>Enable Local Reminders</Text>
               <Switch value={pushEnabled} onValueChange={handleTogglePush} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
@@ -191,7 +179,7 @@ export default function NotificationsSettingsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>DAILY SUMMARY</Text>
-          <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
+          <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
             <View style={[styles.row, { borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: theme.border }]}>
               <Text style={[styles.rowText, { color: theme.text }]}>Daily Agenda Summary</Text>
               <Switch value={dailySummaryEnabled} onValueChange={handleToggleDailySummary} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
@@ -216,7 +204,7 @@ export default function NotificationsSettingsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>AUTO PUSH</Text>
-          <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
+          <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderColor: theme.border }]}>
             <View style={styles.row}>
               <Text style={[styles.rowText, { color: theme.text }]}>Auto-push Tasks</Text>
               <Switch value={autoPushEnabled} onValueChange={handleToggleAutoPush} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
@@ -233,54 +221,13 @@ export default function NotificationsSettingsScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingTop: 8,
-    paddingBottom: 16,
-  },
-  backBtn: {
-    padding: 8,
-    marginLeft: -8,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '800',
-    letterSpacing: -0.5,
-    marginLeft: 4,
-  },
-  content: {
-    flex: 1,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.5,
-    marginLeft: 20,
-    marginBottom: 8,
-  },
-  card: {
-    marginHorizontal: 16,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  rowText: {
-    fontSize: 17,
-  },
-  footerText: {
-    fontSize: 13,
-    marginTop: 8,
-    marginHorizontal: 20,
-  }
+  scroll: { flex: 1 },
+  // Same column as the other settings pages: centred, at most 720 wide, 16 from the edges
+  content: { width: '100%', maxWidth: 720, alignSelf: 'center', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 40 },
+  section: { marginBottom: 24 },
+  sectionTitle: { fontSize: 13, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.4, marginLeft: 16, marginBottom: 7 },
+  card: { borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, minHeight: 50, paddingHorizontal: 14, paddingVertical: 10 },
+  rowText: { fontSize: 16, fontWeight: '500', flex: 1 },
+  footerText: { fontSize: 13, marginHorizontal: 16, marginTop: 7, lineHeight: 18 },
 });
