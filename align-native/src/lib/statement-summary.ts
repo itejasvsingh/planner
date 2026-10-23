@@ -17,7 +17,7 @@ type Item = {
 export type Ranked = { name: string; total: number; count: number };
 export type StatementRow = { id: string; date: string; title: string; amount: number; kind: 'spend' | 'refund' | 'fee'; category?: string };
 export type StatementSummary = {
-  spent: number; /** Refunds and credits back to the card/account */ received: number; refunds: number; /** Interest, late fees, GST and other charges */ fees: number; count: number;
+  spent: number; /** Refunds and credits back to the card/account */ received: number; refunds: number; /** Interest, late fees, GST and other charges */ fees: number; /** Money sent to family or your own accounts: out of the account, but not spending */ transfers: number; count: number;
   categories: Ranked[]; shops: Ranked[];
   biggest: { title: string; amount: number; date: string } | null;
   /** Spent vs the previous statement of the same card/account (fraction, e.g. 0.12 = 12% more); null without one. */
@@ -33,8 +33,9 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 /** The transactions a statement covers: same card (or account) number, from its first to its last date. */
 export function statementItems<T extends Item>(items: T[], rec: StatementRecord): T[] {
   if (!rec.last4 || !rec.from || !rec.to) return [];
-  const field = rec.kind === 'card' ? 'cardLast4' : 'accountLast4';
-  return items.filter(t => t[field] === rec.last4 && !!t.date && t.date >= rec.from! && t.date <= rec.to!);
+  // A card: its card number. A bank account: its account number (or "Paid with" naming it)
+  const mine = (t: Item) => (rec.kind === 'card' ? t.cardLast4 === rec.last4 : t.accountLast4 === rec.last4 || t.cardLast4 === rec.last4);
+  return items.filter(t => mine(t) && !!t.date && t.date >= rec.from! && t.date <= rec.to!);
 }
 
 const rank = (map: Map<string, Ranked>, n = 3) => [...map.values()].sort((a, b) => b.total - a.total).slice(0, n).map(r => ({ ...r, total: r2(r.total) }));
@@ -55,6 +56,7 @@ export function summarizeStatement(items: Item[], rec: StatementRecord, previous
   let spent = 0;
   let received = 0;
   let fees = 0;
+  let transfers = 0;
   let count = 0;
   let biggest: StatementSummary['biggest'] = null;
   const cats = new Map<string, Ranked>();
@@ -63,6 +65,7 @@ export function summarizeStatement(items: Item[], rec: StatementRecord, previous
     if (t.excluded) continue;
     const a = num(t.amount);
     if (t.type === 'income') { received += a; continue; }
+    if (t.type === 'transfer') { transfers += a; continue; }
     if (t.type !== 'expense') continue;
     if (FEE.test(t.title || '')) { fees += a; continue; }
     spent += a;
@@ -81,7 +84,7 @@ export function summarizeStatement(items: Item[], rec: StatementRecord, previous
     const before = statementItems(items, previous).filter(t => t.type === 'expense' && !t.excluded && !FEE.test(t.title || '')).reduce((s, t) => s + num(t.amount), 0);
     if (before > 0) change = Math.round(((spent - before) / before) * 100) / 100;
   }
-  return { spent: r2(spent), received: r2(received), refunds: r2(received), fees: r2(fees), count, categories: rank(cats), shops: rank(shops), biggest, change };
+  return { spent: r2(spent), received: r2(received), refunds: r2(received), fees: r2(fees), transfers: r2(transfers), count, categories: rank(cats), shops: rank(shops), biggest, change };
 }
 
 /** The statement before `rec` for the same bank, kind and card/account number. */

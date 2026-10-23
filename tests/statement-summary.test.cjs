@@ -56,3 +56,15 @@ test('the whole statement: spends, refunds and fees apart, and every transaction
   assert.deepEqual([s.spent, s.refunds, s.fees, s.count], [1000, 300, 594.4, 1]);
   assert.deepEqual(statementRows(all, r).map(x => [x.id, x.kind]), [['b', 'fee'], ['c', 'fee'], ['e', 'fee'], ['d', 'refund'], ['a', 'spend']].sort((x, y) => all.find(i => i.id === y[0]).date.localeCompare(all.find(i => i.id === x[0]).date) || 0));
 });
+
+test('transfers out are counted apart from spending', () => {
+  const r = rec({ id: 'acct', kind: 'account', last4: '7788', from: '2026-10-01', to: '2026-10-31' });
+  const acc = [
+    { id: '1', type: 'expense', title: 'Swiggy', amount: 450, date: '2026-10-05', accountLast4: '7788', category: 'Food' },
+    { id: '2', type: 'transfer', title: 'Rent to landlord', amount: 12000, date: '2026-10-06', accountLast4: '7788' },
+    { id: '3', type: 'income', title: 'Salary', amount: 30000, date: '2026-10-07', cardLast4: '7788' },
+    { id: '4', type: 'expense', title: 'Other account', amount: 99, date: '2026-10-05', accountLast4: '1111' },
+  ];
+  const s = summarizeStatement(acc, r);
+  assert.deepEqual([s.spent, s.transfers, s.received], [450, 12000, 30000]);
+});

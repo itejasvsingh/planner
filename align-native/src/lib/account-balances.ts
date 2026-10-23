@@ -5,7 +5,7 @@ import type { AccountBalance, CardSummary } from '@/lib/gmail-connect';
  * anything recorded since then (by the item's date and time) is applied on top. One place, so the Cards page and the
  * Money overview always show the same total.
  */
-type Item = { type?: string; cardLast4?: string | null; date?: string | null; time?: string | null; amount?: number | string | null };
+type Item = { type?: string; cardLast4?: string | null; accountLast4?: string | null; date?: string | null; time?: string | null; amount?: number | string | null };
 
 type Named = { last4?: string | null; bankName?: string; issuerName?: string; name?: string };
 // Same keys the Cards page always matched on: an account by its digits or bank, a card by its digits or issuer
@@ -22,19 +22,22 @@ function stamp(item: Item): number | null {
 }
 
 export function adjustBalances(baseAccounts: AccountBalance[], baseCards: CardSummary[], items: Item[]) {
-  const accounts = baseAccounts.map(a => ({ ...a }));
+  const accounts = baseAccounts.map(a => ({ ...a, applied: 0 }));
   const cards = baseCards.map(c => ({ ...c }));
   for (const item of items) {
-    if (!item.cardLast4) continue;
+    // A bank alert is stored under accountLast4, a card spend under cardLast4; "Paid with" can name either in cardLast4
+    const ref = item.accountLast4 || item.cardLast4;
+    if (!ref && !item.cardLast4) continue;
     const ts = stamp(item);
     if (ts === null) continue;
     const amt = Number(item.amount) || 0;
-    const acc = accounts.find(a => accountId(a) === item.cardLast4);
+    const acc = accounts.find(a => accountId(a) === item.accountLast4 || accountId(a) === item.cardLast4);
     if (acc && ts > acc.at) {
-      if (item.type === 'expense') acc.balance -= amt;
-      if (item.type === 'income' || item.type === 'deposit') acc.balance += amt;
+      // Money out of the account: spends and transfers; money in: income and deposits
+      if (item.type === 'expense' || item.type === 'transfer') { acc.balance -= amt; acc.applied += 1; }
+      if (item.type === 'income' || item.type === 'deposit') { acc.balance += amt; acc.applied += 1; }
     }
-    const card = cards.find(c => cardId(c as unknown as Named) === item.cardLast4);
+    const card = item.cardLast4 ? cards.find(c => cardId(c as unknown as Named) === item.cardLast4) : undefined;
     if (card && ts > card.paidSince) {
       if (item.type === 'expense') card.outstanding = (card.outstanding || 0) + amt;
       if (item.type === 'income' || item.type === 'transfer' || item.type === 'deposit') card.outstanding = Math.max(0, (card.outstanding || 0) - amt);
@@ -46,13 +49,17 @@ export function adjustBalances(baseAccounts: AccountBalance[], baseCards: CardSu
   return { accounts, cards, totalBalance, netWorth };
 }
 
-/** The newest few items recorded against one account. */
-export function recentForAccount<T extends Item>(account: Named, items: T[], n = 3): T[] {
+/** Every transaction recorded against one account (by its account number, or "Paid with"), newest first. */
+export function transactionsForAccount<T extends Item>(account: Named, items: T[]): T[] {
   const id = accountId(account);
   return items
-    .filter(i => i.cardLast4 === id && (i.type === 'expense' || i.type === 'income' || i.type === 'deposit' || i.type === 'transfer'))
-    .sort((a, b) => (stamp(b) ?? 0) - (stamp(a) ?? 0))
-    .slice(0, n);
+    .filter(i => (i.accountLast4 === id || i.cardLast4 === id) && (i.type === 'expense' || i.type === 'income' || i.type === 'deposit' || i.type === 'transfer'))
+    .sort((a, b) => (stamp(b) ?? 0) - (stamp(a) ?? 0));
+}
+
+/** The newest few items recorded against one account. */
+export function recentForAccount<T extends Item>(account: Named, items: T[], n = 3): T[] {
+  return transactionsForAccount(account, items).slice(0, n);
 }
 
 /**

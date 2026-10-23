@@ -8,7 +8,7 @@ const src = fs.readFileSync(path.join(__dirname, '../align-native/src/lib/accoun
 const out = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
 const mod = { exports: {} };
 new Function('module', 'exports', out)(mod, mod.exports);
-const { adjustBalances, recentForAccount } = mod.exports;
+const { adjustBalances, recentForAccount, transactionsForAccount } = mod.exports;
 
 const at = new Date('2026-10-10T09:00:00').getTime();
 const acct = { id: 'a', bankId: 'hdfc', bankName: 'HDFC', last4: '1234', balance: 10000, at };
@@ -61,4 +61,22 @@ test('total series: sums the ticked accounts day by day, carries balances forwar
     { d: '2026-10-04', b: 1100 }, // today = current balances (700 + 400)
   ]);
   assert.deepEqual(totalSeries([{ balance: 5 }], '2026-10-04'), []);
+});
+
+test('bank alerts (stored under the account number) move the live balance and show under the account', () => {
+  const items = [
+    // After the last quoted balance (10 Oct 09:00): money out, a transfer out, and money in
+    { id: 'a1', type: 'expense', accountLast4: '1234', date: '2026-10-11', time: '10:00', amount: 400, title: 'Zomato' },
+    { id: 'a2', type: 'transfer', accountLast4: '1234', date: '2026-10-11', time: '12:00', amount: 1000, title: 'Rent to landlord' },
+    { id: 'a3', type: 'income', accountLast4: '1234', date: '2026-10-12', time: '09:00', amount: 5000, title: 'Salary' },
+    // Already inside the quoted balance (before it), another account, and a card spend: none of them touch this account
+    { id: 'a4', type: 'expense', accountLast4: '1234', date: '2026-10-09', time: '23:00', amount: 999, title: 'Before the balance' },
+    { id: 'a5', type: 'expense', accountLast4: '5555', date: '2026-10-11', time: '10:00', amount: 123, title: 'Other account' },
+    { id: 'a6', type: 'expense', cardLast4: '9999', date: '2026-10-11', time: '10:00', amount: 700, title: 'Axis card spend' },
+  ];
+  const r = adjustBalances([acct], [card], items);
+  assert.equal(r.accounts[0].balance, 10000 - 400 - 1000 + 5000, 'bank spends and transfers are deducted live, income added');
+  assert.equal(r.accounts[0].applied, 3, 'how many newer transactions were applied on top of the quoted balance');
+  assert.equal(r.cards[0].outstanding, 2000 + 700, 'a card spend raises what the card owes, not the bank balance');
+  assert.deepEqual(transactionsForAccount(acct, items).map(i => i.id), ['a3', 'a2', 'a1', 'a4'], 'every transaction of the account, newest first');
 });

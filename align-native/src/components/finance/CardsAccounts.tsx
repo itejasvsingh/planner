@@ -12,7 +12,8 @@ import BalanceTrend from './BalanceTrend';
 import NetWorthCard from './NetWorthCard';
 import BalanceOverview from './BalanceOverview';
 import { todayKey } from '@/lib/dates';
-import { adjustBalances, recentForAccount } from '@/lib/account-balances';
+import { summarizeStatement } from '@/lib/statement-summary';
+import { adjustBalances, recentForAccount, transactionsForAccount } from '@/lib/account-balances';
 import { cardNumbers, cardStrip, cardTitle, detailsText, dueText, inr, nextStatement } from '@/lib/card-format';
 import type { CardSummary } from '@/lib/gmail-connect';
 import CardSheet from './CardSheet';
@@ -38,6 +39,7 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
   const data = useCards(phone);
   const [open, setOpen] = useState<CardSummary | 'new' | null>(null);
   const [showHidden, setShowHidden] = useState(false);
+  const [txAll, setTxAll] = useState<string | null>(null);
   const [openAcct, setOpenAcct] = useState<string | null>(null);
   const [form, setForm] = useState({ ifsc: '', accountNumber: '', holder: '' });
   const [formError, setFormError] = useState('');
@@ -224,22 +226,75 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
                     <View style={[styles.icon, { backgroundColor: c.backgroundMuted }]}><Landmark color={c.textSecondary} size={18} /></View>
                     <View style={{ flex: 1 }}>
                       <Text style={{ color: c.text, fontWeight: '600', fontSize: 15 }} numberOfLines={1}>{a.bankName}{a.last4 ? ` ••${a.last4}` : ''}</Text>
-                      <Text style={{ color: c.textTertiary, fontSize: 12 }}>{included ? `Balance as of ${when(a.at)}` : 'Not counted in the total'}</Text>
+                      <Text style={{ color: c.textTertiary, fontSize: 12 }}>{included ? `Balance as of ${when(a.at)}${(a as any).applied ? ` · ${(a as any).applied} newer applied` : ''}` : 'Not counted in the total'}</Text>
                     </View>
                     <Text style={{ color: included ? c.text : c.textTertiary, fontSize: 16, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{inr(a.balance)}</Text>
                     {open ? <ChevronUp color={c.textTertiary} size={16} /> : <ChevronDown color={c.textTertiary} size={16} />}
                   </Pressable>
                 </View>
-                {recent.map((t: any) => (
-                  <View key={t.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 78, paddingBottom: 6, gap: 8 }}>
+                {!open && recent.map((t: any) => (
+                  <Pressable key={t.id} accessibilityRole="button" accessibilityLabel={`${t.title || 'Transaction'}, open`} onPress={() => onEditTransaction?.(t)} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingLeft: 78, paddingBottom: 6, gap: 8 }}>
                     <Text numberOfLines={1} style={{ color: c.textSecondary, fontSize: 13, flex: 1 }}>{t.title || (t.type === 'income' ? 'Income' : 'Payment')}</Text>
                     <Text style={{ color: t.type === 'income' || t.type === 'deposit' ? c.income : c.textSecondary, fontSize: 13, fontVariant: ['tabular-nums'] }}>
                       {t.type === 'income' || t.type === 'deposit' ? '+' : '−'}{inr(Number(t.amount) || 0)}
                     </Text>
-                  </View>
+                  </Pressable>
                 ))}
                 {open && (
                   <View style={{ paddingHorizontal: 4, paddingBottom: 12, paddingTop: 4, gap: 12 }}>
+                    {(() => {
+                      // Where this account's money went this month, and every transaction (tap one to open or remove it)
+                      const all = transactionsForAccount(a, items) as any[];
+                      const today = new Date();
+                      const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                      const month = a.last4 ? summarizeStatement(items as any, { id: 'month', bankId: a.bankId, bankName: a.bankName, kind: 'account', last4: a.last4, state: 'ok', from: ymd(new Date(today.getFullYear(), today.getMonth(), 1)), to: ymd(today), at: 0 }) : null;
+                      const shownTx = txAll === a.id ? all : all.slice(0, 8);
+                      return (
+                        <>
+                          {month && (month.spent > 0 || month.received > 0 || month.transfers > 0) && (
+                            <View style={{ gap: 6 }}>
+                              <Text style={{ color: c.textTertiary, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>This month</Text>
+                              <View style={{ flexDirection: 'row', gap: 8 }}>
+                                <View style={[styles.num, { backgroundColor: c.backgroundMuted }]}>
+                                  <Text style={{ color: c.textTertiary, fontSize: 11, fontWeight: '600' }}>Out</Text>
+                                  <Text style={{ color: c.expense, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{inr(month.spent + month.transfers)}</Text>
+                                  {month.transfers > 0 && <Text style={{ color: c.textTertiary, fontSize: 11 }}>{inr(month.transfers)} transfers</Text>}
+                                </View>
+                                <View style={[styles.num, { backgroundColor: c.backgroundMuted }]}>
+                                  <Text style={{ color: c.textTertiary, fontSize: 11, fontWeight: '600' }}>In</Text>
+                                  <Text style={{ color: c.income, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums'] }}>{inr(month.received)}</Text>
+                                </View>
+                              </View>
+                              {month.categories.map(k => (
+                                <View key={k.name} style={{ flexDirection: 'row', gap: 8 }}>
+                                  <Text style={{ color: c.text, fontSize: 14, flex: 1 }} numberOfLines={1}>{k.name}</Text>
+                                  <Text style={{ color: c.textSecondary, fontSize: 14, fontVariant: ['tabular-nums'] }}>{inr(k.total)}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                          {all.length > 0 && (
+                            <View style={{ gap: 6 }}>
+                              <Text style={{ color: c.textTertiary, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>{all.length} transaction{all.length === 1 ? '' : 's'}</Text>
+                              {shownTx.map(t => (
+                                <Pressable key={t.id} accessibilityRole="button" accessibilityLabel={`${t.title || 'Transaction'}, open`} onPress={() => onEditTransaction?.(t)} style={{ flexDirection: 'row', gap: 8, paddingVertical: 2 }}>
+                                  <Text style={{ color: c.textTertiary, fontSize: 12, width: 44 }}>{t.date ? shortDayLocal(t.date) : ''}</Text>
+                                  <Text numberOfLines={1} style={{ color: c.text, fontSize: 14, flex: 1 }}>{t.title || (t.type === 'income' ? 'Income' : 'Payment')}</Text>
+                                  <Text style={{ color: t.type === 'income' || t.type === 'deposit' ? c.income : c.text, fontSize: 14, fontVariant: ['tabular-nums'] }}>
+                                    {t.type === 'income' || t.type === 'deposit' ? '+' : '−'}{inr(Number(t.amount) || 0)}
+                                  </Text>
+                                </Pressable>
+                              ))}
+                              {all.length > 8 && (
+                                <Pressable accessibilityRole="button" onPress={() => setTxAll(txAll === a.id ? null : a.id)} hitSlop={8} style={{ alignSelf: 'center' }}>
+                                  <Text style={{ color: c.accent, fontWeight: '700', fontSize: 13 }}>{txAll === a.id ? 'Show fewer' : `Show all ${all.length}`}</Text>
+                                </Pressable>
+                              )}
+                            </View>
+                          )}
+                        </>
+                      );
+                    })()}
                     <BalanceTrend history={a.history} />
                     {details.length > 0 && (
                       <View style={{ gap: 2 }}>
@@ -285,6 +340,8 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
     </View>
   );
 }
+
+const shortDayLocal = (key: string) => new Date(`${key}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
 const styles = StyleSheet.create({
   header: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 10 },

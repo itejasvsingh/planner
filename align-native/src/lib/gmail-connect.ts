@@ -85,6 +85,8 @@ export const addCard = (edit: CardEdit) => call<{ ok: true; key: string }>('/api
 export const removeCard = (key: string) => call<{ ok: true }>('/api/money/cards', { method: 'POST', body: JSON.stringify({ remove: key }) });
 export type AccountBalance = {
   id: string; bankId: string; bankName: string; last4: string | null; balance: number; at: number;
+  /** How many newer transactions were applied on top of the last quoted balance (worked out in the app). */
+  applied?: number;
   /** Older cached copies lack these. */
   excluded?: boolean; ifsc?: string | null; accountNumber?: string | null; holder?: string | null;
   history?: { d: string; b: number }[];
