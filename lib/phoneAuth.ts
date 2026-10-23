@@ -21,7 +21,7 @@ const hash = (phone: string, code: string) => createHash('sha256').update(`${pho
 
 /**
  * Tester sign-ins, for people trying the app without a WhatsApp code. `TEST_LOGINS` in Vercel lists fake numbers with a
- * 6-digit code you choose for each: "910000000001:482913,910000000002:731946". A tester enters that number and code; no
+ * 6-digit code you choose for each: "0000000001:482913,0000000002:731946" (10 digits, no 91 needed; "910000000001" works too). A tester enters that number and code; no
  * WhatsApp message is sent. Only fake numbers count: 91 followed by ten digits starting with 0, which no real mobile number
  * can start with, so this can never open a real person's account. Unset (the default) it does nothing.
  */
@@ -40,7 +40,7 @@ export type StartResult = { status: 'sent'; template: boolean } | { status: 'err
 
 export async function startPhoneLogin(rawPhone: string, ip: string): Promise<StartResult> {
   const phone = normalizePhone(rawPhone);
-  if (!isValidPhone(phone)) return { status: 'error', message: 'Enter your WhatsApp number with country code, e.g. 919876543210.', http: 400 };
+  if (!isValidPhone(phone)) return { status: 'error', message: 'Enter your 10-digit WhatsApp number, e.g. 9876543210 (add your country code first if it isn’t an Indian number).', http: 400 };
 
   const [byPhone, byIp] = await Promise.all([
     consumeRateLimit(`authcode_phone_${phone}`, 6, HOUR),
