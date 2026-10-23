@@ -100,6 +100,13 @@
 - An account whose alerts never quote a balance (slice's): its transactions carry `accountLast4` + `bankId`/`bankName` (from `recordTransaction`'s `bank`);
   Wallet lists it under "Accounts without a balance" and the user types the balance once (`POST /api/money/accounts {setBalance}` → `saveBalance`).
   After that the live balance moves with each later transaction, and any alert that does quote a balance corrects it.
+- Push notifications (`lib/webPush.ts`, `/api/push/{key,subscribe,unsubscribe,test}`, Settings → Notifications on web / the home-screen app,
+  service worker `push` + `notificationclick` in `scripts/prepare-expo-web.js`): web push, so the iPhone home-screen app (iOS 16.4+, added to the Home Screen) gets
+  notifications; the Android app keeps its local reminders. Subscriptions are server-only in `push_subscriptions/<phone>/devices/<id>`. Once a day after
+  8:30 am India time each subscribed person gets card dues (cards with reminders on, due within 3 days or overdue) and a task count; it runs from
+  `/api/gmail/sync-all` (the 15-minute GitHub workflow), once per day per person (`push_subscriptions/<phone>.lastSent`). Needs `VAPID_PUBLIC_KEY`,
+  `VAPID_PRIVATE_KEY` (and optionally `VAPID_SUBJECT`, a `mailto:`) in Vercel; make them with `npx web-push generate-vapid-keys`, never commit them. Without
+  them the app says push isn't set up and nothing is sent.
 - Wallet colours: `dueTone` in `align-native/src/lib/upcoming.ts` (red overdue, amber within 3 days, blue later; green paid) on "Coming up",
   the card rows and the statement due box. "Coming up" lists every unpaid card whenever it's due (overdue first), bills only in the next 14 days.
 - Closed cards: `card_edits.closed` (Wallet → card → "This card is closed") or `gmail_links.closedBanks` (Settings → Gmail → statements,

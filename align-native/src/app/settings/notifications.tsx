@@ -12,6 +12,7 @@ import { usePhone } from '@/lib/phone-context';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { triggerHaptic } from '@/lib/haptics';
+import { disablePush, enablePush, pushStatus, sendTestPush, type PushStatus } from '@/lib/web-push';
 
 export default function NotificationsSettingsScreen() {
   const theme = useTheme();
@@ -22,6 +23,11 @@ export default function NotificationsSettingsScreen() {
   const [dailySummaryEnabled, setDailySummaryEnabled] = useState(false);
   const [dailySummaryTime, setDailySummaryTime] = useState(new Date());
   const [autoPushEnabled, setAutoPushEnabled] = useState(false);
+  // Web and the home-screen app: push notifications for this device
+  const [webPush, setWebPush] = useState<PushStatus | null>(null);
+  const [webBusy, setWebBusy] = useState(false);
+  const [webNote, setWebNote] = useState('');
+  useEffect(() => { if (Platform.OS === 'web') pushStatus().then(setWebPush).catch(() => setWebPush('unsupported')); }, []);
 
   useEffect(() => {
     async function loadSettings() {
@@ -74,6 +80,34 @@ export default function NotificationsSettingsScreen() {
     }
   };
 
+  const handleToggleWebPush = async () => {
+    triggerHaptic('light');
+    setWebBusy(true);
+    setWebNote('');
+    try {
+      const next = webPush === 'on' ? await disablePush() : await enablePush();
+      setWebPush(next);
+      if (next === 'on') setWebNote('Notifications are on for this device.');
+    } catch (e) {
+      setWebNote((e as Error).message);
+    } finally {
+      setWebBusy(false);
+    }
+  };
+
+  const handleTestWebPush = async () => {
+    setWebBusy(true);
+    setWebNote('');
+    try {
+      const n = await sendTestPush();
+      setWebNote(n > 0 ? 'Sent. It should arrive in a few seconds.' : 'Nothing was delivered. Turn notifications off and on again.');
+    } catch (e) {
+      setWebNote((e as Error).message);
+    } finally {
+      setWebBusy(false);
+    }
+  };
+
   const handleToggleDailySummary = () => {
     triggerHaptic('light');
     const next = !dailySummaryEnabled;
@@ -110,6 +144,39 @@ export default function NotificationsSettingsScreen() {
       </View>
 
       <ScrollView style={styles.content}>
+        {Platform.OS === 'web' && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>PUSH NOTIFICATIONS</Text>
+            <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
+              {webPush === 'on' || webPush === 'off' ? (
+                <View style={styles.row}>
+                  <Text style={[styles.rowText, { color: theme.text }]}>Notify me on this device</Text>
+                  <Switch value={webPush === 'on'} disabled={webBusy} onValueChange={() => void handleToggleWebPush()} trackColor={{ false: theme.backgroundMuted, true: theme.accentFill }} ios_backgroundColor={theme.backgroundMuted} />
+                </View>
+              ) : (
+                <View style={{ padding: 16 }}>
+                  <Text style={{ color: webPush === 'denied' || webPush === 'not-configured' ? theme.expense : theme.textSecondary, fontSize: 14, lineHeight: 20 }}>
+                    {webPush === null ? 'Checking…'
+                      : webPush === 'needs-install' ? 'On iPhone, add Align to your Home Screen first: tap Share, then Add to Home Screen. Open Align from the new icon, then come back here.'
+                      : webPush === 'denied' ? 'Notifications are blocked for Align. Turn them on in your phone’s Settings → Notifications → Align, then come back here.'
+                      : webPush === 'not-configured' ? 'Push isn’t set up on the server yet. The owner needs to add the notification keys in Vercel (see CLAUDE.md).'
+                      : 'This browser can’t show push notifications.'}
+                  </Text>
+                </View>
+              )}
+              {webPush === 'on' && (
+                <Pressable accessibilityRole="button" disabled={webBusy} onPress={() => void handleTestWebPush()} style={[styles.row, { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.border }]}>
+                  <Text style={[styles.rowText, { color: theme.accent, fontWeight: '700' }]}>Send a test notification</Text>
+                </Pressable>
+              )}
+            </View>
+            <Text style={[styles.footerText, { color: theme.textSecondary }]}>
+              {webNote || 'Card dues (for cards with reminders on) and today’s tasks, every morning after 8:30. Works on iPhone 16.4+ once Align is on your Home Screen.'}
+            </Text>
+          </View>
+        )}
+
+        {Platform.OS !== 'web' && (
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>ALERTS</Text>
           <View style={[styles.card, { backgroundColor: theme.backgroundElement, borderWidth: 1, borderColor: theme.border }]}>
@@ -119,6 +186,8 @@ export default function NotificationsSettingsScreen() {
             </View>
           </View>
         </View>
+
+        )}
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.textSecondary }]}>DAILY SUMMARY</Text>
