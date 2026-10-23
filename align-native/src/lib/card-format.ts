@@ -57,5 +57,7 @@ export function cardStrip(card: Pick<CardSummary, 'status' | 'daysLeft' | 'dueDa
     const n = -card.daysLeft;
     return { tone: 'overdue', text: `${amount} due ${n === 0 ? 'today' : `${n} day${n === 1 ? '' : 's'} ago`}` };
   }
-  return { tone: 'due', text: `${amount} due ${card.daysLeft === 0 ? 'today' : `on ${shortDay(card.dueDate)}`}` };
+  // Within a week: how many days, so it reads at a glance; further out: the date
+  const when = card.daysLeft === 0 ? 'today' : card.daysLeft === 1 ? 'tomorrow' : card.daysLeft <= 7 ? `in ${card.daysLeft} days (${shortDay(card.dueDate)})` : `on ${shortDay(card.dueDate)}`;
+  return { tone: 'due', text: `${amount} due ${when}` };
 }

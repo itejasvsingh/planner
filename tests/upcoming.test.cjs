@@ -76,3 +76,8 @@ test('coming up lists every unpaid card, overdue first, each with an urgency col
   assert.deepEqual(r.map(x => [x.title, x.tone]), [['Late bill', 'overdue'], ['Soon bill', 'soon'], ['Later bill', 'later']]);
   assert.deepEqual([dueTone('2026-10-13', now), dueTone('2026-10-16', now), dueTone('2026-10-17', now), dueTone('2026-10-12', now)], ['soon', 'soon', 'later', 'overdue'], 'today to 3 days ahead is soon');
 });
+
+test('time-relative due wording (colour is not the only signal)', () => {
+  const { dueRelative } = mod.exports;
+  assert.deepEqual(['2026-10-13', '2026-10-14', '2026-10-18', '2026-10-12', '2026-10-10'].map(d => dueRelative(d, now)), ['today', 'tomorrow', 'in 5 days', '1 day overdue', '3 days overdue']);
+});

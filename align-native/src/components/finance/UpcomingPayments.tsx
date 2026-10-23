@@ -5,7 +5,7 @@ import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { useTheme } from '@/hooks/use-theme';
 import { Radius, Shadow } from '@/constants/theme';
-import type { Upcoming } from '@/lib/upcoming';
+import { dueRelative, type Upcoming } from '@/lib/upcoming';
 
 const inr = (n: number) => `₹${Math.round(n).toLocaleString('en-IN')}`;
 const shortDate = (k: string) => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
@@ -42,7 +42,7 @@ export default function UpcomingPayments({ rows }: { rows: Upcoming[] }) {
               <View style={[styles.icon, { backgroundColor: t.bg }]}><Icon color={t.fg} size={16} /></View>
               <View style={{ flex: 1 }}>
                 <Text numberOfLines={1} style={{ color: c.text, fontWeight: '600', fontSize: 15 }}>{r.title}</Text>
-                <Text style={{ color: t.fg, fontSize: 12, fontWeight: '600' }}>{r.tone === 'overdue' ? `Overdue · ${shortDate(r.date)}` : label(r.date)}</Text>
+                <Text style={{ color: t.fg, fontSize: 12, fontWeight: '600' }}>{`${dueRelative(r.date)[0].toUpperCase()}${dueRelative(r.date).slice(1)} · ${shortDate(r.date)}`}</Text>
               </View>
               {r.amount > 0 && <Text style={{ color: r.tone === 'later' ? c.text : t.fg, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{inr(r.amount)}</Text>}
             </View>

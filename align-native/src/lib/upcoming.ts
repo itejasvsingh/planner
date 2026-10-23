@@ -33,6 +33,15 @@ export function dueTone(dateKey: string, now: Date = new Date()): DueTone {
   return days <= 3 ? 'soon' : 'later';
 }
 
+/** "today", "tomorrow", "in 5 days", "1 day overdue", "3 days overdue": time-relative wording, so urgency isn't carried by colour alone. */
+export function dueRelative(dateKey: string, now: Date = new Date()): string {
+  const days = Math.round((parse(dateKey).getTime() - new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) / 86_400_000);
+  if (days === 0) return 'today';
+  if (days === 1) return 'tomorrow';
+  if (days > 1) return `in ${days} days`;
+  return `${-days} day${days === -1 ? '' : 's'} overdue`;
+}
+
 /** The first date on or after `from` that this recurring bill falls on. */
 export function nextDue(startKey: string, freq: string | undefined, from: Date): Date {
   const start = parse(startKey);
