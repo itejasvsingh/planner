@@ -75,6 +75,8 @@ export function getKolkataDateInfo() {
 }
 
 async function sendWhatsAppTextMessage(to: string, text: string) {
+    // Email and tester accounts have a stand-in number (910 + nine digits) with no WhatsApp behind it: nothing to send
+    if (/^910\d{9}$/.test(String(to).replace(/\D/g, ''))) return;
     const activePhoneId = PHONE_ID;
     const token = API_TOKEN;
     if (!activePhoneId) {

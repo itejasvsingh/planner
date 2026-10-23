@@ -3,6 +3,7 @@ import { adminAuth, db, FieldValue } from './firebase';
 import { consumeRateLimit } from './rateLimit';
 import { getPhoneVariants, isValidPhone, normalizePhone } from './phone';
 import { sendLoginCode, sendWhatsAppText } from './whatsappSend';
+import { isStandIn, mergeAccounts } from './accountLink';
 
 /**
  * WhatsApp-number sign-in. The server sends a 6-digit code on WhatsApp; a correct code returns a Firebase
@@ -133,14 +134,20 @@ export async function verifyPhoneLogin(rawPhone: string, rawCode: string, idToke
 async function finishLogin(phone: string, idToken?: string): Promise<VerifyResult> {
   const claims = { phone, phones: getPhoneVariants(phone) };
   if (idToken) {
-    let uid: string;
+    let decoded: { uid: string; phone?: unknown; loginEmail?: unknown };
     try {
-      uid = (await adminAuth().verifyIdToken(idToken)).uid;
+      decoded = await adminAuth().verifyIdToken(idToken);
     } catch {
       return { status: 'error', message: 'Your sign-in expired. Sign in again.', http: 401 };
     }
+    const uid = decoded.uid;
     const user = await adminAuth().getUser(uid);
-    await adminAuth().setCustomUserClaims(uid, { ...(user.customClaims || {}), ...claims });
+    // Signed in by a code, the account's number and email are in the verified token (not on the stored user)
+    const before = String(decoded.phone || user.customClaims?.phone || '');
+    // An email account (stand-in number) gaining its real WhatsApp number: its data moves over, so it's one account
+    if (isStandIn(before) && before !== phone && !isStandIn(phone)) await mergeAccounts(before, phone);
+    const keepEmail = typeof decoded.loginEmail === 'string' ? { loginEmail: decoded.loginEmail } : {};
+    await adminAuth().setCustomUserClaims(uid, { ...(user.customClaims || {}), ...keepEmail, ...claims });
     await db.collection('users').doc(uid).set({ phone, phoneVerifiedAt: FieldValue.serverTimestamp() }, { merge: true });
     return { status: 'linked', phone };
   }

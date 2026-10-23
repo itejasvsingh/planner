@@ -37,6 +37,7 @@ export default function PrivacyPage() {
         <ul>
           <li><b>Your WhatsApp number</b>, to sign you in (with a one-time code sent on WhatsApp) and to keep your data together.</li>
           <li><b>Your Google name and email</b>, if you sign in with Google.</li>
+          <li><b>Your email address</b>, if you sign in with an emailed code or add an email to your account: used to send the code and to open the same account when you use it.</li>
           <li><b>What you add</b>: tasks, goals, expenses, income, budgets, categories and settings.</li>
           <li><b>Messages you send the Align WhatsApp bot</b>, including voice notes and receipt photos, so it can add or answer things for you.</li>
           <li><b>Bank SMS</b>, only if you turn on SMS Auto-Import: bank and card transaction messages, from which Align records the amount, date, merchant and reference.</li>

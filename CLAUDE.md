@@ -25,6 +25,16 @@
 - Tester sign-ins (`testLogins` in `lib/phoneAuth.ts`): `TEST_LOGINS` in Vercel, e.g. `0000000001:482913,0000000002:731946` (fake 10-digit number, no 91 needed : 6-digit code you choose).
   A tester enters the number and code; no WhatsApp code is sent. Only ten digits starting with `0` (stored as `91` + them) count (no real mobile number can), so it can
   never open a real person's account; wrong tries are limited to 12 an hour. Unset = off. Remove entries when testing ends.
+- Email sign-in (backup for WhatsApp; `lib/emailAuth.ts`, `lib/emailSend.ts`, `/api/auth/email/{code,verify,link}`, login screen "Use email instead"): a 6-digit code is
+  emailed (hashed in `auth_codes/em_<hash>`, 10 min, 5 tries, rate limits per email/IP and 300 a day overall). Everything is keyed by a phone number, so an email gets
+  a stand-in number (`910` + nine digits, `email_identities`/`email_phones`, server-only) the first time. Needs `SMTP_HOST`, `SMTP_PORT` (465 or 587), `SMTP_USER`, `SMTP_PASS`,
+  `EMAIL_FROM` in Vercel (Gmail: smtp.gmail.com, 465, an app password); without them it says it isn't switched on. These accounts have no WhatsApp link until they add
+  a number. `loginEmail` is the custom claim carrying the email (not `email`, which Firebase reserves).
+- Linking the two (`lib/accountLink.ts`, Settings → Linked sign-ins): an email account verifying a real WhatsApp number while signed in (`/api/auth/verify` with the ID token)
+  moves everything filed under its stand-in number to the real one (`mergeAccounts`: planner_items, preferences/budgets, sessions, money_accounts, gmail_links,
+  push_subscriptions; the real number's version wins on clashes); a real-number account adds an email via `/api/auth/email/link` (an email already owned by another
+  real number is refused; an email-only account behind it is merged in). Only stand-ins are ever merged away. After a code sign-in the number/email live in the
+  verified ID token, not on the stored user, so linking reads `verifyIdToken`'s claims.
 - Server code (API routes, crons, the WhatsApp bot) uses the Admin SDK (`lib/firebase.ts`), which needs
   `FIREBASE_SERVICE_ACCOUNT` (service-account JSON, raw or base64) in Vercel. Server-only collections:
   `rate_limits`, `auth_codes` and anything not matched in `firestore.rules`.

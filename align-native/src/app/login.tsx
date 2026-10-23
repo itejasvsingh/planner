@@ -23,10 +23,13 @@ const masked = (p: string) => {
 export default function LoginScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { phone, firebaseUser, needsPhoneSetup, lastPhone, sendCode, verifyCode, logout } = usePhone();
+  const { phone, firebaseUser, needsPhoneSetup, lastPhone, sendCode, verifyCode, sendEmailCode, verifyEmailCode, logout } = usePhone();
 
   const [step, setStep] = useState<'phone' | 'code'>('phone');
   const [phoneInput, setPhoneInput] = useState('');
+  // Backup sign-in: a code emailed to the address, for anyone who can't get one on WhatsApp
+  const [emailMode, setEmailMode] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +63,24 @@ export default function LoginScreen() {
   }, [wait]);
 
   async function requestCode() {
+    if (emailMode) {
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(emailInput.trim())) {
+        setError('Enter a valid email address.');
+        return;
+      }
+      setBusy(true);
+      setError(null);
+      const res = await sendEmailCode(emailInput);
+      setBusy(false);
+      if (!res.ok) {
+        setError(res.message);
+        return;
+      }
+      setCode('');
+      setStep('code');
+      setWait(RESEND_SECONDS);
+      return;
+    }
     if (!phoneInput.trim()) {
       setError('Enter your WhatsApp number.');
       return;
@@ -80,12 +101,12 @@ export default function LoginScreen() {
 
   async function submitCode(value = code) {
     if (value.length !== CODE_LEN) {
-      setError('Enter the 6-digit code from WhatsApp.');
+      setError(emailMode ? 'Enter the 6-digit code from the email.' : 'Enter the 6-digit code from WhatsApp.');
       return;
     }
     setBusy(true);
     setError(null);
-    const res = await verifyCode(phoneInput.trim(), value);
+    const res = emailMode ? await verifyEmailCode(emailInput, value) : await verifyCode(phoneInput.trim(), value);
     setBusy(false);
     if (!res.ok) setError(res.message);
   }
@@ -139,7 +160,7 @@ export default function LoginScreen() {
           <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
             {linking
               ? 'Verify your WhatsApp number to continue.'
-              : step === 'code' ? `Enter the code sent on WhatsApp to ${masked(phoneInput)}.` : 'Login to continue'}
+              : step === 'code' ? (emailMode ? `Enter the code emailed to ${emailInput.trim()}.` : `Enter the code sent on WhatsApp to ${masked(phoneInput)}.`) : emailMode ? 'Sign in with your email' : 'Login to continue'}
           </Text>
         </View>
 
@@ -149,25 +170,49 @@ export default function LoginScreen() {
               <Text style={[styles.accountBadge, { color: theme.textSecondary }]}>Signed in as {firebaseUser.email}</Text>
             ) : null}
             
-            <Text style={[styles.inputLabel, { color: theme.text }]}>WhatsApp Number</Text>
-            <TextInput
-              accessibilityLabel="WhatsApp number"
-              value={phoneInput}
-              onChangeText={(t) => {
-                setPhoneInput(t);
-                if (error) setError(null);
-              }}
-              placeholder="e.g. 9876543210"
-              placeholderTextColor={theme.textSecondary}
-              keyboardType="phone-pad"
-              autoComplete="tel"
-              autoFocus
-              style={inputStyle}
-            />
+            {emailMode ? (
+              <>
+                <Text style={[styles.inputLabel, { color: theme.text }]}>Email</Text>
+                <TextInput
+                  accessibilityLabel="Email address"
+                  value={emailInput}
+                  onChangeText={(t) => {
+                    setEmailInput(t);
+                    if (error) setError(null);
+                  }}
+                  placeholder="you@example.com"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  autoComplete="email"
+                  autoFocus
+                  style={inputStyle}
+                />
+              </>
+            ) : (
+              <>
+                <Text style={[styles.inputLabel, { color: theme.text }]}>WhatsApp Number</Text>
+                <TextInput
+                  accessibilityLabel="WhatsApp number"
+                  value={phoneInput}
+                  onChangeText={(t) => {
+                    setPhoneInput(t);
+                    if (error) setError(null);
+                  }}
+                  placeholder="e.g. 9876543210"
+                  placeholderTextColor={theme.textSecondary}
+                  keyboardType="phone-pad"
+                  autoComplete="tel"
+                  autoFocus
+                  style={inputStyle}
+                />
+              </>
+            )}
             {error ? <Text style={[styles.error, { color: theme.red }]}>{error}</Text> : null}
             
             <View style={{ marginTop: 24 }}>
-              <PrimaryButton theme={theme} label="Login" busy={busy} onPress={() => void requestCode()} />
+              <PrimaryButton theme={theme} label={emailMode ? 'Send code' : 'Login'} busy={busy} onPress={() => void requestCode()} />
             </View>
 
             {linking ? (
@@ -196,6 +241,9 @@ export default function LoginScreen() {
                     <Text style={[styles.googleButtonText, { color: theme.text }]}>Google</Text>
                   </View>
                 </Pressable>
+                <Pressable accessibilityRole="button" onPress={() => { setEmailMode(!emailMode); setError(null); }} style={styles.switchAccountBtn}>
+                  <Text style={[styles.switchAccountText, { color: theme.blue }]}>{emailMode ? 'Use WhatsApp instead' : 'Use email instead'}</Text>
+                </Pressable>
               </>
             )}
           </View>
@@ -223,7 +271,9 @@ export default function LoginScreen() {
             />
             {error ? <Text style={[styles.error, { color: theme.red }]}>{error}</Text> : null}
             <PrimaryButton theme={theme} label="Verify" busy={busy} onPress={() => void submitCode()} />
-            {botNumber ? (
+            {emailMode ? (
+              <Text style={[styles.hint, { color: theme.textSecondary }]}>Check your spam folder if it doesn’t arrive within a minute.</Text>
+            ) : botNumber ? (
               <>
                 <Text style={[styles.hint, { color: theme.textSecondary }]}>
                   {viaTemplate ? 'Not getting it?' : 'No code yet?'} Send &quot;Login&quot; to Align on WhatsApp and it replies with your code.
@@ -249,7 +299,7 @@ export default function LoginScreen() {
                 </Text>
               </Pressable>
               <Pressable onPress={() => { setStep('phone'); setError(null); }} style={styles.switchAccountBtn}>
-                <Text style={[styles.switchAccountText, { color: theme.blue }]}>Change number</Text>
+                <Text style={[styles.switchAccountText, { color: theme.blue }]}>{emailMode ? 'Change email' : 'Change number'}</Text>
               </Pressable>
             </View>
           </View>

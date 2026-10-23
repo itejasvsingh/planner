@@ -25,6 +25,11 @@ type PhoneContextValue = {
   sendCode: (raw: string) => Promise<({ ok: true; template: boolean }) | { ok: false; message: string }>;
   /** Checks the code: signs in with the number, or links it to the signed-in Google account. */
   verifyCode: (raw: string, code: string) => Promise<Result>;
+  /** Backup sign-in: a 6-digit code emailed to the address (no WhatsApp number needed). */
+  sendEmailCode: (email: string) => Promise<{ ok: true } | { ok: false; message: string }>;
+  verifyEmailCode: (email: string, code: string) => Promise<Result>;
+  /** Adds an email to the signed-in account (after sendEmailCode), so it signs in to this same account. */
+  linkEmail: (email: string, code: string) => Promise<Result>;
   logout: () => Promise<void>;
 };
 
@@ -135,6 +140,39 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     [applyUser],
   );
 
+  const sendEmailCode = useCallback(async (email: string) => {
+    const res = await post('/api/auth/email/code', { email: email.trim() });
+    if (res.status === 'sent') return { ok: true as const };
+    return { ok: false as const, message: String(res.message || 'Could not send the email.') };
+  }, []);
+
+  const verifyEmailCode = useCallback(async (email: string, code: string): Promise<Result> => {
+    const res = await post('/api/auth/email/verify', { email: email.trim(), code });
+    try {
+      if (res.status === 'ok' && res.token) {
+        await signInWithCustomToken(auth, String(res.token));
+        return { ok: true };
+      }
+    } catch {
+      return { ok: false, message: 'Could not finish signing in. Try again.' };
+    }
+    return { ok: false, message: String(res.message || 'That code did not work.') };
+  }, []);
+
+  const linkEmail = useCallback(async (email: string, code: string): Promise<Result> => {
+    const current = auth.currentUser;
+    if (!current) return { ok: false, message: 'Sign in first.' };
+    const res = await post('/api/auth/email/link', { email: email.trim(), code }, await current.getIdToken());
+    if (res.status === 'linked') {
+      try {
+        await current.getIdToken(true); // pick up the new email claim
+        await applyUser(current);
+      } catch { /* the email is linked; the screen refreshes next time */ }
+      return { ok: true };
+    }
+    return { ok: false, message: String(res.message || 'That code did not work.') };
+  }, [applyUser]);
+
   const logout = useCallback(async () => {
     try {
       await signOut(auth);
@@ -149,8 +187,8 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ready, phone, firebaseUser, needsPhoneSetup, lastPhone, sendCode, verifyCode, logout }),
-    [ready, phone, firebaseUser, needsPhoneSetup, lastPhone, sendCode, verifyCode, logout],
+    () => ({ ready, phone, firebaseUser, needsPhoneSetup, lastPhone, sendCode, verifyCode, sendEmailCode, verifyEmailCode, linkEmail, logout }),
+    [ready, phone, firebaseUser, needsPhoneSetup, lastPhone, sendCode, verifyCode, sendEmailCode, verifyEmailCode, linkEmail, logout],
   );
 
   return <PhoneContext.Provider value={value}>{children}</PhoneContext.Provider>;

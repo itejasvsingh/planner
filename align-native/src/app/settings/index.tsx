@@ -182,10 +182,18 @@ export default function SettingsScreen() {
     router.replace('/login');
   };
 
+  // Signed in with an emailed code: the account carries the email, and its "number" is a stand-in nobody should see
+  const [loginEmail, setLoginEmail] = useState<string | null>(null);
+  useEffect(() => {
+    let live = true;
+    firebaseUser?.getIdTokenResult().then(r => { if (live) setLoginEmail(typeof r.claims.loginEmail === 'string' ? r.claims.loginEmail : null); }).catch(() => {});
+    return () => { live = false; };
+  }, [firebaseUser]);
+
   const maskedPhone = phone ? (phone.length > 10 ? `+${phone.slice(0, phone.length - 10)} ` : '') + `******${phone.slice(-4)}` : '';
-  const name = firebaseUser?.displayName || firebaseUser?.email || maskedPhone || 'Personal Workspace';
-  const accountLine = firebaseUser?.email ? (maskedPhone || 'Google account') : maskedPhone ? 'Signed in with WhatsApp' : 'Guest';
-  const initial = (firebaseUser?.displayName || firebaseUser?.email || '').trim().charAt(0).toUpperCase();
+  const name = loginEmail || firebaseUser?.displayName || firebaseUser?.email || maskedPhone || 'Personal Workspace';
+  const accountLine = loginEmail ? 'Signed in with email' : firebaseUser?.email ? (maskedPhone || 'Google account') : maskedPhone ? 'Signed in with WhatsApp' : 'Guest';
+  const initial = (loginEmail || firebaseUser?.displayName || firebaseUser?.email || '').trim().charAt(0).toUpperCase();
   const switchTrack = { false: c.backgroundMuted, true: c.income };
 
   return (
@@ -196,6 +204,11 @@ export default function SettingsScreen() {
     >
       <Group c={c} title="Account">
         <Row c={c} icon={<Smartphone color={c.textSecondary} size={20} />} label={name} subtitle={accountLine} onPress={() => {}} />
+      </Group>
+
+      <Group c={c} title="Sign-in">
+        <Row c={c} tint="blue" icon={<Mail color={tintColors('blue', c.isDark).fg} size={17} />} label="Linked sign-ins"
+          subtitle="Sign in with WhatsApp or email, same account" onPress={() => router.push('/settings/link' as any)} last />
       </Group>
 
       <Group c={c} title="Preferences">

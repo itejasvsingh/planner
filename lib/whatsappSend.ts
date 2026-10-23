@@ -42,6 +42,8 @@ export async function sendLoginCode(to: string, code: string): Promise<{ ok: boo
 
 /** A plain text message (delivered within 24 hours of the person's last message to Align). */
 export async function sendWhatsAppText(to: string, body: string): Promise<boolean> {
+  // Stand-in numbers (email and tester accounts) have no WhatsApp behind them
+  if (/^910\d{9}$/.test(String(to).replace(/\D/g, ''))) return false;
   const token = process.env.WHATSAPP_API_TOKEN || process.env.META_ACCESS_TOKEN;
   const phoneId = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID;
   if (!token || !phoneId) return false;
