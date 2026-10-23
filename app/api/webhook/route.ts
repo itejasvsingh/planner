@@ -456,7 +456,7 @@ async function processReceiptImage(imageId: string, senderPhone: string) {
 
     try {
         // 1. Ask Meta for the secure download URL
-        const metaUrlReq = await fetch(`https://graph.facebook.com/v17.0/${imageId}`, {
+        const metaUrlReq = await fetch(`https://graph.facebook.com/v21.0/${imageId}`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${API_TOKEN}` }
         });
@@ -1474,7 +1474,7 @@ async function processAudioMessage(audioId: string, senderPhone: string, mimeTyp
         const { now, today, currentTime, currentDayName } = getKolkataDate();
 
         // 1. Ask Meta for the secure download URL
-        const metaUrlReq = await fetch(`https://graph.facebook.com/v17.0/${audioId}`, {
+        const metaUrlReq = await fetch(`https://graph.facebook.com/v21.0/${audioId}`, {
             method: 'GET',
             headers: { 'Authorization': `Bearer ${API_TOKEN}` }
         });
