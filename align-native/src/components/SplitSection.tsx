@@ -38,6 +38,9 @@ export default function SplitSection({ total, draft, onChange, recent, groups = 
   const equal = equalShares(total, people.length);
   const byShares = weightedShares(total, people.map(p => (String(draft.shares?.[p] ?? '').trim() === '' ? 1 : Math.max(0, parseFloat(draft.shares?.[p] || '0') || 0))));
   const result = draft.friends.length ? buildSplit(total, draft) : null;
+  // After cashback that everyone shares, each person's amount is of what's left; the form shows those amounts
+  const cb = result?.split?.cashback;
+  const after = result?.split && cb ? [result.split.yourShare, ...result.split.people.map(p => p.share)] : null;
   const suggestions = recent.filter(r => !draft.friends.some(f => sameName(f, r))).slice(0, 8);
 
   const chip = (selected: boolean) => ({
@@ -150,10 +153,10 @@ export default function SplitSection({ total, draft, onChange, recent, groups = 
                 <View key={p} style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, minHeight: 48, borderTopWidth: i ? 1 : 0, borderTopColor: c.border, gap: 8 }}>
                   <Text style={{ flex: 1, color: c.text, fontSize: 15, fontWeight: '600' }} numberOfLines={1}>{p === YOU ? 'You' : p}</Text>
                   {draft.method === 'equal' ? (
-                    <Text style={{ color: c.textSecondary, fontSize: 15, fontVariant: ['tabular-nums'] }}>₹{fmt(equal[i] || 0)}</Text>
+                    <Text style={{ color: c.textSecondary, fontSize: 15, fontVariant: ['tabular-nums'] }}>₹{fmt((after && cb?.mode === 'share' ? after[i] : equal[i]) || 0)}</Text>
                   ) : draft.method === 'shares' ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                      <Text style={{ color: c.textSecondary, fontSize: 14, fontVariant: ['tabular-nums'] }}>₹{fmt(byShares[i] || 0)}</Text>
+                      <Text style={{ color: c.textSecondary, fontSize: 14, fontVariant: ['tabular-nums'] }}>₹{fmt((after && cb?.mode === 'share' ? after[i] : byShares[i]) || 0)}</Text>
                       <TextInput
                         accessibilityLabel={`${p === YOU ? 'Your' : `${p}'s`} shares`}
                         value={draft.shares?.[p] ?? ''}
@@ -231,6 +234,11 @@ export default function SplitSection({ total, draft, onChange, recent, groups = 
                     );
                   })}
                 </View>
+                {cb?.mode === 'share' && result?.split && (
+                  <Text style={{ color: c.text, fontSize: 13, fontWeight: '600' }}>
+                    ₹{fmt(total)} bill − ₹{fmt(cb.amount)} cashback = ₹{fmt(Math.round((total - cb.amount) * 100) / 100)} to split
+                  </Text>
+                )}
                 {result?.split?.cashback && (
                   <Text style={{ color: c.textTertiary, fontSize: 12 }}>
                     ₹{fmt(result.split.cashback.amount)} cashback{result.split.cashback.unit === 'percent' ? ` (${result.split.cashback.value}%)` : ''}
