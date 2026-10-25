@@ -40,6 +40,7 @@ import { amountOf, cycleRange, isCardPayment, isMoney, leftOutOfFlow, matchesFla
 import SegmentedControl from '@/components/SegmentedControl';
 import CategoryManager from '@/components/CategoryManager';
 import AnalysisView from '@/components/finance/AnalysisView';
+import SwipeRow from '@/components/SwipeRow';
 
 const TYPE_FILTERS = [
     { key: 'all', label: 'All' },
@@ -227,7 +228,7 @@ export default function FinanceScreen() {
     const untaggedCount = financeItems.filter(i => matchesFlags(i, ['untagged'])).length;
     const noMerchantCount = financeItems.filter(i => matchesFlags(i, ['nomerchant'])).length;
     const activeFilterCount = (typeFilter !== 'all' ? 1 : 0) + flagFilters.size;
-    const filtersShown = moreFilters || activeFilterCount > 0;
+    const filtersShown = moreFilters || activeFilterCount > 0 || categoriesShown;
     const searchShown = searchOpen || searching;
     const exportCsv = async () => {
         const csv = toCsv([...listItems].sort((a, b) => `${b.date || ''} ${b.time || ''}`.localeCompare(`${a.date || ''} ${a.time || ''}`)), nameOf);
@@ -489,9 +490,6 @@ export default function FinanceScreen() {
                                 <SlidersHorizontal color={activeFilterCount > 0 || filtersShown ? c.accent : c.textSecondary} size={19} />
                                 {activeFilterCount > 0 && <View style={[styles.filterDot, { backgroundColor: c.accent }]} />}
                             </Pressable>
-                            <Pressable accessibilityRole="button" accessibilityState={{ expanded: categoriesShown }} onPress={() => setCategoriesShown(!categoriesShown)} hitSlop={8}>
-                                <Text style={{ color: c.accent, fontWeight: '600', fontSize: 13 }}>Categories {categoriesShown ? '▴' : '▾'}</Text>
-                            </Pressable>
                         </View>
                     </View>
 
@@ -559,6 +557,10 @@ export default function FinanceScreen() {
                     )}
                     {filtersShown && (
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filters}>
+                            <Pressable accessibilityRole="button" accessibilityState={{ selected: categoriesShown }} onPress={() => setCategoriesShown(!categoriesShown)}
+                                style={[styles.filterChip, categoriesShown ? { backgroundColor: c.accentFill, borderColor: c.accentFill } : { backgroundColor: c.backgroundElement, borderColor: c.border }]}>
+                                <Text style={{ color: categoriesShown ? c.onAccent : c.text, fontWeight: '600', fontSize: 12 }}>Categories</Text>
+                            </Pressable>
                             {TYPE_FILTERS.map(f => {
                                 const active = typeFilter === f.key;
                                 return (
@@ -630,8 +632,10 @@ export default function FinanceScreen() {
                                         const Icon = category.icon;
                                         const tint = tintColors(category.tint, theme.isDark);
                                         return (
+                                          <SwipeRow key={item.id} enabled={!selecting && renamingId !== item.id} background={c.backgroundElement}
+                                            rightLabel={item.bookmarked ? 'Remove bookmark' : 'Bookmark'} rightColor={c.accent} onRight={() => void updateItem(item.id, { bookmarked: !item.bookmarked })}
+                                            deleteColor={c.expenseFill} onDelete={() => void deleteItem(item.id)}>
                                             <Pressable
-                                                key={item.id}
                                                 // Long-press starts selecting several; while selecting, a tap adds or removes one
                                                 onPress={() => (selecting ? toggleSelected(item.id) : openEditSheet(item))}
                                                 onLongPress={() => toggleSelected(item.id)}
@@ -643,8 +647,8 @@ export default function FinanceScreen() {
                                                     index !== items.length - 1 && { borderBottomWidth: 1, borderBottomColor: c.border },
                                                 ]}
                                             >
-                                                <View style={[styles.iconBox, { backgroundColor: selectedIds.has(item.id) ? c.accentFill : tint.bg }]}>
-                                                    {selectedIds.has(item.id) ? <Check color={c.onAccent} size={18} strokeWidth={3} /> : <Icon color={tint.fg} size={18} />}
+                                                <View style={[styles.iconBox, { backgroundColor: selectedIds.has(item.id) ? c.accentFill : c.backgroundMuted }]}>
+                                                    {selectedIds.has(item.id) ? <Check color={c.onAccent} size={18} strokeWidth={3} /> : <Icon color={c.textSecondary} size={18} />}
                                                 </View>
                                                 <View style={{ flex: 1 }}>
                                                     {renamingId === item.id ? (
@@ -688,13 +692,14 @@ export default function FinanceScreen() {
                                                         {isTransfer ? '' : (isIncome ? '+' : '−')}{formatMoney(Number(item.amount) || 0)}
                                                     </Text>
                                                     {/* Kind of transaction at a glance */}
-                                                    {(isIncome || isTransfer || item.excluded) && <View style={[styles.kindTag, { backgroundColor: item.excluded ? c.backgroundMuted : isIncome ? c.incomeSoft : isTransfer ? c.backgroundMuted : c.expenseSoft }]}>
+                                                    {(isTransfer || item.excluded) && <View style={[styles.kindTag, { backgroundColor: item.excluded ? c.backgroundMuted : isIncome ? c.incomeSoft : isTransfer ? c.backgroundMuted : c.expenseSoft }]}>
                                                         <Text style={[styles.kindTagText, { color: item.excluded ? c.textSecondary : isIncome ? c.income : isTransfer ? c.textSecondary : c.expense }]}>
                                                             {item.excluded ? 'Left out' : isIncome ? 'Income' : isTransfer ? 'Transfer' : 'Expense'}
                                                         </Text>
                                                     </View>}
                                                 </View>
                                             </Pressable>
+                                          </SwipeRow>
                                         );
                                     })}
                                 </View>
