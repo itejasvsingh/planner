@@ -16,6 +16,7 @@ import { usePhone } from '@/lib/phone-context';
 import { triggerHaptic } from '@/lib/haptics';
 import { db } from '@/lib/firebase';
 import { setAutoPin, useAutoPin } from '@/lib/places-store';
+import { setShowLabels, useShowLabels } from '@/lib/display-prefs';
 import { isSecurityEnabled } from '@/lib/auth';
 import { signInWithGoogle } from '@/lib/google-auth';
 import { Radius } from '@/constants/theme';
@@ -79,6 +80,7 @@ function Row({
 
 export default function SettingsScreen() {
   const autoPinOn = useAutoPin();
+  const showLabelsOn = useShowLabels();
   const c = useTheme();
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -221,6 +223,8 @@ export default function SettingsScreen() {
           trailing={<Switch value={autoPushEnabled} onValueChange={toggleAutoPush} trackColor={switchTrack} ios_backgroundColor={c.backgroundMuted} />} />
         <Row c={c} tint="blue" icon={<MapPin color={tintColors('blue', c.isDark).fg} size={17} />} label="Pin location on new expenses" subtitle="Saved on this device. Change it on any expense"
           trailing={<Switch value={autoPinOn} onValueChange={v => void setAutoPin(v)} trackColor={switchTrack} ios_backgroundColor={c.backgroundMuted} />} />
+        <Row c={c} tint="green" icon={<Tags color={tintColors('green', c.isDark).fg} size={17} />} label="Labels on transactions" subtitle="Show Transfer and Left out tags in the list"
+          trailing={<Switch value={showLabelsOn} onValueChange={v => void setShowLabels(v)} trackColor={switchTrack} ios_backgroundColor={c.backgroundMuted} />} />
         <Row c={c} tint="violet" icon={scheme === 'dark' ? <Moon color={tintColors('violet', c.isDark).fg} size={17} /> : <Sun color={tintColors('violet', c.isDark).fg} size={17} />}
           label="Appearance" value={themeMode.charAt(0).toUpperCase() + themeMode.slice(1)} onPress={cycleTheme} last />
       </Group>

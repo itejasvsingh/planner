@@ -41,6 +41,7 @@ import SegmentedControl from '@/components/SegmentedControl';
 import CategoryManager from '@/components/CategoryManager';
 import AnalysisView from '@/components/finance/AnalysisView';
 import SwipeRow from '@/components/SwipeRow';
+import { useShowLabels } from '@/lib/display-prefs';
 
 const TYPE_FILTERS = [
     { key: 'all', label: 'All' },
@@ -106,6 +107,7 @@ export default function FinanceScreen() {
     const [moreFilters, setMoreFilters] = useState(false);
     const [searchOpen, setSearchOpen] = useState(false);
     const [categoriesShown, setCategoriesShown] = useState(false);
+    const showLabels = useShowLabels();
     type MoneyView = 'Overview' | 'Analysis' | 'Split';
     const [view, setView] = useState<MoneyView>('Overview');
     const [analysisMode, setAnalysisMode] = useState<'cycle' | '90'>('cycle');
@@ -692,7 +694,7 @@ export default function FinanceScreen() {
                                                         {isTransfer ? '' : (isIncome ? '+' : '−')}{formatMoney(Number(item.amount) || 0)}
                                                     </Text>
                                                     {/* Kind of transaction at a glance */}
-                                                    {(isTransfer || item.excluded) && <View style={[styles.kindTag, { backgroundColor: item.excluded ? c.backgroundMuted : isIncome ? c.incomeSoft : isTransfer ? c.backgroundMuted : c.expenseSoft }]}>
+                                                    {showLabels && (isTransfer || item.excluded) && <View style={[styles.kindTag, { backgroundColor: item.excluded ? c.backgroundMuted : isIncome ? c.incomeSoft : isTransfer ? c.backgroundMuted : c.expenseSoft }]}>
                                                         <Text style={[styles.kindTagText, { color: item.excluded ? c.textSecondary : isIncome ? c.income : isTransfer ? c.textSecondary : c.expense }]}>
                                                             {item.excluded ? 'Left out' : isIncome ? 'Income' : isTransfer ? 'Transfer' : 'Expense'}
                                                         </Text>
