@@ -1,4 +1,5 @@
 import { parseAnnouncement } from '../../../lib/announcementParse';
+import { looksLikeBuy, parseBuyText } from '../../../lib/buyText';
 import { freshSession } from '../../../lib/botSession';
 import { sameTask } from '../../../lib/taskMatch';
 import { createHmac, timingSafeEqual } from 'node:crypto';
@@ -1057,6 +1058,16 @@ console.log('Session fetched:', !!sessionSnap);
         }
 
         const trimmedText = text.trim().toLowerCase();
+
+        // "buy batteries" / "remember to buy milk 60": saved on the Buy later list
+        if (looksLikeBuy(text)) {
+            const { title, price } = parseBuyText(text);
+            await db.collection('planner_items').add({ ownerId: senderPhone, type: 'buy', title, price, done: false, createdDate: today, createdAt: now.toISOString() });
+            const confirmText = `🛒 Added *${title}*${price ? ` (₹${price.toLocaleString('en-IN')})` : ''} to your Buy later list. Open Align to set a reminder or a shop.`;
+            await sendWhatsAppTextMessage(senderPhone, confirmText);
+            await updateSession(senderPhone, { lastUserMessage: text, lastBotMessage: confirmText });
+            return;
+        }
 
         // 2a. Fast-path: Handle simple affirmations ("yes", "sure", "add it", etc.)
         const isAffirmation = /^(yes|yeah|yep|yup|sure|add it|please add|confirm|ok|okay|do it|plz add|haan|ha|yes please|add)$/i.test(trimmedText);

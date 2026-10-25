@@ -56,7 +56,7 @@ function RootNav() {
     
     // Auth guard routing
     const inTabsGroup = segments[0] === '(tabs)';
-    const inSettingsGroup = segments[0] === 'settings';
+    const inSettingsGroup = segments[0] === 'settings' || (segments as string[])[0] === 'buy';
     
     // First, handle onboarding flow
     if (!hasSeenOnboarding && !phone) {
@@ -99,6 +99,7 @@ function RootNav() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="login" />
+        <Stack.Screen name="buy" options={{ animation: 'slide_from_right' }} />
         <Stack.Screen name="settings" options={{ animation: 'slide_from_right' }} />
       </Stack>
     </ThemeProvider>

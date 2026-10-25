@@ -38,6 +38,12 @@ export function useLocalReminders(items: PlannerItem[], enabled: boolean, extra?
         items.forEach((item) => {
           // Card due dates come in `extra`, with the amount owed now
           if (extra && item.kind === 'card_bill') return;
+          // "Buy later" items with a remind-on day: a nudge at 9 am that day
+          if (item.type === 'buy' && !item.done && item.remindOn) {
+            const [y, mo, d] = String(item.remindOn).split('-').map(Number);
+            const at = new Date(y, (mo || 1) - 1, d || 1, 9, 0, 0);
+            if (at.getTime() > now.getTime()) toSchedule.push({ content: { title: 'Time to buy', body: item.title || 'Something on your list', sound: true }, trigger: { date: at, type: Notifications.SchedulableTriggerInputTypes.DATE } });
+          }
           if (item.type === 'task' && !item.done && item.dueDate && (item.reminderTime || item.dueTime)) {
             const timeStr = item.reminderTime || item.dueTime;
             const [h, m] = (timeStr as string).split(':').map(Number);

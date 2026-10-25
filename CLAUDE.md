@@ -175,3 +175,9 @@
 - Calmer Money (Fold-like): transaction rows keep their category colours (the user finds them easier to read; don't neutralise them again); the header has just Search and Filters (Categories is the first filter chip);
   rows swipe (`components/SwipeRow.tsx`: right = bookmark, left = a Delete button to tap; a drag never counts as a tap). Next in the plan: Wallet, then Invest.
 - "Details on transactions" (Settings, `lib/display-prefs.ts`, off by default, per device): the Money list shows only the category and time under each name; the Transfer / Left out pills, card/place/time/source, refund text, note and #tags appear only when switched on.
+- Buy later (`align-native/src/app/buy.tsx`, `lib/buy.ts` pure, `components/BuyWatcher.tsx`; opened from the Agenda header bag icon): planner items of type `buy` (`title`, optional `price`, `shop`,
+  `remindOn`, pinned `place`/`placeName`, `done`, `boughtTx`, `createdDate`). Captured on the screen, by "buy …"/"remember to buy …"/"pick up …" in the quick-add bar (`looksLikeBuy`, no AI),
+  or on WhatsApp (webhook fast-path, `lib/buyText.ts` must match `lib/buy.ts`, tested); plain "get"/"order" are not buy lists. `BuyWatcher` (tabs layout) ticks an item when a later spend
+  has its shop/name in the merchant or a price within 5% (`matchPurchase`), and on Android tells you when the app is open within 300 m of a pinned place (last known position only; no background
+  tracking, no new permission; real background geofencing is not built). `remindOn` schedules a 9 am local notification (`use-notifications.ts`). "Send list" shares the list as text (WhatsApp link on web,
+  share sheet in the app): no shared accounts exist, so family can't edit it live.

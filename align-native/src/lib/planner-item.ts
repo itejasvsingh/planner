@@ -61,6 +61,11 @@ export type PlannerItem = {
   placeName?: string | null;
   /** Saved for later: shows under the Bookmarked filter. */
   bookmarked?: boolean;
+  /** 'buy' items ("Buy later", see lib/buy.ts): optional price, shop, remind-on day (YYYY-MM-DD), and the spend that ticked it off. */
+  price?: number | null;
+  shop?: string | null;
+  remindOn?: string | null;
+  boughtTx?: string | null;
   /** A short note and tags you added to a transaction (searchable). */
   note?: string;
   /** On a refund (money back): the id of the spend it reverses. */

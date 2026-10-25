@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePhone } from '@/lib/phone-context';
 import { injectParsedItemsLocally, usePlannerItems } from '@/lib/use-planner-items';
 import { parseOffline } from '@/lib/quick-parse';
+import { looksLikeBuy, parseBuyText } from '@/lib/buy';
 import { todayKey } from '@/lib/dates';
 import { useCategoryConfig } from '@/lib/use-category-config';
 import { autoPlace } from '@/lib/auto-place';
@@ -61,6 +62,14 @@ export default function QuickAddBar() {
     if (!textToProcess.trim() || isProcessing) return;
     setFeedback('');
     setHasError(false);
+    // "buy batteries" / "remember to buy milk": goes on the Buy later list, no need to ask the server
+    if (looksLikeBuy(textToProcess)) {
+      const { title, price } = parseBuyText(textToProcess);
+      await addItem({ type: 'buy', title, price, done: false, createdDate: todayKey() } as any);
+      setFeedback(`Added “${title}” to Buy later${price ? ` (₹${price.toLocaleString('en-IN')})` : ''}.`);
+      setText('');
+      return;
+    }
     // Where you are, for pinning an expense (asked at once so the answer is ready when the text is read)
     const here = autoPlace();
     // Without the server (offline, or no API URL in this build) save a simple version on the device instead.

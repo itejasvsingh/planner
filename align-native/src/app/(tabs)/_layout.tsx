@@ -1,6 +1,7 @@
 import NotificationsManager from '@/components/NotificationsManager';
 import TaskRollover from '@/components/TaskRollover';
 import SuspiciousWatcher from '@/components/SuspiciousWatcher';
+import BuyWatcher from '@/components/BuyWatcher';
 import StatementWatcher from '@/components/StatementWatcher';
 import SyncPrompt from '@/components/SyncPrompt';
 import SideMenu from '@/components/SideMenu';
@@ -127,6 +128,7 @@ export default function TabsLayout() {
       <NotificationsManager />
       <TaskRollover />
       <SuspiciousWatcher />
+      <BuyWatcher />
       <StatementWatcher />
       <SyncPrompt />
       <SideMenu />

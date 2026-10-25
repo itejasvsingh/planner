@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
-import { Check, ChevronDown, ChevronUp, Plus, SlidersHorizontal, Undo2 } from 'lucide-react-native';
+import { Check, ChevronDown, ChevronUp, Plus, ShoppingBag, SlidersHorizontal, Undo2 } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { Skeleton } from '@/components/ui/skeleton';
 import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import { useTheme } from '@/hooks/use-theme';
@@ -48,6 +49,7 @@ export default function DailyScreen() {
   }, [deleted]);
 
   const dateKey = formatDateKey(dailyDate);
+  const router = useRouter();
   const today = todayKey();
   // A scrolling strip of days (a month back, two months ahead, wider if you jump further), centred on the chosen day
   const DAY_W = 52;
@@ -207,6 +209,9 @@ export default function DailyScreen() {
               )}
               <HeaderButton label={showFilter || filter !== 'All' ? 'Hide filters' : 'Filter tasks'} onPress={() => setShowFilter(!showFilter)}>
                 <SlidersHorizontal color={filter !== 'All' ? c.accent : c.text} size={19} />
+              </HeaderButton>
+              <HeaderButton label="Buy later list" onPress={() => router.push('/buy' as any)}>
+                <ShoppingBag color={c.text} size={19} />
               </HeaderButton>
               <HeaderButton label="Add task" onPress={() => openEditor()} filled>
                 <Plus color={c.onAccent} size={20} strokeWidth={2.5} />
