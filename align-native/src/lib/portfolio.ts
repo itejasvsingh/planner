@@ -23,6 +23,8 @@ export type Holding = {
   rate?: number | null;
   maturity?: string | null;
   asOf?: number;
+  /** Kept up to date from purchase/redemption messages (not typed). */
+  auto?: boolean;
 };
 export type Nav = { nav: number; date: string };
 

@@ -8,6 +8,8 @@ import { breakdownFromText, kindFromPdf } from './statementParse';
 import { importStatementRows, passwordVersion, statementKind, statementMonthsOf, statementSince, statementSlot, type StatementPassword, type StatementState } from './statementAuto';
 import { isCardPaymentReceived, parseBankEmail, parseCardBill } from './emailAlert';
 import { bankForSender, ensureBillTask, markBillsPaid, saveBill } from './cardBills';
+import { investQuery, parseInvestment } from './investParse';
+import { recordInvestment } from './investTrack';
 import { accountLast4, availableBalance, cardPaymentAmount, creditCardOf } from './accountParse';
 import { isClosedCard, recordCardPayment, saveBalance, saveStatementRecord } from './moneyAccounts';
 import { istParts, recordTransaction } from './recordTransaction';
@@ -426,6 +428,22 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
       budget -= res.done;
       throttled = throttled || res.throttled;
       patch.billMsgIds = [...todo.slice(0, res.done), ...(link.billMsgIds || [])].slice(0, 100);
+    }
+
+    // 3b. Mutual fund confirmations (last 30 days, a few per check): only the fund and numbers become a holding
+    if (budget > 0 && !throttled && Date.now() < deadline - 5_000) {
+      const seenInv = new Set<string>(link.investMsgIds || []);
+      const foundInv = await list(investQuery((Date.now() - 30 * DAY_MS) / 1000), 30);
+      const todoInv = foundInv.ids.filter((id) => !seenInv.has(id)).slice(0, Math.min(5, budget));
+      const resInv = await pool(todoInv, READ_WIDTH, deadline, async (id) => {
+        const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=full`);
+        const { text } = messageText(msg);
+        const ev = parseInvestment(text);
+        if (ev) await recordInvestment(phone, ev, Number(msg.internalDate || Date.now()));
+      });
+      budget -= resInv.done;
+      throttled = throttled || resInv.throttled;
+      patch.investMsgIds = [...todoInv.slice(0, resInv.done), ...(link.investMsgIds || [])].slice(0, 200);
     }
 
     // 4. Statement PDFs (last ~3 months, at most two per check), opened with the password the user saved for

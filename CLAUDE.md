@@ -165,3 +165,8 @@
   transaction; an income can be a refund of a spend (`refundOf`), which stores `refunded` on that spend (`refundPatches`, capped at its
   cost). `amountOf` then counts only the rest and `isIncome` leaves the refund out, so refunds net out instead of showing as income.
   The Money hero (`finance.tsx`) and the WhatsApp daily summary follow the same rule.
+- Investments from messages (`lib/investParse.ts` rules only, `lib/investTrack.ts`): a mutual fund purchase / SIP / redemption SMS (`/api/ingest/sms`, any sender) or Gmail
+  email from `INVEST_SENDERS` (step 3b of `syncGmail`, last 30 days, `gmail_links.investMsgIds`) updates `money_accounts/<phone>/holdings/auto_<fund>` (`auto: true`; buy adds
+  units and cost, sell removes units at average cost, sold-out deletes it; units come from the message or amount ÷ NAV) with one `invest_events/<hash>` per message/order so repeats
+  count once. The fund is matched to AMFI by its name words. Bank debit SMS still record the expense as before. Only name and numbers are kept; never AI. Stocks, FDs and CAS PDFs
+  are not read (stay manual). Analysis shows five categories, three insights and biggest expenses, with the other charts under "More charts".

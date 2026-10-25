@@ -10,6 +10,8 @@ import { saveUnparsed } from '../../../../lib/unparsed';
 import { looksLikeTransaction } from '../../../../lib/unparsedText';
 import { saveBalance } from '../../../../lib/moneyAccounts';
 import { istParts, recordTransaction } from '../../../../lib/recordTransaction';
+import { parseInvestment } from '../../../../lib/investParse';
+import { recordInvestment } from '../../../../lib/investTrack';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,6 +99,14 @@ export async function POST(req: Request) {
   const phone = link.exists ? String(link.data()?.phone || '') : '';
   if (!phone) return NextResponse.json({ status: 'error', message: 'Unknown token. Create a new one in Align Settings.' }, { status: 401 });
 
+  // A mutual fund purchase or redemption confirmation: kept as a holding (fund and numbers only), not as a spend
+  let investOutcome: string | null = null;
+  const inv = text && source === 'sms' ? parseInvestment(text) : null;
+  if (inv && body.dryRun !== true) {
+    const at = typeof body.date === 'string' && sentDate(body.date) ? new Date(body.date).getTime() : Date.now();
+    investOutcome = await recordInvestment(phone, inv, at).catch(() => 'ignored' as const);
+  }
+
   let tx = source === 'email' ? parseBankEmail(raw) : text ? parseTransactionSms(text) : null;
   // Emails never go to the AI fallback (see /privacy); only SMS text does.
   if (!tx && text && source === 'sms' && /(?:rs\.?|inr|₹)[.:]?\s*[\d,]/i.test(text) && /debit|credit|spent|paid|sent|received/i.test(text)) {
@@ -117,6 +127,7 @@ export async function POST(req: Request) {
       await saveUnparsed(phone, { source: 'sms', text, bank: bankFromText(text)?.name || null, at: arrived }).catch(() => {});
       return NextResponse.json({ status: 'unread', message: 'Could not read this message' });
     }
+    if (investOutcome === 'added') return NextResponse.json({ status: 'investment', message: `Investment updated: ${inv!.name}` });
     return NextResponse.json({ status: 'ignored', message: 'Not a transaction' });
   }
   // Settings "Test" button: confirm the key works and show what would be recorded, without saving

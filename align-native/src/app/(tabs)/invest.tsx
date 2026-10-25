@@ -172,6 +172,7 @@ export default function InvestScreen() {
                               h.owner !== ME ? h.owner : null,
                               h.source === 'nav' ? `${units(h.units || 0)} units · NAV ₹${navs[h.schemeCode || '']?.nav} (${h.navDate})` : h.source === 'price' ? `${units(h.units || 0)} × ₹${h.price}` : h.type === 'mf' && h.schemeCode ? 'Price not found yet' : null,
                               h.type === 'fd' && h.maturity ? `matures ${h.maturity}` : null,
+                              h.auto ? 'from your messages' : null,
                               h.rate ? `${h.rate}%` : null,
                             ].filter(Boolean).join(' · ') || ' '}
                           </Text>
@@ -194,7 +195,7 @@ export default function InvestScreen() {
             <Plus color={c.accent} size={18} />
             <Text style={{ color: c.accent, fontWeight: '700' }}>Add a holding</Text>
           </Pressable>
-          {holdings.length > 0 && <Text style={{ color: c.textTertiary, fontSize: 12, lineHeight: 17, textAlign: 'center' }}>Mutual fund prices come from AMFI’s public daily list. Update stocks, gold, FDs and the rest yourself by tapping them.</Text>}
+          {holdings.length > 0 && <Text style={{ color: c.textTertiary, fontSize: 12, lineHeight: 17, textAlign: 'center' }}>Mutual fund prices come from AMFI’s public daily list. Fund purchases and redemptions in your bank SMS and Gmail update themselves; update stocks, gold, FDs and the rest yourself by tapping them.</Text>}
         </View>
       </ScrollView>
       <HoldingSheet visible={sheet} holding={editing} phone={phone} family={family} defaultOwner={filter && filter !== ME ? filter : ME} onClose={() => setSheet(false)} />

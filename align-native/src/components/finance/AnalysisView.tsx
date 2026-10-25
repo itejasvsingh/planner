@@ -148,6 +148,8 @@ export default function AnalysisView({
 }) {
   const c = useTheme();
   const [allInsights, setAllInsights] = useState(false);
+  const [allCats, setAllCats] = useState(false);
+  const [moreCharts, setMoreCharts] = useState(false);
 
   const data = useMemo(() => {
     const moneyItems = items.filter(isMoney);
@@ -175,7 +177,7 @@ export default function AnalysisView({
       trend: cycleTrend(moneyItems, payday, 6, offset),
       pace: pace(current, cycle),
       weekdays: weekdayTotals(current),
-      top: topExpenses(current, 5),
+      top: topExpenses(current, 3),
     };
   }, [items, payday, offset, config]);
 
@@ -237,27 +239,9 @@ export default function AnalysisView({
             </Section>
           )}
 
-          <Section title="Net savings this cycle">
-            <NetSavingsChart points={net} />
-          </Section>
-
-          <Section title="Daily spending">
-            <BarChart
-              avg={avgPerDay}
-              tickEvery={7}
-              bars={daily.map(d => ({
-                key: d.key,
-                label: String(d.date.getDate()),
-                value: d.amount,
-                muted: d.future,
-                detail: `${d.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${money(d.amount)}`,
-              }))}
-            />
-          </Section>
-
-          <Section title="By category" right={<Text style={{ color: c.textTertiary, fontSize: 12 }}>Tap to see transactions</Text>}>
+          <Section title="By category" right={cats.length > 5 ? <Pressable accessibilityRole="button" hitSlop={8} onPress={() => setAllCats(v => !v)}><Text style={{ color: c.accent, fontSize: 12, fontWeight: '700' }}>{allCats ? 'Show less' : `Show all ${cats.length}`}</Text></Pressable> : <Text style={{ color: c.textTertiary, fontSize: 12 }}>Tap to see transactions</Text>}>
             <View style={{ gap: 14 }}>
-              {cats.map(cat => {
+              {(allCats ? cats : cats.slice(0, 5)).map(cat => {
                 const resolved = resolveCategory(cat.name, 'expense', config);
                 const Icon = resolved.icon;
                 const tint = tintColors(resolved.tint, c.isDark);
@@ -287,6 +271,48 @@ export default function AnalysisView({
                 );
               })}
             </View>
+          </Section>
+
+          {top.length > 0 && (
+            <Section title="Biggest expenses">
+              <View>
+                {top.map((t, i) => (
+                  <View key={t.id} style={[styles.topRow, i < top.length - 1 && { borderBottomColor: c.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
+                    <Text style={{ color: c.textTertiary, fontWeight: '700', width: 18 }}>{i + 1}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: c.text, fontWeight: '600', fontSize: 14 }} numberOfLines={1}>{t.title || 'Expense'}</Text>
+                      <Text style={{ color: c.textTertiary, fontSize: 12, marginTop: 2 }}>
+                        {data.nameOf(t)} · {t.date ? short(new Date(`${t.date}T12:00:00`)) : ''}{(t as any).cardLast4 ? ` · ${(t as any).cardLast4}` : ''}
+                      </Text>
+                    </View>
+                    <Text style={{ color: c.text, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{money(amountOf(t))}</Text>
+                  </View>
+                ))}
+              </View>
+            </Section>
+          )}
+          <Pressable accessibilityRole="button" accessibilityState={{ expanded: moreCharts }} onPress={() => setMoreCharts(v => !v)}
+            style={{ alignSelf: 'center', marginTop: 18, paddingVertical: 10, paddingHorizontal: 18, borderRadius: Radius.pill, borderWidth: 1, borderColor: c.border }}>
+            <Text style={{ color: c.accent, fontWeight: '700', fontSize: 14 }}>{moreCharts ? 'Hide charts' : 'More charts'}</Text>
+          </Pressable>
+          {moreCharts && (
+            <>
+          <Section title="Net savings this cycle">
+            <NetSavingsChart points={net} />
+          </Section>
+
+          <Section title="Daily spending">
+            <BarChart
+              avg={avgPerDay}
+              tickEvery={7}
+              bars={daily.map(d => ({
+                key: d.key,
+                label: String(d.date.getDate()),
+                value: d.amount,
+                muted: d.future,
+                detail: `${d.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${money(d.amount)}`,
+              }))}
+            />
           </Section>
 
           {trend.filter(t => t.spent > 0 || t.income > 0).length > 1 && <Section title="Last 6 cycles">
@@ -329,23 +355,7 @@ export default function AnalysisView({
             <WhereYouSpend expenses={data.current.filter(isExpense)} onSelectPlace={onSelectPlace} onSelectShop={onSelectShop} onNameSpot={onNameSpot} />
           )}
 
-          {top.length > 0 && (
-            <Section title="Biggest expenses">
-              <View>
-                {top.map((t, i) => (
-                  <View key={t.id} style={[styles.topRow, i < top.length - 1 && { borderBottomColor: c.border, borderBottomWidth: StyleSheet.hairlineWidth }]}>
-                    <Text style={{ color: c.textTertiary, fontWeight: '700', width: 18 }}>{i + 1}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: c.text, fontWeight: '600', fontSize: 14 }} numberOfLines={1}>{t.title || 'Expense'}</Text>
-                      <Text style={{ color: c.textTertiary, fontSize: 12, marginTop: 2 }}>
-                        {data.nameOf(t)} · {t.date ? short(new Date(`${t.date}T12:00:00`)) : ''}{(t as any).cardLast4 ? ` · ${(t as any).cardLast4}` : ''}
-                      </Text>
-                    </View>
-                    <Text style={{ color: c.text, fontWeight: '700', fontVariant: ['tabular-nums'] }}>{money(amountOf(t))}</Text>
-                  </View>
-                ))}
-              </View>
-            </Section>
+            </>
           )}
         </>
       )}
