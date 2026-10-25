@@ -4,6 +4,7 @@ import { Text } from '@/components/ui/text';
 import { Pressable } from '@/components/ui/pressable';
 import { Check, ChevronDown, ChevronUp, Plus, ShoppingBag, SlidersHorizontal, Undo2 } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
+import BuyCard from '@/components/BuyCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { collapseQuickAddOnScroll } from '@/lib/quick-add-state';
 import { useTheme } from '@/hooks/use-theme';
@@ -406,6 +407,7 @@ export default function DailyScreen() {
 
             </View>
           )}
+          <BuyCard items={items as any[]} today={today} onOpen={() => router.push('/buy' as any)} onBought={id => void updateItem(id, { done: true })} />
         </View>
       </ScrollView>
 

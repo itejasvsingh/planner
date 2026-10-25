@@ -181,3 +181,4 @@
   has its shop/name in the merchant or a price within 5% (`matchPurchase`), and on Android tells you when the app is open within 300 m of a pinned place (last known position only; no background
   tracking, no new permission; real background geofencing is not built). `remindOn` schedules a 9 am local notification (`use-notifications.ts`). "Send list" shares the list as text (WhatsApp link on web,
   share sheet in the app): no shared accounts exist, so family can't edit it live.
+- Agenda shows the open Buy later items in a card at the bottom (`components/BuyCard.tsx`: items to remember today first, up to four, tick one off in place, tap the title to open the whole list).
