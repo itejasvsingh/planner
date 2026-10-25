@@ -172,5 +172,5 @@
   are not read (stay manual). Analysis shows five categories, three insights and biggest expenses, with the other charts under "More charts".
 - Fold-style Wallet details: account `swift` (SWIFT/BIC, `account_edits`), "Download statement" (CSV of the account's recorded transactions, `lib/account-statement.ts`),
   `SlideToConnect` for connecting Gmail, and a budget line in the new-expense sheet (`awareness` prop: how this spend moves its category's budget before saving).
-- Calmer Money (Fold-like): transaction rows use neutral icons and colour only for money in/out and "Left out"; the header has just Search and Filters (Categories is the first filter chip);
+- Calmer Money (Fold-like): transaction rows keep their category colours (the user finds them easier to read; don't neutralise them again); the header has just Search and Filters (Categories is the first filter chip);
   rows swipe (`components/SwipeRow.tsx`: right = bookmark, left = a Delete button to tap; a drag never counts as a tap). Next in the plan: Wallet, then Invest.

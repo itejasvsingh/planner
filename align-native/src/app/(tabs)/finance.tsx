@@ -647,8 +647,8 @@ export default function FinanceScreen() {
                                                     index !== items.length - 1 && { borderBottomWidth: 1, borderBottomColor: c.border },
                                                 ]}
                                             >
-                                                <View style={[styles.iconBox, { backgroundColor: selectedIds.has(item.id) ? c.accentFill : c.backgroundMuted }]}>
-                                                    {selectedIds.has(item.id) ? <Check color={c.onAccent} size={18} strokeWidth={3} /> : <Icon color={c.textSecondary} size={18} />}
+                                                <View style={[styles.iconBox, { backgroundColor: selectedIds.has(item.id) ? c.accentFill : tint.bg }]}>
+                                                    {selectedIds.has(item.id) ? <Check color={c.onAccent} size={18} strokeWidth={3} /> : <Icon color={tint.fg} size={18} />}
                                                 </View>
                                                 <View style={{ flex: 1 }}>
                                                     {renamingId === item.id ? (
