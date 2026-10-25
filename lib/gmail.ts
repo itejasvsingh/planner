@@ -231,6 +231,37 @@ export function explain(message: string) {
   return `Could not check Gmail just now (${message.slice(0, 120)}). It will try again shortly.`;
 }
 
+/**
+ * "Refresh balances": looks through the last 60 days of every known bank's emails for ones that quote a balance
+ * and keeps the latest per account (only the number; nothing else is recorded). Newest first, so it can stop early.
+ */
+export async function refreshBalances(phone: string, deadline: number): Promise<{ status: 'ok' | 'not_connected' | 'reconnect'; checked: number; found: number }> {
+  const link = (await links().doc(phone).get()).data();
+  if (!link) return { status: 'not_connected', checked: 0, found: 0 };
+  if (link.status !== 'connected') return { status: 'reconnect', checked: 0, found: 0 };
+  const token = await accessToken(open(link.token));
+  if (token === 'revoked') return { status: 'reconnect', checked: 0, found: 0 };
+  const senders = sendersFor(null, link.extraSenders);
+  const after = (Date.now() - 60 * DAY_MS) / 1000;
+  const q = `from:(${senders.join(' OR ')}) {"available balance" "avl bal" "avl. bal" "available bal" "account balance" "closing balance"} after:${Math.floor(after)} -in:spam -in:trash`;
+  const ids = ((await gmail<{ messages?: { id: string }[] }>(token, `/messages?q=${encodeURIComponent(q)}&maxResults=100&fields=messages(id)`)).messages || []).map((m) => m.id);
+  const seen = new Set<string>();
+  let found = 0;
+  const result = await pool(ids, READ_WIDTH, deadline, async (id) => {
+    const msg = await gmail<GmailMessage>(token, `/messages/${id}?format=full`);
+    const { text, from } = messageText(msg);
+    const bank = bankForSender(from);
+    const bal = availableBalance(text);
+    if (!bank || !bal) return;
+    const key = `${bank.id}_${bal.last4 || ''}`;
+    if (seen.has(key)) return; // newest first: the first one per account is the latest
+    seen.add(key);
+    await saveBalance(phone, { bankId: bank.id, bankName: bank.name, last4: bal.last4, balance: bal.balance, at: Number(msg.internalDate || Date.now()) });
+    found++;
+  });
+  return { status: 'ok', checked: result.done, found };
+}
+
 /** Bump when alert parsing improves: the next check re-reads the last 90 days once (recording is idempotent). */
 const PARSER_VERSION = 3;
 

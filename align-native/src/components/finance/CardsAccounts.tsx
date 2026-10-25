@@ -8,6 +8,7 @@ import { Pressable } from '@/components/ui/pressable';
 import { Radius, Shadow } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { changeAccount, refreshCards, useCards } from '@/lib/cards-store';
+import { refreshBalances, refreshMessage } from '@/lib/balance-refresh';
 import BalanceTrend from './BalanceTrend';
 import NetWorthCard from './NetWorthCard';
 import BalanceOverview from './BalanceOverview';
@@ -48,6 +49,8 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
   const [form, setForm] = useState({ ifsc: '', accountNumber: '', holder: '' });
   const [formError, setFormError] = useState('');
   const [copied, setCopied] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshNote, setRefreshNote] = useState('');
   const copy = async (label: string, value: string) => {
     await Clipboard.setStringAsync(value);
     setCopied(label);
@@ -79,6 +82,26 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
       <Plus color={c.accent} size={16} />
       <Text style={{ color: c.accent, fontWeight: '700' }}>Add a card</Text>
     </Pressable>
+  );
+  const refreshLink = (
+    <View style={{ alignItems: 'center', paddingTop: 8 }}>
+      <Pressable
+        accessibilityRole="button"
+        disabled={refreshing}
+        onPress={async () => {
+          setRefreshing(true);
+          setRefreshNote('');
+          const r = await refreshBalances(phone);
+          await refreshCards(phone);
+          setRefreshNote(refreshMessage(r));
+          setRefreshing(false);
+        }}
+        style={[styles.add, { borderColor: c.border, opacity: refreshing ? 0.6 : 1 }]}
+      >
+        <Text style={{ color: c.accent, fontWeight: '700' }}>{refreshing ? 'Checking emails and messages…' : 'Refresh balances'}</Text>
+      </Pressable>
+      {refreshNote ? <Text style={{ color: c.textTertiary, fontSize: 12, marginTop: 6 }}>{refreshNote}</Text> : null}
+    </View>
   );
   const settingsLink = onOpenSettings ? (
     <Pressable accessibilityRole="button" onPress={onOpenSettings} hitSlop={6} style={{ alignSelf: 'center', paddingVertical: 12 }}>
@@ -151,6 +174,7 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
         </View>
         {missingBlock}
         {addButton}
+        {refreshLink}
         {settingsLink}
         {sheet}
       </View>
@@ -393,7 +417,8 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
         )}
         {missingBlock}
       </View>
-      {settingsLink}
+      {refreshLink}
+        {settingsLink}
       {sheet}
     </View>
   );

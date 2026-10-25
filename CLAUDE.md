@@ -152,3 +152,12 @@
   (when its key exists) backs it up if it fails or gives nothing usable. Only `/api/parse` (quick add) uses it so far; the
   WhatsApp bot and the SMS route still call Gemini directly. The privacy page names both providers. Emails and Gmail data
   must never be passed to `generateJson`. Look for "parse answered by <provider>" in the logs.
+- Invest tab (`align-native/src/app/(tabs)/invest.tsx`, `lib/portfolio.ts` pure): holdings typed by the user (mutual funds, stocks, FDs, gold,
+  PPF/EPF/NPS, crypto, other), each with an `owner` ('me' or a family member's name, no account connection). Stored server-only in
+  `money_accounts/<phone>/holdings/<id>` (`lib/holdings.ts`, `GET/POST /api/money/holdings`, max 300; included in export and delete).
+  Mutual funds are valued from AMFI's public `NAVAll.txt` (`lib/amfi.ts`, 6 h memory cache, `GET /api/market/mf?q=` search); everything
+  else uses the typed value. The tab shows whole net worth (`wholeNetWorth`: banks + investments − card dues − custom liabilities, family
+  optional). Nothing is read from SMS/email for investments (not built; ask before adding, Gmail data must never reach AI).
+- Refresh balances (Wallet → Cards & accounts): `refreshBalances` in `lib/gmail.ts` (`POST /api/money/refresh-balances`) searches the last
+  60 days of known-bank emails for balance wording and keeps the newest per account; in the Android app with SMS reading on it also re-sends
+  the last 60 days of bank SMS (`lib/balance-refresh.ts`).

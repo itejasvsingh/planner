@@ -40,6 +40,7 @@ export default function PrivacyPage() {
           <li><b>Your email address</b>, if you sign in with an emailed code or add an email to your account: used to send the code and to open the same account when you use it.</li>
           <li><b>What you add</b>: tasks, goals, expenses, income, budgets, categories and settings.</li>
           <li><b>Messages you send the Align WhatsApp bot</b>, including voice notes and receipt photos, so it can add or answer things for you.</li>
+          <li><b>Investments you type in</b> (in Invest): fund, stock or deposit names, units, amounts and, for a family member, the name you give them. Nothing is connected to any account. Mutual fund prices come from the public AMFI price list; Align sends it only a fund search, never your holdings.</li>
           <li><b>Bank SMS</b>, only if you turn on SMS Auto-Import: bank and card transaction messages, from which Align records the amount, date, merchant and reference.</li>
           <li><b>Bank emails</b>, only if you connect Gmail or install Align&apos;s Gmail script: see the Gmail section below.</li>
           <li><b>Notification subscription</b>, if you turn on push notifications: an address your phone&apos;s notification service gives Align for this device, used only to send you card-due and task reminders.</li>
