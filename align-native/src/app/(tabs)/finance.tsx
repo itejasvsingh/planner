@@ -764,6 +764,16 @@ export default function FinanceScreen() {
                 onSave={handleSave}
                 onDelete={deleteItem}
                 items={items}
+                awareness={(cat, amt) => {
+                    const limit = categoryBudgets(limits)[cat] || 0;
+                    if (!limit || !(amt > 0)) return null;
+                    const used = categoryTotals.find(t => t.name === cat)?.amount || 0;
+                    const after = used + amt;
+                    const left = limit - after;
+                    return left >= 0
+                        ? `${cat}: ${formatMoney(used)} of ${formatMoney(limit)} used. This leaves ${formatMoney(left)} (${Math.round((after / limit) * 100)}%).`
+                        : `${cat}: this puts you ${formatMoney(-left)} over its ${formatMoney(limit)} budget.`;
+                }}
                 onPatchItem={updateItem}
                 friends={friends}
                 groups={groups.map(g => g.name)}

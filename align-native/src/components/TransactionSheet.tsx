@@ -46,12 +46,14 @@ interface TransactionSheetProps {
     startSplit?: boolean;
     /** All transactions and a way to change another one: lets a refund be linked to the spend it reverses. */
     items?: any[];
+    /** Before saving a new expense: how it moves that category's budget (null when there's nothing to say). */
+    awareness?: (category: string, amount: number) => string | null;
     onPatchItem?: (id: string, patch: Record<string, unknown>) => void | Promise<unknown>;
     onSave: (updates: any) => Promise<void>;
     onDelete?: (id: string) => Promise<void>;
 }
 
-export default function TransactionSheet({ visible, onClose, item, onSave, onDelete, items = [], onPatchItem, friends = [], groups = [], groupDrafts, startSplit = false }: TransactionSheetProps) {
+export default function TransactionSheet({ visible, onClose, item, onSave, onDelete, items = [], awareness, onPatchItem, friends = [], groups = [], groupDrafts, startSplit = false }: TransactionSheetProps) {
     const { isDark } = useTheme();
     const c = isDark ? Colors.dark : Colors.light;
     const { config: categoryConfig, merchantRule } = useCategoryConfig();
@@ -299,6 +301,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                         <View>
                             <Text style={[Type.label, { color: c.textSecondary, marginBottom: 8 }]}>Category</Text>
                             <CategoryPicker layout="row" kind={kindForType(type)} value={category} onChange={(v) => { setCategory(v); setCategoryTouched(true); }} />
+                            {!item && type === 'expense' && awareness && (() => { const note = awareness(category, parseFloat(amount) || 0); return note ? <Text style={[Type.caption, { color: c.textSecondary, marginTop: 8 }]}>{note}</Text> : null; })()}
                         </View>
 
                         {/* Paid with: read off the bank alert; only editable if the user says it's wrong */}

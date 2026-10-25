@@ -88,10 +88,10 @@ export type AccountBalance = {
   /** How many newer transactions were applied on top of the last quoted balance (worked out in the app). */
   applied?: number;
   /** Older cached copies lack these. */
-  excluded?: boolean; ifsc?: string | null; accountNumber?: string | null; holder?: string | null;
+  excluded?: boolean; ifsc?: string | null; accountNumber?: string | null; holder?: string | null; swift?: string | null;
   history?: { d: string; b: number }[];
 };
-export type AccountEdit = { excluded?: boolean; ifsc?: string | null; accountNumber?: string | null; holder?: string | null };
+export type AccountEdit = { excluded?: boolean; ifsc?: string | null; accountNumber?: string | null; holder?: string | null; swift?: string | null };
 export const editAccount = (id: string, edit: AccountEdit) => call<{ ok: true }>('/api/money/accounts', { method: 'POST', body: JSON.stringify({ id, edit }) });
 /** Credit cards (statement, due date, outstanding now) and bank balances, read from bank emails and SMS. */
 export type StatementCheck = {

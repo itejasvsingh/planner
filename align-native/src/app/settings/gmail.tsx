@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import SlideToConnect from '@/components/SlideToConnect';
 import { ActivityIndicator, Linking, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { Text } from '@/components/ui/text';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -271,7 +272,7 @@ export default function GmailScreen() {
             <Text style={[styles.body, { color: c.textSecondary }]}>
               Google asks to let Align “view your email messages and settings”, because Gmail has no bank-only option. As Align is a personal app, Google first says it hasn’t verified it: tap <Text style={styles.b}>Advanced</Text>, then <Text style={styles.b}>Go to Align</Text>, and leave the Gmail box ticked.
             </Text>
-            <Button c={c} primary label="Connect Gmail" busy={busy === 'connect'} onPress={() => void connect()} icon={<Mail color={c.onAccent} size={18} />} />
+            <SlideToConnect label="Slide to connect Gmail" busy={busy === 'connect'} onComplete={() => void connect()} />
           </View>
           <Pressable accessibilityRole="button" onPress={() => router.push('/settings/email')} style={styles.link}>
             <Text style={{ color: c.accent, fontWeight: '600', fontSize: 15 }}>Rather not connect? Use a script in your own Gmail</Text>

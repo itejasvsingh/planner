@@ -170,3 +170,5 @@
   units and cost, sell removes units at average cost, sold-out deletes it; units come from the message or amount ÷ NAV) with one `invest_events/<hash>` per message/order so repeats
   count once. The fund is matched to AMFI by its name words. Bank debit SMS still record the expense as before. Only name and numbers are kept; never AI. Stocks, FDs and CAS PDFs
   are not read (stay manual). Analysis shows five categories, three insights and biggest expenses, with the other charts under "More charts".
+- Fold-style Wallet details: account `swift` (SWIFT/BIC, `account_edits`), "Download statement" (CSV of the account's recorded transactions, `lib/account-statement.ts`),
+  `SlideToConnect` for connecting Gmail, and a budget line in the new-expense sheet (`awareness` prop: how this spend moves its category's budget before saving).

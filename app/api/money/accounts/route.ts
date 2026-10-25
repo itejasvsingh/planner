@@ -80,6 +80,9 @@ export async function POST(req: Request) {
   if (num !== undefined) edit.accountNumber = num;
   const holder = text(e.holder, /^[A-Za-z][A-Za-z .'-]{1,59}$/);
   if (holder !== undefined) edit.holder = holder;
+  const swift = text(e.swift, /^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?$/, true);
+  if (swift !== undefined) edit.swift = swift;
+  if (e.swift !== undefined && swift === undefined) return NextResponse.json({ error: 'A SWIFT/BIC code is 8 or 11 letters and digits, like SBININBB123.' }, { status: 400 });
   if (e.ifsc !== undefined && ifsc === undefined) return NextResponse.json({ error: 'That IFSC code looks wrong (4 letters, 0, then 6 letters or digits).' }, { status: 400 });
   if (e.accountNumber !== undefined && num === undefined) return NextResponse.json({ error: 'An account number is 6 to 20 digits.' }, { status: 400 });
   await saveAccountEdit(user.phone, body.id, edit);

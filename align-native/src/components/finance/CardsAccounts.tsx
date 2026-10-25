@@ -9,6 +9,7 @@ import { Radius, Shadow } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { changeAccount, refreshCards, useCards } from '@/lib/cards-store';
 import { refreshBalances, refreshMessage } from '@/lib/balance-refresh';
+import { downloadStatement } from '@/lib/account-statement';
 import BalanceTrend from './BalanceTrend';
 import NetWorthCard from './NetWorthCard';
 import BalanceOverview from './BalanceOverview';
@@ -46,7 +47,7 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
   const [balBusy, setBalBusy] = useState<string | null>(null);
   const [balErr, setBalErr] = useState('');
   const [openAcct, setOpenAcct] = useState<string | null>(null);
-  const [form, setForm] = useState({ ifsc: '', accountNumber: '', holder: '' });
+  const [form, setForm] = useState({ ifsc: '', accountNumber: '', holder: '', swift: '' });
   const [formError, setFormError] = useState('');
   const [copied, setCopied] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -290,7 +291,7 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
               const recent = recentForAccount(a, items, 3);
               const open = openAcct === a.id;
               const included = !a.excluded;
-              const details = [['Account number', a.accountNumber], ['IFSC', a.ifsc], ['Holder', a.holder]].filter(([, v]) => !!v) as [string, string][];
+              const details = [['Account number', a.accountNumber], ['IFSC', a.ifsc], ['SWIFT BIC', a.swift], ['Holder', a.holder]].filter(([, v]) => !!v) as [string, string][];
               return (
               <View key={a.id} style={{ borderTopWidth: i ? 1 : 0, borderTopColor: c.border }}>
                 <View style={[styles.row, { paddingVertical: 10 }]}>
@@ -302,7 +303,7 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
                   </Pressable>
                   <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }}
                     accessibilityLabel={`${a.bankName} ${a.last4 || ''} balance ${inr(a.balance)} as of ${when(a.at)}. ${open ? 'Hide' : 'Show'} details`}
-                    onPress={() => { setOpenAcct(open ? null : a.id); setFormError(''); setForm({ ifsc: a.ifsc || '', accountNumber: a.accountNumber || '', holder: a.holder || '' }); }}
+                    onPress={() => { setOpenAcct(open ? null : a.id); setFormError(''); setForm({ ifsc: a.ifsc || '', accountNumber: a.accountNumber || '', holder: a.holder || '', swift: a.swift || '' }); }}
                     style={[styles.row, { flex: 1 }]}>
                     <View style={[styles.icon, { backgroundColor: c.backgroundMuted }]}><Landmark color={c.textSecondary} size={18} /></View>
                     <View style={{ flex: 1 }}>
@@ -393,17 +394,21 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
                         </Pressable>
                       </View>
                     )}
+                    <Pressable accessibilityRole="button" onPress={() => void downloadStatement(a, transactionsForAccount(a, items))}
+                      style={[styles.add, { borderColor: c.border, borderStyle: 'solid' }]}>
+                      <Text style={{ color: c.text, fontWeight: '700' }}>Download statement</Text>
+                    </Pressable>
                     <Text style={{ color: c.textTertiary, fontSize: 12, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 }}>{details.length ? 'Edit bank details' : 'Add bank details to copy them anywhere'}</Text>
-                    {([['Account number', 'accountNumber', 'numeric'], ['IFSC code', 'ifsc', 'default'], ['Account holder', 'holder', 'default']] as const).map(([label, field, kb]) => (
+                    {([['Account number', 'accountNumber', 'numeric'], ['IFSC code', 'ifsc', 'default'], ['SWIFT / BIC code', 'swift', 'default'], ['Account holder', 'holder', 'default']] as const).map(([label, field, kb]) => (
                       <TextInput key={field} accessibilityLabel={label} placeholder={label} placeholderTextColor={c.textTertiary}
                         value={form[field]} onChangeText={v => setForm({ ...form, [field]: v })} keyboardType={kb === 'numeric' ? 'number-pad' : 'default'}
-                        autoCapitalize={field === 'ifsc' ? 'characters' : 'none'} autoCorrect={false}
+                        autoCapitalize={field === 'ifsc' || field === 'swift' ? 'characters' : 'none'} autoCorrect={false}
                         style={[styles.input, { backgroundColor: c.background, borderColor: c.border, color: c.text }]} />
                     ))}
                     {!!formError && <Text accessibilityRole="alert" style={{ color: c.expense, fontSize: 13 }}>{formError}</Text>}
                     <Pressable accessibilityRole="button" onPress={() => {
                       setFormError('');
-                      changeAccount(phone, a.id, { accountNumber: form.accountNumber.trim() || null, ifsc: form.ifsc.trim() || null, holder: form.holder.trim() || null })
+                      changeAccount(phone, a.id, { accountNumber: form.accountNumber.trim() || null, ifsc: form.ifsc.trim() || null, swift: form.swift.trim() || null, holder: form.holder.trim() || null })
                         .catch(e => setFormError((e as Error).message));
                     }} style={[styles.add, { backgroundColor: c.accentFill, borderColor: c.accentFill, borderStyle: 'solid' }]}>
                       <Text style={{ color: c.onAccent, fontWeight: '700' }}>Save details</Text>

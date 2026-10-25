@@ -20,11 +20,11 @@ export type AccountBalance = {
   /** The user left this account out of the bank total. */
   excluded?: boolean;
   /** Typed in by the user (alerts only give the last digits); shown for copying. Never logged. */
-  ifsc?: string | null; accountNumber?: string | null; holder?: string | null;
+  ifsc?: string | null; accountNumber?: string | null; holder?: string | null; swift?: string | null;
   /** One balance per day, oldest first (about the last 90 days). */
   history?: { d: string; b: number }[];
 };
-export type AccountEdit = { excluded?: boolean; ifsc?: string | null; accountNumber?: string | null; holder?: string | null };
+export type AccountEdit = { excluded?: boolean; ifsc?: string | null; accountNumber?: string | null; holder?: string | null; swift?: string | null };
 
 /** Keeps the newest balance seen for an account (older messages read later don't overwrite it). */
 export async function saveBalance(phone: string, a: Omit<AccountBalance, 'id'>) {
@@ -264,7 +264,7 @@ export async function accountBalances(phone: string, now = Date.now()): Promise<
     const e = edits.get(d.id) || {};
     const hist = await d.ref.collection('history').where('date', '>=', from).get();
     const history = hist.docs.map((h) => h.data() as { date: string; balance: number }).sort((x, y) => x.date.localeCompare(y.date)).map((h) => ({ d: h.date, b: h.balance }));
-    return { ...a, excluded: e.excluded === true, ifsc: e.ifsc || null, accountNumber: e.accountNumber || null, holder: e.holder || null, history };
+    return { ...a, excluded: e.excluded === true, ifsc: e.ifsc || null, accountNumber: e.accountNumber || null, holder: e.holder || null, swift: e.swift || null, history };
   }));
   return out.sort((a, b) => b.at - a.at);
 }
