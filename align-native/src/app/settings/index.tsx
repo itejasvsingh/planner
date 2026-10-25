@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Notifications from 'expo-notifications';
 import { doc, onSnapshot, setDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { Modal, KeyboardAvoidingView } from 'react-native';
-import { MapPin } from 'lucide-react-native';
+import { MapPin, Tags } from 'lucide-react-native';
 import { Bell, BellRing, ChevronRight, FileUp, LogOut, Mail, MessageCircle, MessageSquareText, Moon, Send, Repeat, Shield, Smartphone, Sun } from 'lucide-react-native';
 
 import { useTheme } from '@/hooks/use-theme';
