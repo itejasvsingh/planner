@@ -685,7 +685,7 @@ export default function FinanceScreen() {
                                                         </View>
                                                     )}
                                                     <Text style={[Type.caption, { color: c.textTertiary, marginTop: 2 }]} numberOfLines={1}>
-                                                        {(showLabels ? [category.name, splitLabel(item), item.cardLast4 ? (cardNameMap.get(item.cardLast4) || `••${item.cardLast4}`) : null, item.placeName || null, formatTime(item.time), item.autoDetected ? SOURCE_LABEL[item.source] || 'Auto' : '', item.refundOf ? 'Refund' : '', item.refunded > 0 ? `₹${item.refunded} refunded` : ''] : [category.name]).filter(Boolean).join(' · ')}
+                                                        {(showLabels ? [category.name, splitLabel(item), item.cardLast4 ? (cardNameMap.get(item.cardLast4) || `••${item.cardLast4}`) : null, item.placeName || null, formatTime(item.time), item.autoDetected ? SOURCE_LABEL[item.source] || 'Auto' : '', item.refundOf ? 'Refund' : '', item.refunded > 0 ? `₹${item.refunded} refunded` : ''] : [category.name, formatTime(item.time)]).filter(Boolean).join(' · ')}
                                                     </Text>
                                                     {showLabels && (item.note || item.tags?.length) ? <Text style={[Type.caption, { color: c.textSecondary, marginTop: 1 }]} numberOfLines={1}>{[item.note, ...(item.tags || []).map((x: string) => `#${x}`)].filter(Boolean).join(' · ')}</Text> : null}
                                                 </View>
