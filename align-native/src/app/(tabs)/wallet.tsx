@@ -15,6 +15,7 @@ import ScreenHeader from '@/components/ScreenHeader';
 import TransactionSheet from '@/components/TransactionSheet';
 import CardsAccounts from '@/components/finance/CardsAccounts';
 import UpcomingPayments from '@/components/finance/UpcomingPayments';
+import WalletSummary from '@/components/finance/WalletSummary';
 import StatementsCard from '@/components/finance/StatementsCard';
 
 /**
@@ -64,6 +65,7 @@ export default function WalletScreen() {
         <View style={{ paddingHorizontal: 16, width: '100%', maxWidth: 720, alignSelf: 'center' }}>
           {/* Only when a statement needs its PDF password: it needs you, so it comes first */}
           <StatementsCard section="pending" items={items} cards={cardData?.cards || []} onCardsChanged={() => void refreshCards(phone)} />
+          <WalletSummary cards={(adjusted?.cards || []) as any} accounts={(adjusted?.accounts || []) as any} />
           <UpcomingPayments rows={upcoming} />
           <View style={{ height: 16 }} />
           <CardsAccounts phone={phone} items={items} onOpenSettings={() => router.push('/settings/gmail')} onEditTransaction={setEditing} />

@@ -16,8 +16,10 @@ type Sheet = { id: string | null; name: string; kind: 'asset' | 'liability'; val
  * Money → Overview: net worth = what you have (ticked bank balances, things you add) less what you owe (credit cards,
  * loans you add). Tap a line you added to change or remove it; "Add" is for what Align can't read from alerts.
  */
-export default function NetWorthCard({ phone, accounts, cards, entries }: {
+export default function NetWorthCard({ phone, accounts, cards, entries, showBasics = true }: {
   phone: string | null;
+  /** false when the same two figures (bank total, card dues) are already shown just above, as in Wallet */
+  showBasics?: boolean;
   accounts: { balance: number; excluded?: boolean }[];
   cards: { outstanding: number; hidden?: boolean }[];
   entries: NetEntry[] | undefined;
@@ -45,9 +47,9 @@ export default function NetWorthCard({ phone, accounts, cards, entries }: {
   };
 
   const lines: { key: string; label: string; value: number; sign: 1 | -1; entry?: NetEntry }[] = [
-    ...(nw.bank > 0 || accounts.length ? [{ key: 'bank', label: 'Bank accounts', value: nw.bank, sign: 1 as const }] : []),
+    ...(showBasics && (nw.bank > 0 || accounts.length) ? [{ key: 'bank', label: 'Bank accounts', value: nw.bank, sign: 1 as const }] : []),
     ...nw.customAssets.map(e => ({ key: e.id, label: e.name, value: e.value, sign: 1 as const, entry: e })),
-    ...(cards.length ? [{ key: 'cards', label: 'Credit card dues', value: nw.owedOnCards, sign: -1 as const }] : []),
+    ...(showBasics && cards.length ? [{ key: 'cards', label: 'Credit card dues', value: nw.owedOnCards, sign: -1 as const }] : []),
     ...nw.customLiabilities.map(e => ({ key: e.id, label: e.name, value: e.value, sign: -1 as const, entry: e })),
   ];
 
@@ -74,7 +76,7 @@ export default function NetWorthCard({ phone, accounts, cards, entries }: {
             {l.entry && <ChevronRight color={c.textTertiary} size={14} />}
           </Pressable>
         ))}
-        {lines.length === 0 && <Text style={{ color: c.textSecondary, fontSize: 13 }}>Connect Gmail for balances and card dues, or add what you own and owe.</Text>}
+        {lines.length === 0 && <Text style={{ color: c.textSecondary, fontSize: 13 }}>{showBasics ? 'Connect Gmail for balances and card dues, or add what you own and owe.' : 'Bank balances and card dues are counted. Tap Add for what Align can’t read, like a flat or a loan.'}</Text>}
       </View>
 
       <Modal visible={sheet !== null} transparent animationType="fade" onRequestClose={() => setSheet(null)}>

@@ -81,3 +81,20 @@ test('time-relative due wording (colour is not the only signal)', () => {
   const { dueRelative } = mod.exports;
   assert.deepEqual(['2026-10-13', '2026-10-14', '2026-10-18', '2026-10-12', '2026-10-10'].map(d => dueRelative(d, now)), ['today', 'tomorrow', 'in 5 days', '1 day overdue', '3 days overdue']);
 });
+
+test('wallet summary: what is owed on cards (and due first), and what is in the banks', () => {
+  const { walletSummary } = mod.exports;
+  const cards = [
+    { issuerName: 'HDFC Bank', last4: '1234', outstanding: 2051, dueDate: '2026-10-20', status: 'due' },
+    { issuerName: 'Axis Bank', last4: '5678', outstanding: 7000, dueDate: '2026-10-10', status: 'overdue' },
+    { issuerName: 'SBI Card', last4: '9012', outstanding: 300, dueDate: '2026-10-15', status: 'paid' },   // paid statement, new spends since
+    { issuerName: 'Hidden', outstanding: 500, dueDate: '2026-10-11', hidden: true },
+    { issuerName: 'Zero', outstanding: 0, dueDate: '2026-10-12', status: 'due' },
+  ];
+  const accounts = [{ balance: 10000, at: 1000 }, { balance: 2500.5, at: 3000 }, { balance: 99999, at: 9999, excluded: true }];
+  const s = walletSummary(cards, accounts, now);
+  assert.deepEqual([s.toPay, s.cardsWithDues, s.overdue], [9351, 3, 1]);
+  assert.deepEqual(s.next, { title: 'Axis Bank ••5678', date: '2026-10-10', amount: 7000, tone: 'overdue' }, 'the overdue card comes first');
+  assert.deepEqual([s.banks, s.accounts, s.updatedAt], [12500.5, 2, 3000], 'unticked accounts are left out of the total and of "updated"');
+  assert.deepEqual(walletSummary([], [], now), { toPay: 0, cardsWithDues: 0, overdue: 0, next: null, banks: 0, accounts: 0, updatedAt: null });
+});

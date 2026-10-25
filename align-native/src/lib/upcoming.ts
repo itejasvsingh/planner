@@ -115,3 +115,41 @@ export function paymentsBetween(items: RecurringParent[], cards: CardDue[], from
   }
   return out.sort((a, b) => a.date.localeCompare(b.date) || b.amount - a.amount);
 }
+
+export type WalletCard = { issuerName?: string; last4?: string | null; outstanding: number; dueDate: string | null; status?: string; hidden?: boolean };
+export type WalletAccount = { balance: number; at?: number; excluded?: boolean };
+export type WalletSummary = {
+  /** What you owe on your cards right now (statements still unpaid plus new spends) */
+  toPay: number;
+  cardsWithDues: number;
+  overdue: number;
+  /** The card due first (overdue ones first): who, when, how much, how urgent */
+  next: { title: string; date: string; amount: number; tone: DueTone } | null;
+  /** Ticked bank accounts together, how many, and when the newest balance was seen (ms) */
+  banks: number;
+  accounts: number;
+  updatedAt: number | null;
+};
+
+/** The two numbers Wallet opens with: card dues and bank balances. */
+export function walletSummary(cards: WalletCard[], accounts: WalletAccount[], now: Date = new Date()): WalletSummary {
+  const live = cards.filter(c => !c.hidden && c.outstanding > 0);
+  const due = live.filter(c => c.status !== 'paid' && !!c.dueDate).sort((a, b) => (a.dueDate as string).localeCompare(b.dueDate as string));
+  const first = due[0];
+  const counted = accounts.filter(a => !a.excluded);
+  const seen = counted.map(a => a.at || 0).filter(Boolean);
+  return {
+    toPay: Math.round(live.reduce((t, c) => t + c.outstanding, 0) * 100) / 100,
+    cardsWithDues: live.length,
+    overdue: due.filter(c => dueTone(c.dueDate as string, now) === 'overdue').length,
+    next: first ? {
+      title: `${first.issuerName || 'Card'}${first.last4 ? ` ••${first.last4}` : ''}`,
+      date: first.dueDate as string,
+      amount: first.outstanding,
+      tone: dueTone(first.dueDate as string, now),
+    } : null,
+    banks: Math.round(counted.reduce((t, a) => t + a.balance, 0) * 100) / 100,
+    accounts: counted.length,
+    updatedAt: seen.length ? Math.max(...seen) : null,
+  };
+}

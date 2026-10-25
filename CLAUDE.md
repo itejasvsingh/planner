@@ -120,6 +120,8 @@
   `/api/gmail/sync-all` (the 15-minute GitHub workflow), once per day per person (`push_subscriptions/<phone>.lastSent`). Needs `VAPID_PUBLIC_KEY`,
   `VAPID_PRIVATE_KEY` (and optionally `VAPID_SUBJECT`, a `mailto:`) in Vercel; make them with `npx web-push generate-vapid-keys`, never commit them. Without
   them the app says push isn't set up and nothing is sent.
+- Wallet opens with two tiles (`components/finance/WalletSummary.tsx`, `walletSummary` in `align-native/src/lib/upcoming.ts`): what's owed on cards (the due-first card, coloured by
+  urgency) and what's in the ticked banks (with how fresh it is). The net worth card below drops its own bank/card lines (`showBasics={false}`) so nothing repeats.
 - Wallet colours: `dueTone` in `align-native/src/lib/upcoming.ts` (red overdue, amber within 3 days, blue later; green paid) on "Coming up",
   the card rows and the statement due box. "Coming up" lists every unpaid card whenever it's due (overdue first), bills only in the next 14 days.
 - Closed cards: `card_edits.closed` (Wallet → card → "This card is closed") or `gmail_links.closedBanks` (Settings → Gmail → statements,

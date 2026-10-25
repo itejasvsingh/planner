@@ -161,7 +161,7 @@ export default function CardsAccounts({ phone, items = [], onOpenSettings, onEdi
     <View>
       
 
-      <NetWorthCard phone={phone} accounts={accounts} cards={cards} entries={data?.entries} />
+      <NetWorthCard phone={phone} accounts={accounts} cards={cards} entries={data?.entries} showBasics={false} />
       <View style={{ height: 18 }} />
       <Text style={[styles.header, { color: c.textTertiary }]}>Credit cards & bills</Text>
       {shown.length > 1 && (
