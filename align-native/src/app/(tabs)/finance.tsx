@@ -149,9 +149,9 @@ export default function FinanceScreen() {
 
 
     const expenses = financeItems.filter(i => i.type === 'expense' && !isCardPayment(i) && !i.excluded);
-    const incomes = financeItems.filter(i => i.type !== 'expense' && i.type !== 'transfer' && !i.excluded);
+    const incomes = financeItems.filter(i => i.type !== 'expense' && i.type !== 'transfer' && !i.excluded && !i.refundOf);
 
-    const totalSpent = expenses.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+    const totalSpent = expenses.reduce((acc, curr) => acc + amountOf(curr), 0);
     const totalEarned = incomes.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
 
     // Spending by category for the cycle on screen (budgeted ones first), shown under "Categories"
@@ -159,7 +159,7 @@ export default function FinanceScreen() {
         const totals: Record<string, number> = {};
         expenses.forEach(e => {
             const cat = nameOf(e);
-            totals[cat] = (totals[cat] || 0) + (Number(e.amount) || 0);
+            totals[cat] = (totals[cat] || 0) + amountOf(e);
         });
         const limitsByCat = categoryBudgets(limits);
         for (const name of Object.keys(limitsByCat)) totals[name] = totals[name] || 0;
@@ -218,7 +218,7 @@ export default function FinanceScreen() {
             if (categoryFilter && nameOf(i) !== categoryFilter) return false;
             if (placeFilter && (i.placeName || '').toLowerCase() !== placeFilter.toLowerCase()) return false;
             if (flagFilters.size && !matchesFlags(i, flagFilters)) return false;
-            if (q && !`${i.title || ''} ${nameOf(i)} ${i.amount ?? ''}`.toLowerCase().includes(q)) return false;
+            if (q && !`${i.title || ''} ${nameOf(i)} ${i.amount ?? ''} ${i.note || ''} ${(i.tags || []).map((x: string) => `#${x} ${x}`).join(' ')}`.toLowerCase().includes(q)) return false;
             return true;
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -679,8 +679,9 @@ export default function FinanceScreen() {
                                                         </View>
                                                     )}
                                                     <Text style={[Type.caption, { color: c.textTertiary, marginTop: 2 }]} numberOfLines={1}>
-                                                        {[category.name, splitLabel(item), item.cardLast4 ? (cardNameMap.get(item.cardLast4) || `••${item.cardLast4}`) : null, item.placeName || null, formatTime(item.time), item.autoDetected ? SOURCE_LABEL[item.source] || 'Auto' : ''].filter(Boolean).join(' · ')}
+                                                        {[category.name, splitLabel(item), item.cardLast4 ? (cardNameMap.get(item.cardLast4) || `••${item.cardLast4}`) : null, item.placeName || null, formatTime(item.time), item.autoDetected ? SOURCE_LABEL[item.source] || 'Auto' : '', item.refundOf ? 'Refund' : '', item.refunded > 0 ? `₹${item.refunded} refunded` : ''].filter(Boolean).join(' · ')}
                                                     </Text>
+                                                    {(item.note || item.tags?.length) ? <Text style={[Type.caption, { color: c.textSecondary, marginTop: 1 }]} numberOfLines={1}>{[item.note, ...(item.tags || []).map((x: string) => `#${x}`)].filter(Boolean).join(' · ')}</Text> : null}
                                                 </View>
                                                 <View style={{ alignItems: 'flex-end', gap: 3 }}>
                                                     <Text style={[Type.body, { color: isIncome ? c.income : (isTransfer ? c.textSecondary : c.text), fontWeight: '700', fontVariant: ['tabular-nums'] }]}>
@@ -762,6 +763,8 @@ export default function FinanceScreen() {
                 onClose={() => setIsSheetVisible(false)}
                 onSave={handleSave}
                 onDelete={deleteItem}
+                items={items}
+                onPatchItem={updateItem}
                 friends={friends}
                 groups={groups.map(g => g.name)}
                 groupDrafts={groupDrafts}

@@ -61,6 +61,12 @@ export type PlannerItem = {
   placeName?: string | null;
   /** Saved for later: shows under the Bookmarked filter. */
   bookmarked?: boolean;
+  /** A short note and tags you added to a transaction (searchable). */
+  note?: string;
+  /** On a refund (money back): the id of the spend it reverses. */
+  refundOf?: string | null;
+  /** On a spend: how much of it has been refunded (it counts as spent only the rest). */
+  refunded?: number;
   /** "Leave out of cash flow": listed, but counted in no total or chart. */
   excluded?: boolean;
   /** Last digits of the credit card it was paid with (alerts set it; "Paid with" in the form too). */

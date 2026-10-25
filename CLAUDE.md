@@ -161,3 +161,7 @@
 - Refresh balances (Wallet → Cards & accounts): `refreshBalances` in `lib/gmail.ts` (`POST /api/money/refresh-balances`) searches the last
   60 days of known-bank emails for balance wording and keeps the newest per account; in the Android app with SMS reading on it also re-sends
   the last 60 days of bank SMS (`lib/balance-refresh.ts`).
+- Notes, tags and refunds (`align-native/src/lib/refunds.ts`, pure; TransactionSheet → More options): `note`, `tags` (searchable) on any
+  transaction; an income can be a refund of a spend (`refundOf`), which stores `refunded` on that spend (`refundPatches`, capped at its
+  cost). `amountOf` then counts only the rest and `isIncome` leaves the refund out, so refunds net out instead of showing as income.
+  The Money hero (`finance.tsx`) and the WhatsApp daily summary follow the same rule.

@@ -11,6 +11,8 @@ export type Txn = {
   date?: string | null;
   category?: string;
   isRecurring?: boolean;
+  refunded?: number;
+  refundOf?: string | null;
   /** "Leave out of cash flow": still listed, but in no total. */
   excluded?: boolean;
   bookmarked?: boolean;
@@ -65,7 +67,9 @@ export function cycleRange(payday: number, offset = 0, now: Date = new Date()): 
 
 export const amountOf = (t: Txn) => {
   const n = Number(t.amount);
-  return Number.isFinite(n) ? n : 0;
+  const gross = Number.isFinite(n) ? n : 0;
+  // A refunded spend counts only for what is left
+  return t.type === 'expense' && Number(t.refunded) > 0 ? Math.max(0, gross - Number(t.refunded)) : gross;
 };
 /**
  * Paying a credit card bill from your bank isn't spending: the card's own purchases already count. It stays in the
@@ -73,7 +77,8 @@ export const amountOf = (t: Txn) => {
  */
 export const isCardPayment = (t: Txn) => t.type === 'expense' && (/^card payment$/i.test(t.category || '') || /\b(?:credit\s*)?card\s*(?:bill|payment|autopay)\b|\bcc\s*payment\b/i.test(t.title || ''));
 export const isExpense = (t: Txn) => t.type === 'expense' && !isCardPayment(t) && t.excluded !== true;
-export const isIncome = (t: Txn) => (t.type === 'income' || t.type === 'deposit') && t.excluded !== true;
+// A refund linked to its spend isn't income: it already reduced that spend
+export const isIncome = (t: Txn) => (t.type === 'income' || t.type === 'deposit') && t.excluded !== true && !t.refundOf;
 export const isMoney = (t: Txn) => t.type === 'expense' || t.type === 'income' || t.type === 'deposit' || t.type === 'transfer';
 
 export function inRange(t: Txn, startKey: string, endKey: string): boolean {

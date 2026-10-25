@@ -189,7 +189,7 @@ export async function runDailySummaryForUser(userPhone: string, options?: { forc
         (i.date === todayKey)
     );
 
-    const totalSpent = todayExpenses.reduce((sum: number, e: any) => sum + (parseFloat(e.amount) || 0), 0);
+    const totalSpent = todayExpenses.reduce((sum: number, e: any) => sum + Math.max(0, (parseFloat(e.amount) || 0) - (Number(e.refunded) || 0)), 0);
 
     // 5. Filter today's tasks (READ-ONLY: NEVER MUTATE OR ADVANCE DUE DATES DURING SUMMARY)
     const todayTasks = items.filter((i: any) => 

@@ -19,6 +19,7 @@ import { isLatLng, nearestPlace, type LatLng } from '@/lib/places';
 import { savePlace, usePlaces } from '@/lib/places-store';
 import { autoPlace } from '@/lib/auto-place';
 import PlacesMap from '@/components/finance/PlacesMap';
+import { parseTags, refundPatches, refundTargets, tagsText } from '@/lib/refunds';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 const dateToKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -43,11 +44,14 @@ interface TransactionSheetProps {
     groupDrafts?: Record<string, SplitDraft>;
     /** Adding from Money → Split: start with "Split with friends" on. */
     startSplit?: boolean;
+    /** All transactions and a way to change another one: lets a refund be linked to the spend it reverses. */
+    items?: any[];
+    onPatchItem?: (id: string, patch: Record<string, unknown>) => void | Promise<unknown>;
     onSave: (updates: any) => Promise<void>;
     onDelete?: (id: string) => Promise<void>;
 }
 
-export default function TransactionSheet({ visible, onClose, item, onSave, onDelete, friends = [], groups = [], groupDrafts, startSplit = false }: TransactionSheetProps) {
+export default function TransactionSheet({ visible, onClose, item, onSave, onDelete, items = [], onPatchItem, friends = [], groups = [], groupDrafts, startSplit = false }: TransactionSheetProps) {
     const { isDark } = useTheme();
     const c = isDark ? Colors.dark : Colors.light;
     const { config: categoryConfig, merchantRule } = useCategoryConfig();
@@ -65,6 +69,9 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     const [cardLast4, setCardLast4] = useState<string | null>(null);
     const [disputed, setDisputed] = useState(false);
     const [bookmarked, setBookmarked] = useState(false);
+    const [note, setNote] = useState('');
+    const [tagInput, setTagInput] = useState('');
+    const [refundOf, setRefundOf] = useState<string | null>(null);
     // Bookmark, leave out, monthly bill and split live under "More options", open only when one of them is on
     const [moreOpen, setMoreOpen] = useState(false);
     // Where it was spent: a pin (from your location or a saved place) and its name
@@ -108,6 +115,9 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
             setCardLast4(item?.cardLast4 || null);
             setDisputed(false);
             setBookmarked(item?.bookmarked === true);
+            setNote(item?.note || '');
+            setTagInput(tagsText(item?.tags));
+            setRefundOf(item?.refundOf || null);
             setPlace(isLatLng(item?.place) ? { lat: item.place.lat, lng: item.place.lng } : null);
             setPlaceName(item?.placeName || '');
             setPlaceError('');
@@ -116,7 +126,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
             placeTouched.current = false;
             // A new expense is pinned where you are now, unless you change it first (or turned automatic pinning off)
             if (!item) void autoPlace().then(r => { if (r && !placeTouched.current) { setPlace(r.place); if (r.placeName) setPlaceName(r.placeName); setPlaceAuto(true); } });
-            setMoreOpen(startSplit || (!!item && (item.bookmarked === true || item.excluded === true || !!item.isRecurring || !!splitOf(item) || isLatLng(item.place))));
+            setMoreOpen(startSplit || (!!item && (item.bookmarked === true || item.excluded === true || !!item.note || !!item.tags?.length || !!item.refundOf || !!item.isRecurring || !!splitOf(item) || isLatLng(item.place))));
             setExcluded(item?.excluded === true);
             // Keep the time the bank gave (editing must never wipe it)
             setTime(item?.time || '');
@@ -165,9 +175,18 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
         const built = splitting ? buildSplit(finalAmount, splitDraft, item ? splitOf(item) : null) : null;
         if (built?.error) return; // shown under the split
 
+        const isRefund = type === 'income' || type === 'deposit';
+        const target = isRefund ? refundOf : null;
+        // The spend a refund points at (or no longer points at) shows only what is left
+        if ((target || item?.refundOf) && onPatchItem) {
+            for (const p of refundPatches(items, item?.id, item?.refundOf, target, finalAmount)) await onPatchItem(p.id, p.patch);
+        }
         await onSave({
             type,
             title,
+            note: note.trim().slice(0, 200),
+            tags: parseTags(tagInput),
+            refundOf: target,
             amount: built?.split ? built.split.yourShare : finalAmount,
             category,
             date,
@@ -190,6 +209,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
     };
 
     const handleDelete = async () => {
+        if (item?.refundOf && onPatchItem) for (const p of refundPatches(items, item.id, item.refundOf, null, 0)) await onPatchItem(p.id, p.patch);
         if (item && item.id && onDelete) {
             await onDelete(item.id);
         }
@@ -320,7 +340,7 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                 { label: 'Monthly bill', hint: 'Remind me and auto-log this', on: isRecurring, set: setIsRecurring, show: type === 'expense' },
                                 { label: 'Split with friends', hint: 'Share the bill; only your part counts as spent', on: isSplit, set: setIsSplit, show: type === 'expense' },
                             ].filter(r => r.show);
-                            const active = [...rows.filter(r => r.on).map(r => r.label === 'Leave out of cash flow' ? 'Left out' : r.label === 'Split with friends' ? 'Split' : r.label), ...(place ? ['Place'] : [])];
+                            const active = [...(note || tagInput.trim() ? ['Note'] : []), ...rows.filter(r => r.on).map(r => r.label === 'Leave out of cash flow' ? 'Left out' : r.label === 'Split with friends' ? 'Split' : r.label), ...(place ? ['Place'] : [])];
                             const showPlace = type === 'expense' && (geoSupported() || savedPlaces.length > 0 || !!place);
                             return (
                                 <View>
@@ -351,6 +371,39 @@ export default function TransactionSheet({ visible, onClose, item, onSave, onDel
                                                     </Pressable>
                                                 </View>
                                             ))}
+                                            <View style={{ gap: 8 }}>
+                                                <View>
+                                                    <Text style={[Type.body, { color: c.text, fontWeight: '600' }]}>Note and tags</Text>
+                                                    <Text style={[Type.caption, { color: c.textTertiary }]}>Searchable. Tags like #trip #work</Text>
+                                                </View>
+                                                <TextInput accessibilityLabel="Note" value={note} onChangeText={setNote} maxLength={200} placeholder="Add a note" placeholderTextColor={c.textTertiary}
+                                                    style={{ backgroundColor: c.backgroundMuted, color: c.text, paddingHorizontal: 12, paddingVertical: 9, borderRadius: Radius.md, fontSize: 15 }} />
+                                                <TextInput accessibilityLabel="Tags" value={tagInput} onChangeText={setTagInput} autoCapitalize="none" placeholder="#tags" placeholderTextColor={c.textTertiary}
+                                                    style={{ backgroundColor: c.backgroundMuted, color: c.text, paddingHorizontal: 12, paddingVertical: 9, borderRadius: Radius.md, fontSize: 15 }} />
+                                            </View>
+                                            {(type === 'income' || type === 'deposit') && (() => {
+                                                const targets = refundTargets(items, parseFloat(amount) || 0, item?.id);
+                                                if (!targets.length && !refundOf) return null;
+                                                return (
+                                                    <View style={{ gap: 8 }}>
+                                                        <View>
+                                                            <Text style={[Type.body, { color: c.text, fontWeight: '600' }]}>This is a refund of</Text>
+                                                            <Text style={[Type.caption, { color: c.textTertiary }]}>Pick the spend it reverses: it then counts as less spent, not as income</Text>
+                                                        </View>
+                                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                                                            {[{ id: null as string | null, title: 'Not a refund', amount: '' as string | number }, ...targets].map(t => {
+                                                                const on = (refundOf || null) === t.id;
+                                                                return (
+                                                                    <Pressable key={t.id || 'none'} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setRefundOf(t.id ?? null)}
+                                                                        style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: Radius.pill, borderWidth: 1, borderColor: on ? c.accentFill : c.border, backgroundColor: on ? c.accentFill : c.backgroundElement }}>
+                                                                        <Text style={{ color: on ? c.onAccent : c.text, fontSize: 13, fontWeight: '600' }}>{t.id ? `${t.title} · ₹${t.amount}` : t.title}</Text>
+                                                                    </Pressable>
+                                                                );
+                                                            })}
+                                                        </ScrollView>
+                                                    </View>
+                                                );
+                                            })()}
                                             {showPlace && (
                                                 <View style={{ gap: 10 }}>
                                                     <View>
