@@ -174,4 +174,4 @@
   `SlideToConnect` for connecting Gmail, and a budget line in the new-expense sheet (`awareness` prop: how this spend moves its category's budget before saving).
 - Calmer Money (Fold-like): transaction rows keep their category colours (the user finds them easier to read; don't neutralise them again); the header has just Search and Filters (Categories is the first filter chip);
   rows swipe (`components/SwipeRow.tsx`: right = bookmark, left = a Delete button to tap; a drag never counts as a tap). Next in the plan: Wallet, then Invest.
-- "Labels on transactions" (Settings, `lib/display-prefs.ts`, off by default, per device): the Transfer / Left out tags in the Money list show only when switched on.
+- "Details on transactions" (Settings, `lib/display-prefs.ts`, off by default, per device): the Money list shows only the category under each name; the Transfer / Left out pills, card/place/time/source, refund text, note and #tags appear only when switched on.

@@ -223,7 +223,7 @@ export default function SettingsScreen() {
           trailing={<Switch value={autoPushEnabled} onValueChange={toggleAutoPush} trackColor={switchTrack} ios_backgroundColor={c.backgroundMuted} />} />
         <Row c={c} tint="blue" icon={<MapPin color={tintColors('blue', c.isDark).fg} size={17} />} label="Pin location on new expenses" subtitle="Saved on this device. Change it on any expense"
           trailing={<Switch value={autoPinOn} onValueChange={v => void setAutoPin(v)} trackColor={switchTrack} ios_backgroundColor={c.backgroundMuted} />} />
-        <Row c={c} tint="green" icon={<Tags color={tintColors('green', c.isDark).fg} size={17} />} label="Labels on transactions" subtitle="Show Transfer and Left out tags in the list"
+        <Row c={c} tint="green" icon={<Tags color={tintColors('green', c.isDark).fg} size={17} />} label="Details on transactions" subtitle="Card, place, time, source, notes and tags under each one"
           trailing={<Switch value={showLabelsOn} onValueChange={v => void setShowLabels(v)} trackColor={switchTrack} ios_backgroundColor={c.backgroundMuted} />} />
         <Row c={c} tint="violet" icon={scheme === 'dark' ? <Moon color={tintColors('violet', c.isDark).fg} size={17} /> : <Sun color={tintColors('violet', c.isDark).fg} size={17} />}
           label="Appearance" value={themeMode.charAt(0).toUpperCase() + themeMode.slice(1)} onPress={cycleTheme} last />
