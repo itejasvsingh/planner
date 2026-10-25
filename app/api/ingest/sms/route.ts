@@ -6,6 +6,8 @@ import { consumeRateLimit } from '../../../../lib/rateLimit';
 import { parseTransactionSms, guessCategory, type ParsedTransaction } from '../../../../lib/smsParse';
 import { alertWindow, parseBankEmail } from '../../../../lib/emailAlert';
 import { accountLast4, availableBalance, bankFromText, creditCardOf } from '../../../../lib/accountParse';
+import { saveUnparsed } from '../../../../lib/unparsed';
+import { looksLikeTransaction } from '../../../../lib/unparsedText';
 import { saveBalance } from '../../../../lib/moneyAccounts';
 import { istParts, recordTransaction } from '../../../../lib/recordTransaction';
 
@@ -108,6 +110,12 @@ export async function POST(req: Request) {
       const at = typeof body.date === 'string' && sentDate(body.date) ? new Date(body.date).getTime() : Date.now();
       await saveBalance(phone, { bankId: bank.id, bankName: bank.name, last4: onlyBal.last4, balance: onlyBal.balance, at }).catch(() => {});
       return NextResponse.json({ status: 'balance', message: `Balance updated: ₹${onlyBal.balance.toLocaleString('en-IN')}` });
+    }
+    // Looked like a payment but wasn't understood: kept (digits masked) so it shows in Wallet → Couldn't read
+    if (text && source === 'sms' && body.dryRun !== true && looksLikeTransaction(text)) {
+      const arrived = typeof body.date === 'string' && sentDate(body.date) ? new Date(body.date).getTime() : Date.now();
+      await saveUnparsed(phone, { source: 'sms', text, bank: bankFromText(text)?.name || null, at: arrived }).catch(() => {});
+      return NextResponse.json({ status: 'unread', message: 'Could not read this message' });
     }
     return NextResponse.json({ status: 'ignored', message: 'Not a transaction' });
   }

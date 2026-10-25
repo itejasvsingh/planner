@@ -17,6 +17,7 @@ import CardsAccounts from '@/components/finance/CardsAccounts';
 import UpcomingPayments from '@/components/finance/UpcomingPayments';
 import WalletSummary from '@/components/finance/WalletSummary';
 import StatementsCard from '@/components/finance/StatementsCard';
+import UnreadMessages from '@/components/finance/UnreadMessages';
 
 /**
  * Wallet: net worth, credit cards (dues, overdue), bank accounts with their trend and details, and the bills coming up.
@@ -70,6 +71,7 @@ export default function WalletScreen() {
           <View style={{ height: 16 }} />
           <CardsAccounts phone={phone} items={items} onOpenSettings={() => router.push('/settings/gmail')} onEditTransaction={setEditing} />
           <StatementsCard section="list" items={items} cards={cardData?.cards || []} checks={(cardData?.checks || []) as any} onCardsChanged={() => void refreshCards(phone)} />
+          <UnreadMessages />
         </View>
       </ScrollView>
       <TransactionSheet visible={editing !== null} item={editing} onClose={() => setEditing(null)} onSave={save} onDelete={deleteItem} />

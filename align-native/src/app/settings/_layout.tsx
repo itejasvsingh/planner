@@ -52,6 +52,7 @@ export default function SettingsLayout() {
         <Stack.Screen name="whatsapp" options={{ title: 'WhatsApp' }} />
         <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
         <Stack.Screen name="link" options={{ title: 'Linked sign-ins' }} />
+        <Stack.Screen name="data" options={{ title: 'Your data' }} />
         <Stack.Screen name="sms" options={{ title: 'SMS Auto-Import' }} />
         <Stack.Screen name="import" options={{ title: 'Import Statement' }} />
         <Stack.Screen name="email" options={{ title: 'Email Auto-Import' }} />

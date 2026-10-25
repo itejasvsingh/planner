@@ -239,7 +239,9 @@ export default function SettingsScreen() {
 
       <Group c={c} title="Privacy">
         <Row c={c} tint="gray" icon={<Shield color={tintColors('gray', c.isDark).fg} size={17} />} label="App Lock" value={securityActive ? 'On' : 'Off'}
-          onPress={() => router.push('/settings/security')} last />
+          onPress={() => router.push('/settings/security')} />
+        <Row c={c} tint="gray" icon={<FileUp color={tintColors('gray', c.isDark).fg} size={17} />} label="Your data" subtitle="Download a copy, or delete your account"
+          onPress={() => router.push('/settings/data' as any)} last />
       </Group>
 
       <Group c={c}>

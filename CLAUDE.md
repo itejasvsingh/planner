@@ -120,6 +120,13 @@
   `/api/gmail/sync-all` (the 15-minute GitHub workflow), once per day per person (`push_subscriptions/<phone>.lastSent`). Needs `VAPID_PUBLIC_KEY`,
   `VAPID_PRIVATE_KEY` (and optionally `VAPID_SUBJECT`, a `mailto:`) in Vercel; make them with `npx web-push generate-vapid-keys`, never commit them. Without
   them the app says push isn't set up and nothing is sent.
+- Your data (`lib/accountData.ts`, `/api/account/export` and `/api/account/delete`, Settings → Your data): "Download my data" is one JSON file (items, settings,
+  money, Gmail bills; never the Gmail key or statement passwords); "Delete my account" (type DELETE) revokes Gmail, then removes items, settings, sessions,
+  money_accounts/gmail_links/push_subscriptions trees, email identities and the Firebase sign-in(s). Counts only are returned. Tested in `tests/emulator/account-data.test.cjs`.
+  `docs/INCIDENT_PLAN.md` is the owner's checklist for a leak; the privacy page names both options.
+- "Couldn't read" (`lib/unparsed.ts`, `lib/unparsedText.ts`, `/api/money/unparsed`, Wallet card): a bank SMS or Gmail email that looks like a payment (amount + payment word, not an
+  OTP/offer/statement/failure) but isn't parsed is kept for 30 days in `money_accounts/<phone>/unparsed`: SMS as a masked snippet (digit runs of 5+ hidden), email only as bank
+  and day (its text is never stored, as promised in /privacy). The person dismisses them; they expire after 30 days.
 - Wallet opens with two tiles (`components/finance/WalletSummary.tsx`, `walletSummary` in `align-native/src/lib/upcoming.ts`): what's owed on cards (the due-first card, coloured by
   urgency) and what's in the ticked banks (with how fresh it is). The net worth card below drops its own bank/card lines (`showBasics={false}`) so nothing repeats.
 - Wallet colours: `dueTone` in `align-native/src/lib/upcoming.ts` (red overdue, amber within 3 days, blue later; green paid) on "Coming up",

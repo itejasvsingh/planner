@@ -21,7 +21,7 @@ async function copyTree(from: DocumentReference, to: DocumentReference) {
   }
 }
 
-async function deleteTree(ref: DocumentReference) {
+export async function deleteTree(ref: DocumentReference) {
   for (const col of await ref.listCollections()) {
     const docs = await col.get();
     for (const d of docs.docs) await deleteTree(d.ref);

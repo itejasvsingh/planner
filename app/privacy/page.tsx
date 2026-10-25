@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 const CONTACT = 'tejasvsingh001@gmail.com';
-const UPDATED = '3 October 2026';
+const UPDATED = '25 October 2026';
 
 const page: CSSProperties = { maxWidth: 720, margin: '0 auto', padding: '40px 20px 80px', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', lineHeight: 1.6, color: '#1d1d24', background: '#ffffff' };
 const h2: CSSProperties = { fontSize: 20, marginTop: 36, marginBottom: 8 };
@@ -42,6 +42,8 @@ export default function PrivacyPage() {
           <li><b>Messages you send the Align WhatsApp bot</b>, including voice notes and receipt photos, so it can add or answer things for you.</li>
           <li><b>Bank SMS</b>, only if you turn on SMS Auto-Import: bank and card transaction messages, from which Align records the amount, date, merchant and reference.</li>
           <li><b>Bank emails</b>, only if you connect Gmail or install Align&apos;s Gmail script: see the Gmail section below.</li>
+          <li><b>Notification subscription</b>, if you turn on push notifications: an address your phone&apos;s notification service gives Align for this device, used only to send you card-due and task reminders.</li>
+          <li><b>Messages Align couldn&apos;t read</b>: a bank SMS that looks like a payment but isn&apos;t understood is kept for 30 days with long numbers hidden (for emails, only the bank and day), so you can add it by hand. You can dismiss them, and they are removed after 30 days.</li>
           <li><b>Statement files</b> you upload are read to find transactions and are not stored. Only the transactions you choose to import are saved.</li>
         </ul>
       </Section>
@@ -71,7 +73,7 @@ export default function PrivacyPage() {
       <Section title="How it is used">
         <ul>
           <li>To run Align&apos;s features: your timeline, reminders, budgets, analysis and the WhatsApp bot.</li>
-          <li>Text you type into quick add, WhatsApp messages and bank SMS that Align&apos;s own rules can&apos;t read may be processed by an AI service (Google&apos;s Gemini or Anthropic&apos;s Claude) to understand them. Emails and Gmail data are never sent to AI.</li>
+          <li>Text you type into quick add, WhatsApp messages (including voice notes and photos of receipts you send the bot) and bank SMS that Align&apos;s own rules can&apos;t read may be processed by an AI service (Google&apos;s Gemini or Anthropic&apos;s Claude) to understand them. Emails and Gmail data are never sent to AI.</li>
           <li>Align does not sell your data or show ads.</li>
         </ul>
       </Section>
@@ -86,9 +88,29 @@ export default function PrivacyPage() {
 
       <Section title="Keeping and deleting your data">
         <p>
-          Your data is kept until you delete it. You can delete items in the app, turn off SMS or email import in Settings,
-          and disconnect Gmail. To delete your whole account and everything in it, email{' '}
-          <a href={`mailto:${CONTACT}`}>{CONTACT}</a> from the Google account or WhatsApp number you use with Align.
+          Your data is kept until you delete it. In the app, under Settings, then Your data, you can{' '}
+          <b>download a copy of everything Align keeps about you</b> (one file, without passwords or keys) and{' '}
+          <b>delete your account</b>. Deleting removes your transactions, tasks, settings, balances, cards, statement records,
+          saved reminders, your Gmail connection (and Align&apos;s access at Google) and your sign-in from Align&apos;s live
+          database straight away, and it cannot be undone. You can also delete items one by one, turn off SMS or email import,
+          and disconnect Gmail at any time. If you can&apos;t use the app, email <a href={`mailto:${CONTACT}`}>{CONTACT}</a> from
+          the number or email you sign in with and your account will be deleted.
+        </p>
+      </Section>
+
+      <Section title="Your choices">
+        <ul>
+          <li>See and correct your data in the app, or download it (Settings, then Your data).</li>
+          <li>Take back a permission at any time: turn off SMS or email import, notifications, or location pinning; disconnect Gmail.</li>
+          <li>Ask for your account to be deleted, in the app or by email.</li>
+          <li>Complain to us at <a href={`mailto:${CONTACT}`}>{CONTACT}</a>, and, if you are in India, to the Data Protection Board of India.</li>
+        </ul>
+      </Section>
+
+      <Section title="If something goes wrong">
+        <p>
+          If Align&apos;s data were ever exposed or misused, we would stop the cause, change the keys involved, and tell the
+          people affected and the authorities as the law requires, saying what happened and what you can do about it.
         </p>
       </Section>
 

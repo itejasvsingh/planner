@@ -11,6 +11,8 @@ import { bankForSender, ensureBillTask, markBillsPaid, saveBill } from './cardBi
 import { accountLast4, availableBalance, cardPaymentAmount, creditCardOf } from './accountParse';
 import { isClosedCard, recordCardPayment, saveBalance, saveStatementRecord } from './moneyAccounts';
 import { istParts, recordTransaction } from './recordTransaction';
+import { saveUnparsed } from './unparsed';
+import { looksLikeTransaction } from './unparsedText';
 
 /**
  * Connected Gmail (read-only). The user grants access once; Align keeps the refresh token encrypted in
@@ -323,7 +325,9 @@ export async function syncGmail(phone: string, deadline: number, opts: { stateme
         if (bal && bank) await saveBalance(phone, { bankId: bank.id, bankName: bank.name, last4: bal.last4, balance: bal.balance, at });
         const tx = parseBankEmail(text);
         if (!tx) {
-          await takeBill(text, from, at);
+          const wasBill = await takeBill(text, from, at);
+          // A bank email that reads like a payment but wasn't understood: listed (bank and day only, never its text)
+          if (!wasBill && bank && looksLikeTransaction(text)) await saveUnparsed(phone, { source: 'email', bank: bank.name, at }).catch(() => {});
           return;
         }
         const arrived = istParts(at);
