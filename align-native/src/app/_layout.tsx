@@ -4,7 +4,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import { FONT_ASSETS } from '@/lib/app-fonts';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View, Platform, UIManager } from 'react-native';
+import { Platform, UIManager } from 'react-native';
+import AppLoading from '@/components/AppLoading';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -81,11 +82,8 @@ function RootNav() {
   }, [ready, securityReady, hasSeenOnboarding, fontsDone]);
 
   if (!ready || !securityReady || hasSeenOnboarding === null || !fontsDone) {
-    return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors[colorScheme].background }}>
-        <ActivityIndicator color={Colors[colorScheme].accent} />
-      </View>
-    );
+    const waitingFor = !ready ? 'Signing you in…' : !securityReady ? 'Checking your lock…' : 'Getting things ready…';
+    return <AppLoading scheme={colorScheme} waitingFor={waitingFor} />;
   }
 
   // If locked, render the LockScreen entirely over the app

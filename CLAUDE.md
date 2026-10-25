@@ -182,3 +182,4 @@
   tracking, no new permission; real background geofencing is not built). `remindOn` schedules a 9 am local notification (`use-notifications.ts`). "Send list" shares the list as text (WhatsApp link on web,
   share sheet in the app): no shared accounts exist, so family can't edit it live.
 - Agenda shows the open Buy later items in a card at the bottom (`components/BuyCard.tsx`: items to remember today first, up to four, tick one off in place, tap the title to open the whole list).
+- Start page (`components/AppLoading.tsx`): gentle pulsing mark, a line saying what it waits for, and after 8 s a "Try again" button; `phone-context` stops waiting on Firebase after 10 s (token read after 6 s). First launch is a swipeable pager in `app/welcome.tsx` (4 slides, last one Get Started; `/onboarding` redirects to it).

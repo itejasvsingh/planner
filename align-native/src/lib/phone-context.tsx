@@ -69,7 +69,8 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
     }
     let verified: string | null = null;
     try {
-      const claim = (await user.getIdTokenResult()).claims.phone;
+      // A token refresh that never answers must not hold the app on its start page
+      const claim = (await Promise.race([user.getIdTokenResult(), new Promise<never>((_, rej) => setTimeout(() => rej(new Error('token timeout')), 6000))])).claims.phone;
       verified = typeof claim === 'string' ? claim : null;
     } catch {
       // Offline with an expired token: the number saved at sign-in still identifies this user's data.
@@ -103,8 +104,11 @@ export function PhoneProvider({ children }: { children: ReactNode }) {
       authKnown = true;
       void applyUser(user).finally(() => !cancelled && setReady(true));
     });
+    // If Firebase never answers, open anyway after 10 s (signed out: the login screen) rather than wait on the start page forever
+    const giveUp = setTimeout(() => !cancelled && setReady(true), 10000);
     return () => {
       cancelled = true;
+      clearTimeout(giveUp);
       unsubscribe();
     };
   }, [applyUser]);
