@@ -157,10 +157,9 @@ test('reminder nets what you owe against what the friend owes and shows both sid
 
   assert.deepEqual(reminderBreakdown(balance), { toYou: 500, toThem: 100, net: 400 });
   const msg = reminderText(balance);
-  assert.ok(msg.includes('You owe me: ₹500'), msg);
-  assert.ok(msg.includes('I owe you: ₹100'), msg);
-  assert.ok(msg.includes('After subtracting what I owe you, you owe me ₹400.'), msg);
-  assert.ok(msg.includes('• Dinner: ₹500') && msg.includes('• Cab: ₹100'), msg);
+  assert.ok(msg.startsWith('Hi Rahul! Net due ₹400 (you owe ₹500; I owe ₹100).'), msg);
+  assert.ok(msg.includes('• Dinner ₹500') && msg.includes('− Cab ₹100'), msg);
+  assert.ok(msg.length < 150, `expected a short message, got ${msg.length} characters`);
 });
 
 test('groups: names (newest first), one group\'s splits, totals; reminder text', () => {
@@ -180,9 +179,8 @@ test('groups: names (newest first), one group\'s splits, totals; reminder text',
   assert.deepEqual(t.map(g => [g.name, g.net]), [['Flat', -666.67], ['Goa', 500]]);
   const rahul = friendBalances(items).find(b => b.name === 'Rahul');
   const msg = reminderText(rahul);
-  assert.ok(msg.startsWith('Hi Rahul, a quick reminder about our split expenses:'), msg);
-  assert.ok(msg.includes('You owe me: ₹700') && msg.includes('After subtracting what I owe you, you owe me ₹700.'), msg);
-  assert.ok(msg.includes('• Hotel: ₹500') && msg.includes('• Chai: ₹200') && msg.endsWith('Thanks!'));
+  assert.ok(msg.startsWith('Hi Rahul! You owe me ₹700.'), msg);
+  assert.ok(msg.includes('• Hotel ₹500') && msg.includes('• Chai ₹200'));
   const owesMe = friendBalances(items).find(b => b.name === 'Priya');
   assert.equal(reminderText(owesMe), '', 'nothing to remind when you owe them');
 });
@@ -231,7 +229,7 @@ test('cashback: rupees or percent, shared by everyone or kept by the payer', () 
     assert.deepEqual([s.yourShare, s.people[0].share, s.total], [450, 450, 1000]);
     assert.deepEqual([s.cashback.amount, s.cashback.mode], [100, 'share']);
     const balance = friendBalances([{ id: 'shared', type: 'expense', title: 'Dinner', split: s }])[0];
-    assert.ok(reminderText(balance).includes('Cashback ₹100 shared across the split (already included in the amount)'), 'reminder explains shared cashback');
+    assert.ok(reminderText(balance).includes('cashback ₹100 shared, included'), 'reminder explains shared cashback');
   }
   // Uneven shares: cashback is cut in proportion (60/40 of ₹100)
   const uneven = buildSplit(1000, d({ method: 'percent', percent: { you: '60', Rahul: '40' }, ...cb('100', 'amount', 'share') })).split;
@@ -241,7 +239,7 @@ test('cashback: rupees or percent, shared by everyone or kept by the payer', () 
   const kept = buildSplit(1000, d(cb('100', 'amount', 'keep'))).split;
   assert.deepEqual([kept.yourShare, kept.people[0].share], [400, 500]);
   const keptReminder = reminderText(friendBalances([{ id: 'kept', type: 'expense', title: 'Hotel', split: kept }])[0]);
-  assert.ok(keptReminder.includes('Cashback ₹100 kept by me'), 'reminder identifies cashback kept by the sender');
+  assert.ok(keptReminder.includes('cashback ₹100 kept by me'), 'reminder identifies cashback kept by the sender');
   // A friend paid and keeps it: nothing changes for you
   const theirs = buildSplit(1000, d({ paidBy: 'Rahul', ...cb('100', 'amount', 'keep') })).split;
   assert.deepEqual([theirs.yourShare, theirs.people[0].share], [500, 500]);
@@ -249,7 +247,7 @@ test('cashback: rupees or percent, shared by everyone or kept by the payer', () 
     { id: 'mine', type: 'expense', title: 'Dinner', split: buildSplit(1500, d({})).split },
     { id: 'theirs', type: 'expense', title: 'Cab', split: theirs },
   ])[0]);
-  assert.ok(netReminder.includes('Cashback ₹100 kept by Rahul'), 'reminder identifies cashback kept by the friend');
+  assert.ok(netReminder.includes('cashback ₹100 kept by Rahul'), 'reminder identifies cashback kept by the friend');
 
   // Rahul had already paid his ₹500: the cashback means ₹50 comes back to him
   const before = buildSplit(1000, d({})).split;

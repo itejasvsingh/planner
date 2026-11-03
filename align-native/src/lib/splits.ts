@@ -425,22 +425,20 @@ export function reminderText(b: FriendBalance): string {
   const { toYou, toThem, net } = reminderBreakdown(b);
   if (!(net > 0)) return '';
 
-  const lines = [`Hi ${b.name}, a quick reminder about our split expenses:`, `You owe me: ₹${fmt(toYou)}`];
-  if (toThem > 0) lines.push(`I owe you: ₹${fmt(toThem)}`);
-  lines.push(`After subtracting what I owe you, you owe me ₹${fmt(net)}.`);
-
-  const appendExpenses = (label: string, expenses: FriendEntry[]) => {
-    if (!expenses.length) return;
-    lines.push(`${label}:`);
-    for (const e of expenses.slice(0, 6)) {
-      lines.push(`• ${e.title}: ₹${fmt(Math.abs(e.amount))}`);
-      if (e.cashback) lines.push(`  ${cashbackLabel(e.cashback, true)}`);
-    }
-    if (expenses.length > 6) lines.push(`• and ${expenses.length - 6} more`);
-  };
-  appendExpenses('You owe me for', b.open.filter(e => e.amount > 0));
-  appendExpenses('I owe you for', b.open.filter(e => e.amount < 0));
-  lines.push('Thanks!');
+  const lines = [toThem > 0
+    ? `Hi ${b.name}! Net due ₹${fmt(net)} (you owe ₹${fmt(toYou)}; I owe ₹${fmt(toThem)}).`
+    : `Hi ${b.name}! You owe me ₹${fmt(net)}.`];
+  const entries = b.open.slice(0, 4);
+  for (const e of entries) {
+    const title = e.title.length > 28 ? `${e.title.slice(0, 27)}…` : e.title;
+    const cashback = e.cashback
+      ? ` (cashback ₹${fmt(e.cashback.amount)} ${e.cashback.mode === 'share'
+        ? 'shared, included'
+        : `kept by ${sameName(e.cashback.paidBy, YOU) ? 'me' : e.cashback.paidBy}`})`
+      : '';
+    lines.push(`${e.amount > 0 ? '•' : '−'} ${title} ₹${fmt(Math.abs(e.amount))}${cashback}`);
+  }
+  if (b.open.length > entries.length) lines.push(`+ ${b.open.length - entries.length} more`);
   return lines.join('\n');
 }
 
