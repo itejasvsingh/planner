@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, MessageCircle } from 'lucide-react-native';
 import { Pressable } from '@/components/ui/pressable';
 import { Radius, Shadow } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { fmt, reminderText, type FriendBalance, type HistoryEntry } from '@/lib/splits';
+import { fmt, reminderBreakdown, reminderText, type FriendBalance, type HistoryEntry } from '@/lib/splits';
 
 const day = (key: string) => (key ? new Date(`${key}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '');
 
@@ -42,6 +42,7 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
           const expanded = open === b.name;
           const theyOwe = b.net > 0;
           const settled = Math.round(b.net * 100) === 0;
+          const breakdown = reminderBreakdown(b);
           const hist = history ? history(b.name) : [];
           const openHist = hist.filter(e => e.status !== 'settled');
           const doneHist = hist.filter(e => e.status === 'settled');
@@ -84,6 +85,26 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
               </Pressable>
               {expanded && (
                 <View style={{ paddingHorizontal: 14, paddingBottom: 14, gap: 8 }}>
+                  {theyOwe && breakdown.toThem > 0 && (
+                    <View
+                      accessible
+                      accessibilityLabel={`You owe ${b.name} ₹${fmt(breakdown.toThem)} and ${b.name} owes you ₹${fmt(breakdown.toYou)}. After adjustment, ${b.name} owes you ₹${fmt(breakdown.net)}.`}
+                      style={[styles.breakdown, { backgroundColor: c.backgroundMuted, borderColor: c.border }]}
+                    >
+                      <View style={styles.balanceLine}>
+                        <Text style={{ color: c.textSecondary, fontSize: 14 }}>You owe me</Text>
+                        <Text style={{ color: c.income, fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] }}>+₹{fmt(breakdown.toYou)}</Text>
+                      </View>
+                      <View style={styles.balanceLine}>
+                        <Text style={{ color: c.textSecondary, fontSize: 14 }}>I owe you</Text>
+                        <Text style={{ color: c.expense, fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] }}>−₹{fmt(breakdown.toThem)}</Text>
+                      </View>
+                      <View style={[styles.balanceLine, styles.balanceTotal, { borderTopColor: c.border }]}>
+                        <Text style={{ color: c.text, fontSize: 14, fontWeight: '700' }}>After adjustment</Text>
+                        <Text style={{ color: c.income, fontSize: 15, fontWeight: '800', fontVariant: ['tabular-nums'] }}>₹{fmt(breakdown.net)}</Text>
+                      </View>
+                    </View>
+                  )}
                   {history ? (
                     <View style={{ gap: 10 }}>
                       {openHist.length > 0 && <Text style={[styles.sub, { color: c.textTertiary }]}>Open</Text>}
@@ -203,6 +224,9 @@ const styles = StyleSheet.create({
   sub: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' },
   header: { fontSize: 12, fontWeight: '700', letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 10 },
   card: { borderRadius: Radius.lg, borderWidth: 1, overflow: 'hidden' },
+  breakdown: { borderRadius: Radius.md, borderWidth: 1, padding: 12, gap: 8 },
+  balanceLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
+  balanceTotal: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, marginTop: 2 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, borderWidth: 1 },
   tile: { flex: 1, borderWidth: 1, borderRadius: Radius.lg, padding: 14, gap: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },

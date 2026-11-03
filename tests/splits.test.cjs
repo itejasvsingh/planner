@@ -8,7 +8,7 @@ const src = fs.readFileSync(path.join(__dirname, '../align-native/src/lib/splits
 const out = ts.transpileModule(src, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 } }).outputText;
 const mod = { exports: {} };
 new Function('module', 'exports', out)(mod, mod.exports);
-const { buildSplit, draftFrom, splitOf, friendBalances, settleUpPatches, recentFriends, equalShares, describeSplit, emptyDraft, weightedShares, settleAmountPatches, groupNames, inGroup, groupTotals, reminderText, groupDefaultDraft } = mod.exports;
+const { buildSplit, draftFrom, splitOf, friendBalances, settleUpPatches, recentFriends, equalShares, describeSplit, emptyDraft, weightedShares, settleAmountPatches, groupNames, inGroup, groupTotals, reminderText, reminderBreakdown, groupDefaultDraft } = mod.exports;
 
 const draft = o => ({ ...emptyDraft(), ...o });
 
@@ -146,6 +146,23 @@ test('paying a friend back in instalments when they paid', () => {
   assert.equal(friendBalances(done).find(b => b.name === 'Rahul').net, 0);
 });
 
+test('reminder nets what you owe against what the friend owes and shows both sides', () => {
+  const draft2 = (o) => ({ ...emptyDraft(), ...o });
+  const theyOwe = buildSplit(1000, draft2({ friends: ['Rahul'] })).split;
+  const youOwe = buildSplit(200, draft2({ friends: ['Rahul'], paidBy: 'Rahul' })).split;
+  const balance = friendBalances([
+    { id: 'dinner', type: 'expense', title: 'Dinner', date: '2026-10-01', amount: 500, split: theyOwe },
+    { id: 'cab', type: 'expense', title: 'Cab', date: '2026-10-02', amount: 100, split: youOwe },
+  ])[0];
+
+  assert.deepEqual(reminderBreakdown(balance), { toYou: 500, toThem: 100, net: 400 });
+  const msg = reminderText(balance);
+  assert.ok(msg.includes('You owe me: ₹500'), msg);
+  assert.ok(msg.includes('I owe you: ₹100'), msg);
+  assert.ok(msg.includes('After subtracting what I owe you, you owe me ₹400.'), msg);
+  assert.ok(msg.includes('• Dinner: ₹500') && msg.includes('• Cab: ₹100'), msg);
+});
+
 test('groups: names (newest first), one group\'s splits, totals; reminder text', () => {
   const draft2 = (o) => ({ ...emptyDraft(), ...o });
   const goa = buildSplit(1000, draft2({ friends: ['Rahul'], group: 'Goa' })).split;
@@ -163,7 +180,8 @@ test('groups: names (newest first), one group\'s splits, totals; reminder text',
   assert.deepEqual(t.map(g => [g.name, g.net]), [['Flat', -666.67], ['Goa', 500]]);
   const rahul = friendBalances(items).find(b => b.name === 'Rahul');
   const msg = reminderText(rahul);
-  assert.ok(msg.startsWith('Hi Rahul, a quick reminder: you owe me ₹700.'), msg);
+  assert.ok(msg.startsWith('Hi Rahul, a quick reminder about our split expenses:'), msg);
+  assert.ok(msg.includes('You owe me: ₹700') && msg.includes('After subtracting what I owe you, you owe me ₹700.'), msg);
   assert.ok(msg.includes('• Hotel: ₹500') && msg.includes('• Chai: ₹200') && msg.endsWith('Thanks!'));
   const owesMe = friendBalances(items).find(b => b.name === 'Priya');
   assert.equal(reminderText(owesMe), '', 'nothing to remind when you owe them');

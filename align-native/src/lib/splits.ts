@@ -399,14 +399,31 @@ export function groupDefaultDraft(items: (Item & { createdAt?: unknown })[], gro
   return { ...d, exact: {}, percent: d.method === 'percent' ? d.percent : {}, method: d.method === 'exact' ? 'equal' : d.method };
 }
 
-/** A short message to send a friend who owes you, listing what it's for. */
+export function reminderBreakdown(b: FriendBalance) {
+  const toYou = b.open.reduce((total, e) => total + Math.max(0, paise(e.amount)), 0) / 100;
+  const toThem = b.open.reduce((total, e) => total + Math.max(0, -paise(e.amount)), 0) / 100;
+  return { toYou, toThem, net: paise(toYou - toThem) / 100 };
+}
+
+/** A quick reminder that shows both sides of the balance and the amount left after netting. */
 export function reminderText(b: FriendBalance): string {
-  const owed = b.open.filter(e => e.amount > 0);
-  const total = owed.reduce((t, e) => t + paise(e.amount), 0) / 100;
-  if (!(total > 0)) return '';
-  const lines = owed.slice(0, 6).map(e => `• ${e.title}: ₹${fmt(e.amount)}`);
-  const more = owed.length > 6 ? [`• and ${owed.length - 6} more`] : [];
-  return [`Hi ${b.name}, a quick reminder: you owe me ₹${fmt(total)}.`, ...lines, ...more, 'Thanks!'].join('\n');
+  const { toYou, toThem, net } = reminderBreakdown(b);
+  if (!(net > 0)) return '';
+
+  const lines = [`Hi ${b.name}, a quick reminder about our split expenses:`, `You owe me: ₹${fmt(toYou)}`];
+  if (toThem > 0) lines.push(`I owe you: ₹${fmt(toThem)}`);
+  lines.push(`After subtracting what I owe you, you owe me ₹${fmt(net)}.`);
+
+  const appendExpenses = (label: string, expenses: FriendEntry[]) => {
+    if (!expenses.length) return;
+    lines.push(`${label}:`);
+    lines.push(...expenses.slice(0, 6).map(e => `• ${e.title}: ₹${fmt(Math.abs(e.amount))}`));
+    if (expenses.length > 6) lines.push(`• and ${expenses.length - 6} more`);
+  };
+  appendExpenses('You owe me for', b.open.filter(e => e.amount > 0));
+  appendExpenses('I owe you for', b.open.filter(e => e.amount < 0));
+  lines.push('Thanks!');
+  return lines.join('\n');
 }
 
 /** "Rahul owes you ₹400" lines for the form. */
