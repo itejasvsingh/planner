@@ -230,6 +230,8 @@ test('cashback: rupees or percent, shared by everyone or kept by the payer', () 
     const s = buildSplit(1000, d(c)).split;
     assert.deepEqual([s.yourShare, s.people[0].share, s.total], [450, 450, 1000]);
     assert.deepEqual([s.cashback.amount, s.cashback.mode], [100, 'share']);
+    const balance = friendBalances([{ id: 'shared', type: 'expense', title: 'Dinner', split: s }])[0];
+    assert.ok(reminderText(balance).includes('Cashback ₹100 shared across the split (already included in the amount)'), 'reminder explains shared cashback');
   }
   // Uneven shares: cashback is cut in proportion (60/40 of ₹100)
   const uneven = buildSplit(1000, d({ method: 'percent', percent: { you: '60', Rahul: '40' }, ...cb('100', 'amount', 'share') })).split;
@@ -238,9 +240,16 @@ test('cashback: rupees or percent, shared by everyone or kept by the payer', () 
   // Kept by you (you paid): Rahul still owes his full ₹500; your cost goes down
   const kept = buildSplit(1000, d(cb('100', 'amount', 'keep'))).split;
   assert.deepEqual([kept.yourShare, kept.people[0].share], [400, 500]);
+  const keptReminder = reminderText(friendBalances([{ id: 'kept', type: 'expense', title: 'Hotel', split: kept }])[0]);
+  assert.ok(keptReminder.includes('Cashback ₹100 kept by me'), 'reminder identifies cashback kept by the sender');
   // A friend paid and keeps it: nothing changes for you
   const theirs = buildSplit(1000, d({ paidBy: 'Rahul', ...cb('100', 'amount', 'keep') })).split;
   assert.deepEqual([theirs.yourShare, theirs.people[0].share], [500, 500]);
+  const netReminder = reminderText(friendBalances([
+    { id: 'mine', type: 'expense', title: 'Dinner', split: buildSplit(1500, d({})).split },
+    { id: 'theirs', type: 'expense', title: 'Cab', split: theirs },
+  ])[0]);
+  assert.ok(netReminder.includes('Cashback ₹100 kept by Rahul'), 'reminder identifies cashback kept by the friend');
 
   // Rahul had already paid his ₹500: the cashback means ₹50 comes back to him
   const before = buildSplit(1000, d({})).split;

@@ -223,7 +223,8 @@ export function splitOf(item: WithSplit): ExpenseSplit | null {
   return null;
 }
 
-export type FriendEntry = { id: string; title: string; date: string; /** + they owe you, - you owe them */ amount: number };
+type CashbackDetail = { amount: number; mode: 'share' | 'keep'; paidBy: string };
+export type FriendEntry = { id: string; title: string; date: string; /** + they owe you, - you owe them */ amount: number; cashback?: CashbackDetail };
 export type FriendBalance = { name: string; net: number; open: FriendEntry[]; lastDate: string };
 
 type Item = WithSplit & { id: string; type?: string; title?: string; date?: string | null };
@@ -250,7 +251,10 @@ export function friendBalances(items: Item[]): FriendBalance[] {
       else if (sameName(s.paidBy, p.name) && !s.youSettled) amount = -paise(s.yourShare - (s.youPaid || 0)) / 100;
       if (paise(amount) !== 0) {
         b.net = paise(b.net + amount) / 100;
-        b.open.push({ id: item.id, title: item.title || 'Expense', date, amount });
+        b.open.push({
+          id: item.id, title: item.title || 'Expense', date, amount,
+          ...(s.cashback ? { cashback: { amount: s.cashback.amount, mode: s.cashback.mode, paidBy: s.paidBy } } : {}),
+        });
       }
     }
   }
@@ -266,6 +270,7 @@ export type HistoryEntry = {
   status: 'open' | 'part' | 'settled';
   /** Cashback came after they paid: this much goes back to them (you paid) or to you (they paid). */
   refund?: number;
+  cashback?: CashbackDetail;
   group?: string;
 };
 
@@ -277,7 +282,11 @@ export function friendHistory(items: Item[], name: string): HistoryEntry[] {
     const s = splitOf(item);
     if (!s) continue;
     const date = item.date || '';
-    const base = { id: item.id, title: item.title || 'Expense', date, ...(s.group ? { group: s.group } : {}) };
+    const base = {
+      id: item.id, title: item.title || 'Expense', date,
+      ...(s.cashback ? { cashback: { amount: s.cashback.amount, mode: s.cashback.mode, paidBy: s.paidBy } } : {}),
+      ...(s.group ? { group: s.group } : {}),
+    };
     for (const p of s.people) {
       if (!sameName(p.name, name)) continue;
       if (s.paidBy === YOU && p.share > 0) {
@@ -405,6 +414,12 @@ export function reminderBreakdown(b: FriendBalance) {
   return { toYou, toThem, net: paise(toYou - toThem) / 100 };
 }
 
+export function cashbackLabel(cashback: CashbackDetail, reminder = false): string {
+  if (cashback.mode === 'share') return `Cashback ₹${fmt(cashback.amount)} shared across the split (already included in the amount)`;
+  const payer = sameName(cashback.paidBy, YOU) ? (reminder ? 'me' : 'you') : cashback.paidBy;
+  return `Cashback ₹${fmt(cashback.amount)} kept by ${payer}`;
+}
+
 /** A quick reminder that shows both sides of the balance and the amount left after netting. */
 export function reminderText(b: FriendBalance): string {
   const { toYou, toThem, net } = reminderBreakdown(b);
@@ -417,7 +432,10 @@ export function reminderText(b: FriendBalance): string {
   const appendExpenses = (label: string, expenses: FriendEntry[]) => {
     if (!expenses.length) return;
     lines.push(`${label}:`);
-    lines.push(...expenses.slice(0, 6).map(e => `• ${e.title}: ₹${fmt(Math.abs(e.amount))}`));
+    for (const e of expenses.slice(0, 6)) {
+      lines.push(`• ${e.title}: ₹${fmt(Math.abs(e.amount))}`);
+      if (e.cashback) lines.push(`  ${cashbackLabel(e.cashback, true)}`);
+    }
     if (expenses.length > 6) lines.push(`• and ${expenses.length - 6} more`);
   };
   appendExpenses('You owe me for', b.open.filter(e => e.amount > 0));

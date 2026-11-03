@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, MessageCircle } from 'lucide-react-native';
 import { Pressable } from '@/components/ui/pressable';
 import { Radius, Shadow } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { fmt, reminderBreakdown, reminderText, type FriendBalance, type HistoryEntry } from '@/lib/splits';
+import { cashbackLabel, fmt, reminderBreakdown, reminderText, type FriendBalance, type HistoryEntry } from '@/lib/splits';
 
 const day = (key: string) => (key ? new Date(`${key}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '');
 
@@ -60,6 +60,11 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
                 <Text style={{ color: e.status === 'settled' ? c.income : c.textTertiary, fontSize: 11, fontWeight: '600' }}>
                   {e.refund ? (e.refund < 0 ? `Cashback: ₹${fmt(-e.refund)} back to them` : `Cashback: ₹${fmt(e.refund)} back to you`) : e.status === 'settled' ? '✓ Settled' : e.status === 'part' ? `₹${fmt(e.paid)} of ₹${fmt(Math.abs(e.amount))} paid` : 'Open'}
                 </Text>
+                {e.cashback && (
+                  <Text style={{ color: c.textTertiary, fontSize: 12, fontWeight: '600' }}>
+                    {cashbackLabel(e.cashback)}
+                  </Text>
+                )}
               </View>
             </View>
           );
