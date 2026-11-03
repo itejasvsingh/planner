@@ -14,7 +14,7 @@ const day = (key: string) => (key ? new Date(`${key}T12:00:00`).toLocaleDateStri
  * Tap a friend to see the expenses behind it, record a payment (any amount, oldest first), remind them on WhatsApp,
  * or settle everything (tap twice to confirm).
  */
-export default function FriendsCard({ balances, onSettle, onPay, groups = [], group = null, onGroup, history }: {
+export default function FriendsCard({ balances, onSettle, onPay, groups = [], group = null, onGroup, onViewTransaction, history }: {
   balances: FriendBalance[];
   onSettle: (name: string) => void;
   /** Records a payment of `amount` with `name`. */
@@ -22,6 +22,7 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
   groups?: { name: string; net: number }[];
   group?: string | null;
   onGroup?: (group: string | null) => void;
+  onViewTransaction: (id: string) => void;
   /** Every split with a friend, open or settled. */
   history?: (name: string) => HistoryEntry[];
 }) {
@@ -54,9 +55,18 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
                 <Text style={{ color: c.textTertiary, fontSize: 12 }} numberOfLines={1}>{day(e.date)}{e.group ? ` · ${e.group}` : ''}</Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ color: e.status === 'settled' ? c.textTertiary : e.amount > 0 ? c.income : c.expense, fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
-                  {e.amount > 0 ? `+₹${fmt(e.amount)}` : `−₹${fmt(-e.amount)}`}
-                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`View transaction details for ${e.title}, ${e.amount > 0 ? 'you are owed' : 'you owe'} ₹${fmt(Math.abs(e.amount))}`}
+                  accessibilityHint="Opens this transaction"
+                  onPress={() => onViewTransaction(e.id)}
+                  style={styles.transactionAmount}
+                >
+                  <Text style={{ color: e.status === 'settled' ? c.textTertiary : e.amount > 0 ? c.income : c.expense, fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
+                    {e.amount > 0 ? `+₹${fmt(e.amount)}` : `−₹${fmt(-e.amount)}`}
+                  </Text>
+                  <ChevronRight color={c.textTertiary} size={14} />
+                </Pressable>
                 <Text style={{ color: e.status === 'settled' ? c.income : c.textTertiary, fontSize: 11, fontWeight: '600' }}>
                   {e.refund ? (e.refund < 0 ? `Cashback: ₹${fmt(-e.refund)} back to them` : `Cashback: ₹${fmt(e.refund)} back to you`) : e.status === 'settled' ? '✓ Settled' : e.status === 'part' ? `₹${fmt(e.paid)} of ₹${fmt(Math.abs(e.amount))} paid` : 'Open'}
                 </Text>
@@ -125,9 +135,18 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
                   ) : b.open.map((e, j) => (
                     <View key={`${e.id}-${j}`} style={{ flexDirection: 'row', gap: 8 }}>
                       <Text style={{ flex: 1, color: c.textSecondary, fontSize: 13 }} numberOfLines={1}>{e.title} · {day(e.date)}</Text>
-                      <Text style={{ color: e.amount > 0 ? c.income : c.expense, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] }}>
-                        {e.amount > 0 ? `+₹${fmt(e.amount)}` : `−₹${fmt(-e.amount)}`}
-                      </Text>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`View transaction details for ${e.title}, ${e.amount > 0 ? 'you are owed' : 'you owe'} ₹${fmt(Math.abs(e.amount))}`}
+                        accessibilityHint="Opens this transaction"
+                        onPress={() => onViewTransaction(e.id)}
+                        style={styles.transactionAmount}
+                      >
+                        <Text style={{ color: e.amount > 0 ? c.income : c.expense, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] }}>
+                          {e.amount > 0 ? `+₹${fmt(e.amount)}` : `−₹${fmt(-e.amount)}`}
+                        </Text>
+                        <ChevronRight color={c.textTertiary} size={14} />
+                      </Pressable>
                     </View>
                   ))}
                   {onPay && !settled && (
@@ -232,6 +251,7 @@ const styles = StyleSheet.create({
   breakdown: { borderRadius: Radius.md, borderWidth: 1, padding: 12, gap: 8 },
   balanceLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   balanceTotal: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, marginTop: 2 },
+  transactionAmount: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 2 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, borderWidth: 1 },
   tile: { flex: 1, borderWidth: 1, borderRadius: Radius.lg, padding: 14, gap: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },

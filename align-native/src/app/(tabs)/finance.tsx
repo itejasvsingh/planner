@@ -373,7 +373,19 @@ export default function FinanceScreen() {
                                 <Users color={c.onAccent} size={18} />
                                 <Text style={{ color: c.onAccent, fontWeight: '700', fontSize: 15 }}>Split a bill</Text>
                             </Pressable>
-                            <FriendsCard balances={balances} history={name => friendHistory(activeGroup ? inGroup(items, activeGroup) : items, name)} onSettle={settleUp} onPay={payFriend} groups={groups} group={activeGroup} onGroup={setGroup} />
+                            <FriendsCard
+                                balances={balances}
+                                history={name => friendHistory(activeGroup ? inGroup(items, activeGroup) : items, name)}
+                                onSettle={settleUp}
+                                onPay={payFriend}
+                                onViewTransaction={id => {
+                                    const transaction = items.find(item => item.id === id);
+                                    if (transaction) openEditSheet(transaction);
+                                }}
+                                groups={groups}
+                                group={activeGroup}
+                                onGroup={setGroup}
+                            />
                             {!balances.some(b => Math.round(b.net * 100) !== 0) && (
                                 <View style={[styles.empty, { borderColor: c.border, marginTop: 16 }]}>
                                     <Users color={c.textTertiary} size={32} />
