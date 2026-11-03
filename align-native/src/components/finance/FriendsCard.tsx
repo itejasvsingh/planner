@@ -48,31 +48,28 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
           const openHist = hist.filter(e => e.status !== 'settled');
           const doneHist = hist.filter(e => e.status === 'settled');
           const doneShown = showAll === b.name ? doneHist : doneHist.slice(0, 4);
-          const expenseLink = (id: string, title: string, fontSize: number) => (
-            <View style={styles.expenseTitleRow}>
-              <Text style={{ color: c.textSecondary, fontSize }}>Spent on</Text>
-              <Pressable
-                accessibilityRole="link"
-                accessibilityLabel={`View transaction details for ${title}`}
-                accessibilityHint="Opens transaction details in a sheet"
-                onPress={() => onViewTransaction(id)}
-                style={styles.transactionLink}
-              >
-                <Text numberOfLines={1} ellipsizeMode="tail" style={{ color: c.accent, fontSize, fontWeight: '700', textDecorationLine: 'underline' }}>{title}</Text>
-              </Pressable>
-            </View>
+          const amountLink = (id: string, title: string, amount: number, fontSize: number, muted = false) => (
+            <Pressable
+              accessibilityRole="link"
+              accessibilityLabel={`View transaction details for ${title}, ${amount > 0 ? 'you are owed' : 'you owe'} ₹${fmt(Math.abs(amount))}`}
+              accessibilityHint="Opens transaction details in a sheet"
+              onPress={() => onViewTransaction(id)}
+              style={styles.amountLink}
+            >
+              <Text style={{ color: muted ? c.textTertiary : amount > 0 ? c.income : c.expense, fontSize, fontWeight: '700', fontVariant: ['tabular-nums'], textDecorationLine: 'underline' }}>
+                {amount > 0 ? `+₹${fmt(amount)}` : `−₹${fmt(-amount)}`}
+              </Text>
+            </Pressable>
           );
           const entry = (e: HistoryEntry, j: number) => (
             <View key={`${e.id}-${j}`} style={styles.historyEntry}>
               <View style={styles.entryMain}>
                 <View style={styles.entryDetails}>
-                  {expenseLink(e.id, e.title, 14)}
+                  <Text style={{ color: e.status === 'settled' ? c.textTertiary : c.text, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>{e.title}</Text>
                   <Text style={{ color: c.textTertiary, fontSize: 12 }} numberOfLines={1}>{day(e.date)}{e.group ? ` · ${e.group}` : ''}</Text>
                 </View>
                 <View style={styles.entryAmount}>
-                  <Text style={{ color: e.status === 'settled' ? c.textTertiary : e.amount > 0 ? c.income : c.expense, fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
-                    {e.amount > 0 ? `+₹${fmt(e.amount)}` : `−₹${fmt(-e.amount)}`}
-                  </Text>
+                  {amountLink(e.id, e.title, e.amount, 14, e.status === 'settled')}
                   <Text style={{ color: e.status === 'settled' ? c.income : c.textTertiary, fontSize: 11, fontWeight: '600' }}>
                     {e.refund ? (e.refund < 0 ? `Cashback: ₹${fmt(-e.refund)} back to them` : `Cashback: ₹${fmt(e.refund)} back to you`) : e.status === 'settled' ? '✓ Settled' : e.status === 'part' ? `₹${fmt(e.paid)} of ₹${fmt(Math.abs(e.amount))} paid` : 'Open'}
                   </Text>
@@ -143,12 +140,10 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
                     <View key={e.id} style={styles.historyEntry}>
                       <View style={styles.entryMain}>
                         <View style={styles.entryDetails}>
-                          {expenseLink(e.id, e.title, 13)}
+                          <Text style={{ color: c.text, fontSize: 13, fontWeight: '600' }} numberOfLines={1}>{e.title}</Text>
                           <Text style={{ color: c.textTertiary, fontSize: 12 }} numberOfLines={1}>{day(e.date)}</Text>
                         </View>
-                        <Text style={{ color: e.amount > 0 ? c.income : c.expense, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] }}>
-                          {e.amount > 0 ? `+₹${fmt(e.amount)}` : `−₹${fmt(-e.amount)}`}
-                        </Text>
+                        {amountLink(e.id, e.title, e.amount, 13)}
                       </View>
                       {e.cashback && (
                         <Text style={[styles.cashbackNote, { color: c.textSecondary, backgroundColor: c.backgroundMuted }]}>
@@ -262,8 +257,7 @@ const styles = StyleSheet.create({
   historyEntry: { gap: 4, minWidth: 0 },
   entryMain: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
   entryDetails: { flex: 1, minWidth: 0 },
-  expenseTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0 },
-  transactionLink: { flex: 1, minWidth: 0, minHeight: 44, justifyContent: 'center' },
+  amountLink: { minHeight: 44, justifyContent: 'center', alignItems: 'flex-end' },
   entryAmount: { alignItems: 'flex-end', flexShrink: 0 },
   cashbackNote: { alignSelf: 'stretch', paddingHorizontal: 8, paddingVertical: 5, borderRadius: Radius.sm, fontSize: 12, lineHeight: 16 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, borderWidth: 1 },
