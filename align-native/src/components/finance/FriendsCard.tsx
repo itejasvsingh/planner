@@ -48,36 +48,41 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
           const openHist = hist.filter(e => e.status !== 'settled');
           const doneHist = hist.filter(e => e.status === 'settled');
           const doneShown = showAll === b.name ? doneHist : doneHist.slice(0, 4);
+          const expenseLink = (id: string, title: string, fontSize: number) => (
+            <View style={styles.expenseTitleRow}>
+              <Text style={{ color: c.textSecondary, fontSize }}>Spent on</Text>
+              <Pressable
+                accessibilityRole="link"
+                accessibilityLabel={`View transaction details for ${title}`}
+                accessibilityHint="Opens transaction details in a sheet"
+                onPress={() => onViewTransaction(id)}
+                style={styles.transactionLink}
+              >
+                <Text numberOfLines={1} ellipsizeMode="tail" style={{ color: c.accent, fontSize, fontWeight: '700', textDecorationLine: 'underline' }}>{title}</Text>
+              </Pressable>
+            </View>
+          );
           const entry = (e: HistoryEntry, j: number) => (
-            <View key={`${e.id}-${j}`} style={{ flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
-              <View style={{ flex: 1 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <Text style={{ color: e.status === 'settled' ? c.textTertiary : c.text, fontSize: 14 }}>Spent on </Text>
-                  <Pressable
-                    accessibilityRole="link"
-                    accessibilityLabel={`View transaction details for ${e.title}`}
-                    accessibilityHint="Opens transaction details in a sheet"
-                    onPress={() => onViewTransaction(e.id)}
-                    style={styles.transactionLink}
-                  >
-                    <Text style={{ color: c.accent, fontSize: 14, fontWeight: '700', textDecorationLine: 'underline' }}>{e.title}</Text>
-                  </Pressable>
+            <View key={`${e.id}-${j}`} style={styles.historyEntry}>
+              <View style={styles.entryMain}>
+                <View style={styles.entryDetails}>
+                  {expenseLink(e.id, e.title, 14)}
+                  <Text style={{ color: c.textTertiary, fontSize: 12 }} numberOfLines={1}>{day(e.date)}{e.group ? ` · ${e.group}` : ''}</Text>
                 </View>
-                <Text style={{ color: c.textTertiary, fontSize: 12 }} numberOfLines={1}>{day(e.date)}{e.group ? ` · ${e.group}` : ''}</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ color: e.status === 'settled' ? c.textTertiary : e.amount > 0 ? c.income : c.expense, fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
-                  {e.amount > 0 ? `+₹${fmt(e.amount)}` : `−₹${fmt(-e.amount)}`}
-                </Text>
-                <Text style={{ color: e.status === 'settled' ? c.income : c.textTertiary, fontSize: 11, fontWeight: '600' }}>
-                  {e.refund ? (e.refund < 0 ? `Cashback: ₹${fmt(-e.refund)} back to them` : `Cashback: ₹${fmt(e.refund)} back to you`) : e.status === 'settled' ? '✓ Settled' : e.status === 'part' ? `₹${fmt(e.paid)} of ₹${fmt(Math.abs(e.amount))} paid` : 'Open'}
-                </Text>
-                {e.cashback && (
-                  <Text style={{ color: c.textTertiary, fontSize: 12, fontWeight: '600' }}>
-                    {cashbackLabel(e.cashback)}
+                <View style={styles.entryAmount}>
+                  <Text style={{ color: e.status === 'settled' ? c.textTertiary : e.amount > 0 ? c.income : c.expense, fontSize: 14, fontWeight: '700', fontVariant: ['tabular-nums'] }}>
+                    {e.amount > 0 ? `+₹${fmt(e.amount)}` : `−₹${fmt(-e.amount)}`}
                   </Text>
-                )}
+                  <Text style={{ color: e.status === 'settled' ? c.income : c.textTertiary, fontSize: 11, fontWeight: '600' }}>
+                    {e.refund ? (e.refund < 0 ? `Cashback: ₹${fmt(-e.refund)} back to them` : `Cashback: ₹${fmt(e.refund)} back to you`) : e.status === 'settled' ? '✓ Settled' : e.status === 'part' ? `₹${fmt(e.paid)} of ₹${fmt(Math.abs(e.amount))} paid` : 'Open'}
+                  </Text>
+                </View>
               </View>
+              {e.cashback && (
+                <Text style={[styles.cashbackNote, { color: c.textSecondary, backgroundColor: c.backgroundMuted }]}>
+                  {cashbackLabel(e.cashback)}
+                </Text>
+              )}
             </View>
           );
           return (
@@ -134,26 +139,22 @@ export default function FriendsCard({ balances, onSettle, onPay, groups = [], gr
                         </Pressable>
                       )}
                     </View>
-                  ) : b.open.map((e, j) => (
-                    <View key={`${e.id}-${j}`} style={{ flexDirection: 'row', gap: 8 }}>
-                      <View style={{ flex: 1 }}>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
-                          <Text style={{ color: c.textSecondary, fontSize: 13 }}>Spent on </Text>
-                          <Pressable
-                            accessibilityRole="link"
-                            accessibilityLabel={`View transaction details for ${e.title}`}
-                            accessibilityHint="Opens transaction details in a sheet"
-                            onPress={() => onViewTransaction(e.id)}
-                            style={styles.transactionLink}
-                          >
-                            <Text style={{ color: c.accent, fontSize: 13, fontWeight: '700', textDecorationLine: 'underline' }}>{e.title}</Text>
-                          </Pressable>
+                  ) : b.open.map(e => (
+                    <View key={e.id} style={styles.historyEntry}>
+                      <View style={styles.entryMain}>
+                        <View style={styles.entryDetails}>
+                          {expenseLink(e.id, e.title, 13)}
+                          <Text style={{ color: c.textTertiary, fontSize: 12 }} numberOfLines={1}>{day(e.date)}</Text>
                         </View>
-                        <Text style={{ color: c.textTertiary, fontSize: 12 }}>{day(e.date)}</Text>
+                        <Text style={{ color: e.amount > 0 ? c.income : c.expense, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] }}>
+                          {e.amount > 0 ? `+₹${fmt(e.amount)}` : `−₹${fmt(-e.amount)}`}
+                        </Text>
                       </View>
-                      <Text style={{ color: e.amount > 0 ? c.income : c.expense, fontSize: 13, fontWeight: '600', fontVariant: ['tabular-nums'] }}>
-                        {e.amount > 0 ? `+₹${fmt(e.amount)}` : `−₹${fmt(-e.amount)}`}
-                      </Text>
+                      {e.cashback && (
+                        <Text style={[styles.cashbackNote, { color: c.textSecondary, backgroundColor: c.backgroundMuted }]}>
+                          {cashbackLabel(e.cashback)}
+                        </Text>
+                      )}
                     </View>
                   ))}
                   {onPay && !settled && (
@@ -258,7 +259,13 @@ const styles = StyleSheet.create({
   breakdown: { borderRadius: Radius.md, borderWidth: 1, padding: 12, gap: 8 },
   balanceLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
   balanceTotal: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, marginTop: 2 },
-  transactionLink: { minHeight: 44, justifyContent: 'center' },
+  historyEntry: { gap: 4, minWidth: 0 },
+  entryMain: { flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0 },
+  entryDetails: { flex: 1, minWidth: 0 },
+  expenseTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 4, minWidth: 0 },
+  transactionLink: { flex: 1, minWidth: 0, minHeight: 44, justifyContent: 'center' },
+  entryAmount: { alignItems: 'flex-end', flexShrink: 0 },
+  cashbackNote: { alignSelf: 'stretch', paddingHorizontal: 8, paddingVertical: 5, borderRadius: Radius.sm, fontSize: 12, lineHeight: 16 },
   chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: Radius.pill, borderWidth: 1 },
   tile: { flex: 1, borderWidth: 1, borderRadius: Radius.lg, padding: 14, gap: 2 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12 },
